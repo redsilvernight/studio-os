@@ -75,13 +75,14 @@ from studio_api.settings import Settings, get_settings
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
 from studio_contracts.auth import AgentCreate
 from studio_contracts.claims import ResourceClaimCreate
+from studio_contracts.project_context import MAX_MAX_CHARS
 from studio_contracts.roadmaps import (
     RoadmapImport,
     RoadmapTransition,
     TransitionRequest,
 )
 from studio_contracts.start_work import StartWorkRequest
-from studio_contracts.sync import SYNC_DEFAULT_LIMIT
+from studio_contracts.sync import SYNC_DEFAULT_LIMIT, SYNC_MAX_LIMIT
 from studio_contracts.tasks import TaskCreate
 
 METRICS_FORMAT = "studio.eval.mission-metrics/v1"
@@ -328,6 +329,21 @@ def aggregate_event_noise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def aggregate_presented_ai_work(
+    presented: Sequence[int], ai_work_ids: Sequence[int]
+) -> dict[str, Any]:
+    """Sync items an observer receives for another machine's `ai_work`,
+    per unique `ai_work_id`, one pair of counts per observed task. Pure."""
+    items = sum(presented)
+    unique = sum(ai_work_ids)
+    return {
+        "tasks": len(presented),
+        "ai_work_items": items,
+        "unique_ai_work_ids": unique,
+        "items_per_ai_work": round(items / unique, 3) if unique else None,
+    }
+
+
 def sync_item_key(item: Mapping[str, Any]) -> str:
     """Identity of the entity a sync item carries: its `seq` for an event (the
     cursor identity, DEC-0018), the claim id for live claim state."""
@@ -493,6 +509,12 @@ def validate_metrics(metrics: dict[str, Any]) -> list[str]:
             noise.get("sync_redundancy"),
             ("calls", "items", "unique_entities", "redundant_items"),
         )
+        presented = noise.get("sync_presented_ai_work")
+        errors += _number_errors(
+            "noise.sync_presented_ai_work",
+            presented,
+            ("tasks", "ai_work_items", "unique_ai_work_ids", "items_per_ai_work"),
+        )
 
     missing = metrics.get("missing")
     if not isinstance(missing, list) or not missing:
@@ -562,6 +584,7 @@ class Scenario:
     files: list[str]
     objective: str
     session_id: uuid.UUID | None = None
+    foreign_ai_work: dict[uuid.UUID, int] = field(default_factory=dict)
 
 
 def _context_items(context: Any) -> dict[str, int]:
@@ -751,8 +774,12 @@ async def _seed_scenario(
             session, principal, roadmap.id, step_key, task_ids[index]
         )
 
+    foreign_ai_work: dict[uuid.UUID, int] = {}
     for index in range(AI_WORK_COUNT):
         machine_principal = principals[index % MACHINE_COUNT]
+        if index % MACHINE_COUNT != 0:
+            work_task = task_ids[index % TASK_COUNT]
+            foreign_ai_work[work_task] = foreign_ai_work.get(work_task, 0) + 1
         created = await ai_work_service.create_ai_work(
             session,
             machine_principal,
@@ -781,7 +808,38 @@ async def _seed_scenario(
         task_ids=task_ids,
         files=[claim_path(index) for index in range(CLAIM_COUNT)][:2],
         objective=OBJECTIVE,
+        foreign_ai_work=foreign_ai_work,
     )
+
+
+async def _measure_presented_ai_work(
+    session_factory: async_sessionmaker[AsyncSession],
+    principal: Principal,
+    scenario: Scenario,
+) -> dict[str, Any]:
+    """One stateless sync per task carrying another machine's `ai_work`,
+    unbounded within the contract limits, counting the `ai_work.*` items."""
+    presented: list[int] = []
+    expected: list[int] = []
+    async with session_factory() as session:
+        for task_id, count in sorted(scenario.foreign_ai_work.items(), key=lambda kv: str(kv[0])):
+            result = await sync_service.sync(
+                session,
+                principal,
+                agent_id=scenario.agent_a,
+                task_id=task_id,
+                limit=SYNC_MAX_LIMIT,
+                max_chars=MAX_MAX_CHARS,
+            )
+            presented.append(
+                sum(
+                    1
+                    for item in result.items
+                    if item.event_type is not None and item.event_type.startswith("ai_work.")
+                )
+            )
+            expected.append(count)
+    return aggregate_presented_ai_work(presented, expected)
 
 
 async def _cleanup(
@@ -863,6 +921,7 @@ async def _run_db_eval(root: Path, database_url: str) -> dict[str, Any]:
                 measured, sync_payloads = await _measure(
                     session_factory, principal, scenario, settings
                 )
+                presented = await _measure_presented_ai_work(session_factory, principal, scenario)
                 event_rows = await _scenario_event_rows(session, project_id)
             finally:
                 await _cleanup(session, project_id, machine_ids, user_id)
@@ -873,6 +932,7 @@ async def _run_db_eval(root: Path, database_url: str) -> dict[str, Any]:
         measured,
         event_rows,
         sync_payloads,
+        presented,
         environment={
             "os": platform.platform(),
             "python": platform.python_version(),
@@ -918,11 +978,13 @@ def build_metrics(
     measured: Mapping[str, Sequence[CallSample]],
     event_rows: Sequence[Mapping[str, Any]],
     sync_payloads: Sequence[Sequence[Mapping[str, Any]]],
+    presented_ai_work: Mapping[str, Any],
     *,
     environment: dict[str, str],
 ) -> dict[str, Any]:
     noise: dict[str, Any] = dict(aggregate_event_noise(event_rows))
     noise["sync_redundancy"] = count_redundant_sync_items(sync_payloads)
+    noise["sync_presented_ai_work"] = dict(presented_ai_work)
     seeded = {
         "projects": 1,
         "machines": MACHINE_COUNT,

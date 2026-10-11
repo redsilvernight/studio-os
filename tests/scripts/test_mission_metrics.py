@@ -63,7 +63,13 @@ def _measured() -> dict[str, list[mm.CallSample]]:
 
 
 def _metrics() -> dict[str, Any]:
-    return mm.build_metrics(_measured(), EVENT_ROWS, SYNC_CALLS, environment=dict(ENVIRONMENT))
+    return mm.build_metrics(
+        _measured(),
+        EVENT_ROWS,
+        SYNC_CALLS,
+        mm.aggregate_presented_ai_work([1, 2], [1, 2]),
+        environment=dict(ENVIRONMENT),
+    )
 
 
 def test_percentile_interpolates_linearly() -> None:
@@ -112,6 +118,16 @@ def test_aggregate_event_noise_without_ai_work_stays_unknown() -> None:
     assert noise["unique_ai_work_ids"] == 0
     assert noise["events_per_ai_work"] is None
     assert noise["total_events_per_ai_work_id"] is None
+
+
+def test_aggregate_presented_ai_work_ratio_per_unique_entry() -> None:
+    assert mm.aggregate_presented_ai_work([2, 4], [1, 2]) == {
+        "tasks": 2,
+        "ai_work_items": 6,
+        "unique_ai_work_ids": 3,
+        "items_per_ai_work": 2.0,
+    }
+    assert mm.aggregate_presented_ai_work([], [])["items_per_ai_work"] is None
 
 
 def test_sync_item_key_prefers_seq_then_claim_then_coordination() -> None:
