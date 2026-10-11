@@ -52,3 +52,6 @@ docker/backups/
 
 # État local machine du client (backups de bootstrap, manifeste) — jamais commité
 .studio-os/
+
+# DEC-0147 : cablage MCP machine-local, jamais versionne
+.mcp.json
