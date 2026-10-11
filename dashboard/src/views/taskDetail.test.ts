@@ -1,13 +1,15 @@
 /**
  * UI-5 / P04-task-detail — Fiche action-first FR : héros à action primaire
- * unique, prochaine action, blocages/validation prioritaires, sessions /
- * journaux / automatisations repliés, propriétés en latéral, PATCH versionné
- * 409, prise distinguée des Claims, compléments best-effort jamais bloquants.
+ * unique, prochaine action, blocages/validation/coordination prioritaires,
+ * sessions / journaux / automatisations repliés, propriétés en latéral, PATCH
+ * versionné 409, prise distinguée des Claims, compléments best-effort jamais
+ * bloquants.
  *
  * DOM-free (vitest, environnement node) : assertions sur les chaînes produites.
  */
 import { describe, expect, it } from "vitest";
 import { resetActorNames, setActorNames } from "../actorNames";
+import type { CoordinationItem } from "../coordination";
 import {
   aiWorkStatusLabel,
   aiWorkStatusTone,
@@ -75,6 +77,7 @@ const data = (overrides: Partial<TaskDetailData> = {}): TaskDetailData => ({
   sessions: [sessionOpen, sessionClosed],
   worklogs: [work],
   taskClaims: 2,
+  coordination: [],
   notice: "",
   authed: true,
   ...overrides,
@@ -131,12 +134,12 @@ describe("taskDetailHtml nominal", () => {
     }
   });
 
-  it("blocages et validation juste après le héros, avant la mécanique", () => {
+  it("blocages, validation et coordination juste après le héros, avant la mécanique", () => {
     expect(body).toContain("Blocages");
     expect(body).toContain("Aucun blocage");
     expect(body).toContain("Réécriture du sampler");
     expect(taskDetailHtml(data({ worklogs: [] }))).toContain("Rien à valider");
-    const order = ["Blocages", "Validation", "Modifier la tâche", "Prise en charge", "Sessions, journaux et automatisations"];
+    const order = ["Blocages", "Validation", "Coordination", "Modifier la tâche", "Prise en charge", "Sessions, journaux et automatisations"];
     let last = -1;
     for (const marker of order) {
       const at = body.indexOf(marker);
@@ -432,5 +435,102 @@ describe("launchSectionHtml (AIB R4)", () => {
 
   it("sans données : indisponibilité affichée, aucun état inventé", () => {
     expect(launchSectionHtml(data())).toContain("Machines éligibles indisponibles");
+  });
+});
+
+describe("section Coordination (fiche tâche)", () => {
+  const signal = (over: Partial<CoordinationItem> = {}): CoordinationItem => ({
+    eventId: "e-1",
+    intent: "question",
+    text: "La densité de sampling reste-t-elle la bonne après le refactor ?",
+    taskId: "t1",
+    inReplyTo: null,
+    fromSessionId: null,
+    actorType: "agent",
+    actorId: "a1",
+    machineId: "m1",
+    at: "2026-09-11T09:00:00Z",
+    ...over,
+  });
+
+  it("fil : question et sa réponse, intention en badge, réponses sous le signal racine", () => {
+    const html = taskDetailHtml(
+      data({
+        coordination: [
+          signal(),
+          signal({
+            eventId: "e-2",
+            intent: "heads_up",
+            text: "Oui, densité inchangée, tests au vert.",
+            inReplyTo: "e-1",
+            at: "2026-09-11T10:00:00Z",
+          }),
+        ],
+      }),
+    );
+    expect(html).toContain('aria-label="Coordination"');
+    expect(html).toContain("La densité de sampling reste-t-elle la bonne après le refactor ?");
+    expect(html).toContain("Oui, densité inchangée, tests au vert.");
+    expect(html).toContain("Question");
+    expect(html).toContain("Information");
+    // La réponse est imbriquée sous son signal racine, pas dans un fil à plat.
+    expect(html).toContain('<ul class="task-coordination-replies">');
+  });
+
+  it("le dernier passage de relais est mis en avant", () => {
+    const html = taskDetailHtml(
+      data({
+        coordination: [
+          signal({ eventId: "e-1", intent: "handoff", text: "Je reprends la tâche demain matin.", at: "2026-09-11T08:00:00Z" }),
+          signal({ eventId: "e-2", intent: "handoff", text: "Relais final : tests lancés, reste la doc.", at: "2026-09-11T18:00:00Z" }),
+        ],
+      }),
+    );
+    expect(html).toContain("Dernier passage de relais");
+    // C'est bien le plus récent qui est mis en avant, avant le fil.
+    expect(html.indexOf("Dernier passage de relais")).toBeLessThan(html.indexOf("Échanges"));
+    expect(html.indexOf("Dernier passage de relais")).toBeLessThan(html.indexOf("Relais final"));
+    // Le fil reste complet : l'ancien relais n'est pas effacé de l'historique.
+    expect(html).toContain("Je reprends la tâche demain matin.");
+  });
+
+  it("question sans réponse : à traiter, ton warning", () => {
+    const html = taskDetailHtml(data({ coordination: [signal()] }));
+    expect(html).toContain("À traiter");
+    expect(html).toContain('class="task-coordination-pending"');
+    expect(html).toContain("ds-badge ds-badge--warning");
+    // Répondue, la question disparaît de « À traiter ».
+    const answered = taskDetailHtml(
+      data({
+        coordination: [signal(), signal({ eventId: "e-2", inReplyTo: "e-1", at: "2026-09-11T10:00:00Z" })],
+      }),
+    );
+    expect(answered).not.toContain("À traiter");
+  });
+
+  it("texte d'une autre session : échappé, jamais interprété", () => {
+    const html = taskDetailHtml(
+      data({ coordination: [signal({ text: "<script>alert('x')</script>" })] }),
+    );
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("vide vs indisponible : deux messages distincts, jamais bloquant", () => {
+    expect(taskDetailHtml(data({ coordination: [] }))).toContain("Aucun échange de coordination");
+    const down = taskDetailHtml(data({ coordination: null }));
+    expect(down).toContain("Coordination indisponible");
+    // La fiche reste complète : la tâche et les autres sections survivent.
+    expect(down).toContain("Optimiser les éclairages");
+    expect(down).not.toContain("ds-notice--danger");
+  });
+
+  it("jamais d'identifiant de signal lisible, section toujours ouverte", () => {
+    const html = taskDetailHtml(data({ coordination: [signal({ eventId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" })] }));
+    expect(unfoldedText(html)).not.toContain("aaaaaaaa-bbbb");
+    // Ouverte par défaut : elle ne vit pas dans un bloc replié.
+    const section = html.slice(html.indexOf('aria-label="Coordination"'));
+    expect(section.slice(0, section.indexOf("</section>"))).not.toContain("<details");
+    expect(section.slice(0, section.indexOf("</section>"))).not.toContain("<summary");
   });
 });

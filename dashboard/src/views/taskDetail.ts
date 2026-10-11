@@ -9,9 +9,10 @@
  *   point de statut DS, responsable, Objectif et Prochaine action dérivée de
  *   l'état réel — aucune checklist inventée (Task n'a ni priorité, ni
  *   échéance, ni critères d'acceptation).
- * - Juste après, dans cet ordre : Blocages puis Validation, toujours
- *   ouverts. Ensuite seulement la mécanique : Modifier la tâche, Prise en
- *   charge.
+ * - Juste après, dans cet ordre : Blocages, Validation puis Coordination
+ *   (signaux `coordination.*` écrits par d'autres sessions, DEC-0157),
+ *   toujours ouverts. Ensuite seulement la mécanique : Modifier la tâche,
+ *   Prise en charge.
  * - Divulgation progressive : sessions, journaux et automatisations d'un
  *   côté ; UUID et métadonnées de l'autre (dsTechDetails) — deux blocs
  *   <details> fermés par défaut, donc aucun UUID visible d'emblée.
@@ -42,7 +43,18 @@ import {
   dsStatus,
   dsTechDetails,
   type DsStatusState,
+  type DsTone,
 } from "../ds/ds";
+import {
+  buildThreads,
+  fetchTaskCoordination,
+  intentLabel,
+  latestHandoff,
+  openItems,
+  type CoordinationItem,
+  type CoordinationIntent,
+  type CoordinationThread,
+} from "../coordination";
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime } from "../ui";
@@ -286,6 +298,85 @@ function validationSectionHtml(worklogs: WorkRow[] | null): string {
   return `<section class="task-detail-section" aria-label="Validation">${dsSectionHeader("Validation")}${body}</section>`;
 }
 
+/** Teinte d'un signal : le ton porte l'information, jamais la couleur seule. */
+export function coordinationIntentTone(intent: CoordinationIntent): DsTone {
+  switch (intent) {
+    case "question":
+      return "info";
+    case "blocked_by":
+      return "warning";
+    case "handoff":
+      return "success";
+    default:
+      return "neutral";
+  }
+}
+
+/**
+ * Un signal, texte échappé (donnée écrite par une autre session : jamais
+ * interprétée, seulement citée), fil d'en-tête : intention + heure.
+ */
+function coordinationItemHtml(item: CoordinationItem): string {
+  return `<div class="task-coordination-meta">${dsBadge(intentLabel(item.intent), coordinationIntentTone(item.intent))}` +
+    `<span class="ds-list-sub">${esc(fmtTime(item.at))}</span></div>` +
+    `<p class="task-coordination-text">${esc(item.text)}</p>`;
+}
+
+/** Fil : le signal racine, puis ses réponses indentées dessous. */
+function coordinationThreadHtml(thread: CoordinationThread): string {
+  const replies =
+    thread.replies.length === 0
+      ? ""
+      : `<ul class="task-coordination-replies">` +
+        thread.replies.map((reply) => `<li>${coordinationItemHtml(reply)}</li>`).join("") +
+        `</ul>`;
+  return `<li class="task-coordination-item">${coordinationItemHtml(thread.root)}${replies}</li>`;
+}
+
+/**
+ * Coordination : ce que les autres sessions ont dit de cette tâche. Le dernier
+ * passage de relais d'abord (c'est lui qui relance le travail), puis ce qui
+ * reste à traiter, puis le fil complet. Texte toujours échappé, aucun
+ * identifiant d'événement affiché, et un chargement indisponible n'efface
+ * jamais la tâche.
+ */
+export function coordinationSectionHtml(items: CoordinationItem[] | null): string {
+  const header = dsSectionHeader("Coordination");
+  if (items === null) {
+    return `<section class="task-detail-section" aria-label="Coordination">${header}` +
+      `<div class="ds-notice ds-notice--warning" role="status">Coordination indisponible pour le moment — la tâche ci-dessus reste fiable.</div>` +
+      `</section>`;
+  }
+  if (items.length === 0) {
+    return `<section class="task-detail-section" aria-label="Coordination">${header}` +
+      `${dsEmptyState("Aucun échange de coordination", "Aucune session n'a encore échangé de signal sur cette tâche.")}</section>`;
+  }
+  const handoff = latestHandoff(items);
+  const pending = openItems(items);
+  const handoffBlock =
+    handoff === null
+      ? ""
+      : `<div class="task-coordination-handoff"><p class="ds-list-sub">Dernier passage de relais</p>` +
+        `${coordinationItemHtml(handoff)}</div>`;
+  const pendingBlock =
+    pending.length === 0
+      ? ""
+      : `<div class="task-coordination-pending"><p class="ds-list-sub">À traiter</p><ul class="ds-list">` +
+        pending
+          .map(
+            (item) =>
+              `<li class="ds-list-item">${dsBadge(intentLabel(item.intent), "warning")}` +
+              `<span class="grow">${esc(item.text)}</span></li>`,
+          )
+          .join("") +
+        `</ul></div>`;
+  const threads =
+    `<p class="ds-list-sub">Échanges</p><ul class="ds-list">${buildThreads(items)
+      .map((thread) => coordinationThreadHtml(thread))
+      .join("")}</ul>`;
+  return `<section class="task-detail-section" aria-label="Coordination">${header}${handoffBlock}${pendingBlock}${threads}</section>`;
+}
+
 /** Sessions : repliées, jamais lisible avant que l'on les demande. */
 function sessionsSectionHtml(sessions: SessionRow[] | null): string {
   let body: string;
@@ -407,6 +498,8 @@ export interface TaskDetailData {
   worklogs: WorkRow[] | null;
   /** null = chargement best-effort échoué : la mention est omise, sans erreur. */
   taskClaims: number | null;
+  /** Signaux coordination.* de la tâche ; null = indisponible (best-effort). */
+  coordination: CoordinationItem[] | null;
   notice: string;
   noticeTone?: "danger" | "info";
   authed: boolean;
@@ -505,8 +598,9 @@ export function taskDetailHtml(data: TaskDetailData): string {
       : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Réservations du projet</a>.</p>`;
   return `<div class="tasks task-detail">${heroHtml(task, data, held)}${notice}` +
     `<div class="task-detail-body"><div class="task-detail-main">` +
-    // Prioritaires et ouverts : ce qui coince, puis ce qui attend une décision.
-    `${blockagesSectionHtml(task)}${validationSectionHtml(data.worklogs)}` +
+    // Prioritaires et ouverts : ce qui coince, ce qui attend une décision,
+    // puis ce que les autres sessions ont dit de la tâche.
+    `${blockagesSectionHtml(task)}${validationSectionHtml(data.worklogs)}${coordinationSectionHtml(data.coordination)}` +
     // Mécanique ensuite : modifier, puis la prise en charge.
     `${edit}${claimSectionHtml(task, data.authed, canRelease)}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
@@ -532,6 +626,9 @@ export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailCon
   let sessions: SessionRow[] | null = null;
   let worklogs: WorkRow[] | null = null;
   let taskClaims: number | null = null;
+  // Coordination part en parallèle et indépendamment : son échec ne doit pas
+  // masquer les autres compléments, ni l'inverse.
+  const coordinationRequest = fetchTaskCoordination(ctx.client, task.id).catch(() => null);
   try {
     const [fetchedSessions, fetchedWork, fetchedClaims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: task.id }),
@@ -544,9 +641,10 @@ export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailCon
   } catch {
     // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
+  const coordination = await coordinationRequest;
 
   const launch = ctx.authed ? await loadLaunchData(ctx.client, task, sessions) : null;
-  paint(root, ctx, { task, sessions, worklogs, taskClaims, notice: "", authed: ctx.authed, launch });
+  paint(root, ctx, { task, sessions, worklogs, taskClaims, coordination, notice: "", authed: ctx.authed, launch });
 }
 
 function paint(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): void {
@@ -658,7 +756,7 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
           getTask(ctx.client, task.id).then(
             (fresh) => {
               const notice = taskConflictNotice(fresh.version);
-              paint(root, ctx, { task: fresh, sessions: null, worklogs: null, taskClaims: null, notice, authed: ctx.authed });
+              paint(root, ctx, { task: fresh, sessions: null, worklogs: null, taskClaims: null, coordination: null, notice, authed: ctx.authed });
               void importSessionsWork(root, ctx, fresh.id, notice);
             },
             (reloadError: unknown) =>
@@ -985,6 +1083,7 @@ async function readComplements(
   let sessions: SessionRow[] | null = null;
   let worklogs: WorkRow[] | null = null;
   let taskClaims: number | null = null;
+  const coordinationRequest = fetchTaskCoordination(ctx.client, fresh.id).catch(() => null);
   try {
     const [fetchedSessions, fetchedWork, fetchedClaims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: fresh.id }),
@@ -997,8 +1096,9 @@ async function readComplements(
   } catch {
     // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
+  const coordination = await coordinationRequest;
   const launch = ctx.authed ? await loadLaunchData(ctx.client, fresh, sessions) : null;
-  return { task: fresh, sessions, worklogs, taskClaims, launch };
+  return { task: fresh, sessions, worklogs, taskClaims, coordination, launch };
 }
 
 async function importSessionsWork(
