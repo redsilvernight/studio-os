@@ -681,9 +681,8 @@ test.describe("UI-15 onglets Bibliothèque à 375 (dette UI-7)", () => {
     const nav = page.locator('nav.tabs[aria-label="Catégories de la bibliothèque"]');
     await expect(nav).toBeVisible();
     const tabs = nav.locator("a.tab");
-    await expect(tabs).toHaveCount(5);
-    // Les 5 onglets restent des liens profonds stables, pas un faux select.
-    for (const slug of ["rules", "skills", "agent-definitions", "workflows", "model-profiles"]) {
+    await expect(tabs).toHaveCount(6);
+    for (const slug of ["rules", "skills", "agent-definitions", "workflows", "model-profiles", "hooks"]) {
       await expect(nav.locator(`a.tab[href="#/library/${slug}"]`)).toHaveCount(1);
     }
     // Adaptation étroite : plusieurs lignes OU scroll local, jamais d'overflow global.
@@ -698,11 +697,12 @@ test.describe("UI-15 onglets Bibliothèque à 375 (dette UI-7)", () => {
     expect(layout.wrapped || layout.scrollable, "onglets adaptés à 375 (wrap ou scroll local)").toBe(true);
     await expectNoGlobalOverflow(page, "library tabs @375");
     // Clavier : les onglets sont atteignables et activent le deep link.
-    await tabs.nth(1).focus();
-    await expect(tabs.nth(1)).toBeFocused();
+    const hookTab = nav.locator('a.tab[href="#/library/hooks"]');
+    await hookTab.focus();
+    await expect(hookTab).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
-    expect(page.url()).toContain("#/library/");
+    expect(page.url()).toContain("#/library/hooks");
     // aria-current sur l'onglet actif.
     await expect(nav.locator('a.tab[aria-current="page"]')).toHaveCount(1);
     expectClean(watch);
