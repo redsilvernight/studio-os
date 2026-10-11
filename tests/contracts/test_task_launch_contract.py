@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -226,3 +227,50 @@ def test_protocol_vocabulary_is_closed() -> None:
         "unverified",
         "handed_off",
     }
+
+
+def _view_payload(launch: TaskLaunch) -> dict[str, Any]:
+    from studio_contracts.task_launch import TaskLaunchView
+
+    view = TaskLaunchView(
+        **launch.model_dump(),
+        protocol={
+            "status": "handed_off",
+            "session_id": launch.session_id,
+            "task_status": "in_progress",
+        },
+    )
+    payload: dict[str, Any] = view.model_dump(mode="json")
+    return payload
+
+
+def test_n_minus_1_client_reads_the_plain_payload_and_refuses_the_view_one() -> None:
+    """N-1 guarantee, by contract: the Python daemon reads only two launch
+    routes and parses both strictly into `TaskLaunch`/`TaskLaunchPull`
+    (`api_client`: the pending pull and the by-id read), models that forbid
+    unknown fields. Only the project list adds `protocol`, so a view payload is
+    refused outright there instead of being silently ignored — which is why
+    those two routes must never carry it."""
+    launch = _launch(status=TaskLaunchStatus.RUNNING, session_id=uuid4())
+    payload = launch.model_dump(mode="json")
+    assert TaskLaunch.model_validate(payload) == launch
+    assert TaskLaunchPull.model_validate({"items": [payload]}).items == [launch]
+    view = _view_payload(launch)
+    assert view["protocol"]["status"] == "handed_off"
+    with pytest.raises(ValidationError):
+        TaskLaunch.model_validate(view)
+    with pytest.raises(ValidationError):
+        TaskLaunchPull.model_validate({"items": [view]})
+
+
+def test_view_payload_without_protocol_stays_a_task_launch() -> None:
+    """The contract does not allow a view without its proof: `TaskLaunchView`
+    requires `protocol`, while the very same payload without it is exactly the
+    N-1 read model."""
+    from studio_contracts.task_launch import TaskLaunchView
+
+    launch = _launch()
+    payload = launch.model_dump(mode="json")
+    with pytest.raises(ValidationError):
+        TaskLaunchView.model_validate(payload)
+    assert TaskLaunch.model_validate(payload) == launch
