@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
+Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -38,6 +38,8 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 - Transfer relie sender, recipient, project/task optionnels et object_key MinIO.
 - Project 1-1 GitHubIntegration (au plus une integration GitHub par projet en v1).
 - Project 1-N Build / ProducerJob. Build 1-N Transfer (artefacts via `Transfer.build_id`).
+- Project 1-N UsageLedgerEntry ; une entree se rattache optionnellement a une
+  Task, une WorkSession, un TaskLaunch et un AIWorkLog (DEC-0197).
 
 ## Champs communs (mutables)
 Tout objet mutable porte `id` (UUID), `created_at`, `updated_at` et `version`
@@ -335,6 +337,37 @@ TECH/02 n'expose que `token` et `expires_at`). Credential ephemere du harnais d'
 `expires_at` (au plus `TaskLaunch.expires_at`), `revoked_at` (nullable, pose par la
 reemission), `created_at`. Valide seulement si non revoque, non expire et lancement
 non terminal.
+
+## UsageLedgerEntry (Mission Control P03, DEC-0197, migration Alembic `0031`, table `usage_ledger_entries`)
+
+Contrat `studio_contracts.usage` (sans route API a ce stade). Une mesure de ce
+qu'un run a consomme, jamais une estimation presentee comme un fait ; AIWorkLog
+et TaskLaunch restent inchanges. `id`, `project_id` (FK Project, isolation : toute
+lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnels
+`task_id` (FK Task), `session_id` (FK WorkSession, `SET NULL`), `task_launch_id`
+(FK TaskLaunch), `ai_work_id` (FK AIWorkLog).
+
+- Provenance : `collector` (requis), `collector_version`, `harness`,
+  `harness_version`, `provider`, `model` (jetons bornes, jamais une entree
+  d'autorisation).
+- Periode : `period_start <= period_end`, horodatages avec fuseau.
+- Mesures : `tokens_in`, `tokens_out`, `tokens_cached` (BigInteger),
+  `cost` (Numeric 18,8 + `cost_currency` ISO 4217), `duration_seconds`
+  (Numeric 14,3). Chacune a sa colonne `*_coverage` ∈ `measured|estimated|
+  unknown` : `unknown` ⇔ valeur NULL, jamais 0 fabrique (contrainte CHECK).
+- Cache : `cached_tokens_scope` ∈ `included_in_input` (deja compte dans
+  `tokens_in`, donc `tokens_cached <= tokens_in`) | `additional_to_input`
+  (disjoint) ; le total n'ajoute le cache que dans le second cas.
+- Tarification datee : `price_list_id` + `price_effective_from` (ensemble ou
+  absents) ; requis pour un cout `estimated`, optionnel pour un cout `measured`
+  (montant facture), interdit sans cout.
+- Ingestion dedupliquee : unique `(machine_id, source_event_id)` ; un evenement
+  rejoue ou en retard renvoie l'entree existante. Une correction
+  (`UsageLedgerCorrection`) remplace le bloc de mesures en entier avec
+  `expected_version` (`409` si perimee) et ne peut deplacer l'entree (projet,
+  machine, liens, collecteur fixes).
+- `created_at`/`updated_at`/`version`. Index `(project_id, period_start)`,
+  `session_id`, `task_launch_id`.
 
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 
