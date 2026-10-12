@@ -210,6 +210,7 @@ DESKTOP_CAPABILITIES = [
     "setup.plan",
     "skills.apply",
     "skills.read",
+    "skills.resolve",
     "workspace.config",
 ]
 REQUIRED_CAPABILITIES = ["daemon.control", "identity.view", "workspace.config"]
