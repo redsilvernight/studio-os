@@ -24,6 +24,7 @@
         "setup.plan",
         "skills.apply",
         "skills.read",
+        "skills.resolve",
         "workspace.config"
       ],
       "component_version": "0.1.0",

@@ -130,7 +130,29 @@ un test échoue si l'export diverge des builders Python.
   `confirm` obligatoire ; `overwrite` remplace les copies modifiées à la main
   après sauvegarde dans `~/.studio-os/backups/skills`) et `skills.configure`
   (active ou désactive la synchro auto au démarrage, réglage local persistant).
-  Aucun chemin ni contenu de skill ne sort du daemon.
+  Extension additive de résolution ciblée : chaque `SkillPreviewEntry` inclut
+  un `diff` propre au skill et un `preview_hash` optionnel (SHA-256 opaque,
+  dérivé de la version Library et des empreintes de toutes les copies locales).
+  La capacité optionnelle `skills.resolve`, négociée au handshake, autorise
+  cette extension : sans elle, le daemon omet réellement `preview_hash` de
+  `skills.preview` (y compris la valeur `null`) et refuse un apply ciblé avec
+  `capability_missing`. Un ancien Desktop strict conserve sa réponse connue.
+  `SkillsApplyRequest.resolutions`, optionnel, contient de 1 à 500 choix
+  `{stable_key, choice: local|library, preview_hash}` ; les clés sont uniques
+  et ce mode exclut `overwrite: true`. Le daemon résout lui-même les chemins,
+  compare chaque token au plan actuel avant toute écriture et refuse une clé
+  inconnue ou une comparaison périmée avec `invalid_request`. Un choix
+  `library` n'écrit et ne sauvegarde que ce skill ; les entrées du manifeste
+  non sélectionnées et les copies dépréciées restent intactes. Un choix
+  `local` conserve toutes ses copies pour ce cycle, sans acquittement durable :
+  une personnalisation reste signalée aux vérifications suivantes. Les choix
+  uniquement `local` ne modifient aucun fichier ni manifeste. Les anciennes
+  requêtes sans `resolutions` gardent leur comportement global strict.
+  Les listes `added`, `updated`, `conflicts` identifient les copies par chemin
+  relatif au dossier utilisateur ; `skills.check` reste sans chemin ni contenu.
+  Les diffs et les résultats de `skills.apply` restent réservés à la liaison
+  locale Desktop/daemon, sans publication vers le serveur. Le dashboard bloque
+  les résolutions ciblées si un ancien daemon ne fournit pas de token.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

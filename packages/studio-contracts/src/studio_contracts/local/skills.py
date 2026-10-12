@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
@@ -99,6 +99,7 @@ class SkillPreviewEntry(LocalContractModel):
     version: int = Field(ge=1)
     targets: list[SkillTargetState] = Field(min_length=1, max_length=len(SkillHarnessTarget))
     diff: str
+    preview_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")] | None = None
 
 
 class SkillsPreviewResult(LocalContractModel):
@@ -113,11 +114,28 @@ class SkillsPreviewResult(LocalContractModel):
     checked_at: UtcDatetime
 
 
+class SkillResolution(LocalContractModel):
+    stable_key: SkillStableKey
+    choice: Literal["local", "library"]
+    preview_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+
+
 class SkillsApplyRequest(LocalContractModel):
     """Apply the skill synchronization plan. Requires explicit confirmation."""
 
     confirm: bool = Field(default=False)
     overwrite: bool = Field(default=False)
+    resolutions: list[SkillResolution] | None = Field(default=None, min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def _consistent_resolutions(self) -> Self:
+        if self.resolutions is not None:
+            if self.overwrite:
+                raise ValueError("resolutions cannot be combined with overwrite")
+            keys = [resolution.stable_key for resolution in self.resolutions]
+            if len(keys) != len(set(keys)):
+                raise ValueError("a skill can be resolved only once")
+        return self
 
 
 class SkillsConfigureRequest(LocalContractModel):

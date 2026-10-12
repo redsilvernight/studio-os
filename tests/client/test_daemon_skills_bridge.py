@@ -18,10 +18,152 @@ from studio_client.tokens import MemoryTokenStore
 from studio_contracts.local.bridge import BridgeRequest
 from studio_contracts.local.handshake import HandshakeRequest
 from studio_contracts.local.skills import (
+    SkillResolution,
     SkillsApplyRequest,
     SkillsCheckResult,
     SkillsConfigureRequest,
 )
+
+
+def test_targeted_choices_preserve_other_skills_and_their_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    projections = [_projection(key) for key in ("delegate", "graphify", "studio-task")]
+    apply_skill_sync(plan_skill_sync(home, projections))
+    for key in ("delegate", "graphify", "studio-task"):
+        (home / ".agents" / "skills" / key / "SKILL.md").write_text(
+            f"Local {key}\n", encoding="utf-8"
+        )
+    _patch_fetch(monkeypatch, projections)
+    controller = _controller(tmp_path / "data", home)
+    preview = controller.skills_preview()
+    assert all(entry.preview_hash and entry.diff for entry in preview.skills)
+    tokens = {entry.stable_key: entry.preview_hash for entry in preview.skills}
+    before = _snapshot(home)
+    manifest_before = json.loads((home / ".studio-os" / "library-skills-manifest.json").read_text())
+    result = controller.skills_apply(
+        SkillsApplyRequest(
+            confirm=True,
+            resolutions=[
+                SkillResolution(
+                    stable_key="delegate", choice="library", preview_hash=tokens["delegate"]
+                ),
+                SkillResolution(
+                    stable_key="graphify", choice="local", preview_hash=tokens["graphify"]
+                ),
+            ],
+        )
+    )
+    assert len(result.backups) == 1
+    assert Path(result.backups[0]).read_text() == "Local delegate\n"
+    assert all("delegate" in path for path in result.written)
+    assert set(result.conflicts) == {
+        ".agents/skills/graphify/SKILL.md",
+        ".agents/skills/studio-task/SKILL.md",
+    }
+    after = _snapshot(home)
+    for name, content in before.items():
+        if "graphify" in name or "studio-task" in name:
+            assert after[name] == content
+    manifest_after = json.loads((home / ".studio-os" / "library-skills-manifest.json").read_text())
+    assert [row for row in manifest_after["skills"] if row["stable_key"] != "delegate"] == [
+        row for row in manifest_before["skills"] if row["stable_key"] != "delegate"
+    ]
+    status = controller.skills_status()
+    assert status.state == "conflicts"
+    assert status.last_successful_sync is None
+
+
+def test_keep_only_does_not_write_skills_or_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    apply_skill_sync(plan_skill_sync(home, [_projection("delegate")]))
+    (home / ".agents" / "skills" / "delegate" / "SKILL.md").write_text("Local\n", encoding="utf-8")
+    _patch_fetch(monkeypatch, [_projection("delegate")])
+    controller = _controller(tmp_path / "data", home)
+    token = controller.skills_preview().skills[0].preview_hash
+    before = _snapshot(home)
+    result = controller.skills_apply(
+        SkillsApplyRequest(
+            confirm=True,
+            resolutions=[
+                SkillResolution(stable_key="delegate", choice="local", preview_hash=token)
+            ],
+        )
+    )
+    assert result.written == result.backups == []
+    assert _snapshot(home) == before
+    assert result.conflicts == [".agents/skills/delegate/SKILL.md"]
+    assert controller.skills_status().last_successful_sync is None
+
+
+@pytest.mark.parametrize("change", ["local", "library", "unknown"])
+def test_targeted_apply_rejects_stale_or_unknown_choices_without_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    home = tmp_path / "home"
+    _patch_fetch(monkeypatch, [_projection("delegate")])
+    controller = _controller(tmp_path / "data", home)
+    token = controller.skills_preview().skills[0].preview_hash
+    if change == "local":
+        target = home / ".agents" / "skills" / "delegate" / "SKILL.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("Edited after preview", encoding="utf-8")
+    elif change == "library":
+        _patch_fetch(monkeypatch, [_projection("delegate", version=4)])
+    before = _snapshot(home)
+    with pytest.raises(LocalFeatureError) as exc:
+        controller.skills_apply(
+            SkillsApplyRequest(
+                confirm=True,
+                resolutions=[
+                    SkillResolution(
+                        stable_key="unknown" if change == "unknown" else "delegate",
+                        choice="library",
+                        preview_hash=token,
+                    )
+                ],
+            )
+        )
+    assert exc.value.error.code.value == "invalid_request"
+    assert _snapshot(home) == before
+
+
+def test_resolution_request_rejects_empty_duplicates_and_global_overwrite() -> None:
+    resolution = SkillResolution(stable_key="delegate", choice="library", preview_hash="a" * 64)
+    for payload in (
+        {"resolutions": []},
+        {"resolutions": [resolution, resolution]},
+        {"overwrite": True, "resolutions": [resolution]},
+    ):
+        with pytest.raises(ValueError):
+            SkillsApplyRequest(confirm=True, **payload)
+
+
+def test_resolution_preview_is_gated_for_older_desktop_readers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_fetch(monkeypatch, [_projection("delegate")])
+    controller = _controller(tmp_path / "data", tmp_path / "home")
+    controller.skills_configure(SkillsConfigureRequest(auto_sync=False))
+    service = BridgeService(controller)
+    _negotiate(service, ["daemon.control", "skills.read", "skills.apply"])
+    legacy = service.handle_line(_line("skills.preview", {}))
+    assert "preview_hash" not in legacy["payload"]["skills"][0]
+    token = controller.skills_preview().skills[0].preview_hash
+    request = {
+        "confirm": True,
+        "resolutions": [{"stable_key": "delegate", "choice": "library", "preview_hash": token}],
+    }
+    denied = service.handle_line(_line("skills.apply", request))
+    assert denied["error"]["code"] == "capability_missing"
+    _negotiate(service, ["daemon.control", "skills.read", "skills.apply", "skills.resolve"])
+    modern = service.handle_line(_line("skills.preview", {}))
+    assert modern["payload"]["skills"][0]["preview_hash"] == token
+    assert service.handle_line(_line("skills.apply", request))["kind"] == "response"
+
 
 ORIGIN = "https://studio.example"
 
@@ -214,6 +356,18 @@ def test_configure_disables_and_persists_the_setting(tmp_path: Path, monkeypatch
     assert not skills_bridge.auto_sync_enabled(controller.config, tmp_path)
     skills_bridge.start_auto_sync(controller.config, controller._token_store, home, tmp_path)
     assert _snapshot(home) == {}
+    runner = skills_bridge._AutoSyncRunner(
+        controller.config, controller._token_store, home, tmp_path
+    )
+
+    def start(*_args: object) -> skills_bridge._AutoSyncRunner:
+        runner.start()
+        return runner
+
+    monkeypatch.setattr(skills_bridge, "start_auto_sync", start)
     status = controller.skills_configure(SkillsConfigureRequest(auto_sync=True))
     assert status.state.value == "in_progress"
     assert skills_bridge.auto_sync_enabled(controller.config, tmp_path)
+    assert runner._thread is not None
+    runner._thread.join(timeout=5)
+    assert not runner._thread.is_alive()

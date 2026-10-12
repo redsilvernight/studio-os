@@ -188,6 +188,29 @@ def test_plan_distinguishes_current_missing_and_drifted(tmp_path: Path) -> None:
     assert len(plan.missing) == 2
 
 
+def test_partial_sync_keeps_unselected_manifest_and_retired_copies(tmp_path: Path) -> None:
+    old = [_projection(key, text="old") for key in ("delegate", "graphify", "studio-old")]
+    apply_skill_sync(plan_skill_sync(tmp_path, old))
+    before = json.loads((tmp_path / ".studio-os" / "library-skills-manifest.json").read_text())
+    plan = plan_skill_sync(
+        tmp_path,
+        [
+            _projection("delegate", text="new"),
+            _projection("graphify", text="new"),
+            _projection("studio-old", deprecated=True),
+        ],
+    )
+    result = apply_skill_sync(plan, selected_keys={"delegate"})
+    assert all("delegate" in str(path) for path in result.written)
+    assert result.removed == ()
+    assert (tmp_path / ".agents" / "skills" / "studio-old" / "SKILL.md").is_file()
+    after = json.loads(result.manifest_path.read_text())
+    assert [row for row in after["skills"] if row["stable_key"] != "delegate"] == [
+        row for row in before["skills"] if row["stable_key"] != "delegate"
+    ]
+    assert plan_skill_sync(tmp_path, [_projection("graphify", text="new")]).outdated
+
+
 def test_apply_refuses_drift_without_overwrite_and_changes_nothing(tmp_path: Path) -> None:
     agents = _target(tmp_path, "agents")
     agents.parent.mkdir(parents=True)
