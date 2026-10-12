@@ -1232,6 +1232,50 @@ export interface paths {
         patch: operations["update_ai_work_api_v1_ai_work__work_id__patch"];
         trace?: never;
     };
+    "/api/v1/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Usage
+         * @description List project-scoped usage entries ordered by update time, including corrections.
+         */
+        get: operations["list_usage_api_v1_usage_get"];
+        put?: never;
+        /**
+         * Create Usage
+         * @description Record a fact on the authenticated machine. Replaying machine_id/source_event_id returns its existing entry. Identity changes fail with usage_identity_conflict. Supports Idempotency-Key; project, machine and linked resources are checked on replay.
+         */
+        post: operations["create_usage_api_v1_usage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct Usage
+         * @description Replace the whole measurement, provenance, period and pricing block of an owned fact. Identity and collector stay fixed. A stale expected_version fails with version_conflict and server_version. Exact Idempotency-Key replay precedes the version check and does not increment the entry again.
+         */
+        post: operations["correct_usage_api_v1_usage_corrections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/review-queue": {
         parameters: {
             query?: never;
@@ -3113,6 +3157,17 @@ export interface components {
          */
         BuildStatus: "queued" | "in_progress" | "succeeded" | "failed";
         /**
+         * CacheTokenScope
+         * @description Where the cached token count sits relative to `tokens_in`, so a reader
+         *     never adds a cache count twice. `included_in_input`: the collector already
+         *     counts cache hits inside `tokens_in` (the total is in + out).
+         *     `additional_to_input`: the cached count is disjoint from `tokens_in` —
+         *     cache reads and cache writes billed apart from the prompt — so the total is
+         *     in + out + cached.
+         * @enum {string}
+         */
+        CacheTokenScope: "included_in_input" | "additional_to_input";
+        /**
          * CapabilityRequirement
          * @description Vendor-neutral model requirements (gate P0 deliverable, enforced from
          *     P3). All dimensions are open strings/numbers, never vendor enums,
@@ -3313,6 +3368,46 @@ export interface components {
             from_session_id?: string | null;
         };
         /**
+         * CostMeasurement
+         * @description Monetary cost. The currency travels with the value: a cost without a
+         *     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
+         *     and an unpriced one are not the same fact.
+         */
+        "CostMeasurement-Input": {
+            /** Value */
+            value?: number | string | null;
+            /** @default unknown */
+            coverage: components["schemas"]["MeasurementCoverage"];
+            /**
+             * Unit
+             * @default currency
+             * @constant
+             */
+            unit: "currency";
+            /** Currency */
+            currency?: string | null;
+        };
+        /**
+         * CostMeasurement
+         * @description Monetary cost. The currency travels with the value: a cost without a
+         *     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
+         *     and an unpriced one are not the same fact.
+         */
+        "CostMeasurement-Output": {
+            /** Value */
+            value?: string | null;
+            /** @default unknown */
+            coverage: components["schemas"]["MeasurementCoverage"];
+            /**
+             * Unit
+             * @default currency
+             * @constant
+             */
+            unit: "currency";
+            /** Currency */
+            currency?: string | null;
+        };
+        /**
          * Decision
          * @description A recorded project decision with a stable human-readable id
          *     (`readable_id`, e.g. DEC-XXXX) alongside its internal UUID.
@@ -3469,6 +3564,38 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /**
+         * DurationMeasurement
+         * @description Wall-clock duration of the covered period, in seconds.
+         */
+        "DurationMeasurement-Input": {
+            /** Value */
+            value?: number | string | null;
+            /** @default unknown */
+            coverage: components["schemas"]["MeasurementCoverage"];
+            /**
+             * Unit
+             * @default seconds
+             * @constant
+             */
+            unit: "seconds";
+        };
+        /**
+         * DurationMeasurement
+         * @description Wall-clock duration of the covered period, in seconds.
+         */
+        "DurationMeasurement-Output": {
+            /** Value */
+            value?: string | null;
+            /** @default unknown */
+            coverage: components["schemas"]["MeasurementCoverage"];
+            /**
+             * Unit
+             * @default seconds
+             * @constant
+             */
+            unit: "seconds";
         };
         /** EligibleMachines */
         EligibleMachines: {
@@ -4627,6 +4754,15 @@ export interface components {
             display_name: string;
         };
         /**
+         * MeasurementCoverage
+         * @description What a measure is worth. `measured`: read from the runtime itself.
+         *     `estimated`: derived by the collector from another signal, usable but never
+         *     presented as a fact. `unknown`: nobody could measure it — the value is
+         *     `None`, and no consumer may read that as zero.
+         * @enum {string}
+         */
+        MeasurementCoverage: "measured" | "estimated" | "unknown";
+        /**
          * MissionCounts
          * @description Counts over every run in the window, not only the returned page.
          */
@@ -4878,6 +5014,23 @@ export interface components {
             deprecated: boolean;
             relation: components["schemas"]["BindingRelation"];
             provenance: components["schemas"]["studio_contracts__resolution__Provenance"];
+        };
+        /**
+         * PricingRef
+         * @description The dated price list a cost was computed from, for the model named in the
+         *     provenance. Required for an `estimated` cost (tokens times a price): without
+         *     it the cost cannot be re-derived once prices move, and two entries priced on
+         *     different dates are not comparable. Optional for a `measured` cost (the
+         *     amount actually billed), forbidden for an `unknown` one.
+         */
+        PricingRef: {
+            /** Price List Id */
+            price_list_id: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
         };
         /**
          * ProducerJob
@@ -7278,6 +7431,23 @@ export interface components {
             /** Events */
             events: components["schemas"]["EventEnvelope"][];
         };
+        /**
+         * TokenMeasurement
+         * @description Token count. The unit is fixed by the field it lives in, so a token
+         *     metric can never be filled with a duration.
+         */
+        TokenMeasurement: {
+            /** Value */
+            value?: number | null;
+            /** @default unknown */
+            coverage: components["schemas"]["MeasurementCoverage"];
+            /**
+             * Unit
+             * @default tokens
+             * @constant
+             */
+            unit: "tokens";
+        };
         /** TokenRequest */
         TokenRequest: {
             /**
@@ -7551,6 +7721,180 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /**
+         * UsageLedgerCorrection
+         * @description A late or corrected measure for a fact already ingested, keyed by the same
+         *     `(machine_id, source_event_id)`. The measured block is replaced as a whole —
+         *     a partial merge would silently keep a stale number beside a fresh one — and
+         *     the identity of the entry (project, links, collector) is fixed and carries
+         *     no field here: a correction cannot move an entry to another project,
+         *     machine, session or work entry, and a different `collector` is refused.
+         */
+        UsageLedgerCorrection: {
+            tokens_in?: components["schemas"]["TokenMeasurement"];
+            tokens_out?: components["schemas"]["TokenMeasurement"];
+            tokens_cached?: components["schemas"]["TokenMeasurement"];
+            /** @default included_in_input */
+            cached_tokens_scope: components["schemas"]["CacheTokenScope"];
+            cost?: components["schemas"]["CostMeasurement-Input"];
+            duration?: components["schemas"]["DurationMeasurement-Input"];
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Source Event Id */
+            source_event_id: string;
+            /** Expected Version */
+            expected_version: number;
+            provenance: components["schemas"]["UsageProvenance"];
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            pricing?: components["schemas"]["PricingRef"] | null;
+        };
+        /**
+         * UsageLedgerEntry
+         * @description Stored ledger entry. `version` grows by one on each accepted correction;
+         *     a correction carries `expected_version`, so a correction that raced another
+         *     one is refused rather than silently overwriting it.
+         */
+        UsageLedgerEntry: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            tokens_in?: components["schemas"]["TokenMeasurement"];
+            tokens_out?: components["schemas"]["TokenMeasurement"];
+            tokens_cached?: components["schemas"]["TokenMeasurement"];
+            /** @default included_in_input */
+            cached_tokens_scope: components["schemas"]["CacheTokenScope"];
+            cost?: components["schemas"]["CostMeasurement-Output"];
+            duration?: components["schemas"]["DurationMeasurement-Output"];
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Source Event Id */
+            source_event_id: string;
+            provenance: components["schemas"]["UsageProvenance"];
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
+            /** Task Launch Id */
+            task_launch_id?: string | null;
+            /** Ai Work Id */
+            ai_work_id?: string | null;
+            pricing?: components["schemas"]["PricingRef"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * UsageLedgerEntryCreate
+         * @description Ingestion payload. Ingestion is deduplicated on `(machine_id,
+         *     source_event_id)`: a replayed or delayed collector event returns the entry
+         *     already recorded instead of appending a second row. A late correction of an
+         *     already recorded fact targets that entry with `UsageLedgerCorrection`, never
+         *     a fresh `source_event_id`.
+         */
+        UsageLedgerEntryCreate: {
+            tokens_in?: components["schemas"]["TokenMeasurement"];
+            tokens_out?: components["schemas"]["TokenMeasurement"];
+            tokens_cached?: components["schemas"]["TokenMeasurement"];
+            /** @default included_in_input */
+            cached_tokens_scope: components["schemas"]["CacheTokenScope"];
+            cost?: components["schemas"]["CostMeasurement-Input"];
+            duration?: components["schemas"]["DurationMeasurement-Input"];
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Source Event Id */
+            source_event_id: string;
+            provenance: components["schemas"]["UsageProvenance"];
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
+            /** Task Launch Id */
+            task_launch_id?: string | null;
+            /** Ai Work Id */
+            ai_work_id?: string | null;
+            pricing?: components["schemas"]["PricingRef"] | null;
+        };
+        /**
+         * UsageProvenance
+         * @description Who produced the measure. `collector`/`collector_version` name the tool
+         *     that emitted the entry, `harness`/`harness_version` the agent runtime it ran:
+         *     two entries with identical numbers but different provenance are not the same
+         *     measurement, and a re-run of a different harness version is a new entry
+         *     rather than an overwrite.
+         */
+        UsageProvenance: {
+            /** Collector */
+            collector: string;
+            /** Collector Version */
+            collector_version?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Harness Version */
+            harness_version?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /**
          * User
@@ -13790,6 +14134,272 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "invalid_status_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_usage_api_v1_usage_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                task_id?: string | null;
+                session_id?: string | null;
+                task_launch_id?: string | null;
+                since?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageLedgerEntry"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_usage_api_v1_usage_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsageLedgerEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageLedgerEntry"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "actor_not_owned",
+                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_usage_api_v1_usage_corrections_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsageLedgerCorrection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageLedgerEntry"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "actor_not_owned",
+                     *         "message": "agent_id must be an agent attached to the authenticated machine"
                      *       }
                      *     }
                      */

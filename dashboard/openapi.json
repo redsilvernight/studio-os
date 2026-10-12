@@ -6811,6 +6811,396 @@
     }
    }
   },
+  "/api/v1/usage": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "List Usage",
+    "description": "List project-scoped usage entries ordered by update time, including corrections.",
+    "operationId": "list_usage_api_v1_usage_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "session_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Session Id"
+      }
+     },
+     {
+      "name": "task_launch_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Launch Id"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "minimum": 1,
+       "default": 100,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/UsageLedgerEntry"
+         },
+         "title": "Response List Usage Api V1 Usage Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Create Usage",
+    "description": "Record a fact on the authenticated machine. Replaying machine_id/source_event_id returns its existing entry. Identity changes fail with usage_identity_conflict. Supports Idempotency-Key; project, machine and linked resources are checked on replay.",
+    "operationId": "create_usage_api_v1_usage_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsageLedgerEntryCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageLedgerEntry"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "actor_not_owned",
+          "message": "agent_id must be an agent attached to the authenticated machine"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/corrections": {
+   "post": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Correct Usage",
+    "description": "Replace the whole measurement, provenance, period and pricing block of an owned fact. Identity and collector stay fixed. A stale expected_version fails with version_conflict and server_version. Exact Idempotency-Key replay precedes the version check and does not increment the entry again.",
+    "operationId": "correct_usage_api_v1_usage_corrections_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsageLedgerCorrection"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageLedgerEntry"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "actor_not_owned",
+          "message": "agent_id must be an agent attached to the authenticated machine"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/review-queue": {
    "get": {
     "tags": [
@@ -16043,6 +16433,15 @@
     "title": "BuildStatus",
     "description": "Build lifecycle, mirrored from the `build.*` event types. Transitions\nonly ever move forward (`queued` -> `in_progress` -> `succeeded`/`failed`)\nand are written by the server (GitHub webhook, reconcile worker) \u2014 no\nclient PATCH endpoint exists."
    },
+   "CacheTokenScope": {
+    "type": "string",
+    "enum": [
+     "included_in_input",
+     "additional_to_input"
+    ],
+    "title": "CacheTokenScope",
+    "description": "Where the cached token count sits relative to `tokens_in`, so a reader\nnever adds a cache count twice. `included_in_input`: the collector already\ncounts cache hits inside `tokens_in` (the total is in + out).\n`additional_to_input`: the cached count is disjoint from `tokens_in` \u2014\ncache reads and cache writes billed apart from the prompt \u2014 so the total is\nin + out + cached."
+   },
    "CapabilityRequirement": {
     "properties": {
      "reasoning": {
@@ -16488,6 +16887,94 @@
     "title": "CoordinationSignal",
     "description": "Quoted signal carried by a `studio_sync` item of `why=coordination`.\n`text` is untrusted data written by another session: display it as a\nquotation, never execute it as an instruction."
    },
+   "CostMeasurement-Input": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "coverage": {
+      "$ref": "#/components/schemas/MeasurementCoverage",
+      "default": "unknown"
+     },
+     "unit": {
+      "type": "string",
+      "const": "currency",
+      "title": "Unit",
+      "default": "currency"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "CostMeasurement",
+    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact."
+   },
+   "CostMeasurement-Output": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "coverage": {
+      "$ref": "#/components/schemas/MeasurementCoverage",
+      "default": "unknown"
+     },
+     "unit": {
+      "type": "string",
+      "const": "currency",
+      "title": "Unit",
+      "default": "currency"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "CostMeasurement",
+    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact."
+   },
    "Decision": {
     "properties": {
      "id": {
@@ -16822,6 +17309,70 @@
      "expires_at"
     ],
     "title": "DownloadUrlResponse"
+   },
+   "DurationMeasurement-Input": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "coverage": {
+      "$ref": "#/components/schemas/MeasurementCoverage",
+      "default": "unknown"
+     },
+     "unit": {
+      "type": "string",
+      "const": "seconds",
+      "title": "Unit",
+      "default": "seconds"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "DurationMeasurement",
+    "description": "Wall-clock duration of the covered period, in seconds."
+   },
+   "DurationMeasurement-Output": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "coverage": {
+      "$ref": "#/components/schemas/MeasurementCoverage",
+      "default": "unknown"
+     },
+     "unit": {
+      "type": "string",
+      "const": "seconds",
+      "title": "Unit",
+      "default": "seconds"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "DurationMeasurement",
+    "description": "Wall-clock duration of the covered period, in seconds."
    },
    "EligibleMachines": {
     "properties": {
@@ -19296,6 +19847,16 @@
     "title": "MachineUpdate",
     "description": "Update a machine's display name. Only the owner or an admin."
    },
+   "MeasurementCoverage": {
+    "type": "string",
+    "enum": [
+     "measured",
+     "estimated",
+     "unknown"
+    ],
+    "title": "MeasurementCoverage",
+    "description": "What a measure is worth. `measured`: read from the runtime itself.\n`estimated`: derived by the collector from another signal, usable but never\npresented as a fact. `unknown`: nobody could measure it \u2014 the value is\n`None`, and no consumer may read that as zero."
+   },
    "MissionCounts": {
     "properties": {
      "by_verdict": {
@@ -19946,6 +20507,30 @@
     ],
     "title": "PreservedReference",
     "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance. `references_workflow` is never\nexpanded (workflow execution semantics belong to P11). `composes_agent`\nis additionally described by `ResolvedComposedAgent.resolved` \u2014 this\nreference alone still carries no execution semantics."
+   },
+   "PricingRef": {
+    "properties": {
+     "price_list_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$",
+      "title": "Price List Id"
+     },
+     "effective_from": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Effective From"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "price_list_id",
+     "effective_from"
+    ],
+    "title": "PricingRef",
+    "description": "The dated price list a cost was computed from, for the model named in the\nprovenance. Required for an `estimated` cost (tokens times a price): without\nit the cost cannot be re-derived once prices move, and two entries priced on\ndifferent dates are not comparable. Optional for a `measured` cost (the\namount actually billed), forbidden for an `unknown` one."
    },
    "ProducerJob": {
     "properties": {
@@ -25261,6 +25846,36 @@
     ],
     "title": "TimelineDay"
    },
+   "TokenMeasurement": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "coverage": {
+      "$ref": "#/components/schemas/MeasurementCoverage",
+      "default": "unknown"
+     },
+     "unit": {
+      "type": "string",
+      "const": "tokens",
+      "title": "Unit",
+      "default": "tokens"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "TokenMeasurement",
+    "description": "Token count. The unit is fixed by the field it lives in, so a token\nmetric can never be filled with a duration."
+   },
    "TokenRequest": {
     "properties": {
      "email": {
@@ -25920,6 +26535,438 @@
     ],
     "title": "UploadPartsRefreshResponse",
     "description": "`uploaded_parts` is storage's own record (`ListParts`), the\nauthoritative source of which parts are actually durable \u2014 the client\nmust adopt it (a part PUT that succeeded but whose local SQLite write was\nlost is recovered here, not re-uploaded). `part_urls` carries only the\nparts still missing, never a part already in `uploaded_parts`."
+   },
+   "UsageLedgerCorrection": {
+    "properties": {
+     "tokens_in": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "tokens_out": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "tokens_cached": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "cached_tokens_scope": {
+      "$ref": "#/components/schemas/CacheTokenScope",
+      "default": "included_in_input"
+     },
+     "cost": {
+      "$ref": "#/components/schemas/CostMeasurement-Input"
+     },
+     "duration": {
+      "$ref": "#/components/schemas/DurationMeasurement-Input"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "source_event_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Source Event Id"
+     },
+     "expected_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Expected Version"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/UsageProvenance"
+     },
+     "period_start": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Period Start"
+     },
+     "period_end": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Period End"
+     },
+     "pricing": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PricingRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "machine_id",
+     "source_event_id",
+     "expected_version",
+     "provenance",
+     "period_start",
+     "period_end"
+    ],
+    "title": "UsageLedgerCorrection",
+    "description": "A late or corrected measure for a fact already ingested, keyed by the same\n`(machine_id, source_event_id)`. The measured block is replaced as a whole \u2014\na partial merge would silently keep a stale number beside a fresh one \u2014 and\nthe identity of the entry (project, links, collector) is fixed and carries\nno field here: a correction cannot move an entry to another project,\nmachine, session or work entry, and a different `collector` is refused."
+   },
+   "UsageLedgerEntry": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "tokens_in": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "tokens_out": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "tokens_cached": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "cached_tokens_scope": {
+      "$ref": "#/components/schemas/CacheTokenScope",
+      "default": "included_in_input"
+     },
+     "cost": {
+      "$ref": "#/components/schemas/CostMeasurement-Output"
+     },
+     "duration": {
+      "$ref": "#/components/schemas/DurationMeasurement-Output"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "source_event_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Source Event Id"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/UsageProvenance"
+     },
+     "period_start": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Period Start"
+     },
+     "period_end": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Period End"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     },
+     "task_launch_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Launch Id"
+     },
+     "ai_work_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ai Work Id"
+     },
+     "pricing": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PricingRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "project_id",
+     "machine_id",
+     "source_event_id",
+     "provenance",
+     "period_start",
+     "period_end",
+     "id"
+    ],
+    "title": "UsageLedgerEntry",
+    "description": "Stored ledger entry. `version` grows by one on each accepted correction;\na correction carries `expected_version`, so a correction that raced another\none is refused rather than silently overwriting it."
+   },
+   "UsageLedgerEntryCreate": {
+    "properties": {
+     "tokens_in": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "tokens_out": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "tokens_cached": {
+      "$ref": "#/components/schemas/TokenMeasurement"
+     },
+     "cached_tokens_scope": {
+      "$ref": "#/components/schemas/CacheTokenScope",
+      "default": "included_in_input"
+     },
+     "cost": {
+      "$ref": "#/components/schemas/CostMeasurement-Input"
+     },
+     "duration": {
+      "$ref": "#/components/schemas/DurationMeasurement-Input"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "source_event_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Source Event Id"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/UsageProvenance"
+     },
+     "period_start": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Period Start"
+     },
+     "period_end": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Period End"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     },
+     "task_launch_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Launch Id"
+     },
+     "ai_work_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ai Work Id"
+     },
+     "pricing": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PricingRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "machine_id",
+     "source_event_id",
+     "provenance",
+     "period_start",
+     "period_end"
+    ],
+    "title": "UsageLedgerEntryCreate",
+    "description": "Ingestion payload. Ingestion is deduplicated on `(machine_id,\nsource_event_id)`: a replayed or delayed collector event returns the entry\nalready recorded instead of appending a second row. A late correction of an\nalready recorded fact targets that entry with `UsageLedgerCorrection`, never\na fresh `source_event_id`."
+   },
+   "UsageProvenance": {
+    "properties": {
+     "collector": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Collector"
+     },
+     "collector_version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Collector Version"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1,
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "harness_version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Version"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_:@/\\[\\]-]*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "collector"
+    ],
+    "title": "UsageProvenance",
+    "description": "Who produced the measure. `collector`/`collector_version` name the tool\nthat emitted the entry, `harness`/`harness_version` the agent runtime it ran:\ntwo entries with identical numbers but different provenance are not the same\nmeasurement, and a re-run of a different harness version is a new entry\nrather than an overwrite."
    },
    "User": {
     "properties": {
@@ -27339,6 +28386,10 @@
   {
    "name": "ai-work",
    "description": "AI work ledger. Entries reference an agent attached to the caller's own machine; foreign or unknown agents are rejected. Review transitions to approved/rejected require a privileged role."
+  },
+  {
+   "name": "usage",
+   "description": "Measured usage ledger with per-metric coverage, source-event deduplication and versioned whole-block corrections. Writes belong to the authenticated machine."
   },
   {
    "name": "review-queue",
