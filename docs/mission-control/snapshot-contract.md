@@ -3,8 +3,9 @@
 Enregistrement immuable de la configuration effective d'un run (une tentative
 `TaskLaunch`). Contrat : `packages/studio-contracts/src/studio_contracts/execution_snapshot.py`
 (`schema_version = 1`). Stockage : table `execution_snapshots` (migration 0032).
-Service : `services/api/src/studio_api/services/execution_snapshots.py`. Pas encore
-de route HTTP ni de capture côté daemon (tâche P04-snapshot-capture).
+Service : `services/api/src/studio_api/services/execution_snapshots.py`. Routes
+`POST`/`GET /api/v1/task-launches/{id}/snapshot`. Capture côté daemon :
+`studio_client/daemon/launch_snapshot.py` (P04-snapshot-capture).
 
 ## Champs
 
@@ -15,8 +16,11 @@ Payload haché (`ExecutionSnapshotPayload`) :
 | `schema_version` | `1` ; toute autre valeur est refusée à la lecture |
 | `capture_status` | `ok` \| `partial` \| `failed` |
 | `resolution` | projection de la sortie du resolver commun : `agent_stable_key`, `profile` (clé, `contract_version`, digest), `resources[]` (rôle, `resource_id`, kind, `stable_key`, scope, version, `version_origin`, `content_digest`), `runtime` (niveau, clé appariée, `runtime_id`, `runtime_binding_id`, refs harness/provider/modèle, digest des capacités) |
-| `applied` | paramètres appliqués par Bloc B : `harness_id`, `harness_version`, `projections[]` (cible logique relative + digest), `git_sha`, `git_dirty`, `local_policy_digest` |
-| `capture_errors[]` | codes fermés (`resolution_unavailable`, `git_sha_unavailable`, `redaction_required`…), champ concerné, détail court |
+| `applied` | paramètres appliqués par Bloc B : `harness_id`, `harness_version`, `projections[]` (cible logique relative + digest), `git_sha`, `git_dirty`, `local_policy_digest` ; additifs : `worktree_branch` (branche lue par git), `profile` (pin recalculé au démarrage), `access_mode` (mode imposé, `null` si refus) |
+| `capture_errors[]` | codes fermés (`resolution_unavailable`, `git_sha_unavailable`, `worktree_unverified`, `redaction_required`…), champ concerné, détail court |
+
+`resolution.profile` est le pin vu à la preview/admission, `applied.profile` celui
+recalculé au démarrage : `ExecutionSnapshotPayload.profile_drift` expose l'écart.
 
 Colonnes de la ligne : `id`, `project_id`, `task_launch_id` (unique), `content_hash`,
 `schema_version`, `capture_status`, `capture_reason` (codes d'erreur triés, NULL si
@@ -48,6 +52,23 @@ Colonnes de la ligne : `id`, `project_id`, `task_launch_id` (unique), `content_h
   capture doit alors produire `redaction_required` sans la valeur.
 - Payload canonique plafonné à 256 Kio (`snapshot_payload_too_large`).
 
+## Capture (daemon)
+
+- Une capture par lancement, au point le plus tardif atteint : juste avant le
+  report `running` ; sinon au refus du profil (`git_sha_unavailable`, détail
+  `profile_refused`) ; sinon à l'échec de préparation (`preparation_failed:<étape>`).
+  Rien si le lancement n'est pas résolu ou devient terminal avant le démarrage.
+- `git_sha`, `git_dirty` et `worktree_branch` sont lus par git dans le worktree
+  (`rev-parse --show-toplevel`, `rev-parse HEAD`, `status --porcelain`,
+  `symbolic-ref`), jamais repris de la préparation ; écart → `worktree_unverified`.
+- `resolution` vient de `resolve_agent` (lecture pure) projeté par
+  `resolution_refs` ; sans `agent_stable_key` → `resolution_unavailable`.
+- Projections : digest des fichiers gérés par le bootstrap, lus après préparation.
+- Valeur suspecte (secret, chemin absolu) : retirée et nommée par
+  `redaction_required`, jamais journalisée ; les logs ne portent que le statut.
+- Envoi par l'outbox, clé stable par lancement : un rejeu ne crée ni seconde
+  ligne locale ni second snapshot serveur.
+
 ## Rétention
 
 `retention_until = created_at + STUDIO_EXECUTION_SNAPSHOT_RETENTION_DAYS` (défaut
@@ -59,8 +80,8 @@ planifiée n'est encore branchée.
 
 `get_snapshot(id)` et `get_snapshot_for_launch(launch_id)` revalident le payload
 contre le contrat. L'export est le JSON canonique du payload, vérifiable en
-recalculant `content_hash`. Les règles d'accès (portée projet) viendront avec la
-route de lecture.
+recalculant `content_hash`. `GET /task-launches/{id}/snapshot` : lecture en portée
+projet ; `POST` : machine cible seule (règles du report).
 
 ## Limites
 

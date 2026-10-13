@@ -400,6 +400,7 @@ class DaemonRuntime:
                     models=self.config.launch_models,
                     usage=LaunchUsageRecorder(UsageWriteQueue(store)),
                     machine_policy=lambda: load_machine_policy(self.config, self.data_root),
+                    capture_snapshots=True,
                 )
                 self._launch_executor = executor
                 executor.start()
