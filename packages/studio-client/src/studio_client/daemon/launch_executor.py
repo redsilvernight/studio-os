@@ -46,6 +46,8 @@ from studio_client.errors import StudioApiError
 from studio_client.harness.base import HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
+from studio_client.usage.collectors import RunObservation
+from studio_client.usage.recorder import LaunchUsageRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +85,9 @@ class LaunchExecutor:
         secrets: Sequence[str] = (),
         max_output_chars: int = LAUNCH_MAX_OUTPUT_CHARS,
         models: Mapping[str, str] | None = None,
+        usage: LaunchUsageRecorder | None = None,
     ) -> None:
+        self._usage = usage
         self._models: Mapping[str, str] = models or {}
         self._client = client
         self._reporter = reporter
@@ -225,7 +229,10 @@ class LaunchExecutor:
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running
                 result = await asyncio.to_thread(running.wait, self._timeout)
-            self._report_terminal(launch, result, extra_secrets=(credential.token,))
+            display = self._record_usage(launch, result)
+            self._report_terminal(
+                launch, result, extra_secrets=(credential.token,), display=display
+            )
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)
             self._reporter.report(
@@ -253,12 +260,36 @@ class LaunchExecutor:
             self._processes.pop(launch.id, None)
             self._tasks.pop(launch.id, None)
 
+    def _record_usage(self, launch: TaskLaunch, result: LaunchResult) -> str | None:
+        if self._usage is None:
+            return None
+        recorded = self._usage.record(
+            launch,
+            RunObservation(
+                harness_id=launch.harness_id,
+                output=result.output,
+                truncated=result.truncated,
+                exit_code=result.exit_code,
+                timed_out=result.timed_out,
+                cancelled=result.cancelled,
+                started_at=result.started_at,
+                finished_at=result.finished_at,
+                duration_seconds=result.duration_seconds,
+            ),
+        )
+        return None if recorded is None else recorded.collected.result_text
+
     def _report_terminal(
-        self, launch: TaskLaunch, result: LaunchResult, *, extra_secrets: tuple[str, ...] = ()
+        self,
+        launch: TaskLaunch,
+        result: LaunchResult,
+        *,
+        extra_secrets: tuple[str, ...] = (),
+        display: str | None = None,
     ) -> None:
         if launch.id in self._stopped:
             return
-        excerpt = self._excerpt(result.output, extra_secrets)
+        excerpt = self._excerpt(result.output if display is None else display, extra_secrets)
         if result.timed_out:
             self._reporter.report(
                 launch,

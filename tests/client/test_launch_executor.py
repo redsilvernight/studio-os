@@ -19,7 +19,10 @@ from studio_client.harness.base import HarnessAdapter, HarnessContext
 from studio_client.outbox import OutboxStore
 from studio_client.outbox.models import OutboxTable
 from studio_client.outbox.store import connect
+from studio_client.usage import USAGE_PATH, UsageWriteQueue
+from studio_client.usage.recorder import LaunchUsageRecorder
 from studio_contracts.task_launch import TaskLaunch, TaskLaunchStatus
+from studio_contracts.usage import MeasurementCoverage, UsageLedgerEntryCreate
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -394,3 +397,100 @@ async def test_expired_while_running_is_stopped(tmp_path: Path) -> None:
 
     assert "succeeded" not in _statuses(store)
     assert "failed" not in _statuses(store)
+
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "usage" / "claude_code" / "2.1.287"
+
+
+def _usage_executor(
+    tmp_path: Path, repo: Path, adapter: FakeAdapter
+) -> tuple[LaunchExecutor, OutboxStore]:
+    executor, store = _executor(tmp_path, repo, adapter, FakeClient())
+    executor._usage = LaunchUsageRecorder(UsageWriteQueue(store))
+    return executor, store
+
+
+def _print_file(path: Path) -> FakeAdapter:
+    return FakeAdapter(("-c", f"import sys; sys.stdout.write(open({str(path)!r}).read())"))
+
+
+def _rows_by_kind(store: OutboxStore, kind: str) -> list[Any]:
+    return [row for row in store.list_pending(OutboxTable.MUTATIONS) if row.extra["kind"] == kind]
+
+
+async def test_claude_run_produces_a_measured_usage_entry(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    executor, store = _usage_executor(tmp_path, repo, _print_file(FIXTURES / "success.json"))
+    launch = _launch().model_copy(update={"harness_id": "claude-code"})
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    reports = _rows_by_kind(store, "task_launch_report")
+    assert [row.payload["status"] for row in reports] == ["preparing", "running", "succeeded"]
+    assert reports[-1].payload["output_excerpt"] == "OK"
+    (usage,) = _rows_by_kind(store, "usage.create")
+    entry = UsageLedgerEntryCreate.model_validate(usage.payload)
+    assert usage.extra["path"] == USAGE_PATH
+    assert entry.source_event_id == f"task-launch.{launch.id}"
+    assert entry.task_launch_id == launch.id
+    assert entry.machine_id == launch.machine_id
+    assert entry.provenance.collector == "studio-claude-code"
+    assert entry.provenance.harness == "claude-code"
+    assert entry.provenance.model == "claude-opus-5-5"
+    assert entry.tokens_in.value == 2
+    assert entry.tokens_cached.value == 32926
+    assert entry.cost.coverage is MeasurementCoverage.MEASURED
+    assert entry.duration.coverage is MeasurementCoverage.MEASURED
+    assert entry.period_end >= entry.period_start
+
+
+async def test_corrupted_claude_output_never_fails_the_run(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    executor, store = _usage_executor(tmp_path, repo, _print_file(FIXTURES / "corrupted.json"))
+    launch = _launch().model_copy(update={"harness_id": "claude-code"})
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    reports = _rows_by_kind(store, "task_launch_report")
+    assert reports[-1].payload["status"] == "succeeded"
+    (usage,) = _rows_by_kind(store, "usage.create")
+    entry = UsageLedgerEntryCreate.model_validate(usage.payload)
+    assert entry.tokens_in.value is None
+    assert entry.tokens_in.coverage is MeasurementCoverage.UNKNOWN
+    assert entry.cost.coverage is MeasurementCoverage.UNKNOWN
+    assert entry.duration.coverage is MeasurementCoverage.MEASURED
+
+
+async def test_uncertified_harness_records_duration_only(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    executor, store = _usage_executor(tmp_path, repo, FakeAdapter(("-c", "print('ok')")))
+    launch = _launch().model_copy(update={"harness_id": "codex"})
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    assert _rows_by_kind(store, "task_launch_report")[-1].payload["output_excerpt"].strip() == "ok"
+    (usage,) = _rows_by_kind(store, "usage.create")
+    entry = UsageLedgerEntryCreate.model_validate(usage.payload)
+    assert entry.provenance.collector == "studio-runner"
+    assert entry.coverage_by_metric == {
+        "tokens_in": MeasurementCoverage.UNKNOWN,
+        "tokens_out": MeasurementCoverage.UNKNOWN,
+        "tokens_cached": MeasurementCoverage.UNKNOWN,
+        "cost": MeasurementCoverage.UNKNOWN,
+        "duration": MeasurementCoverage.MEASURED,
+    }
+
+
+async def test_failing_usage_queue_never_fails_the_run(tmp_path: Path) -> None:
+    class BrokenQueue(UsageWriteQueue):
+        def enqueue_entry(self, entry: Any, *, idempotency_key: UUID) -> bool:
+            raise RuntimeError("disk full")
+
+    repo = _repo(tmp_path)
+    executor, store = _executor(tmp_path, repo, FakeAdapter(("-c", "print('ok')")), FakeClient())
+    executor._usage = LaunchUsageRecorder(BrokenQueue(store))
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    assert _statuses(store) == ["preparing", "running", "succeeded"]
