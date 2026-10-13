@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from uuid import UUID
 
+from studio_contracts.profiles import MachinePolicy
 from studio_contracts.task_launch import (
     LAUNCH_MAX_OUTPUT_CHARS,
     TaskLaunch,
@@ -28,6 +29,7 @@ from studio_contracts.task_launch import (
 )
 
 from studio_client.api_client import StudioApiClient
+from studio_client.daemon.launch_policy import LaunchProfile, enforce_profile, run_diagnostics
 from studio_client.daemon.launch_prepare import (
     LaunchPreparer,
     PreparationError,
@@ -43,7 +45,7 @@ from studio_client.daemon.launch_runner import (
     build_instruction,
 )
 from studio_client.errors import StudioApiError
-from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
 from studio_client.usage.collectors import RunObservation
@@ -66,6 +68,7 @@ class ResolvedLaunch:
     task_title: str | None
     adapter: HarnessAdapter
     ctx: HarnessContext
+    profile: LaunchProfile | None = None
 
 
 Resolver = Callable[[TaskLaunch], Awaitable[ResolvedLaunch | None]]
@@ -86,8 +89,10 @@ class LaunchExecutor:
         max_output_chars: int = LAUNCH_MAX_OUTPUT_CHARS,
         models: Mapping[str, str] | None = None,
         usage: LaunchUsageRecorder | None = None,
+        machine_policy: Callable[[], MachinePolicy] | None = None,
     ) -> None:
         self._usage = usage
+        self._machine_policy = machine_policy
         self._models: Mapping[str, str] = models or {}
         self._client = client
         self._reporter = reporter
@@ -183,6 +188,24 @@ class LaunchExecutor:
                 return
             if await self._is_terminal(launch.id):
                 return
+            enforcement = enforce_profile(
+                resolved.profile,
+                supported_modes=resolved.adapter.access_modes,
+                policy=self._policy(),
+            )
+            if enforcement.mode is None:
+                logger.warning("launch refused by local profile policy: %s", enforcement.refusal)
+                self._reporter.report(
+                    launch,
+                    TaskLaunchStatus.FAILED,
+                    reason_code=TaskLaunchReasonCode.PREPARATION_FAILED,
+                    output_excerpt=(
+                        f"[studio:profile_refused] reason={enforcement.refusal} "
+                        f"{enforcement.diagnostic}"
+                    )[: self._max_chars],
+                )
+                return
+            mode = enforcement.mode
             self._reporter.report(launch, TaskLaunchStatus.PREPARING)
             prepared = await asyncio.to_thread(
                 self._preparer.prepare,
@@ -220,9 +243,9 @@ class LaunchExecutor:
                     ),
                 }
                 argv = (
-                    *resolved.adapter.headless_argv(prompt),
+                    *resolved.adapter.headless_argv(prompt, mode=mode),
                     *resolved.adapter.headless_extra_argv(
-                        ctx, model=model, isolation_dir=isolation_dir
+                        ctx, model=model, isolation_dir=isolation_dir, mode=mode
                     ),
                 )
                 self._reporter.report(launch, TaskLaunchStatus.RUNNING)
@@ -231,7 +254,7 @@ class LaunchExecutor:
                 result = await asyncio.to_thread(running.wait, self._timeout)
             display = self._record_usage(launch, result)
             self._report_terminal(
-                launch, result, extra_secrets=(credential.token,), display=display
+                launch, result, mode=mode, extra_secrets=(credential.token,), display=display
             )
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)
@@ -279,17 +302,32 @@ class LaunchExecutor:
         )
         return None if recorded is None else recorded.collected.result_text
 
+    def _policy(self) -> MachinePolicy:
+        if self._machine_policy is None:
+            return MachinePolicy(opt_in=False, max_concurrent=1)
+        return self._machine_policy()
+
     def _report_terminal(
         self,
         launch: TaskLaunch,
         result: LaunchResult,
         *,
+        mode: AccessMode = AccessMode.WORKSPACE_WRITE,
         extra_secrets: tuple[str, ...] = (),
         display: str | None = None,
     ) -> None:
         if launch.id in self._stopped:
             return
-        excerpt = self._excerpt(result.output if display is None else display, extra_secrets)
+        # Diagnostics read the raw harness output (JSON included); the excerpt
+        # shows the collector's readable result when there is one.
+        diagnostics = run_diagnostics(result.output)
+        header = (
+            f"[studio:launch_diagnostics] mode={mode.value} {' '.join(diagnostics)}\n"
+            if diagnostics
+            else ""
+        )
+        body = self._excerpt(result.output if display is None else display, extra_secrets)
+        excerpt = (header + body)[: self._max_chars]
         if result.timed_out:
             self._reporter.report(
                 launch,
@@ -299,7 +337,7 @@ class LaunchExecutor:
             )
         elif result.cancelled:
             return
-        elif result.exit_code == 0:
+        elif result.exit_code == 0 and "forbidden_operation" not in diagnostics:
             self._reporter.report(launch, TaskLaunchStatus.SUCCEEDED, output_excerpt=excerpt)
         else:
             self._reporter.report(

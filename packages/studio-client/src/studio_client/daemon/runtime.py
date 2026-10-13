@@ -39,7 +39,10 @@ from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.daemon.launch_settings_bridge import effective_launch_config
+from studio_client.daemon.launch_settings_bridge import (
+    effective_launch_config,
+    load_machine_policy,
+)
 from studio_client.daemon.skills_bridge import start_auto_sync
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
@@ -396,6 +399,7 @@ class DaemonRuntime:
                     secrets=_launch_secrets(),
                     models=self.config.launch_models,
                     usage=LaunchUsageRecorder(UsageWriteQueue(store)),
+                    machine_policy=lambda: load_machine_policy(self.config, self.data_root),
                 )
                 self._launch_executor = executor
                 executor.start()

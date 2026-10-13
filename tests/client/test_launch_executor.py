@@ -15,7 +15,7 @@ from studio_client.daemon.launch_executor import LaunchExecutor, ResolvedLaunch
 from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.outbox import OutboxStore
 from studio_client.outbox.models import OutboxTable
 from studio_client.outbox.store import connect
@@ -76,7 +76,9 @@ class FakeAdapter(HarnessAdapter):
     def resolve_executable(self, ctx: HarnessContext) -> Path:
         return Path(sys.executable)
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
         return self._argv
 
     def headless_environment(
@@ -155,6 +157,13 @@ def _executor(
     return executor, store
 
 
+def _body(excerpt: object) -> str:
+    lines = str(excerpt).splitlines()
+    if lines and lines[0].startswith("[studio:launch_diagnostics]"):
+        lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
 def _statuses(store: OutboxStore) -> list[str]:
     return [str(row.payload["status"]) for row in store.list_pending(OutboxTable.MUTATIONS)]
 
@@ -169,7 +178,7 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     rows = store.list_pending(OutboxTable.MUTATIONS)
     assert [row.payload["status"] for row in rows] == ["preparing", "running", "succeeded"]
     assert [row.payload["expected_version"] for row in rows] == [1, 2, 3]
-    assert rows[-1].payload["output_excerpt"].strip() == "ok"
+    assert _body(rows[-1].payload["output_excerpt"]) == "ok"
 
 
 async def test_launched_harness_never_inherits_the_daemon_secrets(tmp_path: Path) -> None:
@@ -194,7 +203,7 @@ async def test_launched_harness_never_inherits_the_daemon_secrets(tmp_path: Path
     await executor._tasks[launch.id]
 
     rows = store.list_pending(OutboxTable.MUTATIONS)
-    assert rows[-1].payload["output_excerpt"].strip() == "None None True"
+    assert _body(rows[-1].payload["output_excerpt"]) == "None None True"
 
 
 async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(
@@ -214,7 +223,7 @@ async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(
     await executor._tasks[launch.id]
 
     rows = store.list_pending(OutboxTable.MUTATIONS)
-    model, isolation = str(rows[-1].payload["output_excerpt"]).split()
+    model, isolation = _body(rows[-1].payload["output_excerpt"]).split()
     assert model == "provider/forced"
     assert not Path(isolation).exists()
 
@@ -277,7 +286,7 @@ async def test_excerpt_strips_ansi_escapes(tmp_path: Path) -> None:
 
     excerpt = store.list_pending(OutboxTable.MUTATIONS)[-1].payload["output_excerpt"]
     assert "\x1b" not in excerpt
-    assert excerpt.strip() == "green"
+    assert _body(excerpt) == "green"
 
 
 class _MachineTokenAdapter(FakeAdapter):
@@ -427,7 +436,8 @@ async def test_claude_run_produces_a_measured_usage_entry(tmp_path: Path) -> Non
 
     reports = _rows_by_kind(store, "task_launch_report")
     assert [row.payload["status"] for row in reports] == ["preparing", "running", "succeeded"]
-    assert reports[-1].payload["output_excerpt"] == "OK"
+    # The readable result follows the protocol diagnostics header.
+    assert reports[-1].payload["output_excerpt"].splitlines()[-1] == "OK"
     (usage,) = _rows_by_kind(store, "usage.create")
     entry = UsageLedgerEntryCreate.model_validate(usage.payload)
     assert usage.extra["path"] == USAGE_PATH
@@ -468,7 +478,13 @@ async def test_uncertified_harness_records_duration_only(tmp_path: Path) -> None
     executor.submit(launch)
     await executor._tasks[launch.id]
 
-    assert _rows_by_kind(store, "task_launch_report")[-1].payload["output_excerpt"].strip() == "ok"
+    assert (
+        _rows_by_kind(store, "task_launch_report")[-1]
+        .payload["output_excerpt"]
+        .splitlines()[-1]
+        .strip()
+        == "ok"
+    )
     (usage,) = _rows_by_kind(store, "usage.create")
     entry = UsageLedgerEntryCreate.model_validate(usage.payload)
     assert entry.provenance.collector == "studio-runner"

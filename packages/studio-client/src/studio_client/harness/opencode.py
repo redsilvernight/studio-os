@@ -15,6 +15,7 @@ from typing import Any
 from studio_client.harness import jsonc
 from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
+    AccessMode,
     AdapterRefusal,
     HarnessContext,
     entry_with_credential,
@@ -161,7 +162,10 @@ class OpenCodeAdapter(JsonMcpAdapter):
             "headers": {"Authorization": f"Bearer {token}"},
         }
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
         return ("run", "--auto", prompt)
 
     def headless_environment(

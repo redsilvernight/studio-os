@@ -18,6 +18,7 @@ from typing import Any
 
 from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
+    AccessMode,
     AdapterRefusal,
     HarnessContext,
     entry_with_credential,
@@ -167,8 +168,25 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         return {"type": "http", "url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
 
     _BASE_TOOLS = "Read,Edit,Write,Bash,Grep,Glob"
+    _READ_ONLY_TOOLS = "Read,Grep,Glob"
+    _WRITE_TOOLS = "Edit,Write,MultiEdit,NotebookEdit,Bash,PowerShell"
+    access_modes = frozenset({AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE})
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
+        if mode is AccessMode.READ_ONLY:
+            return (
+                "-p",
+                prompt,
+                "--output-format",
+                "json",
+                "--permission-mode",
+                "default",
+                "--disallowedTools",
+                self._WRITE_TOOLS,
+            )
         return (
             "-p",
             prompt,
@@ -195,14 +213,21 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         return machine_token_env(credential)
 
     def headless_extra_argv(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self,
+        ctx: HarnessContext,
+        *,
+        model: str | None,
+        isolation_dir: Path,
+        mode: AccessMode = AccessMode.WORKSPACE_WRITE,
     ) -> tuple[str, ...]:
+        self.require_mode(mode)
+        tools = self._READ_ONLY_TOOLS if mode is AccessMode.READ_ONLY else self._BASE_TOOLS
         argv: tuple[str, ...] = (
             "--mcp-config",
             str(self._isolation_mcp_path(isolation_dir)),
             "--strict-mcp-config",
             "--allowedTools",
-            f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
+            f"{tools},mcp__{STUDIO_MCP_SERVER_NAME}",
         )
         argv += ("--setting-sources", "")
         settings = self.isolation_settings(ctx)

@@ -19,6 +19,9 @@ N-1 `LaunchSettings` payload still parses and fails closed.
 
 from __future__ import annotations
 
+import hashlib
+import json
+from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -51,6 +54,16 @@ ProfileRefusalCode = Literal[
     "permission_denied",
     "harness_not_allowed",
 ]
+
+ProfileEnforcementCode = Literal[
+    "profile_version_changed",
+    "machine_opt_in_off",
+    "permission_denied",
+    "read_only_unsupported",
+    "mode_unsupported",
+]
+"""Closed vocabulary of the machine's final, local refusal of a profiled
+launch (DEC-0198, additive). Stable tokens, never free text."""
 
 _PERMISSION_ORDER: tuple[ProfilePermission, ...] = (
     "read",
@@ -293,4 +306,35 @@ def resolve_profile(
         permissions=decisions,
         effective_permissions=[d.permission for d in decisions if d.granted],
         refusals=sorted(refusals, key=lambda r: (r.code, r.subject)),
+    )
+
+
+class LaunchProfilePin(ContractModel):
+    """What a launch was previewed/admitted against (DEC-0198, additive): the
+    profile's stable key, contract version and content digest. The machine
+    recomputes it when the run starts; any difference refuses the run with
+    `profile_version_changed` instead of executing a profile nobody saw."""
+
+    stable_key: str = Field(min_length=1, max_length=200)
+    contract_version: int
+    digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+def profile_digest(profile: WorkProfile, elements: Sequence[ProfileElement] = ()) -> str:
+    """Deterministic digest of a profile and the resolved element versions it
+    composes, so a Library version bump changes it as much as a profile edit."""
+
+    body = {
+        "profile": profile.model_dump(mode="json"),
+        "elements": sorted([e.kind.value, e.stable_key, e.version, e.origin] for e in elements),
+    }
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def pin_profile(profile: WorkProfile, elements: Sequence[ProfileElement] = ()) -> LaunchProfilePin:
+    return LaunchProfilePin(
+        stable_key=profile.stable_key,
+        contract_version=profile.contract_version,
+        digest=profile_digest(profile, elements),
     )
