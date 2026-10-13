@@ -173,7 +173,7 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "-p",
             prompt,
             "--output-format",
-            "text",
+            "json",
             "--permission-mode",
             "acceptEdits",
         )

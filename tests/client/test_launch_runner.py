@@ -47,7 +47,7 @@ def test_instruction_carries_the_optional_stable_key() -> None:
                 "-p",
                 "do the work",
                 "--output-format",
-                "text",
+                "json",
                 "--permission-mode",
                 "acceptEdits",
             ),

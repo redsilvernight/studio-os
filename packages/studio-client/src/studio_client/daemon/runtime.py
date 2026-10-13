@@ -65,6 +65,8 @@ from studio_client.outbox import (
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import KeyringTokenStore, TokenStore
+from studio_client.usage import UsageWriteQueue
+from studio_client.usage.recorder import LaunchUsageRecorder
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
@@ -393,6 +395,7 @@ class DaemonRuntime:
                     poll_seconds=self.config.launch_status_poll_seconds,
                     secrets=_launch_secrets(),
                     models=self.config.launch_models,
+                    usage=LaunchUsageRecorder(UsageWriteQueue(store)),
                 )
                 self._launch_executor = executor
                 executor.start()
