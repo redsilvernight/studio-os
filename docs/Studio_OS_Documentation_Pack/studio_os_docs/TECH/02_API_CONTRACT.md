@@ -615,6 +615,38 @@ generique gere ordre, backoff et erreurs definitives en `dead_letter`, avec
 corps et motif conserves pour inspection. Une correction perimee doit etre
 relue puis reproposee, jamais appliquee de force.
 
+### Budgets (Mission Control P03-budgets, additif)
+
+- GET /projects/{project_id}/budget — `BudgetStatus` : politique, mode
+  effectif, `ceiling_guarantee`, compteurs (`consumed`, `held`,
+  `unknown_entries`), lancements actifs, reservations recentes (≤ 50).
+- PUT /projects/{project_id}/budget-policy — `BudgetPolicyUpdate` ->
+  `BudgetPolicy`. Creation sans `expected_version`, sinon `409
+  version_conflict`. Ecriture projet, refusee a `readonly` et aux credentials
+  de lancement. `enforce` est stocke en attente d'approbation. Une creation
+  (sans `expected_version`) qui trouve une politique deja creee, en course ou
+  en rejeu, recoit `200` seulement si cette politique est encore en version 1,
+  du meme auteur et de corps identique ; sinon `409 version_conflict`, jamais
+  un corps perdu en silence.
+- POST /projects/{project_id}/budget-policy/approve — admin seulement ;
+  `409 budget_approval_not_pending` hors attente. L'admin auteur de la
+  politique peut l'approuver lui-meme (auto-approbation autorisee) : choix a
+  confirmer par l'humain.
+- PUT et approve ne prennent pas d'`Idempotency-Key` : la concurrence passe
+  par `expected_version`, et un rejeu d'une ecriture versionnee deja appliquee
+  repond `409 version_conflict` (avec la version serveur).
+- POST /projects/{project_id}/budget/reconcile — solde les reservations des
+  lancements termines ou en retard selon la politique ; idempotent.
+
+Admission : POST task-launches et retry reservent sous verrou de la politique
+du projet, dans la transaction du lancement. Sans politique ou en
+`alert_only`, tout est admis et les depassements deviennent des `alerts` de la
+reservation. En `enforce` approuve : `409 budget_refused` avec `reason` ∈
+`budget_cost_exhausted|budget_tokens_exhausted|budget_slots_exhausted`, rien
+n'est cree. Un refus n'est pas mis en cache sous l'`Idempotency-Key` du
+lancement : un rejeu avec la meme cle reevalue l'admission. `TaskLaunch` et
+les evenements sont inchanges.
+
 ### AI Library (P1, additif, DEC-0062/0063/0064)
 
 - GET /library — liste filtree (`kind`, `scope`, `project_id`, `limit`,

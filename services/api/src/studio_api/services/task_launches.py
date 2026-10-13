@@ -38,6 +38,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services import budgets as budgets_service
 from studio_api.services import events as events_service
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import launch_grants as grants_service
@@ -175,6 +176,7 @@ async def create_launch(
     retry_of_launch_id: uuid.UUID | None = None,
 ) -> TaskLaunchModel:
     now = datetime.now(UTC)
+    admission = await budgets_service.decide_admission(session, project_id, now)
     launch = TaskLaunchModel(
         project_id=project_id,
         task_id=launch_in.task_id,
@@ -190,6 +192,8 @@ async def create_launch(
     )
     session.add(launch)
     await session.flush()
+    if admission is not None:
+        await budgets_service.record_reservation(session, project_id, launch.id, admission)
     return await _commit_with_event(
         session,
         principal,

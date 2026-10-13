@@ -17,6 +17,7 @@ from studio_api.routers import (
     ai_work,
     auth,
     bootstrap_plan,
+    budgets,
     builds,
     claims,
     coordination,
@@ -114,6 +115,11 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
     "usage": (
         "Measured usage ledger with per-metric coverage, source-event deduplication and "
         "versioned whole-block corrections. Writes belong to the authenticated machine."
+    ),
+    "budgets": (
+        "Explicit per-project launch budget: alert-only by default, `enforce` only once "
+        "approved by an admin. Admission reserves a fixed per-launch amount under a "
+        "project lock; the guarantee is `admission_only`, never a spending ceiling."
     ),
     "review-queue": (
         "Aggregated view of AI work reviews, proposed decisions, and recent "
@@ -282,6 +288,7 @@ def create_app() -> FastAPI:
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(usage.router)
+    app.include_router(budgets.router)
     app.include_router(review_queue.router)
     app.include_router(mission.router)
     app.include_router(timeline.router)

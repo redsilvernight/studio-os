@@ -135,6 +135,12 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/task-launches/{launch_id}/credential"): (
         Probe("/api/v1/task-launches/{launch}/credential"),
     ),
+    ("POST", "/api/v1/task-launches/{launch_id}/snapshot"): (
+        Probe("/api/v1/task-launches/{launch}/snapshot", {}),
+    ),
+    ("GET", "/api/v1/task-launches/{launch_id}/snapshot"): (
+        Probe("/api/v1/task-launches/{launch}/snapshot"),
+    ),
     ("POST", "/api/v1/tasks/{task_id}/release"): (Probe("/api/v1/tasks/{task}/release"),),
     ("GET", "/api/v1/sessions"): (Probe("/api/v1/sessions?task_id={task}"),),
     ("POST", "/api/v1/sessions"): (
@@ -331,6 +337,19 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("GET", "/api/v1/projects/{project_id}/mission"): (
         Probe(f"/api/v1/projects/{_UNKNOWN}/mission"),
         Probe("/api/v1/projects/{pid}/mission"),
+    ),
+    ("GET", "/api/v1/projects/{project_id}/budget"): (
+        Probe(f"/api/v1/projects/{_UNKNOWN}/budget"),
+        Probe("/api/v1/projects/{pid}/budget"),
+    ),
+    ("PUT", "/api/v1/projects/{project_id}/budget-policy"): (
+        Probe("/api/v1/projects/{pid}/budget-policy", {"mode": "alert_only"}),
+    ),
+    ("POST", "/api/v1/projects/{project_id}/budget-policy/approve"): (
+        Probe("/api/v1/projects/{pid}/budget-policy/approve", {"expected_version": 1}),
+    ),
+    ("POST", "/api/v1/projects/{project_id}/budget/reconcile"): (
+        Probe("/api/v1/projects/{pid}/budget/reconcile", {}),
     ),
     ("GET", "/api/v1/timeline"): (Probe("/api/v1/timeline?project_id={pid}"),),
     ("POST", "/api/v1/projects/{project_id}/github-integration"): (

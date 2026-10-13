@@ -4,6 +4,7 @@ from studio_api.db.models.account_token import AccountTokenModel
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.base import Base
+from studio_api.db.models.budget import BudgetPolicyModel, BudgetReservationModel
 from studio_api.db.models.build import BuildModel, GitHubIntegrationModel, ProducerJobModel
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
@@ -55,6 +56,8 @@ __all__ = [
     "WorkSessionModel",
     "UsageLedgerEntryModel",
     "ExecutionSnapshotModel",
+    "BudgetPolicyModel",
+    "BudgetReservationModel",
     "VaultNoteModel",
     "VaultNoteLinkModel",
     "VaultNoteVersionModel",
