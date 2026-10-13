@@ -407,7 +407,9 @@ Contrat `studio_contracts.budgets`. Additif : aucune table existante modifiee.
   `task_launch_id`), `status` ∈ `held|settled|released` (`settled_at` nul ⇔
   `held`), `settle_basis` ∈ `measured|reservation|none`, montants reserves,
   `alerts` (JSONB), `version`. Index `(project_id, created_at)`,
-  `(project_id, status)`.
+  `(project_id, status)`, `(policy_id)`.
+- `version` a `server_default 1` dans les deux tables, `mode` a
+  `server_default 'alert_only'`.
 - Consommation recalculee a la lecture depuis `usage_ledger_entries` : l'usage
   mesure remplace toujours la reservation, meme tardif. Garantie affichee
   `admission_only` en `enforce` effectif, `none` sinon : jamais de plafond de

@@ -50,7 +50,7 @@ class BudgetPolicyModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     )
 
     project_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("projects.id"))
-    mode: Mapped[str] = mapped_column(String(16))
+    mode: Mapped[str] = mapped_column(String(16), server_default="alert_only")
     period: Mapped[str] = mapped_column(String(16))
     currency: Mapped[str] = mapped_column(String(3))
     cost_limit: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), default=None)
@@ -69,6 +69,7 @@ class BudgetPolicyModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("users.id"), default=None
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class BudgetReservationModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
@@ -90,6 +91,7 @@ class BudgetReservationModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
         ),
         Index("ix_budget_reservations_project", "project_id", "created_at"),
         Index("ix_budget_reservations_held", "project_id", "status"),
+        Index("ix_budget_reservations_policy", "policy_id"),
     )
 
     project_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("projects.id"))
@@ -105,3 +107,4 @@ class BudgetReservationModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     settle_basis: Mapped[str | None] = mapped_column(String(16), default=None)
     alerts: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")

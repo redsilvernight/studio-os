@@ -275,7 +275,11 @@ async def test_policy_writes_are_versioned_and_validated(
     )
     assert invalid.status_code == 422
     policy = await _put_policy(client, auth_headers, world[0])
-    duplicate = await client.put(url, json={}, headers=auth_headers)
+    replay = await client.put(url, json={}, headers=auth_headers)
+    assert replay.status_code == 200
+    assert replay.json()["id"] == policy["id"]
+    assert replay.json()["version"] == 1
+    duplicate = await client.put(url, json={"period": "day"}, headers=auth_headers)
     assert duplicate.status_code == 409
     assert duplicate.json()["detail"] == {"error_code": "version_conflict", "server_version": 1}
     stale = await client.put(url, json={"expected_version": 7}, headers=auth_headers)

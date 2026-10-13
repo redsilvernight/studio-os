@@ -29,7 +29,7 @@ def upgrade() -> None:
             sa.ForeignKey("projects.id"),
             nullable=False,
         ),
-        sa.Column("mode", sa.String(16), nullable=False),
+        sa.Column("mode", sa.String(16), nullable=False, server_default="alert_only"),
         sa.Column("period", sa.String(16), nullable=False),
         sa.Column("currency", sa.String(3), nullable=False),
         sa.Column("cost_limit", sa.Numeric(18, 8), nullable=True),
@@ -60,7 +60,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
         sa.UniqueConstraint("project_id", name="uq_budget_policies_project"),
         sa.CheckConstraint("mode IN ('alert_only', 'enforce')", name="ck_budget_policies_mode"),
         sa.CheckConstraint(
@@ -115,7 +115,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
         sa.UniqueConstraint("task_launch_id", name="uq_budget_reservations_launch"),
         sa.CheckConstraint(
             "status IN ('held', 'settled', 'released')", name="ck_budget_reservations_status"
@@ -130,9 +130,11 @@ def upgrade() -> None:
     )
     op.create_index("ix_budget_reservations_project", RESERVATIONS, ["project_id", "created_at"])
     op.create_index("ix_budget_reservations_held", RESERVATIONS, ["project_id", "status"])
+    op.create_index("ix_budget_reservations_policy", RESERVATIONS, ["policy_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_budget_reservations_policy", table_name=RESERVATIONS)
     op.drop_index("ix_budget_reservations_held", table_name=RESERVATIONS)
     op.drop_index("ix_budget_reservations_project", table_name=RESERVATIONS)
     op.drop_table(RESERVATIONS)

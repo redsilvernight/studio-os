@@ -158,6 +158,14 @@ async def _get_policy(
     return result.scalar_one_or_none()
 
 
+def _same_creation(row: BudgetPolicyModel, principal: Principal, values: dict[str, Any]) -> bool:
+    return (
+        row.version == 1
+        and row.proposed_by_user_id == principal.user.id
+        and all(getattr(row, name) == value for name, value in values.items())
+    )
+
+
 async def put_policy(
     session: AsyncSession,
     principal: Principal,
@@ -175,6 +183,11 @@ async def put_policy(
     values["unknown_cost"] = update.unknown_cost.value
     values["late_usage"] = update.late_usage.value
     row = await _get_policy(session, project_id, lock=True)
+    if row is not None and update.expected_version is None:
+        if not _same_creation(row, principal, values):
+            raise _conflict("version_conflict", server_version=row.version)
+        await session.commit()
+        return row
     if row is None:
         if update.expected_version is not None:
             raise _conflict("version_conflict", server_version=0)
@@ -191,7 +204,7 @@ async def put_policy(
         )
         row = await _get_policy(session, project_id, lock=True)
         assert row is not None
-        if row.proposed_by_user_id != principal.user.id or row.version != 1:
+        if not _same_creation(row, principal, values):
             raise _conflict("version_conflict", server_version=row.version)
     else:
         if update.expected_version != row.version:

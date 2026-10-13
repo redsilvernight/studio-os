@@ -251,3 +251,49 @@ async def test_reconciliation_after_crash_frees_the_slot_once(
     assert sorted(await asyncio.gather(*(_reconcile() for _ in range(4)))) == [0, 0, 0, 1]
     responses = await _race(real_client, real_engine, world, 3)
     assert Counter(r.status_code for r in responses) == {201: 1, 409: 2}
+
+
+async def _race_creations(
+    client: AsyncClient, engine: AsyncEngine, world: World, bodies: list[dict[str, Any]]
+) -> list[Any]:
+    await _warm_pool(async_sessionmaker(engine, expire_on_commit=False), len(bodies))
+    return await asyncio.gather(
+        *(
+            client.put(
+                f"/api/v1/projects/{world.project_id}/budget-policy",
+                json=body,
+                headers=world.headers,
+            )
+            for body in bodies
+        )
+    )
+
+
+async def test_concurrent_identical_creations_both_succeed_on_one_policy(
+    real_engine: AsyncEngine, real_client: AsyncClient, world: World
+) -> None:
+    body = {"mode": "alert_only", "cost_limit": "3", "max_active_launches": 2}
+    responses = await _race_creations(real_client, real_engine, world, [body, body])
+    assert [r.status_code for r in responses] == [200, 200], [r.text for r in responses]
+    assert len({r.json()["id"] for r in responses}) == 1
+    assert {r.json()["version"] for r in responses} == {1}
+
+
+async def test_concurrent_divergent_creations_never_drop_a_body_silently(
+    real_engine: AsyncEngine, real_client: AsyncClient, world: World
+) -> None:
+    bodies = [
+        {"mode": "alert_only", "max_active_launches": 2},
+        {"mode": "alert_only", "max_active_launches": 7},
+    ]
+    responses = await _race_creations(real_client, real_engine, world, bodies)
+    assert Counter(r.status_code for r in responses) == {200: 1, 409: 1}, [
+        r.text for r in responses
+    ]
+    loser = next(r for r in responses if r.status_code == 409)
+    assert loser.json()["detail"]["error_code"] == "version_conflict"
+    winner = next(r for r in responses if r.status_code == 200)
+    stored = await real_client.get(
+        f"/api/v1/projects/{world.project_id}/budget", headers=world.headers
+    )
+    assert stored.json()["policy"]["max_active_launches"] == winner.json()["max_active_launches"]
