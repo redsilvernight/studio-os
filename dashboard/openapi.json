@@ -2551,6 +2551,194 @@
     }
    }
   },
+  "/api/v1/task-launches/{launch_id}/snapshot": {
+   "post": {
+    "tags": [
+     "task-launches"
+    ],
+    "summary": "Submit Task Launch Snapshot",
+    "description": "The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret (`422`). Idempotent by content: replaying the same payload \u2014 whatever its `Idempotency-Key` \u2014 returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.",
+    "operationId": "submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "launch_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Launch Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExecutionSnapshotPayload"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExecutionSnapshot"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "This launch already has an execution snapshot with a different content (`execution_snapshot_immutable`, with the recorded `snapshot_id` and `content_hash`). A snapshot is never rewritten: replaying the same payload is not an error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "execution_snapshot_immutable",
+          "snapshot_id": "00000000-0000-0000-0000-000000000000",
+          "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "task-launches"
+    ],
+    "summary": "Get Task Launch Snapshot",
+    "description": "Read the execution snapshot of one launch attempt: what was previewed (`resolution`) beside what the machine really applied (`applied`: git commit and branch observed in the worktree, harness version, projection digests, enforced profile and mode). `404` while the machine has not recorded it.",
+    "operationId": "get_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "launch_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Launch Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExecutionSnapshot"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/task-launches/{launch_id}/credential": {
    "post": {
     "tags": [
@@ -7062,13 +7250,12 @@
       }
      },
      "409": {
-      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "actor_not_owned",
-          "message": "agent_id must be an agent attached to the authenticated machine"
+          "error_code": "usage_identity_conflict"
          }
         }
        }
@@ -7176,13 +7363,12 @@
       }
      },
      "409": {
-      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Stale expected_version: version_conflict carries the current server_version. Read the entry and submit a new correction with its current version. An exact Idempotency-Key replay returns its original response before this check.",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "actor_not_owned",
-          "message": "agent_id must be an agent attached to the authenticated machine"
+          "error_code": "usage_identity_conflict"
          }
         }
        }
@@ -17688,6 +17874,124 @@
     "title": "EventType",
     "description": "Fixed dotted names (`domain.verb`: task.created, session.ended, ...).\nAdditive-only: new members may appear, existing ones are never renamed\nor removed \u2014 readers should tolerate unknown types."
    },
+   "ExecutionSnapshot": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_launch_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Launch Id"
+     },
+     "content_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Hash"
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version"
+     },
+     "capture_status": {
+      "$ref": "#/components/schemas/SnapshotCaptureStatus"
+     },
+     "capture_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capture Reason"
+     },
+     "payload": {
+      "$ref": "#/components/schemas/ExecutionSnapshotPayload"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "retention_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Retention Until"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "task_launch_id",
+     "content_hash",
+     "schema_version",
+     "capture_status",
+     "payload",
+     "created_at",
+     "retention_until"
+    ],
+    "title": "ExecutionSnapshot",
+    "description": "Read model: one recorded snapshot of one launch attempt."
+   },
+   "ExecutionSnapshotPayload": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "capture_status": {
+      "$ref": "#/components/schemas/SnapshotCaptureStatus"
+     },
+     "resolution": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotResolution"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "applied": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotAppliedParameters"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "capture_errors": {
+      "items": {
+       "$ref": "#/components/schemas/SnapshotCaptureError"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Capture Errors"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "capture_status"
+    ],
+    "title": "ExecutionSnapshotPayload",
+    "description": "The hashed, immutable body of a snapshot."
+   },
    "GitHubIntegration": {
     "properties": {
      "created_at": {
@@ -24105,6 +24409,432 @@
     ],
     "title": "SessionStatus",
     "description": "Presence derived at read time (C1), never stored: `active`\n(recent activity), `idle` (no activity past the idle threshold),\n`expired` (no activity past the expire threshold \u2014 L2 closes these),\n`ended` (`ended_at` set). Same pattern as `MachineStatus` from\n`last_seen_at`, but driven by session-attached activity, never by a\ndedicated agent heartbeat."
+   },
+   "SnapshotAppliedParameters": {
+    "properties": {
+     "harness_id": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Harness Id"
+     },
+     "harness_version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Version"
+     },
+     "projections": {
+      "items": {
+       "$ref": "#/components/schemas/SnapshotProjectionRef"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Projections"
+     },
+     "git_sha": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Git Sha"
+     },
+     "git_dirty": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Git Dirty"
+     },
+     "local_policy_digest": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Local Policy Digest"
+     },
+     "worktree_branch": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Worktree Branch"
+     },
+     "profile": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotProfileRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "access_mode": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Access Mode"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "harness_id"
+    ],
+    "title": "SnapshotAppliedParameters",
+    "description": "What Bloc B really applied on the machine.\n\nAdditive: `worktree_branch` is the branch git\nreports for the run's worktree (observed, never the declared one);\n`profile` is the work profile pin recomputed when the run starts \u2014 compare\nit with `resolution.profile`, the pin the launch was previewed/admitted\nagainst; `access_mode` is the mode the machine finally enforced (`None`\nwhen it refused to run)."
+   },
+   "SnapshotCaptureError": {
+    "properties": {
+     "code": {
+      "$ref": "#/components/schemas/SnapshotCaptureErrorCode"
+     },
+     "field": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Field"
+     },
+     "detail": {
+      "type": "string",
+      "maxLength": 500,
+      "title": "Detail",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "code"
+    ],
+    "title": "SnapshotCaptureError"
+   },
+   "SnapshotCaptureErrorCode": {
+    "type": "string",
+    "enum": [
+     "resolution_unavailable",
+     "profile_unavailable",
+     "harness_version_unknown",
+     "projection_digest_unavailable",
+     "git_sha_unavailable",
+     "local_policy_unavailable",
+     "redaction_required",
+     "payload_too_large",
+     "internal",
+     "worktree_unverified"
+    ],
+    "title": "SnapshotCaptureErrorCode",
+    "description": "Closed vocabulary of explicit capture errors: a missing piece is named,\nnever silently omitted."
+   },
+   "SnapshotCaptureStatus": {
+    "type": "string",
+    "enum": [
+     "ok",
+     "partial",
+     "failed"
+    ],
+    "title": "SnapshotCaptureStatus"
+   },
+   "SnapshotProfileRef": {
+    "properties": {
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "contract_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Contract Version"
+     },
+     "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "stable_key",
+     "contract_version",
+     "digest"
+    ],
+    "title": "SnapshotProfileRef"
+   },
+   "SnapshotProjectionRef": {
+    "properties": {
+     "target": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Target"
+     },
+     "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "target",
+     "digest"
+    ],
+    "title": "SnapshotProjectionRef",
+    "description": "One file the harness adapter projected. `target` is a logical,\nrepository-relative identifier \u2014 never an absolute path."
+   },
+   "SnapshotResolution": {
+    "properties": {
+     "agent_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Agent Stable Key"
+     },
+     "profile": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotProfileRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "resources": {
+      "items": {
+       "$ref": "#/components/schemas/SnapshotResourceRef"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Resources"
+     },
+     "runtime": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotRuntimeRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "agent_stable_key"
+    ],
+    "title": "SnapshotResolution",
+    "description": "Projection of the resolver output. `profile` is the\npin the launch was previewed/admitted against; `applied.profile` is the\npin recomputed when the run starts."
+   },
+   "SnapshotResourceRef": {
+    "properties": {
+     "role": {
+      "$ref": "#/components/schemas/SnapshotResourceRole"
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version"
+     },
+     "version_origin": {
+      "$ref": "#/components/schemas/VersionOrigin"
+     },
+     "content_digest": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Content Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "role",
+     "resource_id",
+     "kind",
+     "stable_key",
+     "scope",
+     "version",
+     "version_origin"
+    ],
+    "title": "SnapshotResourceRef",
+    "description": "One Library version the resolver selected, with the digest of its\ncontent (the content itself is never copied)."
+   },
+   "SnapshotResourceRole": {
+    "type": "string",
+    "enum": [
+     "agent",
+     "rule",
+     "skill",
+     "model_profile",
+     "workflow",
+     "composed_agent"
+    ],
+    "title": "SnapshotResourceRole"
+   },
+   "SnapshotRuntimeRef": {
+    "properties": {
+     "level": {
+      "$ref": "#/components/schemas/RuntimeLevel"
+     },
+     "matched_kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "matched_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Matched Stable Key"
+     },
+     "runtime_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Id"
+     },
+     "runtime_binding_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Binding Id"
+     },
+     "harness_ref": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Ref"
+     },
+     "provider_ref": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider Ref"
+     },
+     "model_ref": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Ref"
+     },
+     "capabilities_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Capabilities Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "level",
+     "matched_kind",
+     "matched_stable_key",
+     "capabilities_digest"
+    ],
+    "title": "SnapshotRuntimeRef",
+    "description": "The runtime the resolver picked: references only, capabilities reduced\nto a digest."
    },
    "StartWorkCandidate": {
     "properties": {

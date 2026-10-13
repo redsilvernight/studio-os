@@ -1001,6 +1001,12 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   de bord.
 - POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
   `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+- POST /task-launches/{id}/snapshot (`ExecutionSnapshotPayload`) -> `ExecutionSnapshot`, `201`
+  (P04-snapshot-capture, DEC-0199, additif) — machine cible seule (regles du report), envoye par
+  l'outbox. Idempotent par contenu : meme payload = meme snapshot ; contenu different pour le
+  meme lancement = `409 execution_snapshot_immutable` ; payload avec secret ou chemin absolu =
+  `422`, rien stocke. GET /task-launches/{id}/snapshot -> `ExecutionSnapshot` (portee projet
+  en lecture), `404` si aucun. Voir `docs/mission-control/snapshot-contract.md`.
 - POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
   (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
   credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon

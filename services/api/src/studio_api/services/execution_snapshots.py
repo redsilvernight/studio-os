@@ -1,6 +1,7 @@
 """Immutable execution snapshots (DEC-0199): record once, read, purge by retention.
 
-No HTTP route and no capture here (P04-snapshot-capture). The service never
+Routes: `POST`/`GET /api/v1/task-launches/{id}/snapshot`; the capture itself
+runs on the machine (`studio_client.daemon.launch_snapshot`). The service never
 updates a stored payload: recording the same content again is a no-op that
 returns the stored snapshot, recording a different content for the same launch
 is refused.
@@ -26,6 +27,8 @@ from studio_contracts.execution_snapshot import (
 
 from studio_api.db.models.execution_snapshot import ExecutionSnapshotModel
 from studio_api.db.models.task_launch import TaskLaunchModel
+from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.task_launches import authorize_report
 from studio_api.settings import get_settings
 
 DEFAULT_PURGE_BATCH = 1000
@@ -111,6 +114,21 @@ async def record_snapshot(
             content_hash=existing.content_hash,
         )
     return _to_contract(existing)
+
+
+async def submit_launch_snapshot(
+    session: AsyncSession,
+    principal: Principal,
+    launch: TaskLaunchModel,
+    payload: ExecutionSnapshotPayload,
+) -> ExecutionSnapshot:
+    """HTTP path of `record_snapshot`: only the launch's target machine, with
+    its durable credential (launch credentials are not on the allowlist)."""
+    authorize_report(principal, launch)
+    ensure_project_access(principal, launch.project_id, "write")
+    snapshot = await record_snapshot(session, task_launch_id=launch.id, payload=payload)
+    await session.commit()
+    return snapshot
 
 
 async def get_snapshot(session: AsyncSession, snapshot_id: uuid.UUID) -> ExecutionSnapshot | None:

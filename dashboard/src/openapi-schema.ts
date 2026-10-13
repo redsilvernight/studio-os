@@ -564,6 +564,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/task-launches/{launch_id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Launch Snapshot
+         * @description Read the execution snapshot of one launch attempt: what was previewed (`resolution`) beside what the machine really applied (`applied`: git commit and branch observed in the worktree, harness version, projection digests, enforced profile and mode). `404` while the machine has not recorded it.
+         */
+        get: operations["get_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_get"];
+        put?: never;
+        /**
+         * Submit Task Launch Snapshot
+         * @description The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret (`422`). Idempotent by content: replaying the same payload — whatever its `Idempotency-Key` — returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.
+         */
+        post: operations["submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/task-launches/{launch_id}/credential": {
         parameters: {
             query?: never;
@@ -3737,6 +3761,62 @@ export interface components {
          */
         EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "task_launch.requested" | "task_launch.accepted" | "task_launch.rejected" | "task_launch.cancelled" | "task_launch.expired" | "task_launch.finished" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published" | "coordination.heads_up" | "coordination.question" | "coordination.blocked_by" | "coordination.handoff";
         /**
+         * ExecutionSnapshot
+         * @description Read model: one recorded snapshot of one launch attempt.
+         */
+        ExecutionSnapshot: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Task Launch Id
+             * Format: uuid
+             */
+            task_launch_id: string;
+            /** Content Hash */
+            content_hash: string;
+            /** Schema Version */
+            schema_version: number;
+            capture_status: components["schemas"]["SnapshotCaptureStatus"];
+            /** Capture Reason */
+            capture_reason?: string | null;
+            payload: components["schemas"]["ExecutionSnapshotPayload"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Retention Until
+             * Format: date-time
+             */
+            retention_until: string;
+        };
+        /**
+         * ExecutionSnapshotPayload
+         * @description The hashed, immutable body of a snapshot.
+         */
+        ExecutionSnapshotPayload: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            capture_status: components["schemas"]["SnapshotCaptureStatus"];
+            resolution?: components["schemas"]["SnapshotResolution"] | null;
+            applied?: components["schemas"]["SnapshotAppliedParameters"] | null;
+            /** Capture Errors */
+            capture_errors?: components["schemas"]["SnapshotCaptureError"][];
+        };
+        /**
          * GitHubIntegration
          * @description Per-project GitHub wiring. At most one row per project in
          *     v1 (`project_id` unique) — the webhook secret itself is never stored
@@ -6670,6 +6750,143 @@ export interface components {
          * @enum {string}
          */
         SessionStatus: "active" | "idle" | "expired" | "ended";
+        /**
+         * SnapshotAppliedParameters
+         * @description What Bloc B really applied on the machine.
+         *
+         *     Additive: `worktree_branch` is the branch git
+         *     reports for the run's worktree (observed, never the declared one);
+         *     `profile` is the work profile pin recomputed when the run starts — compare
+         *     it with `resolution.profile`, the pin the launch was previewed/admitted
+         *     against; `access_mode` is the mode the machine finally enforced (`None`
+         *     when it refused to run).
+         */
+        SnapshotAppliedParameters: {
+            /** Harness Id */
+            harness_id: string;
+            /** Harness Version */
+            harness_version?: string | null;
+            /** Projections */
+            projections?: components["schemas"]["SnapshotProjectionRef"][];
+            /** Git Sha */
+            git_sha?: string | null;
+            /** Git Dirty */
+            git_dirty?: boolean | null;
+            /** Local Policy Digest */
+            local_policy_digest?: string | null;
+            /** Worktree Branch */
+            worktree_branch?: string | null;
+            profile?: components["schemas"]["SnapshotProfileRef"] | null;
+            /** Access Mode */
+            access_mode?: string | null;
+        };
+        /** SnapshotCaptureError */
+        SnapshotCaptureError: {
+            code: components["schemas"]["SnapshotCaptureErrorCode"];
+            /** Field */
+            field?: string | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+        };
+        /**
+         * SnapshotCaptureErrorCode
+         * @description Closed vocabulary of explicit capture errors: a missing piece is named,
+         *     never silently omitted.
+         * @enum {string}
+         */
+        SnapshotCaptureErrorCode: "resolution_unavailable" | "profile_unavailable" | "harness_version_unknown" | "projection_digest_unavailable" | "git_sha_unavailable" | "local_policy_unavailable" | "redaction_required" | "payload_too_large" | "internal" | "worktree_unverified";
+        /**
+         * SnapshotCaptureStatus
+         * @enum {string}
+         */
+        SnapshotCaptureStatus: "ok" | "partial" | "failed";
+        /** SnapshotProfileRef */
+        SnapshotProfileRef: {
+            /** Stable Key */
+            stable_key: string;
+            /** Contract Version */
+            contract_version: number;
+            /** Digest */
+            digest: string;
+        };
+        /**
+         * SnapshotProjectionRef
+         * @description One file the harness adapter projected. `target` is a logical,
+         *     repository-relative identifier — never an absolute path.
+         */
+        SnapshotProjectionRef: {
+            /** Target */
+            target: string;
+            /** Digest */
+            digest: string;
+        };
+        /**
+         * SnapshotResolution
+         * @description Projection of the resolver output. `profile` is the
+         *     pin the launch was previewed/admitted against; `applied.profile` is the
+         *     pin recomputed when the run starts.
+         */
+        SnapshotResolution: {
+            /** Agent Stable Key */
+            agent_stable_key: string;
+            profile?: components["schemas"]["SnapshotProfileRef"] | null;
+            /** Resources */
+            resources?: components["schemas"]["SnapshotResourceRef"][];
+            runtime?: components["schemas"]["SnapshotRuntimeRef"] | null;
+        };
+        /**
+         * SnapshotResourceRef
+         * @description One Library version the resolver selected, with the digest of its
+         *     content (the content itself is never copied).
+         */
+        SnapshotResourceRef: {
+            role: components["schemas"]["SnapshotResourceRole"];
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /** Content Digest */
+            content_digest?: string | null;
+        };
+        /**
+         * SnapshotResourceRole
+         * @enum {string}
+         */
+        SnapshotResourceRole: "agent" | "rule" | "skill" | "model_profile" | "workflow" | "composed_agent";
+        /**
+         * SnapshotRuntimeRef
+         * @description The runtime the resolver picked: references only, capabilities reduced
+         *     to a digest.
+         */
+        SnapshotRuntimeRef: {
+            level: components["schemas"]["RuntimeLevel"];
+            matched_kind: components["schemas"]["LibraryKind"];
+            /** Matched Stable Key */
+            matched_stable_key: string;
+            /** Runtime Id */
+            runtime_id?: string | null;
+            /** Runtime Binding Id */
+            runtime_binding_id?: string | null;
+            /** Harness Ref */
+            harness_ref?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Model Ref */
+            model_ref?: string | null;
+            /** Capabilities Digest */
+            capabilities_digest: string;
+        };
         /**
          * StartWorkCandidate
          * @description One unclaimed task a fresh start could pick up (no-task path only):
@@ -10651,6 +10868,182 @@ export interface operations {
             };
         };
     };
+    get_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSnapshot"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionSnapshotPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSnapshot"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description This launch already has an execution snapshot with a different content (`execution_snapshot_immutable`, with the recorded `snapshot_id` and `content_hash`). A snapshot is never rewritten: replaying the same payload is not an error. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "execution_snapshot_immutable",
+                     *         "snapshot_id": "00000000-0000-0000-0000-000000000000",
+                     *         "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     issue_task_launch_credential_api_v1_task_launches__launch_id__credential_post: {
         parameters: {
             query?: never;
@@ -14290,7 +14683,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14299,8 +14692,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "actor_not_owned",
-                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *         "error_code": "usage_identity_conflict"
                      *       }
                      *     }
                      */
@@ -14389,7 +14781,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Stale expected_version: version_conflict carries the current server_version. Read the entry and submit a new correction with its current version. An exact Idempotency-Key replay returns its original response before this check. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14398,8 +14790,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "actor_not_owned",
-                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *         "error_code": "usage_identity_conflict"
                      *       }
                      *     }
                      */

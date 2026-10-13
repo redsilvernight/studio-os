@@ -81,6 +81,9 @@ class SnapshotCaptureErrorCode(StrEnum):
     REDACTION_REQUIRED = "redaction_required"
     PAYLOAD_TOO_LARGE = "payload_too_large"
     INTERNAL = "internal"
+    WORKTREE_UNVERIFIED = "worktree_unverified"
+    """Additive: git could not prove that the run's
+    worktree (top-level, branch) is the one prepared for the launch."""
 
 
 class SnapshotResourceRole(StrEnum):
@@ -128,7 +131,9 @@ class SnapshotProfileRef(ContractModel):
 
 
 class SnapshotResolution(ContractModel):
-    """Projection of the resolver output (DEC-0068/DEC-0198)."""
+    """Projection of the resolver output. `profile` is the
+    pin the launch was previewed/admitted against; `applied.profile` is the
+    pin recomputed when the run starts."""
 
     agent_stable_key: SafeLabel
     profile: SnapshotProfileRef | None = None
@@ -145,7 +150,14 @@ class SnapshotProjectionRef(ContractModel):
 
 
 class SnapshotAppliedParameters(ContractModel):
-    """What Bloc B really applied on the machine."""
+    """What Bloc B really applied on the machine.
+
+    Additive: `worktree_branch` is the branch git
+    reports for the run's worktree (observed, never the declared one);
+    `profile` is the work profile pin recomputed when the run starts — compare
+    it with `resolution.profile`, the pin the launch was previewed/admitted
+    against; `access_mode` is the mode the machine finally enforced (`None`
+    when it refused to run)."""
 
     harness_id: SafeLabel
     harness_version: SafeLabel | None = None
@@ -153,6 +165,9 @@ class SnapshotAppliedParameters(ContractModel):
     git_sha: GitSha | None = None
     git_dirty: bool | None = None
     local_policy_digest: Digest | None = None
+    worktree_branch: SafeLabel | None = None
+    profile: SnapshotProfileRef | None = None
+    access_mode: SafeLabel | None = None
 
 
 class SnapshotCaptureError(ContractModel):
@@ -192,6 +207,16 @@ class ExecutionSnapshotPayload(ContractModel):
             if contains_absolute_path(value):
                 raise ValueError(f"{path}: value contains an absolute local path")
         return self
+
+    @property
+    def profile_drift(self) -> bool | None:
+        """Whether the profile previewed at admission differs from the one
+        recomputed when the run started; `None` when either side is unknown."""
+        preview = None if self.resolution is None else self.resolution.profile
+        applied = None if self.applied is None else self.applied.profile
+        if preview is None or applied is None:
+            return None
+        return preview != applied
 
     @property
     def capture_reason(self) -> str | None:
