@@ -4,7 +4,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, Query, Request, status
 from pydantic import AwareDatetime
-from studio_contracts.usage import UsageLedgerCorrection, UsageLedgerEntry, UsageLedgerEntryCreate
+from studio_contracts.usage import (
+    UsageGroupBy,
+    UsageLedgerCorrection,
+    UsageLedgerEntry,
+    UsageLedgerEntryCreate,
+    UsageSummary,
+)
 
 from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
@@ -77,6 +83,40 @@ async def list_usage(
         limit=limit,
     )
     return [usage_service.to_entry(row) for row in rows]
+
+
+@router.get(
+    "/summary",
+    response_model=UsageSummary,
+    description=(
+        "Aggregate a project's usage (optionally one task) over period_start in [since, until), "
+        "grouped by none, task, configuration (harness, provider, model) or UTC day. Each fact "
+        "counts once in its latest corrected form. Every metric carries a status: known_sum is "
+        "a total only when exact or estimated, a lower bound when partial; costs in several "
+        "currencies are never added (mixed_currency, see by_currency). Groups are capped at "
+        "100 (truncated); total always covers the whole scope. until before since fails with "
+        "422 invalid_usage_period."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def summarize_usage(
+    session: DbSession,
+    principal: CurrentPrincipal,
+    project_id: UUID = Query(),
+    task_id: UUID | None = Query(default=None),
+    group_by: UsageGroupBy = Query(default=UsageGroupBy.NONE),
+    since: AwareDatetime | None = Query(default=None),
+    until: AwareDatetime | None = Query(default=None),
+) -> UsageSummary:
+    return await usage_service.summarize_usage(
+        session,
+        principal,
+        project_id=project_id,
+        task_id=task_id,
+        group_by=group_by,
+        since=since,
+        until=until,
+    )
 
 
 @router.post(

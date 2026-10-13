@@ -1256,6 +1256,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summarize Usage
+         * @description Aggregate a project's usage (optionally one task) over period_start in [since, until), grouped by none, task, configuration (harness, provider, model) or UTC day. Each fact counts once in its latest corrected form. Every metric carries a status: known_sum is a total only when exact or estimated, a lower bound when partial; costs in several currencies are never added (mixed_currency, see by_currency). Groups are capped at 100 (truncated); total always covers the whole scope. until before since fails with 422 invalid_usage_period.
+         */
+        get: operations["summarize_usage_api_v1_usage_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/corrections": {
         parameters: {
             query?: never;
@@ -7723,6 +7743,121 @@ export interface components {
             expires_at: string;
         };
         /**
+         * UsageAggregate
+         * @description Aggregated measures of a set of ledger entries. Each entry counts once,
+         *     in its latest corrected form: replays and cumulative snapshots never add
+         *     up (ingestion is deduplicated on `(machine_id, source_event_id)`).
+         */
+        UsageAggregate: {
+            key?: components["schemas"]["UsageGroupKey"];
+            /** Entries */
+            entries: number;
+            /** First Period Start */
+            first_period_start?: string | null;
+            /** Last Period End */
+            last_period_end?: string | null;
+            tokens_in: components["schemas"]["UsageTokenTotal"];
+            tokens_out: components["schemas"]["UsageTokenTotal"];
+            tokens_cached: components["schemas"]["UsageTokenTotal"];
+            total_tokens: components["schemas"]["UsageTokenTotal"];
+            cost: components["schemas"]["UsageCostTotal"];
+            duration: components["schemas"]["UsageDurationTotal"];
+            /** Sources */
+            sources?: components["schemas"]["UsageSourceCount"][];
+        };
+        /**
+         * UsageCostTotal
+         * @description Cost summed per currency. `known_sum`/`currency` are set only when every
+         *     known cost shares one currency; with several currencies `status` is
+         *     `mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum
+         *     apart. An unknown cost is never counted as zero.
+         */
+        UsageCostTotal: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** By Currency */
+            by_currency?: components["schemas"]["UsageCurrencyAmount"][];
+        };
+        /** UsageCurrencyAmount */
+        UsageCurrencyAmount: {
+            /** Currency */
+            currency: string;
+            /** Known Sum */
+            known_sum: string;
+            /** Entries */
+            entries: number;
+        };
+        /**
+         * UsageDurationTotal
+         * @description Sum of measured wall-clock durations in seconds, same rule as tokens.
+         */
+        UsageDurationTotal: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: string | null;
+        };
+        /**
+         * UsageGroupBy
+         * @description Dimension of a usage summary. `configuration` is the provenance the
+         *     runtime reported (harness, provider, model); `day` is the UTC day of
+         *     `period_start`.
+         * @enum {string}
+         */
+        UsageGroupBy: "none" | "task" | "configuration" | "day";
+        /**
+         * UsageGroupKey
+         * @description Value of the grouping dimension. Fields outside the requested dimension
+         *     stay `None`; a `None` inside it means the entries did not carry it (entry
+         *     without task, model not reported).
+         */
+        UsageGroupKey: {
+            /** Task Id */
+            task_id?: string | null;
+            /** Task Title */
+            task_title?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Day */
+            day?: string | null;
+        };
+        /**
          * UsageLedgerCorrection
          * @description A late or corrected measure for a fact already ingested, keyed by the same
          *     `(machine_id, source_event_id)`. The measured block is replaced as a whole —
@@ -7896,6 +8031,89 @@ export interface components {
             /** Model */
             model?: string | null;
         };
+        /**
+         * UsageSourceCount
+         * @description Collector that produced entries of the aggregate, with its entry count.
+         */
+        UsageSourceCount: {
+            /** Collector */
+            collector: string;
+            /** Entries */
+            entries: number;
+        };
+        /**
+         * UsageSummary
+         * @description Usage of a project (optionally one task) over a period of `period_start`.
+         *     `total` covers every entry in scope, including groups cut by
+         *     `USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as
+         *     returned and never re-add groups into a total.
+         */
+        UsageSummary: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            group_by: components["schemas"]["UsageGroupBy"];
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            total: components["schemas"]["UsageAggregate"];
+            /** Groups */
+            groups?: components["schemas"]["UsageAggregate"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * UsageTokenTotal
+         * @description Sum of the known values. `known_sum` is a total only when `status` is
+         *     `exact` or `estimated`; it is a lower bound when `partial` and `None` when
+         *     nothing is known.
+         */
+        UsageTokenTotal: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: number | null;
+        };
+        /**
+         * UsageTotalStatus
+         * @description What an aggregated metric is worth, so no client presents a partial or
+         *     incomparable sum as an exact total.
+         *
+         *     `none`: no entry in scope. `exact`: every entry measured. `estimated`:
+         *     every entry has a value, at least one estimated. `partial`: some entries
+         *     are `unknown`, `known_sum` is only a lower bound. `unknown`: entries exist
+         *     but none has a value. `mixed_currency` (cost only): known costs are in
+         *     several currencies, they are never added together.
+         * @enum {string}
+         */
+        UsageTotalStatus: "none" | "exact" | "estimated" | "partial" | "unknown" | "mixed_currency";
         /**
          * User
          * @description `email` is normalized (trimmed, lower-case) and unique regardless of
@@ -14290,7 +14508,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14299,8 +14517,74 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "actor_not_owned",
-                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *         "error_code": "usage_identity_conflict"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summarize_usage_api_v1_usage_summary_get: {
+        parameters: {
+            query: {
+                project_id: string;
+                task_id?: string | null;
+                group_by?: components["schemas"]["UsageGroupBy"];
+                since?: string | null;
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
                      *       }
                      *     }
                      */
@@ -14389,7 +14673,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Stale expected_version: version_conflict carries the current server_version. Read the entry and submit a new correction with its current version. An exact Idempotency-Key replay returns its original response before this check. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14398,8 +14682,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "actor_not_owned",
-                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *         "error_code": "usage_identity_conflict"
                      *       }
                      *     }
                      */
