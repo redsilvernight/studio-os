@@ -583,7 +583,9 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `exact`, `estimated`, `partial` (`known_sum` = borne inferieure), `unknown`
   (`known_sum` null), `none` (aucune entree). Des couts en plusieurs devises
   ne sont jamais additionnes : `mixed_currency`, `known_sum` et `currency`
-  null, detail dans `by_currency`. Groupes plafonnes a 100 (`truncated`) ;
+  null, detail dans `by_currency`. Un client doit traiter un `status` inconnu
+  comme non exact (borne inferieure ou inconnu) ; de nouvelles valeurs de
+  `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
   `total` couvre tout le perimetre. `until < since` -> `422
   invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
 

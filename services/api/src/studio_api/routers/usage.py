@@ -54,6 +54,17 @@ _RESP_409_USAGE_VERSION: ErrorResponses = {
         },
     }
 }
+_RESP_422_USAGE_PERIOD: ErrorResponses = {
+    422: {
+        "description": (
+            "Invalid period: until is before since (invalid_usage_period). "
+            "Malformed or missing query parameters keep the standard validation error body."
+        ),
+        "content": {
+            "application/json": {"example": {"detail": {"error_code": "invalid_usage_period"}}}
+        },
+    }
+}
 
 
 @router.get(
@@ -97,7 +108,7 @@ async def list_usage(
         "100 (truncated); total always covers the whole scope. until before since fails with "
         "422 invalid_usage_period."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **_RESP_422_USAGE_PERIOD},
 )
 async def summarize_usage(
     session: DbSession,

@@ -14591,13 +14591,20 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_usage_period"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };

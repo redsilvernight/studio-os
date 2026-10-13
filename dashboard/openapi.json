@@ -7207,11 +7207,13 @@
       }
      },
      "422": {
-      "description": "Validation Error",
+      "description": "Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body.",
       "content": {
        "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+        "example": {
+         "detail": {
+          "error_code": "invalid_usage_period"
+         }
         }
        }
       }
