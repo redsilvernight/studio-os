@@ -1,0 +1,22 @@
+/* Consommation (P03-usage-ui) : contrôles période / regroupement, tableaux. */
+.usage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 12px);
+  margin-block: var(--space-2, 8px);
+}
+
+.usage-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.usage-currencies {
+  margin: var(--space-1, 4px) 0 0;
+  padding-inline-start: var(--space-4, 16px);
+}
+
+.usage-table td {
+  font-variant-numeric: tabular-nums;
+}

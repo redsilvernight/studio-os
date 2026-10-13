@@ -7062,13 +7062,12 @@
       }
      },
      "409": {
-      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "actor_not_owned",
-          "message": "agent_id must be an agent attached to the authenticated machine"
+          "error_code": "usage_identity_conflict"
          }
         }
        }
@@ -7080,6 +7079,141 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/summary": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Summarize Usage",
+    "description": "Aggregate a project's usage (optionally one task) over period_start in [since, until), grouped by none, task, configuration (harness, provider, model) or UTC day. Each fact counts once in its latest corrected form. Every metric carries a status: known_sum is a total only when exact or estimated, a lower bound when partial; costs in several currencies are never added (mixed_currency, see by_currency). Groups are capped at 100 (truncated); total always covers the whole scope. until before since fails with 422 invalid_usage_period.",
+    "operationId": "summarize_usage_api_v1_usage_summary_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "group_by",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "$ref": "#/components/schemas/UsageGroupBy",
+       "default": "none"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageSummary"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_usage_period"
+         }
         }
        }
       }
@@ -7176,13 +7310,12 @@
       }
      },
      "409": {
-      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Stale expected_version: version_conflict carries the current server_version. Read the entry and submit a new correction with its current version. An exact Idempotency-Key replay returns its original response before this check.",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "actor_not_owned",
-          "message": "agent_id must be an agent attached to the authenticated machine"
+          "error_code": "usage_identity_conflict"
          }
         }
        }
@@ -26536,6 +26669,301 @@
     "title": "UploadPartsRefreshResponse",
     "description": "`uploaded_parts` is storage's own record (`ListParts`), the\nauthoritative source of which parts are actually durable \u2014 the client\nmust adopt it (a part PUT that succeeded but whose local SQLite write was\nlost is recovered here, not re-uploaded). `part_urls` carries only the\nparts still missing, never a part already in `uploaded_parts`."
    },
+   "UsageAggregate": {
+    "properties": {
+     "key": {
+      "$ref": "#/components/schemas/UsageGroupKey"
+     },
+     "entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Entries"
+     },
+     "first_period_start": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Period Start"
+     },
+     "last_period_end": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Period End"
+     },
+     "tokens_in": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "tokens_out": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "tokens_cached": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "total_tokens": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "cost": {
+      "$ref": "#/components/schemas/UsageCostTotal"
+     },
+     "duration": {
+      "$ref": "#/components/schemas/UsageDurationTotal"
+     },
+     "sources": {
+      "items": {
+       "$ref": "#/components/schemas/UsageSourceCount"
+      },
+      "type": "array",
+      "title": "Sources"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "entries",
+     "tokens_in",
+     "tokens_out",
+     "tokens_cached",
+     "total_tokens",
+     "cost",
+     "duration"
+    ],
+    "title": "UsageAggregate",
+    "description": "Aggregated measures of a set of ledger entries. Each entry counts once,\nin its latest corrected form: replays and cumulative snapshots never add\nup (ingestion is deduplicated on `(machine_id, source_event_id)`)."
+   },
+   "UsageCostTotal": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     },
+     "by_currency": {
+      "items": {
+       "$ref": "#/components/schemas/UsageCurrencyAmount"
+      },
+      "type": "array",
+      "title": "By Currency"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageCostTotal",
+    "description": "Cost summed per currency. `known_sum`/`currency` are set only when every\nknown cost shares one currency; with several currencies `status` is\n`mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum\napart. An unknown cost is never counted as zero."
+   },
+   "UsageCurrencyAmount": {
+    "properties": {
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "known_sum": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Known Sum"
+     },
+     "entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Entries"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "currency",
+     "known_sum",
+     "entries"
+    ],
+    "title": "UsageCurrencyAmount"
+   },
+   "UsageDurationTotal": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageDurationTotal",
+    "description": "Sum of measured wall-clock durations in seconds, same rule as tokens."
+   },
+   "UsageGroupBy": {
+    "type": "string",
+    "enum": [
+     "none",
+     "task",
+     "configuration",
+     "day"
+    ],
+    "title": "UsageGroupBy",
+    "description": "Dimension of a usage summary. `configuration` is the provenance the\nruntime reported (harness, provider, model); `day` is the UTC day of\n`period_start`."
+   },
+   "UsageGroupKey": {
+    "properties": {
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "task_title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Title"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     },
+     "day": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Day"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "UsageGroupKey",
+    "description": "Value of the grouping dimension. Fields outside the requested dimension\nstay `None`; a `None` inside it means the entries did not carry it (entry\nwithout task, model not reported)."
+   },
    "UsageLedgerCorrection": {
     "properties": {
      "tokens_in": {
@@ -26967,6 +27395,165 @@
     ],
     "title": "UsageProvenance",
     "description": "Who produced the measure. `collector`/`collector_version` name the tool\nthat emitted the entry, `harness`/`harness_version` the agent runtime it ran:\ntwo entries with identical numbers but different provenance are not the same\nmeasurement, and a re-run of a different harness version is a new entry\nrather than an overwrite."
+   },
+   "UsageSourceCount": {
+    "properties": {
+     "collector": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Collector"
+     },
+     "entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Entries"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "collector",
+     "entries"
+    ],
+    "title": "UsageSourceCount",
+    "description": "Collector that produced entries of the aggregate, with its entry count."
+   },
+   "UsageSummary": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "group_by": {
+      "$ref": "#/components/schemas/UsageGroupBy"
+     },
+     "since": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Since"
+     },
+     "until": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Until"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "total": {
+      "$ref": "#/components/schemas/UsageAggregate"
+     },
+     "groups": {
+      "items": {
+       "$ref": "#/components/schemas/UsageAggregate"
+      },
+      "type": "array",
+      "title": "Groups"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "group_by",
+     "generated_at",
+     "total"
+    ],
+    "title": "UsageSummary",
+    "description": "Usage of a project (optionally one task) over a period of `period_start`.\n`total` covers every entry in scope, including groups cut by\n`USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as\nreturned and never re-add groups into a total."
+   },
+   "UsageTokenTotal": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageTokenTotal",
+    "description": "Sum of the known values. `known_sum` is a total only when `status` is\n`exact` or `estimated`; it is a lower bound when `partial` and `None` when\nnothing is known."
+   },
+   "UsageTotalStatus": {
+    "type": "string",
+    "enum": [
+     "none",
+     "exact",
+     "estimated",
+     "partial",
+     "unknown",
+     "mixed_currency"
+    ],
+    "title": "UsageTotalStatus",
+    "description": "What an aggregated metric is worth, so no client presents a partial or\nincomparable sum as an exact total.\n\n`none`: no entry in scope. `exact`: every entry measured. `estimated`:\nevery entry has a value, at least one estimated. `partial`: some entries\nare `unknown`, `known_sum` is only a lower bound. `unknown`: entries exist\nbut none has a value. `mixed_currency` (cost only): known costs are in\nseveral currencies, they are never added together."
    },
    "User": {
     "properties": {

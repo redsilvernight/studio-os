@@ -31,6 +31,7 @@ import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderMembersInto } from "./members";
 import { renderMissionInto, renderMissionSummaryInto, type LiveState } from "./mission";
+import { renderProjectUsageInto } from "./usage";
 import { renderTasksInto } from "./tasks";
 import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
 
@@ -370,7 +371,10 @@ export async function renderProjectDetail(
     // en parallèle, chaque rendu gère son propre échec.
     const coordinationSlot = document.createElement("div");
     panel.querySelector(".workspace-hero")?.after(coordinationSlot);
+    const usageSlot = document.createElement("div");
+    missionSlot.after(usageSlot);
     await Promise.all([
+      renderProjectUsageInto(usageSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed }),
       renderProjectCoordinationInto(coordinationSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed }),
       renderMissionSummaryInto(missionSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live }),
     ]);

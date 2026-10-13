@@ -11,6 +11,7 @@ cache count the collector already folded into `tokens_in` is never counted twice
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -293,3 +294,130 @@ class UsageLedgerCorrection(UsageMetrics, IdempotentCreate):
     def _consistent(self) -> Self:
         _check_period_and_cost(self.period_start, self.period_end, self.cost, self.pricing)
         return self
+
+
+USAGE_SUMMARY_MAX_GROUPS = 100
+
+
+class UsageGroupBy(StrEnum):
+    """Dimension of a usage summary. `configuration` is the provenance the
+    runtime reported (harness, provider, model); `day` is the UTC day of
+    `period_start`."""
+
+    NONE = "none"
+    TASK = "task"
+    CONFIGURATION = "configuration"
+    DAY = "day"
+
+
+class UsageTotalStatus(StrEnum):
+    """What an aggregated metric is worth, so no client presents a partial or
+    incomparable sum as an exact total.
+
+    `none`: no entry in scope. `exact`: every entry measured. `estimated`:
+    every entry has a value, at least one estimated. `partial`: some entries
+    are `unknown`, `known_sum` is only a lower bound. `unknown`: entries exist
+    but none has a value. `mixed_currency` (cost only): known costs are in
+    several currencies, they are never added together."""
+
+    NONE = "none"
+    EXACT = "exact"
+    ESTIMATED = "estimated"
+    PARTIAL = "partial"
+    UNKNOWN = "unknown"
+    MIXED_CURRENCY = "mixed_currency"
+
+
+class UsageCoverageCounts(ContractModel):
+    measured_entries: NonNegativeInt = 0
+    estimated_entries: NonNegativeInt = 0
+    unknown_entries: NonNegativeInt = 0
+
+
+class UsageTokenTotal(UsageCoverageCounts):
+    """Sum of the known values. `known_sum` is a total only when `status` is
+    `exact` or `estimated`; it is a lower bound when `partial` and `None` when
+    nothing is known."""
+
+    status: UsageTotalStatus
+    known_sum: NonNegativeInt | None = None
+
+
+class UsageDurationTotal(UsageCoverageCounts):
+    """Sum of measured wall-clock durations in seconds, same rule as tokens."""
+
+    status: UsageTotalStatus
+    known_sum: NonNegativeDecimal | None = None
+
+
+class UsageCurrencyAmount(ContractModel):
+    currency: CurrencyCode
+    known_sum: NonNegativeDecimal
+    entries: NonNegativeInt
+
+
+class UsageCostTotal(UsageCoverageCounts):
+    """Cost summed per currency. `known_sum`/`currency` are set only when every
+    known cost shares one currency; with several currencies `status` is
+    `mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum
+    apart. An unknown cost is never counted as zero."""
+
+    status: UsageTotalStatus
+    known_sum: NonNegativeDecimal | None = None
+    currency: CurrencyCode | None = None
+    by_currency: list[UsageCurrencyAmount] = Field(default_factory=list)
+
+
+class UsageSourceCount(ContractModel):
+    """Collector that produced entries of the aggregate, with its entry count."""
+
+    collector: CollectorId
+    entries: NonNegativeInt
+
+
+class UsageGroupKey(ContractModel):
+    """Value of the grouping dimension. Fields outside the requested dimension
+    stay `None`; a `None` inside it means the entries did not carry it (entry
+    without task, model not reported)."""
+
+    task_id: UUID | None = None
+    task_title: str | None = None
+    harness: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    day: date | None = None
+
+
+class UsageAggregate(ContractModel):
+    """Aggregated measures of a set of ledger entries. Each entry counts once,
+    in its latest corrected form: replays and cumulative snapshots never add
+    up (ingestion is deduplicated on `(machine_id, source_event_id)`)."""
+
+    key: UsageGroupKey = Field(default_factory=UsageGroupKey)
+    entries: NonNegativeInt
+    first_period_start: AwareDatetime | None = None
+    last_period_end: AwareDatetime | None = None
+    tokens_in: UsageTokenTotal
+    tokens_out: UsageTokenTotal
+    tokens_cached: UsageTokenTotal
+    total_tokens: UsageTokenTotal
+    cost: UsageCostTotal
+    duration: UsageDurationTotal
+    sources: list[UsageSourceCount] = Field(default_factory=list)
+
+
+class UsageSummary(ContractModel):
+    """Usage of a project (optionally one task) over a period of `period_start`.
+    `total` covers every entry in scope, including groups cut by
+    `USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as
+    returned and never re-add groups into a total."""
+
+    project_id: UUID
+    task_id: UUID | None = None
+    group_by: UsageGroupBy
+    since: AwareDatetime | None = None
+    until: AwareDatetime | None = None
+    generated_at: AwareDatetime
+    total: UsageAggregate
+    groups: list[UsageAggregate] = Field(default_factory=list)
+    truncated: bool = False

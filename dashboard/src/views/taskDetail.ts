@@ -62,6 +62,8 @@ import { fetchIdentity, type AuthIdentity } from "../identityApi";
 import { newIdempotencyKey } from "../claimsApi";
 import { listLibraryResources } from "../libraryApi";
 import { postResolution } from "../resolutionApi";
+import { fetchUsageSummary, type UsageSummary } from "../usageApi";
+import { taskUsageSectionHtml } from "./usage";
 // Styles colocalisés : même fichier que la page Travail (P04-work),
 // la fiche reste autonome sans toucher au bloc d'imports CSS de main.ts.
 import "./tasks.css";
@@ -507,6 +509,12 @@ export interface TaskDetailData {
   canRelease?: boolean;
   /** null/absent = données de lancement non chargées (best-effort). */
   launch?: LaunchPanelData | null;
+  /** Consommation de la tâche (GET /usage/summary) ; null = indisponible, absent = non chargée. */
+  usage?: UsageSummary | null;
+}
+
+function loadTaskUsage(client: StudioClient, task: Task): Promise<UsageSummary | null> {
+  return fetchUsageSummary(client, { projectId: task.project_id, taskId: task.id }).catch(() => null);
 }
 
 export function taskEditFormHtml(task: Task, authed: boolean): string {
@@ -601,6 +609,7 @@ export function taskDetailHtml(data: TaskDetailData): string {
     // Prioritaires et ouverts : ce qui coince, ce qui attend une décision,
     // puis ce que les autres sessions ont dit de la tâche.
     `${blockagesSectionHtml(task)}${validationSectionHtml(data.worklogs)}${coordinationSectionHtml(data.coordination)}` +
+    taskUsageSectionHtml(data.usage) +
     // Mécanique ensuite : modifier, puis la prise en charge.
     `${edit}${claimSectionHtml(task, data.authed, canRelease)}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
@@ -629,6 +638,7 @@ export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailCon
   // Coordination part en parallèle et indépendamment : son échec ne doit pas
   // masquer les autres compléments, ni l'inverse.
   const coordinationRequest = fetchTaskCoordination(ctx.client, task.id).catch(() => null);
+  const usageRequest = ctx.authed ? loadTaskUsage(ctx.client, task) : Promise.resolve(undefined);
   try {
     const [fetchedSessions, fetchedWork, fetchedClaims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: task.id }),
@@ -643,8 +653,9 @@ export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailCon
   }
   const coordination = await coordinationRequest;
 
+  const usage = await usageRequest;
   const launch = ctx.authed ? await loadLaunchData(ctx.client, task, sessions) : null;
-  paint(root, ctx, { task, sessions, worklogs, taskClaims, coordination, notice: "", authed: ctx.authed, launch });
+  paint(root, ctx, { task, sessions, worklogs, taskClaims, coordination, notice: "", authed: ctx.authed, launch, usage });
 }
 
 function paint(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): void {
@@ -1084,6 +1095,7 @@ async function readComplements(
   let worklogs: WorkRow[] | null = null;
   let taskClaims: number | null = null;
   const coordinationRequest = fetchTaskCoordination(ctx.client, fresh.id).catch(() => null);
+  const usageRequest = ctx.authed ? loadTaskUsage(ctx.client, fresh) : Promise.resolve(undefined);
   try {
     const [fetchedSessions, fetchedWork, fetchedClaims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: fresh.id }),
@@ -1097,8 +1109,9 @@ async function readComplements(
     // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
   const coordination = await coordinationRequest;
+  const usage = await usageRequest;
   const launch = ctx.authed ? await loadLaunchData(ctx.client, fresh, sessions) : null;
-  return { task: fresh, sessions, worklogs, taskClaims, coordination, launch };
+  return { task: fresh, sessions, worklogs, taskClaims, coordination, launch, usage };
 }
 
 async function importSessionsWork(

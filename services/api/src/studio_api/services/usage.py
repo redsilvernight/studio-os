@@ -1,20 +1,34 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.usage import (
+    USAGE_SUMMARY_MAX_GROUPS,
+    CacheTokenScope,
+    MeasurementCoverage,
+    UsageAggregate,
+    UsageCostTotal,
+    UsageCurrencyAmount,
+    UsageDurationTotal,
     UsageEntryFields,
+    UsageGroupBy,
+    UsageGroupKey,
     UsageLedgerCorrection,
     UsageLedgerEntry,
     UsageLedgerEntryCreate,
     UsageMetrics,
+    UsageSourceCount,
+    UsageSummary,
+    UsageTokenTotal,
+    UsageTotalStatus,
 )
 
 from studio_api.db.models.agent import AgentModel
@@ -325,3 +339,271 @@ async def list_usage(
         max(1, min(limit, 500))
     )
     return list((await session.scalars(stmt)).all())
+
+
+_MEASURED = MeasurementCoverage.MEASURED.value
+_ESTIMATED = MeasurementCoverage.ESTIMATED.value
+_UNKNOWN = MeasurementCoverage.UNKNOWN.value
+
+
+@dataclass
+class _MetricAccumulator:
+    known_sum: Decimal = Decimal(0)
+    measured: int = 0
+    estimated: int = 0
+    unknown: int = 0
+
+    def add(self, known_sum: Any, measured: int, estimated: int, unknown: int) -> None:
+        if known_sum is not None:
+            self.known_sum += Decimal(known_sum)
+        self.measured += measured
+        self.estimated += estimated
+        self.unknown += unknown
+
+    def merge(self, other: _MetricAccumulator) -> None:
+        self.add(other.known_sum, other.measured, other.estimated, other.unknown)
+
+    @property
+    def known(self) -> int:
+        return self.measured + self.estimated
+
+    def status(self) -> UsageTotalStatus:
+        if self.known == 0:
+            return UsageTotalStatus.UNKNOWN if self.unknown else UsageTotalStatus.NONE
+        if self.unknown:
+            return UsageTotalStatus.PARTIAL
+        if self.estimated:
+            return UsageTotalStatus.ESTIMATED
+        return UsageTotalStatus.EXACT
+
+    def counts(self) -> dict[str, int]:
+        return {
+            "measured_entries": self.measured,
+            "estimated_entries": self.estimated,
+            "unknown_entries": self.unknown,
+        }
+
+    def tokens(self) -> UsageTokenTotal:
+        return UsageTokenTotal(
+            status=self.status(),
+            known_sum=int(self.known_sum) if self.known else None,
+            **self.counts(),
+        )
+
+    def duration(self) -> UsageDurationTotal:
+        return UsageDurationTotal(
+            status=self.status(),
+            known_sum=self.known_sum if self.known else None,
+            **self.counts(),
+        )
+
+
+_TOKEN_METRICS = ("tokens_in", "tokens_out", "tokens_cached", "total_tokens")
+_METRICS = (*_TOKEN_METRICS, "cost", "duration")
+
+
+def _new_metrics() -> dict[str, _MetricAccumulator]:
+    return {name: _MetricAccumulator() for name in _METRICS}
+
+
+@dataclass
+class _AggregateAccumulator:
+    key: UsageGroupKey
+    entries: int = 0
+    first_period_start: datetime | None = None
+    last_period_end: datetime | None = None
+    metrics: dict[str, _MetricAccumulator] = field(default_factory=_new_metrics)
+    cost_by_currency: dict[str, _MetricAccumulator] = field(default_factory=dict)
+    sources: dict[str, int] = field(default_factory=dict)
+
+    def span(self, start: datetime | None, end: datetime | None) -> None:
+        if start is not None and (
+            self.first_period_start is None or start < self.first_period_start
+        ):
+            self.first_period_start = start
+        if end is not None and (self.last_period_end is None or end > self.last_period_end):
+            self.last_period_end = end
+
+    def merge(self, other: _AggregateAccumulator) -> None:
+        self.entries += other.entries
+        self.span(other.first_period_start, other.last_period_end)
+        for name, metric in other.metrics.items():
+            self.metrics[name].merge(metric)
+        for currency, metric in other.cost_by_currency.items():
+            self.cost_by_currency.setdefault(currency, _MetricAccumulator()).merge(metric)
+        for collector, count in other.sources.items():
+            self.sources[collector] = self.sources.get(collector, 0) + count
+
+    def cost(self) -> UsageCostTotal:
+        metric = self.metrics["cost"]
+        by_currency = [
+            UsageCurrencyAmount(currency=currency, known_sum=amount.known_sum, entries=amount.known)
+            for currency, amount in sorted(self.cost_by_currency.items())
+        ]
+        if len(by_currency) > 1:
+            return UsageCostTotal(
+                status=UsageTotalStatus.MIXED_CURRENCY,
+                known_sum=None,
+                currency=None,
+                by_currency=by_currency,
+                **metric.counts(),
+            )
+        single = by_currency[0] if by_currency else None
+        return UsageCostTotal(
+            status=metric.status(),
+            known_sum=single.known_sum if single is not None else None,
+            currency=single.currency if single is not None else None,
+            by_currency=by_currency,
+            **metric.counts(),
+        )
+
+    def finalize(self) -> UsageAggregate:
+        return UsageAggregate(
+            key=self.key,
+            entries=self.entries,
+            first_period_start=self.first_period_start,
+            last_period_end=self.last_period_end,
+            tokens_in=self.metrics["tokens_in"].tokens(),
+            tokens_out=self.metrics["tokens_out"].tokens(),
+            tokens_cached=self.metrics["tokens_cached"].tokens(),
+            total_tokens=self.metrics["total_tokens"].tokens(),
+            cost=self.cost(),
+            duration=self.metrics["duration"].duration(),
+            sources=[
+                UsageSourceCount(collector=collector, entries=count)
+                for collector, count in sorted(self.sources.items())
+            ],
+        )
+
+
+def _coverage_counts(coverage: Any) -> list[Any]:
+    return [
+        func.count().filter(coverage == _MEASURED),
+        func.count().filter(coverage == _ESTIMATED),
+        func.count().filter(coverage == _UNKNOWN),
+    ]
+
+
+def _total_tokens_columns() -> tuple[Any, Any]:
+    entry = UsageLedgerEntryModel
+    additional = entry.cached_tokens_scope == CacheTokenScope.ADDITIONAL_TO_INPUT.value
+    total = case(
+        (entry.tokens_in.is_(None) | entry.tokens_out.is_(None), None),
+        (additional, entry.tokens_in + entry.tokens_out + entry.tokens_cached),
+        else_=entry.tokens_in + entry.tokens_out,
+    )
+    estimated = (
+        (entry.tokens_in_coverage == _ESTIMATED)
+        | (entry.tokens_out_coverage == _ESTIMATED)
+        | (additional & (entry.tokens_cached_coverage == _ESTIMATED))
+    )
+    return total, estimated
+
+
+def _group_columns(group_by: UsageGroupBy) -> dict[str, Any]:
+    entry = UsageLedgerEntryModel
+    if group_by is UsageGroupBy.TASK:
+        return {"task_id": entry.task_id, "task_title": TaskModel.title}
+    if group_by is UsageGroupBy.CONFIGURATION:
+        return {"harness": entry.harness, "provider": entry.provider, "model": entry.model}
+    if group_by is UsageGroupBy.DAY:
+        return {"day": func.date(func.timezone("UTC", entry.period_start))}
+    return {}
+
+
+def _summary_measures() -> list[Any]:
+    entry = UsageLedgerEntryModel
+    total_tokens, total_estimated = _total_tokens_columns()
+    measures: list[Any] = []
+    for name in ("tokens_in", "tokens_out", "tokens_cached"):
+        measures.append(func.sum(getattr(entry, name)))
+        measures.extend(_coverage_counts(getattr(entry, f"{name}_coverage")))
+    measures.extend(
+        [
+            func.sum(total_tokens),
+            func.count().filter(total_tokens.is_not(None) & ~total_estimated),
+            func.count().filter(total_tokens.is_not(None) & total_estimated),
+            func.count().filter(total_tokens.is_(None)),
+            func.sum(entry.cost),
+            *_coverage_counts(entry.cost_coverage),
+            func.sum(entry.duration_seconds),
+            *_coverage_counts(entry.duration_coverage),
+        ]
+    )
+    return measures
+
+
+def _group_order(item: _AggregateAccumulator) -> tuple[date, datetime]:
+    return (
+        item.key.day or date.min,
+        item.last_period_end or datetime.min.replace(tzinfo=UTC),
+    )
+
+
+async def summarize_usage(
+    session: AsyncSession,
+    principal: Principal,
+    *,
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None = None,
+    group_by: UsageGroupBy = UsageGroupBy.NONE,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    max_groups: int = USAGE_SUMMARY_MAX_GROUPS,
+) -> UsageSummary:
+    ensure_project_access(principal, project_id)
+    if since is not None and until is not None and until < since:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"error_code": "invalid_usage_period"}
+        )
+    entry = UsageLedgerEntryModel
+    groups = _group_columns(group_by)
+    dimensions = [*groups.values(), entry.cost_currency, entry.collector]
+    stmt = select(
+        *dimensions,
+        func.count(),
+        func.min(entry.period_start),
+        func.max(entry.period_end),
+        *_summary_measures(),
+    ).where(entry.project_id == project_id)
+    if group_by is UsageGroupBy.TASK:
+        stmt = stmt.outerjoin(TaskModel, TaskModel.id == entry.task_id)
+    if task_id is not None:
+        stmt = stmt.where(entry.task_id == task_id)
+    if since is not None:
+        stmt = stmt.where(entry.period_start >= since)
+    if until is not None:
+        stmt = stmt.where(entry.period_start < until)
+    stmt = stmt.group_by(*dimensions)
+
+    by_key: dict[tuple[Any, ...], _AggregateAccumulator] = {}
+    for row in (await session.execute(stmt)).all():
+        key_values = tuple(row[: len(groups)])
+        currency, collector, count, first_start, last_end, *values = row[len(groups) :]
+        key = UsageGroupKey(**dict(zip(groups, key_values, strict=True)))
+        part = _AggregateAccumulator(key=key, entries=count)
+        part.span(first_start, last_end)
+        for index, name in enumerate(_METRICS):
+            part.metrics[name].add(*values[index * 4 : index * 4 + 4])
+        if currency is not None:
+            part.cost_by_currency[currency] = _MetricAccumulator()
+            part.cost_by_currency[currency].merge(part.metrics["cost"])
+        part.sources[collector] = count
+        by_key.setdefault(key_values, _AggregateAccumulator(key=key)).merge(part)
+
+    total = _AggregateAccumulator(key=UsageGroupKey())
+    for aggregate in by_key.values():
+        total.merge(aggregate)
+    grouped = group_by is not UsageGroupBy.NONE
+    ordered = sorted(by_key.values(), key=_group_order, reverse=True) if grouped else []
+    return UsageSummary(
+        project_id=project_id,
+        task_id=task_id,
+        group_by=group_by,
+        since=since,
+        until=until,
+        generated_at=datetime.now(UTC),
+        total=total.finalize(),
+        groups=[item.finalize() for item in ordered[:max_groups]],
+        truncated=len(ordered) > max_groups,
+    )

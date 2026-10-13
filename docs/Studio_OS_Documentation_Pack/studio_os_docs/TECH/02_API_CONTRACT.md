@@ -575,6 +575,19 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `task_launch_id` et `since` (date de mise a jour, corrections incluses),
   limitee aux projets accessibles. `limit` : defaut 100, maximum 500. Cette lecture
   fournit les entrees du ledger ; elle ne calcule pas de totaux ni de budgets.
+- GET /usage/summary (P03-usage-ui, additif) — `UsageSummary`, `200`.
+  `project_id` requis ; `task_id`, `since`, `until` (filtre `period_start`
+  dans `[since, until)`) et `group_by` (`none`, `task`, `configuration` =
+  harness/provider/model, `day` UTC) optionnels. Chaque fait compte une fois,
+  dans sa derniere forme corrigee. Chaque metrique porte un `status` :
+  `exact`, `estimated`, `partial` (`known_sum` = borne inferieure), `unknown`
+  (`known_sum` null), `none` (aucune entree). Des couts en plusieurs devises
+  ne sont jamais additionnes : `mixed_currency`, `known_sum` et `currency`
+  null, detail dans `by_currency`. Un client doit traiter un `status` inconnu
+  comme non exact (borne inferieure ou inconnu) ; de nouvelles valeurs de
+  `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
+  `total` couvre tout le perimetre. `until < since` -> `422
+  invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
 
 Les ecritures exigent un role autorise et la machine authentifiee comme
 `machine_id`, y compris pour un admin. Le projet doit etre accessible en

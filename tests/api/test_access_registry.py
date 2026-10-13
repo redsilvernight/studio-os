@@ -307,6 +307,10 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/usage?task_id={task}"),
         Probe("/api/v1/usage", expect="filtered"),
     ),
+    ("GET", "/api/v1/usage/summary"): (
+        Probe("/api/v1/usage/summary?project_id={pid}"),
+        Probe("/api/v1/usage/summary?project_id={pid}&task_id={task}&group_by=task"),
+    ),
     ("POST", "/api/v1/usage"): (
         Probe(
             "/api/v1/usage",
