@@ -389,6 +389,30 @@ empreintes seulement, ni prompt ni secret ni chemin absolu), `created_at`,
   supprime les snapshots expires. Index `content_hash`, `retention_until`,
   `(project_id, created_at)`.
 
+## BudgetPolicy / BudgetReservation (Mission Control P03-budgets, migration Alembic `0033`, tables `budget_policies`, `budget_reservations`)
+
+Contrat `studio_contracts.budgets`. Additif : aucune table existante modifiee.
+
+- `budget_policies` : une ligne par projet (unique `project_id`), versionnee.
+  `mode` ∈ `alert_only|enforce` (defaut `alert_only`), `period` ∈
+  `day|month|lifetime` (fenetre UTC), `currency`, `cost_limit`, `token_limit`,
+  `max_active_launches`, montant reserve par lancement (`reservation_cost`,
+  `reservation_tokens`), `unknown_cost` ∈ `charge_reservation|ignore`,
+  `late_usage` ∈ `hold_reservation|release`, `settle_after_seconds`,
+  `alert_thresholds` (JSONB), `proposed_by_user_id`, `approved_by_user_id`,
+  `approved_at` (les deux nuls ensemble). `enforce` n'est effectif qu'approuve
+  par un admin ; toute ecriture efface l'approbation. La ligne sert de verrou
+  d'admission (`SELECT ... FOR UPDATE`).
+- `budget_reservations` : une ligne par lancement admis (unique
+  `task_launch_id`), `status` ∈ `held|settled|released` (`settled_at` nul ⇔
+  `held`), `settle_basis` ∈ `measured|reservation|none`, montants reserves,
+  `alerts` (JSONB), `version`. Index `(project_id, created_at)`,
+  `(project_id, status)`.
+- Consommation recalculee a la lecture depuis `usage_ledger_entries` : l'usage
+  mesure remplace toujours la reservation, meme tardif. Garantie affichee
+  `admission_only` en `enforce` effectif, `none` sinon : jamais de plafond de
+  depense, l'usage n'arrivant qu'apres le run (DEC-0197).
+
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 
 Definitions IA reutilisables (`rule|skill|agent_definition|model_profile|

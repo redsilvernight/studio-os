@@ -602,6 +602,27 @@ generique gere ordre, backoff et erreurs definitives en `dead_letter`, avec
 corps et motif conserves pour inspection. Une correction perimee doit etre
 relue puis reproposee, jamais appliquee de force.
 
+### Budgets (Mission Control P03-budgets, additif)
+
+- GET /projects/{project_id}/budget — `BudgetStatus` : politique, mode
+  effectif, `ceiling_guarantee`, compteurs (`consumed`, `held`,
+  `unknown_entries`), lancements actifs, reservations recentes (≤ 50).
+- PUT /projects/{project_id}/budget-policy — `BudgetPolicyUpdate` ->
+  `BudgetPolicy`. Creation sans `expected_version`, sinon `409
+  version_conflict`. Ecriture projet, refusee a `readonly` et aux credentials
+  de lancement. `enforce` est stocke en attente d'approbation.
+- POST /projects/{project_id}/budget-policy/approve — admin seulement ;
+  `409 budget_approval_not_pending` hors attente.
+- POST /projects/{project_id}/budget/reconcile — solde les reservations des
+  lancements termines ou en retard selon la politique ; idempotent.
+
+Admission : POST task-launches et retry reservent sous verrou de la politique
+du projet, dans la transaction du lancement. Sans politique ou en
+`alert_only`, tout est admis et les depassements deviennent des `alerts` de la
+reservation. En `enforce` approuve : `409 budget_refused` avec `reason` ∈
+`budget_cost_exhausted|budget_tokens_exhausted|budget_slots_exhausted`, rien
+n'est cree. `TaskLaunch` et les evenements sont inchanges.
+
 ### AI Library (P1, additif, DEC-0062/0063/0064)
 
 - GET /library — liste filtree (`kind`, `scope`, `project_id`, `limit`,
