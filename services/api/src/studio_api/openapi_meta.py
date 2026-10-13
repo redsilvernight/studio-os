@@ -234,6 +234,37 @@ RESP_409_LAUNCH_TRANSITION: ErrorResponses = {
     )
 }
 
+RESP_409_BUDGET_REFUSED: ErrorResponses = {
+    409: _json_response(
+        "Admission refused by the project's approved `enforce` budget, "
+        "nothing stored: the launch's reservation does not fit "
+        "(`budget_refused`, `reason` in `budget_cost_exhausted`, "
+        "`budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee "
+        "is `admission_only`: actual usage is reported after the run.",
+        {
+            "detail": {
+                "error_code": "budget_refused",
+                "reason": "budget_slots_exhausted",
+                "metric": "slots",
+                "limit": "2",
+                "consumed": "2",
+                "held": "0",
+                "requested": "1",
+                "period_start": None,
+                "ceiling_guarantee": "admission_only",
+            }
+        },
+    )
+}
+
+RESP_409_BUDGET_APPROVAL: ErrorResponses = {
+    409: _json_response(
+        "Nothing to approve: the policy is not in `enforce` mode or is "
+        "already approved (`budget_approval_not_pending`).",
+        {"detail": {"error_code": "budget_approval_not_pending"}},
+    )
+}
+
 RESP_409_LIBRARY: ErrorResponses = {
     409: _json_response(
         "Library reference conflict: the `stable_key` is already taken in "

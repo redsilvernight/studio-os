@@ -22,9 +22,11 @@ from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
+    RESP_409_BUDGET_REFUSED,
     RESP_409_IDEMPOTENCY,
     RESP_409_LAUNCH_TRANSITION,
     RESP_409_VERSION_CONFLICT,
+    merge_conflict,
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import launch_credentials as credentials_service
@@ -49,8 +51,7 @@ router = APIRouter(tags=["task-launches"])
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
-        **RESP_409_IDEMPOTENCY,
-        **RESP_409_LAUNCH_TRANSITION,
+        **merge_conflict(RESP_409_LAUNCH_TRANSITION, RESP_409_IDEMPOTENCY, RESP_409_BUDGET_REFUSED),
     },
 )
 async def create_task_launch(
@@ -179,8 +180,7 @@ async def cancel_task_launch(
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
-        **RESP_409_IDEMPOTENCY,
-        **RESP_409_LAUNCH_TRANSITION,
+        **merge_conflict(RESP_409_LAUNCH_TRANSITION, RESP_409_IDEMPOTENCY, RESP_409_BUDGET_REFUSED),
     },
 )
 async def retry_task_launch(
