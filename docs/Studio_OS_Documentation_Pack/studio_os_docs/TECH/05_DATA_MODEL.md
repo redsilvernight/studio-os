@@ -373,7 +373,8 @@ lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnel
 ## ExecutionSnapshot (Mission Control P04, DEC-0199, migration Alembic `0032`, table `execution_snapshots`)
 
 Contrat `studio_contracts.execution_snapshot` ; detail dans
-`docs/mission-control/snapshot-contract.md`. Pas encore de route HTTP.
+`docs/mission-control/snapshot-contract.md`. Routes POST/GET
+`/task-launches/{id}/snapshot` ; capture par le daemon (P04-snapshot-capture).
 `id`, `project_id` (FK Project), `task_launch_id` (FK TaskLaunch, unique : un
 snapshot par lancement), `content_hash` (`sha256:<hex>` du JSON canonique),
 `schema_version`, `capture_status` ∈ `ok|partial|failed` (`capture_reason`

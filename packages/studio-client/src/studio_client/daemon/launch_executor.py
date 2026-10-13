@@ -34,6 +34,8 @@ from studio_client.daemon.launch_prepare import (
     LaunchPreparer,
     PreparationError,
     PreparationRequest,
+    Worktree,
+    projection_digests,
 )
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import (
@@ -44,6 +46,7 @@ from studio_client.daemon.launch_runner import (
     RunningLaunch,
     build_instruction,
 )
+from studio_client.daemon.launch_snapshot import SnapshotInputs, build_snapshot_payload
 from studio_client.errors import StudioApiError
 from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
@@ -90,7 +93,9 @@ class LaunchExecutor:
         models: Mapping[str, str] | None = None,
         usage: LaunchUsageRecorder | None = None,
         machine_policy: Callable[[], MachinePolicy] | None = None,
+        capture_snapshots: bool = False,
     ) -> None:
+        self._capture_snapshots = capture_snapshots
         self._usage = usage
         self._machine_policy = machine_policy
         self._models: Mapping[str, str] = models or {}
@@ -177,6 +182,7 @@ class LaunchExecutor:
         return False
 
     async def _run(self, launch: TaskLaunch) -> None:
+        resolved: ResolvedLaunch | None = None
         try:
             resolved = await self._resolve(launch)
             if resolved is None:
@@ -195,6 +201,7 @@ class LaunchExecutor:
             )
             if enforcement.mode is None:
                 logger.warning("launch refused by local profile policy: %s", enforcement.refusal)
+                await self._capture_snapshot(launch, resolved, not_prepared="profile_refused")
                 self._reporter.report(
                     launch,
                     TaskLaunchStatus.FAILED,
@@ -221,6 +228,9 @@ class LaunchExecutor:
                 return
             worktree = prepared.worktree.path
             ctx = replace(resolved.ctx, workspace_root=worktree, probe_cwd=worktree)
+            await self._capture_snapshot(
+                launch, resolved, mode=mode, ctx=ctx, worktree=prepared.worktree
+            )
             executable = resolved.adapter.resolve_executable(ctx)
             prompt = build_instruction(
                 project_id=launch.project_id,
@@ -258,6 +268,10 @@ class LaunchExecutor:
             )
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)
+            if resolved is not None:
+                await self._capture_snapshot(
+                    launch, resolved, not_prepared=f"preparation_failed:{error.step}"
+                )
             self._reporter.report(
                 launch,
                 TaskLaunchStatus.FAILED,
@@ -282,6 +296,88 @@ class LaunchExecutor:
         finally:
             self._processes.pop(launch.id, None)
             self._tasks.pop(launch.id, None)
+
+    async def _capture_snapshot(
+        self,
+        launch: TaskLaunch,
+        resolved: ResolvedLaunch,
+        *,
+        mode: AccessMode | None = None,
+        ctx: HarnessContext | None = None,
+        worktree: Worktree | None = None,
+        not_prepared: str | None = None,
+    ) -> None:
+        if not self._capture_snapshots:
+            return
+        try:
+            inputs = await self._snapshot_inputs(
+                launch, resolved, mode=mode, ctx=ctx, worktree=worktree, not_prepared=not_prepared
+            )
+            payload = build_snapshot_payload(inputs)
+            self._reporter.snapshot(launch, payload)
+            logger.info(
+                "launch snapshot captured: status=%s reason=%s",
+                payload.capture_status.value,
+                not_prepared or "prepared",
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            logger.warning("launch snapshot capture failed: reason=%s", not_prepared or "prepared")
+
+    async def _snapshot_inputs(
+        self,
+        launch: TaskLaunch,
+        resolved: ResolvedLaunch,
+        *,
+        mode: AccessMode | None,
+        ctx: HarnessContext | None,
+        worktree: Worktree | None,
+        not_prepared: str | None,
+    ) -> SnapshotInputs:
+        definition = None
+        definition_error = None
+        if launch.agent_stable_key:
+            try:
+                definition = await self._client.resolve_agent(
+                    launch.agent_stable_key, project_id=launch.project_id
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                definition_error = "resolver_unreachable"
+        observed = projections = None
+        if worktree is not None:
+            observed = await asyncio.to_thread(self._preparer.observe, worktree)
+            projections = await asyncio.to_thread(projection_digests, worktree.path)
+        profile = resolved.profile
+        try:
+            policy: MachinePolicy | None = self._policy()
+        except Exception:  # noqa: BLE001
+            policy = None
+        return SnapshotInputs(
+            harness_id=launch.harness_id,
+            agent_stable_key=launch.agent_stable_key,
+            definition=definition,
+            definition_error=definition_error,
+            preview_profile=None if profile is None else profile.expected,
+            applied_profile=None if profile is None else profile.resolved,
+            access_mode=None if mode is None else mode.value,
+            harness_version=await self._harness_version(resolved, ctx),
+            worktree=observed,
+            not_prepared=not_prepared,
+            projections=projections if worktree is not None else (),
+            local_policy=policy,
+        )
+
+    async def _harness_version(
+        self, resolved: ResolvedLaunch, ctx: HarnessContext | None
+    ) -> str | None:
+        try:
+            detection = await asyncio.to_thread(resolved.adapter.detect, ctx or resolved.ctx)
+        except Exception:  # noqa: BLE001
+            return None
+        return detection.version
 
     def _record_usage(self, launch: TaskLaunch, result: LaunchResult) -> str | None:
         if self._usage is None:

@@ -234,6 +234,40 @@ RESP_409_LAUNCH_TRANSITION: ErrorResponses = {
     )
 }
 
+RESP_409_SNAPSHOT_IMMUTABLE: ErrorResponses = {
+    409: _json_response(
+        "This launch already has an execution snapshot with a different "
+        "content (`execution_snapshot_immutable`, with the recorded "
+        "`snapshot_id` and `content_hash`). A snapshot is never rewritten: "
+        "replaying the same payload is not an error.",
+        {
+            "detail": {
+                "error_code": "execution_snapshot_immutable",
+                "snapshot_id": "00000000-0000-0000-0000-000000000000",
+                "content_hash": "sha256:" + "0" * 64,
+            }
+        },
+    )
+}
+
+RESP_422_SNAPSHOT_REFUSED: ErrorResponses = {
+    422: _json_response(
+        "The snapshot body is refused (`execution_snapshot_refused`): a value "
+        "looks like credential material or an absolute local path, a field "
+        "name looks secret, or the body does not match the contract. Each "
+        "entry names the JSON path and a closed pattern, never the value; "
+        "nothing is stored.",
+        {
+            "detail": {
+                "error_code": "execution_snapshot_refused",
+                "details": [
+                    {"path": "$.applied.harness_version", "pattern": "credential_material"}
+                ],
+            }
+        },
+    )
+}
+
 RESP_409_LIBRARY: ErrorResponses = {
     409: _json_response(
         "Library reference conflict: the `stable_key` is already taken in "

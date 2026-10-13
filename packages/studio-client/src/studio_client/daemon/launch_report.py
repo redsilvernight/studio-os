@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from studio_contracts.execution_snapshot import ExecutionSnapshotPayload
 from studio_contracts.task_launch import (
     TaskLaunch,
     TaskLaunchMachineReport,
@@ -62,3 +63,18 @@ class LaunchReporter:
         )
         self._sent[launch.id] = self._sent.get(launch.id, 0) + 1
         return expected
+
+    def snapshot(self, launch: TaskLaunch, payload: ExecutionSnapshotPayload) -> bool:
+        """Enqueue the launch's execution snapshot (DEC-0199). One key per
+        launch: a second capture of the same attempt (resume, retry of the
+        executor) is ignored locally while the first is pending, and the
+        server keeps the first recorded content anyway. Not counted in the
+        report chain — the snapshot route is not version-guarded."""
+        key = uuid5(NAMESPACE_URL, f"studio:execution-snapshot:{launch.id}")
+        return self._store.enqueue_mutation(
+            str(key),
+            "execution_snapshot",
+            "POST",
+            f"/api/v1/task-launches/{launch.id}/snapshot",
+            payload.model_dump(mode="json"),
+        )

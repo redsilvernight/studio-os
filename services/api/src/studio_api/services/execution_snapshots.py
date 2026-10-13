@@ -1,6 +1,7 @@
 """Immutable execution snapshots (DEC-0199): record once, read, purge by retention.
 
-No HTTP route and no capture here (P04-snapshot-capture). The service never
+Routes: `POST`/`GET /api/v1/task-launches/{id}/snapshot`; the capture itself
+runs on the machine (`studio_client.daemon.launch_snapshot`). The service never
 updates a stored payload: recording the same content again is a no-op that
 returns the stored snapshot, recording a different content for the same launch
 is refused.
@@ -9,10 +10,12 @@ is refused.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,9 +26,16 @@ from studio_contracts.execution_snapshot import (
     check_payload_size,
     content_hash,
 )
+from studio_contracts.local.common import (
+    contains_absolute_path,
+    contains_secret_material,
+    is_secret_key_name,
+)
 
 from studio_api.db.models.execution_snapshot import ExecutionSnapshotModel
 from studio_api.db.models.task_launch import TaskLaunchModel
+from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.task_launches import authorize_report
 from studio_api.settings import get_settings
 
 DEFAULT_PURGE_BATCH = 1000
@@ -33,6 +43,56 @@ DEFAULT_PURGE_BATCH = 1000
 
 def _error(code: int, error_code: str, **details: Any) -> HTTPException:
     return HTTPException(code, detail={"error_code": error_code, **details})
+
+
+SNAPSHOT_REFUSED = "execution_snapshot_refused"
+MAX_REFUSAL_DETAILS = 20
+
+
+def _suspect_values(value: Any, path: str = "$") -> Iterator[dict[str, str]]:
+    if isinstance(value, str):
+        if contains_secret_material(value):
+            yield {"path": path, "pattern": "credential_material"}
+        elif contains_absolute_path(value):
+            yield {"path": path, "pattern": "absolute_path"}
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            name = str(key)
+            if is_secret_key_name(name) or not _safe_key(name):
+                yield {"path": path, "pattern": "secret_field_name"}
+                continue
+            yield from _suspect_values(item, f"{path}.{name}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _suspect_values(item, f"{path}[{index}]")
+
+
+def _safe_key(name: str) -> bool:
+    return not contains_secret_material(name) and not contains_absolute_path(name)
+
+
+def _loc(loc: tuple[int | str, ...]) -> str:
+    return "$" + "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in loc)
+
+
+def parse_snapshot_body(body: Any) -> ExecutionSnapshotPayload:
+    """Validate a posted snapshot without ever echoing it: a refusal names the
+    path and a closed pattern, never the value (FastAPI's default 422 would
+    return the whole body as `input`)."""
+    details = list(_suspect_values(body))
+    if not details:
+        try:
+            return ExecutionSnapshotPayload.model_validate(body)
+        except ValidationError as exc:
+            details = [
+                {"path": _loc(tuple(error["loc"])), "pattern": str(error["type"])}
+                for error in exc.errors(include_input=False, include_context=False)
+            ]
+    raise _error(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        SNAPSHOT_REFUSED,
+        details=details[:MAX_REFUSAL_DETAILS],
+    )
 
 
 def _to_contract(row: ExecutionSnapshotModel) -> ExecutionSnapshot:
@@ -111,6 +171,21 @@ async def record_snapshot(
             content_hash=existing.content_hash,
         )
     return _to_contract(existing)
+
+
+async def submit_launch_snapshot(
+    session: AsyncSession,
+    principal: Principal,
+    launch: TaskLaunchModel,
+    payload: ExecutionSnapshotPayload,
+) -> ExecutionSnapshot:
+    """HTTP path of `record_snapshot`: only the launch's target machine, with
+    its durable credential (launch credentials are not on the allowlist)."""
+    authorize_report(principal, launch)
+    ensure_project_access(principal, launch.project_id, "write")
+    snapshot = await record_snapshot(session, task_launch_id=launch.id, payload=payload)
+    await session.commit()
+    return snapshot
 
 
 async def get_snapshot(session: AsyncSession, snapshot_id: uuid.UUID) -> ExecutionSnapshot | None:
