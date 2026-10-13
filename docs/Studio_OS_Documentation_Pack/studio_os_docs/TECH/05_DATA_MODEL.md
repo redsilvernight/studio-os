@@ -370,6 +370,25 @@ lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnel
 - `created_at`/`updated_at`/`version`. Index `(project_id, period_start)`,
   `session_id`, `task_launch_id`.
 
+## ExecutionSnapshot (Mission Control P04, DEC-0199, migration Alembic `0032`, table `execution_snapshots`)
+
+Contrat `studio_contracts.execution_snapshot` ; detail dans
+`docs/mission-control/snapshot-contract.md`. Pas encore de route HTTP.
+`id`, `project_id` (FK Project), `task_launch_id` (FK TaskLaunch, unique : un
+snapshot par lancement), `content_hash` (`sha256:<hex>` du JSON canonique),
+`schema_version`, `capture_status` ∈ `ok|partial|failed` (`capture_reason`
+requise ⇔ statut different de `ok`), `payload` (JSONB : references, versions et
+empreintes seulement, ni prompt ni secret ni chemin absolu), `created_at`,
+`retention_until`.
+
+- Immuable cote service : meme empreinte → snapshot existant ; empreinte
+  differente pour le meme lancement → `409`.
+- Aucune FK vers Library ni RuntimeBinding : supprimer une ressource courante
+  n'efface pas la provenance archivee.
+- Retention : `execution_snapshot_retention_days` (defaut 90) ; la purge
+  supprime les snapshots expires. Index `content_hash`, `retention_until`,
+  `(project_id, created_at)`.
+
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 
 Definitions IA reutilisables (`rule|skill|agent_definition|model_profile|

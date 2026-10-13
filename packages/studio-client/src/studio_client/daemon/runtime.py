@@ -39,7 +39,10 @@ from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.daemon.launch_settings_bridge import effective_launch_config
+from studio_client.daemon.launch_settings_bridge import (
+    effective_launch_config,
+    load_machine_policy,
+)
 from studio_client.daemon.skills_bridge import start_auto_sync
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
@@ -65,6 +68,8 @@ from studio_client.outbox import (
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import KeyringTokenStore, TokenStore
+from studio_client.usage import UsageWriteQueue
+from studio_client.usage.recorder import LaunchUsageRecorder
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
@@ -393,6 +398,8 @@ class DaemonRuntime:
                     poll_seconds=self.config.launch_status_poll_seconds,
                     secrets=_launch_secrets(),
                     models=self.config.launch_models,
+                    usage=LaunchUsageRecorder(UsageWriteQueue(store)),
+                    machine_policy=lambda: load_machine_policy(self.config, self.data_root),
                 )
                 self._launch_executor = executor
                 executor.start()

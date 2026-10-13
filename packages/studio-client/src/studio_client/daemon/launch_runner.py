@@ -20,8 +20,10 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -50,6 +52,9 @@ class LaunchResult:
     cancelled: bool
     output: str
     truncated: bool
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_seconds: float | None = None
 
 
 def build_instruction(
@@ -140,6 +145,8 @@ class RunningLaunch:
         self._sink = sink
         self._reader = reader
         self._cancelled = False
+        self._started_at = datetime.now(UTC)
+        self._started = time.monotonic()
 
     @property
     def pid(self) -> int:
@@ -163,6 +170,7 @@ class RunningLaunch:
             if self._process.stdout is not None:
                 with contextlib.suppress(Exception):
                     self._process.stdout.close()
+        duration = time.monotonic() - self._started
         killed = timed_out or self._cancelled
         return LaunchResult(
             exit_code=None if killed else self._process.returncode,
@@ -170,6 +178,9 @@ class RunningLaunch:
             cancelled=self._cancelled,
             output=self._sink.text,
             truncated=self._sink.truncated,
+            started_at=self._started_at,
+            finished_at=datetime.now(UTC),
+            duration_seconds=duration,
         )
 
 

@@ -8,6 +8,7 @@ from studio_api.db.models.build import BuildModel, GitHubIntegrationModel, Produ
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
+from studio_api.db.models.execution_snapshot import ExecutionSnapshotModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel
 from studio_api.db.models.launch_credential import LaunchCredentialModel
 from studio_api.db.models.library import (
@@ -53,6 +54,7 @@ __all__ = [
     "TaskLaunchModel",
     "WorkSessionModel",
     "UsageLedgerEntryModel",
+    "ExecutionSnapshotModel",
     "VaultNoteModel",
     "VaultNoteLinkModel",
     "VaultNoteVersionModel",

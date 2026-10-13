@@ -54,7 +54,7 @@ from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.outbox import OutboxReplayer, OutboxStore, OutboxTable, connect
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import MemoryTokenStore
@@ -138,7 +138,9 @@ class FakeHarness(HarnessAdapter):
     def resolve_executable(self, ctx: HarnessContext) -> Path:
         return Path(sys.executable)
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
         self.prompts.append(prompt)
         return ("-c", self._script)
 
