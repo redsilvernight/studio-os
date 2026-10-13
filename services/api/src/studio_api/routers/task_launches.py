@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.common import Page
-from studio_contracts.execution_snapshot import ExecutionSnapshot, ExecutionSnapshotPayload
+from studio_contracts.execution_snapshot import ExecutionSnapshot
 from studio_contracts.task_launch import (
     TaskLaunch,
     TaskLaunchCancel,
@@ -27,6 +27,7 @@ from studio_api.openapi_meta import (
     RESP_409_LAUNCH_TRANSITION,
     RESP_409_SNAPSHOT_IMMUTABLE,
     RESP_409_VERSION_CONFLICT,
+    RESP_422_SNAPSHOT_REFUSED,
 )
 from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import idempotency as idempotency_service
@@ -271,28 +272,46 @@ async def report_task_launch(
     description=(
         "The target machine records the immutable execution snapshot of this "
         "launch attempt: references and digests only, never a "
-        "prompt, a file content, an absolute path or a secret (`422`). "
-        "Idempotent by content: replaying the same payload — whatever its "
-        "`Idempotency-Key` — returns the recorded snapshot; a different "
-        "payload for the same launch is `409 execution_snapshot_immutable`. "
-        "Only the launch's target machine, with its durable credential."
+        "prompt, a file content, an absolute path or a secret. A refused body "
+        "is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, "
+        "never echoing the value; nothing is stored. `Idempotency-Key` is not "
+        "used: the route is idempotent by content — replaying the same payload "
+        "returns the recorded snapshot; a different payload for the same "
+        "launch is `409 execution_snapshot_immutable`. Only the launch's "
+        "target machine, with its durable credential."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
         **RESP_409_SNAPSHOT_IMMUTABLE,
+        **RESP_422_SNAPSHOT_REFUSED,
+    },
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ExecutionSnapshotPayload"}
+                }
+            },
+        }
     },
 )
 async def submit_task_launch_snapshot(
     launch_id: UUID,
-    payload: ExecutionSnapshotPayload,
+    request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
 ) -> ExecutionSnapshot:
     launch = await launches_service.get_launch(session, principal, launch_id)
     if launch is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    payload = snapshots_service.parse_snapshot_body(body)
     return await snapshots_service.submit_launch_snapshot(session, principal, launch, payload)
 
 

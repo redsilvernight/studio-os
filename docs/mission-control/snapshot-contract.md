@@ -20,7 +20,14 @@ Payload haché (`ExecutionSnapshotPayload`) :
 | `capture_errors[]` | codes fermés (`resolution_unavailable`, `git_sha_unavailable`, `worktree_unverified`, `redaction_required`…), champ concerné, détail court |
 
 `resolution.profile` est le pin vu à la preview/admission, `applied.profile` celui
-recalculé au démarrage : `ExecutionSnapshotPayload.profile_drift` expose l'écart.
+recalculé au démarrage : la propriété Python `ExecutionSnapshotPayload.profile_drift`
+expose l'écart côté Python uniquement ; elle n'est pas sérialisée et n'apparaît pas
+dans la réponse HTTP (le client compare les deux pins lui-même).
+
+Les champs additifs d'`applied` sont livrés par Bloc A et Bloc B ensemble : le
+modèle est en `extra="forbid"`, un serveur antérieur refuserait un payload qui les
+porte. Tant qu'ils valent `null`, ils sont exclus de la forme canonique : le hash
+d'un payload enregistré avant leur ajout reste inchangé.
 
 Colonnes de la ligne : `id`, `project_id`, `task_launch_id` (unique), `content_hash`,
 `schema_version`, `capture_status`, `capture_reason` (codes d'erreur triés, NULL si
@@ -34,7 +41,10 @@ Colonnes de la ligne : `id`, `project_id`, `task_launch_id` (unique), `content_h
 - Un snapshot par tentative. Ré-enregistrer le même contenu renvoie le snapshot
   existant (idempotent, sûr en concurrence via `ON CONFLICT DO NOTHING`) ; un
   contenu différent pour le même launch est refusé (`409 execution_snapshot_immutable`).
-  Le service n'émet jamais d'`UPDATE` du payload.
+  Le service n'émet jamais d'`UPDATE` du payload. Pas d'`Idempotency-Key` : le contenu
+  fait office de clé.
+- Un payload refusé (secret, chemin absolu, nom de champ secret, schéma) renvoie
+  `422 execution_snapshot_refused` avec `details: [{path, pattern}]`, jamais la valeur.
 - Aucune FK vers les ressources Library ni les RuntimeBindings : supprimer ou
   archiver une ressource courante ne modifie pas un snapshot.
 - `ok` exige `resolution` et `applied` sans erreur ; `partial` et `failed` exigent au

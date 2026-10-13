@@ -579,7 +579,7 @@ export interface paths {
         put?: never;
         /**
          * Submit Task Launch Snapshot
-         * @description The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret (`422`). Idempotent by content: replaying the same payload — whatever its `Idempotency-Key` — returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.
+         * @description The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret. A refused body is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, never echoing the value; nothing is stored. `Idempotency-Key` is not used: the route is idempotent by content — replaying the same payload returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.
          */
         post: operations["submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post"];
         delete?: never;
@@ -11033,13 +11033,26 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description The snapshot body is refused (`execution_snapshot_refused`): a value looks like credential material or an absolute local path, a field name looks secret, or the body does not match the contract. Each entry names the JSON path and a closed pattern, never the value; nothing is stored. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "execution_snapshot_refused",
+                     *         "details": [
+                     *           {
+                     *             "path": "$.applied.harness_version",
+                     *             "pattern": "credential_material"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };

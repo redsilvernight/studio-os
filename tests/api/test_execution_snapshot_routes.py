@@ -126,9 +126,46 @@ async def test_canary_secret_is_rejected_and_never_stored(
     url = f"/api/v1/task-launches/{launch['id']}/snapshot"
     response = await client.post(url, json=_body(harness_version=CANARY), headers=auth_headers)
     assert response.status_code == 422
+    assert CANARY not in response.text
+    assert response.json()["detail"] == {
+        "error_code": "execution_snapshot_refused",
+        "details": [{"path": "$.applied.harness_version", "pattern": "credential_material"}],
+    }
     assert await _count(db_session, launch["id"]) == 0
     path = await client.post(
         url, json=_body(worktree_branch="C:\\Users\\me\\repo"), headers=auth_headers
     )
     assert path.status_code == 422
+    assert "Users" not in path.text
+    assert path.json()["detail"]["details"] == [
+        {"path": "$.applied.worktree_branch", "pattern": "absolute_path"}
+    ]
+    assert await _count(db_session, launch["id"]) == 0
+
+
+async def test_secret_field_name_and_contract_errors_never_echo_values(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    launch = await _created_launch(client, auth_headers, machine)
+    url = f"/api/v1/task-launches/{launch['id']}/snapshot"
+    named = _body()
+    named["applied"]["api_token"] = "opaque-value-123"
+    response = await client.post(url, json=named, headers=auth_headers)
+    assert response.status_code == 422
+    assert "opaque-value-123" not in response.text
+    assert response.json()["detail"]["details"] == [
+        {"path": "$.applied", "pattern": "secret_field_name"}
+    ]
+    bad_sha = await client.post(url, json=_body(git_sha="not-a-sha-xyz"), headers=auth_headers)
+    assert bad_sha.status_code == 422
+    assert "not-a-sha-xyz" not in bad_sha.text
+    assert bad_sha.json()["detail"]["error_code"] == "execution_snapshot_refused"
+    assert bad_sha.json()["detail"]["details"][0]["path"] == "$.applied.git_sha"
+    broken = await client.post(
+        url, content=b"{not json", headers={**auth_headers, "Content-Type": "application/json"}
+    )
+    assert broken.status_code == 422
     assert await _count(db_session, launch["id"]) == 0

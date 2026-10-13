@@ -254,10 +254,26 @@ def _walk(value: Any, path: str = "$") -> Iterator[tuple[str, str]]:
             yield from _walk(item, f"{path}[{index}]")
 
 
+ADDITIVE_APPLIED_FIELDS: tuple[str, ...] = ("worktree_branch", "profile", "access_mode")
+"""Fields added to `applied` after schema 1 shipped: left out of the canonical
+form while `None`, so a payload recorded before them keeps its hash."""
+
+
+def _canonical_dump(value: ContractModel) -> Any:
+    dumped = value.model_dump(mode="json")
+    if isinstance(value, ExecutionSnapshotPayload):
+        applied = dumped.get("applied")
+        if isinstance(applied, dict):
+            for name in ADDITIVE_APPLIED_FIELDS:
+                if applied.get(name) is None:
+                    applied.pop(name, None)
+    return dumped
+
+
 def canonical_json(value: Any) -> bytes:
     """Deterministic bytes: sorted keys, compact separators, UTF-8."""
     if isinstance(value, ContractModel):
-        value = value.model_dump(mode="json")
+        value = _canonical_dump(value)
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
         "utf-8"
     )

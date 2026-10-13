@@ -3,6 +3,8 @@ digests only, stable canonical hash, versioned schema, no secret material."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from typing import Any
 
@@ -196,3 +198,23 @@ def test_capture_status_requires_explicit_errors() -> None:
             applied=None,
             capture_errors=[SnapshotCaptureError(code=SnapshotCaptureErrorCode.INTERNAL)],
         )
+
+
+def test_additive_applied_fields_left_unset_keep_the_previous_hash() -> None:
+    payload = _payload()
+    previous = payload.model_dump(mode="json")
+    for name in ("worktree_branch", "profile", "access_mode"):
+        previous["applied"].pop(name)
+    previous_bytes = json.dumps(
+        previous, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    previous_hash = "sha256:" + hashlib.sha256(previous_bytes).hexdigest()
+    assert content_hash(payload) == previous_hash
+    assert content_hash(ExecutionSnapshotPayload.model_validate(previous)) == previous_hash
+
+    assert payload.applied is not None
+    branched = payload.model_copy(
+        update={"applied": payload.applied.model_copy(update={"worktree_branch": "task/x"})}
+    )
+    assert content_hash(branched) != previous_hash
+    assert b'"worktree_branch":"task/x"' in canonical_json(branched)
