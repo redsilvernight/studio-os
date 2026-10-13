@@ -18,7 +18,7 @@ from studio_contracts.auth import AgentCreate
 from studio_contracts.bootstrap import BootstrapFileState, OnModified
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
-from studio_contracts.sessions import WorkSessionCreate
+from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_client.api_client import StudioApiClient
@@ -1075,19 +1075,67 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
         print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
 
 
+def _optional_config() -> ClientConfig | None:
+    """This machine's configuration when it has one, without failing the
+    command: a prune must stay runnable on a machine that never enrolled, with
+    the missing session check reported rather than fatal."""
+    try:
+        return ClientConfig()  # type: ignore[call-arg]
+    except ValidationError:
+        return None
+
+
+async def _active_session_task_ids(config: ClientConfig) -> list[UUID]:
+    """Task ids whose work session is still active — the server decides what
+    "active" means, so a forgotten session is not decided by the client."""
+    async with StudioApiClient(config, KeyringTokenStore()) as client:
+        sessions = await client.list_sessions()
+    return [session.task_id for session in sessions if session.status == SessionStatus.ACTIVE]
+
+
 def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Preview (default) or remove the task worktrees a launch left behind.
     Dry-run is the default: `--confirm` must carry the digest the preview
     printed, and that digest is bound to the state it read, so a worktree that
-    changed since is kept rather than removed."""
+    changed since is kept rather than removed.
+
+    A work session the operator forgot to name is still live work, so the
+    active ones are read from the API; `--confirm` refuses to delete anything
+    without that check unless `--offline` says to accept the blind spot."""
     from studio_client.daemon.worktree_retention import (
         RetentionError,
         apply_cleanup,
         plan_cleanup,
     )
 
-    _ = config
     active = [_parse_uuid(value, field="--active-task") for value in args.active_task or []]
+    settings = None if args.offline else (config or _optional_config())
+    verified = False
+    if settings is None:
+        unverified = "--offline" if args.offline else "no Studio API configuration"
+    else:
+        unverified = ""
+        try:
+            live = asyncio.run(_active_session_task_ids(settings))
+        except (StudioApiError, MissingMachineToken) as exc:
+            unverified = f"the Studio API is unreachable ({exc})"
+        else:
+            active.extend(live)
+            verified = True
+    if args.confirm and not verified and not args.offline:
+        print(
+            "error: --confirm needs the live sessions from the Studio API and "
+            f"{unverified}; rerun with --offline to prune without that check",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    if not verified:
+        print(
+            f"warning: sessions actives non vérifiées — {unverified}; a running session's "
+            "worktree can be reported removable (pass --active-task to protect one)",
+            file=sys.stderr,
+        )
+
     try:
         plan = plan_cleanup(args.repo_root, active_task_ids=active)
         result = (
@@ -1113,6 +1161,8 @@ def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> N
     payload: dict[str, Any] = {
         "repo_root": str(plan.repo_root),
         "digest": plan.digest,
+        "active_task_ids": [str(task_id) for task_id in sorted(active)],
+        "sessions_verified": verified,
         "candidates": rows(plan.candidates),
         "excluded": rows([entry for entry in plan.entries if not entry.removable]),
         "applied": None
@@ -1618,6 +1668,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--confirm",
         metavar="DIGEST",
         help="Digest printed by the previous preview; required to actually remove.",
+    )
+    worktrees_prune.add_argument(
+        "--offline",
+        action="store_true",
+        help="Never contact the Studio API; active sessions are then unverified.",
     )
     _add_json_flag(worktrees_prune)
     worktrees_prune.set_defaults(func=_worktrees_prune)

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from studio_client import cli as cli_module
 from studio_client.cli import main as cli_main
+from studio_client.config import ClientConfig
 from studio_client.daemon.launch_prepare import ensure_task_worktree
 from studio_client.daemon.worktree_retention import (
     REASON_ACTIVE_SESSION,
@@ -23,6 +27,56 @@ from studio_client.daemon.worktree_retention import (
     apply_cleanup,
     plan_cleanup,
 )
+from studio_client.errors import StudioApiError
+from studio_contracts.sessions import SessionStatus, WorkSession
+
+
+class _FakeApiClient:
+    """Only what `cli._active_session_task_ids` uses: no network, no keyring."""
+
+    sessions: list[WorkSession] = []
+    fail_with: Exception | None = None
+
+    def __init__(self, config: Any, token_store: Any = None, **kwargs: Any) -> None:
+        self.config = config
+
+    async def __aenter__(self) -> _FakeApiClient:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    async def list_sessions(self, *, task_id: UUID | None = None) -> list[WorkSession]:
+        if _FakeApiClient.fail_with is not None:
+            raise _FakeApiClient.fail_with
+        return list(_FakeApiClient.sessions)
+
+
+def _install_api(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    sessions: list[WorkSession],
+    configured: bool = True,
+    fail_with: Exception | None = None,
+) -> None:
+    _FakeApiClient.sessions = sessions
+    _FakeApiClient.fail_with = fail_with
+    monkeypatch.setattr(cli_module, "StudioApiClient", _FakeApiClient)
+    monkeypatch.setattr(
+        cli_module,
+        "_optional_config",
+        lambda: ClientConfig(api_base_url="http://test") if configured else None,
+    )
+
+
+def _session(task_id: UUID, status: SessionStatus = SessionStatus.ACTIVE) -> WorkSession:
+    return WorkSession(
+        id=uuid4(),
+        task_id=task_id,
+        machine_id=uuid4(),
+        started_at=datetime.now(UTC),
+        status=status,
+    )
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -289,10 +343,113 @@ def test_cli_prune_previews_by_default_and_removes_only_on_its_own_digest(
     assert excinfo.value.code == 1
     assert candidate_path.is_dir()
 
-    cli_main(["worktrees", "prune", "--repo-root", str(repo), "--confirm", preview["digest"]])
+    cli_main(
+        [
+            "worktrees",
+            "prune",
+            "--repo-root",
+            str(repo),
+            "--confirm",
+            preview["digest"],
+            "--offline",
+        ]
+    )
 
     assert not candidate_path.exists()
     assert (
         candidate_branch
         not in _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/").split()
+    )
+
+
+def test_cli_prune_protects_a_session_the_server_still_reports_active(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _repo(tmp_path)
+    live_id, live_path, _ = _task_worktree(repo, slug="live")
+    _, candidate_path, candidate_branch = _task_worktree(repo, slug="clean")
+    (candidate_path / "feature.txt").write_text("done\n", encoding="utf-8")
+    _git(candidate_path, "add", ".")
+    _git(candidate_path, "commit", "-m", "work")
+    _git(candidate_path, "push", "-u", "origin", candidate_branch)
+    _install_api(monkeypatch, sessions=[_session(live_id), _session(uuid4(), SessionStatus.IDLE)])
+
+    cli_main(["worktrees", "prune", "--repo-root", str(repo), "--json"])
+    preview = json.loads(capsys.readouterr().out)
+
+    assert preview["sessions_verified"] is True
+    assert preview["active_task_ids"] == [str(live_id)]
+    assert [
+        entry["reasons"] for entry in preview["excluded"] if entry["path"] == str(live_path)
+    ] == [[REASON_ACTIVE_SESSION]]
+    assert [entry["path"] for entry in preview["candidates"]] == [str(candidate_path)]
+
+    cli_main(["worktrees", "prune", "--repo-root", str(repo), "--confirm", preview["digest"]])
+
+    assert live_path.is_dir()
+    assert not candidate_path.exists()
+    assert (
+        candidate_branch
+        not in _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/").split()
+    )
+
+
+@pytest.mark.parametrize("configured", [False, True])
+def test_cli_prune_confirm_refuses_an_unverified_session_list(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    configured: bool,
+) -> None:
+    repo = _repo(tmp_path)
+    _, path, branch = _task_worktree(repo)
+    _install_api(
+        monkeypatch,
+        sessions=[],
+        configured=configured,
+        fail_with=StudioApiError(0, None, "unreachable") if configured else None,
+    )
+
+    cli_main(["worktrees", "prune", "--repo-root", str(repo), "--json"])
+    captured = capsys.readouterr()
+    preview = json.loads(captured.out)
+
+    assert preview["sessions_verified"] is False
+    assert "sessions actives non vérifiées" in captured.err
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_main(["worktrees", "prune", "--repo-root", str(repo), "--confirm", preview["digest"]])
+
+    assert excinfo.value.code == 1
+    assert "--offline" in capsys.readouterr().err
+    assert path.is_dir()
+    assert branch in _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
+
+
+def test_cli_prune_confirm_offline_prunes_without_the_api(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _repo(tmp_path)
+    _, path, branch = _task_worktree(repo)
+    _install_api(monkeypatch, sessions=[], configured=False)
+
+    cli_main(["worktrees", "prune", "--repo-root", str(repo), "--json", "--offline"])
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["sessions_verified"] is False
+
+    cli_main(
+        [
+            "worktrees",
+            "prune",
+            "--repo-root",
+            str(repo),
+            "--confirm",
+            preview["digest"],
+            "--offline",
+        ]
+    )
+
+    assert not path.exists()
+    assert (
+        branch not in _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/").split()
     )
