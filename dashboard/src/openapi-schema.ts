@@ -564,6 +564,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/task-launches/{launch_id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Launch Snapshot
+         * @description Read the execution snapshot of one launch attempt: what was previewed (`resolution`) beside what the machine really applied (`applied`: git commit and branch observed in the worktree, harness version, projection digests, enforced profile and mode). `404` while the machine has not recorded it.
+         */
+        get: operations["get_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_get"];
+        put?: never;
+        /**
+         * Submit Task Launch Snapshot
+         * @description The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret. A refused body is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, never echoing the value; nothing is stored. `Idempotency-Key` is not used: the route is idempotent by content — replaying the same payload returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.
+         */
+        post: operations["submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/task-launches/{launch_id}/credential": {
         parameters: {
             query?: never;
@@ -1256,6 +1280,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summarize Usage
+         * @description Aggregate a project's usage (optionally one task) over period_start in [since, until), grouped by none, task, configuration (harness, provider, model) or UTC day. Each fact counts once in its latest corrected form. Every metric carries a status: known_sum is a total only when exact or estimated, a lower bound when partial; costs in several currencies are never added (mixed_currency, see by_currency). Groups are capped at 100 (truncated); total always covers the whole scope. until before since fails with 422 invalid_usage_period.
+         */
+        get: operations["summarize_usage_api_v1_usage_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/corrections": {
         parameters: {
             query?: never;
@@ -1270,6 +1314,86 @@ export interface paths {
          * @description Replace the whole measurement, provenance, period and pricing block of an owned fact. Identity and collector stay fixed. A stale expected_version fails with version_conflict and server_version. Exact Idempotency-Key replay precedes the version check and does not increment the entry again.
          */
         post: operations["correct_usage_api_v1_usage_corrections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Budget
+         * @description Budget status of a project over its current window: policy, effective mode, what the policy actually guarantees, meters (consumed, held, unknown entries) and recent reservations. Without a policy: alert-only, nothing limited.
+         */
+        get: operations["get_budget_api_v1_projects__project_id__budget_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/budget-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Budget Policy
+         * @description Create (no `expected_version`) or replace the project's budget policy. An `enforce` policy is stored pending approval and stays effectively alert-only until an admin approves it; every write clears a previous approval. Refused to a launch credential.
+         */
+        put: operations["put_budget_policy_api_v1_projects__project_id__budget_policy_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/budget-policy/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Budget Policy
+         * @description Approve a pending `enforce` policy (admin only). Only then can the budget refuse admissions.
+         */
+        post: operations["approve_budget_policy_api_v1_projects__project_id__budget_policy_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/budget/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile Budget
+         * @description Settle the reservations of finished or overdue launches now, per the displayed policy (also done by every admission). Idempotent.
+         */
+        post: operations["reconcile_budget_api_v1_projects__project_id__budget_reconcile_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3091,6 +3215,234 @@ export interface components {
          * @enum {string}
          */
         BootstrapSegment: "common" | "project";
+        /** BudgetAlert */
+        BudgetAlert: {
+            code: components["schemas"]["BudgetAlertCode"];
+            metric?: components["schemas"]["BudgetMetric"] | null;
+            /** Threshold */
+            threshold?: number | null;
+        };
+        /**
+         * BudgetAlertCode
+         * @enum {string}
+         */
+        BudgetAlertCode: "threshold_reached" | "limit_exceeded" | "slots_exhausted" | "unknown_usage" | "enforce_pending_approval";
+        /**
+         * BudgetApprovalStatus
+         * @enum {string}
+         */
+        BudgetApprovalStatus: "not_required" | "pending" | "approved";
+        /**
+         * BudgetMeter
+         * @description One limited metric over the current window. `consumed`: charged by
+         *     reconciled runs and usage outside launches. `held`: outstanding
+         *     reservations of runs not reconciled yet. `unknown_entries`: ledger
+         *     entries whose measure for this metric is unknown (or in another currency).
+         */
+        BudgetMeter: {
+            metric: components["schemas"]["BudgetMetric"];
+            /** Limit */
+            limit?: string | null;
+            /** Consumed */
+            consumed: string;
+            /** Held */
+            held: string;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+        };
+        /**
+         * BudgetMetric
+         * @enum {string}
+         */
+        BudgetMetric: "cost" | "tokens" | "slots";
+        /**
+         * BudgetMode
+         * @description `alert_only`: admit and record alerts. `enforce`: refuse an admission
+         *     whose reservation does not fit (only once approved).
+         * @enum {string}
+         */
+        BudgetMode: "alert_only" | "enforce";
+        /**
+         * BudgetPeriod
+         * @description Accounting window, UTC calendar: current day, current month, or the
+         *     whole project history.
+         * @enum {string}
+         */
+        BudgetPeriod: "day" | "month" | "lifetime";
+        /** BudgetPolicy */
+        BudgetPolicy: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** @default alert_only */
+            mode: components["schemas"]["BudgetMode"];
+            /** @default month */
+            period: components["schemas"]["BudgetPeriod"];
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Cost Limit */
+            cost_limit?: string | null;
+            /** Token Limit */
+            token_limit?: number | null;
+            /** Max Active Launches */
+            max_active_launches?: number | null;
+            /** Reservation Cost */
+            reservation_cost?: string | null;
+            /** Reservation Tokens */
+            reservation_tokens?: number | null;
+            /** @default charge_reservation */
+            unknown_cost: components["schemas"]["UnknownCostPolicy"];
+            /** @default hold_reservation */
+            late_usage: components["schemas"]["LateUsagePolicy"];
+            /**
+             * Settle After Seconds
+             * @default 3600
+             */
+            settle_after_seconds: number;
+            /** Alert Thresholds */
+            alert_thresholds?: number[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            approval_status: components["schemas"]["BudgetApprovalStatus"];
+            effective_mode: components["schemas"]["BudgetMode"];
+            ceiling_guarantee: components["schemas"]["CeilingGuarantee"];
+            /** Proposed By User Id */
+            proposed_by_user_id?: string | null;
+            /** Approved By User Id */
+            approved_by_user_id?: string | null;
+            /** Approved At */
+            approved_at?: string | null;
+        };
+        /** BudgetPolicyApprove */
+        BudgetPolicyApprove: {
+            /** Expected Version */
+            expected_version: number;
+        };
+        /**
+         * BudgetPolicyUpdate
+         * @description Create (`expected_version` absent) or replace the project's policy.
+         *     A policy in `enforce` mode is stored pending approval.
+         */
+        BudgetPolicyUpdate: {
+            /** @default alert_only */
+            mode: components["schemas"]["BudgetMode"];
+            /** @default month */
+            period: components["schemas"]["BudgetPeriod"];
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Cost Limit */
+            cost_limit?: number | string | null;
+            /** Token Limit */
+            token_limit?: number | null;
+            /** Max Active Launches */
+            max_active_launches?: number | null;
+            /** Reservation Cost */
+            reservation_cost?: number | string | null;
+            /** Reservation Tokens */
+            reservation_tokens?: number | null;
+            /** @default charge_reservation */
+            unknown_cost: components["schemas"]["UnknownCostPolicy"];
+            /** @default hold_reservation */
+            late_usage: components["schemas"]["LateUsagePolicy"];
+            /**
+             * Settle After Seconds
+             * @default 3600
+             */
+            settle_after_seconds: number;
+            /** Alert Thresholds */
+            alert_thresholds?: number[];
+            /** Expected Version */
+            expected_version?: number | null;
+        };
+        /** BudgetReservation */
+        BudgetReservation: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Task Launch Id
+             * Format: uuid
+             */
+            task_launch_id: string;
+            status: components["schemas"]["BudgetReservationStatus"];
+            /** Reserved Cost */
+            reserved_cost?: string | null;
+            /** Reserved Tokens */
+            reserved_tokens?: number | null;
+            settle_basis?: components["schemas"]["SettleBasis"] | null;
+            /** Alerts */
+            alerts?: components["schemas"]["BudgetAlert"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Settled At */
+            settled_at?: string | null;
+        };
+        /**
+         * BudgetReservationStatus
+         * @description `held`: run admitted, not reconciled. `settled`: run over, charged from
+         *     the ledger (or its reservation, per policy). `released`: nothing held.
+         * @enum {string}
+         */
+        BudgetReservationStatus: "held" | "settled" | "released";
+        /**
+         * BudgetStatus
+         * @description Read model of a project's budget. Without a policy: `alert_only`, no
+         *     meter, nothing limited.
+         */
+        BudgetStatus: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            policy?: components["schemas"]["BudgetPolicy"] | null;
+            /** @default alert_only */
+            effective_mode: components["schemas"]["BudgetMode"];
+            /** @default none */
+            ceiling_guarantee: components["schemas"]["CeilingGuarantee"];
+            /** Period Start */
+            period_start?: string | null;
+            /** Meters */
+            meters?: components["schemas"]["BudgetMeter"][];
+            /**
+             * Active Launches
+             * @default 0
+             */
+            active_launches: number;
+            /** Reservations */
+            reservations?: components["schemas"]["BudgetReservation"][];
+        };
         /**
          * Build
          * @description A CI build observed on a project's GitHub repository.
@@ -3212,6 +3564,14 @@ export interface components {
          * @enum {string}
          */
         CapabilitySource: "declared";
+        /**
+         * CeilingGuarantee
+         * @description What the effective policy actually guarantees. `none`: alerts only.
+         *     `admission_only`: admitted reservations stay within the limits; actual
+         *     consumption, reported after the run, may still exceed them.
+         * @enum {string}
+         */
+        CeilingGuarantee: "none" | "admission_only";
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
             /** Current Password */
@@ -3736,6 +4096,62 @@ export interface components {
          * @enum {string}
          */
         EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "task_launch.requested" | "task_launch.accepted" | "task_launch.rejected" | "task_launch.cancelled" | "task_launch.expired" | "task_launch.finished" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published" | "coordination.heads_up" | "coordination.question" | "coordination.blocked_by" | "coordination.handoff";
+        /**
+         * ExecutionSnapshot
+         * @description Read model: one recorded snapshot of one launch attempt.
+         */
+        ExecutionSnapshot: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Task Launch Id
+             * Format: uuid
+             */
+            task_launch_id: string;
+            /** Content Hash */
+            content_hash: string;
+            /** Schema Version */
+            schema_version: number;
+            capture_status: components["schemas"]["SnapshotCaptureStatus"];
+            /** Capture Reason */
+            capture_reason?: string | null;
+            payload: components["schemas"]["ExecutionSnapshotPayload"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Retention Until
+             * Format: date-time
+             */
+            retention_until: string;
+        };
+        /**
+         * ExecutionSnapshotPayload
+         * @description The hashed, immutable body of a snapshot.
+         */
+        ExecutionSnapshotPayload: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            capture_status: components["schemas"]["SnapshotCaptureStatus"];
+            resolution?: components["schemas"]["SnapshotResolution"] | null;
+            applied?: components["schemas"]["SnapshotAppliedParameters"] | null;
+            /** Capture Errors */
+            capture_errors?: components["schemas"]["SnapshotCaptureError"][];
+        };
         /**
          * GitHubIntegration
          * @description Per-project GitHub wiring. At most one row per project in
@@ -4279,6 +4695,15 @@ export interface components {
             /** Roadmap Step Key */
             roadmap_step_key?: string | null;
         };
+        /**
+         * LateUsagePolicy
+         * @description A finished run that reported no usage after `settle_after_seconds`.
+         *     `hold_reservation`: its reservation stays charged until usage arrives.
+         *     `release`: nothing is charged until usage arrives. Usage reported later
+         *     always replaces the held amount.
+         * @enum {string}
+         */
+        LateUsagePolicy: "hold_reservation" | "release";
         /**
          * LibraryActivate
          * @description Explicit activation: moves `active_version`
@@ -6671,6 +7096,148 @@ export interface components {
          */
         SessionStatus: "active" | "idle" | "expired" | "ended";
         /**
+         * SettleBasis
+         * @enum {string}
+         */
+        SettleBasis: "measured" | "reservation" | "none";
+        /**
+         * SnapshotAppliedParameters
+         * @description What Bloc B really applied on the machine.
+         *
+         *     Additive: `worktree_branch` is the branch git
+         *     reports for the run's worktree (observed, never the declared one);
+         *     `profile` is the work profile pin recomputed when the run starts — compare
+         *     it with `resolution.profile`, the pin the launch was previewed/admitted
+         *     against; `access_mode` is the mode the machine finally enforced (`None`
+         *     when it refused to run).
+         */
+        SnapshotAppliedParameters: {
+            /** Harness Id */
+            harness_id: string;
+            /** Harness Version */
+            harness_version?: string | null;
+            /** Projections */
+            projections?: components["schemas"]["SnapshotProjectionRef"][];
+            /** Git Sha */
+            git_sha?: string | null;
+            /** Git Dirty */
+            git_dirty?: boolean | null;
+            /** Local Policy Digest */
+            local_policy_digest?: string | null;
+            /** Worktree Branch */
+            worktree_branch?: string | null;
+            profile?: components["schemas"]["SnapshotProfileRef"] | null;
+            /** Access Mode */
+            access_mode?: string | null;
+        };
+        /** SnapshotCaptureError */
+        SnapshotCaptureError: {
+            code: components["schemas"]["SnapshotCaptureErrorCode"];
+            /** Field */
+            field?: string | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+        };
+        /**
+         * SnapshotCaptureErrorCode
+         * @description Closed vocabulary of explicit capture errors: a missing piece is named,
+         *     never silently omitted.
+         * @enum {string}
+         */
+        SnapshotCaptureErrorCode: "resolution_unavailable" | "profile_unavailable" | "harness_version_unknown" | "projection_digest_unavailable" | "git_sha_unavailable" | "local_policy_unavailable" | "redaction_required" | "payload_too_large" | "internal" | "worktree_unverified";
+        /**
+         * SnapshotCaptureStatus
+         * @enum {string}
+         */
+        SnapshotCaptureStatus: "ok" | "partial" | "failed";
+        /** SnapshotProfileRef */
+        SnapshotProfileRef: {
+            /** Stable Key */
+            stable_key: string;
+            /** Contract Version */
+            contract_version: number;
+            /** Digest */
+            digest: string;
+        };
+        /**
+         * SnapshotProjectionRef
+         * @description One file the harness adapter projected. `target` is a logical,
+         *     repository-relative identifier — never an absolute path.
+         */
+        SnapshotProjectionRef: {
+            /** Target */
+            target: string;
+            /** Digest */
+            digest: string;
+        };
+        /**
+         * SnapshotResolution
+         * @description Projection of the resolver output. `profile` is the
+         *     pin the launch was previewed/admitted against; `applied.profile` is the
+         *     pin recomputed when the run starts.
+         */
+        SnapshotResolution: {
+            /** Agent Stable Key */
+            agent_stable_key: string;
+            profile?: components["schemas"]["SnapshotProfileRef"] | null;
+            /** Resources */
+            resources?: components["schemas"]["SnapshotResourceRef"][];
+            runtime?: components["schemas"]["SnapshotRuntimeRef"] | null;
+        };
+        /**
+         * SnapshotResourceRef
+         * @description One Library version the resolver selected, with the digest of its
+         *     content (the content itself is never copied).
+         */
+        SnapshotResourceRef: {
+            role: components["schemas"]["SnapshotResourceRole"];
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /** Content Digest */
+            content_digest?: string | null;
+        };
+        /**
+         * SnapshotResourceRole
+         * @enum {string}
+         */
+        SnapshotResourceRole: "agent" | "rule" | "skill" | "model_profile" | "workflow" | "composed_agent";
+        /**
+         * SnapshotRuntimeRef
+         * @description The runtime the resolver picked: references only, capabilities reduced
+         *     to a digest.
+         */
+        SnapshotRuntimeRef: {
+            level: components["schemas"]["RuntimeLevel"];
+            matched_kind: components["schemas"]["LibraryKind"];
+            /** Matched Stable Key */
+            matched_stable_key: string;
+            /** Runtime Id */
+            runtime_id?: string | null;
+            /** Runtime Binding Id */
+            runtime_binding_id?: string | null;
+            /** Harness Ref */
+            harness_ref?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Model Ref */
+            model_ref?: string | null;
+            /** Capabilities Digest */
+            capabilities_digest: string;
+        };
+        /**
          * StartWorkCandidate
          * @description One unclaimed task a fresh start could pick up (no-task path only):
          *     compact by construction — id, title, status, plus the `why` relation that
@@ -7607,6 +8174,14 @@ export interface components {
             provenance?: components["schemas"]["WriteProvenance"];
         };
         /**
+         * UnknownCostPolicy
+         * @description A run whose usage has an unknown measure. `charge_reservation`: it costs
+         *     at least its reservation (conservative). `ignore`: only known measures
+         *     count; the unknown entries stay visible in `unknown_entries`.
+         * @enum {string}
+         */
+        UnknownCostPolicy: "charge_reservation" | "ignore";
+        /**
          * UploadCompleteRequest
          * @description Multipart parts/upload_id are tracked client-side and handed back
          *     here — the server never persists multipart-in-progress state.
@@ -7721,6 +8296,121 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /**
+         * UsageAggregate
+         * @description Aggregated measures of a set of ledger entries. Each entry counts once,
+         *     in its latest corrected form: replays and cumulative snapshots never add
+         *     up (ingestion is deduplicated on `(machine_id, source_event_id)`).
+         */
+        UsageAggregate: {
+            key?: components["schemas"]["UsageGroupKey"];
+            /** Entries */
+            entries: number;
+            /** First Period Start */
+            first_period_start?: string | null;
+            /** Last Period End */
+            last_period_end?: string | null;
+            tokens_in: components["schemas"]["UsageTokenTotal"];
+            tokens_out: components["schemas"]["UsageTokenTotal"];
+            tokens_cached: components["schemas"]["UsageTokenTotal"];
+            total_tokens: components["schemas"]["UsageTokenTotal"];
+            cost: components["schemas"]["UsageCostTotal"];
+            duration: components["schemas"]["UsageDurationTotal"];
+            /** Sources */
+            sources?: components["schemas"]["UsageSourceCount"][];
+        };
+        /**
+         * UsageCostTotal
+         * @description Cost summed per currency. `known_sum`/`currency` are set only when every
+         *     known cost shares one currency; with several currencies `status` is
+         *     `mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum
+         *     apart. An unknown cost is never counted as zero.
+         */
+        UsageCostTotal: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** By Currency */
+            by_currency?: components["schemas"]["UsageCurrencyAmount"][];
+        };
+        /** UsageCurrencyAmount */
+        UsageCurrencyAmount: {
+            /** Currency */
+            currency: string;
+            /** Known Sum */
+            known_sum: string;
+            /** Entries */
+            entries: number;
+        };
+        /**
+         * UsageDurationTotal
+         * @description Sum of measured wall-clock durations in seconds, same rule as tokens.
+         */
+        UsageDurationTotal: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: string | null;
+        };
+        /**
+         * UsageGroupBy
+         * @description Dimension of a usage summary. `configuration` is the provenance the
+         *     runtime reported (harness, provider, model); `day` is the UTC day of
+         *     `period_start`.
+         * @enum {string}
+         */
+        UsageGroupBy: "none" | "task" | "configuration" | "day";
+        /**
+         * UsageGroupKey
+         * @description Value of the grouping dimension. Fields outside the requested dimension
+         *     stay `None`; a `None` inside it means the entries did not carry it (entry
+         *     without task, model not reported).
+         */
+        UsageGroupKey: {
+            /** Task Id */
+            task_id?: string | null;
+            /** Task Title */
+            task_title?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Day */
+            day?: string | null;
         };
         /**
          * UsageLedgerCorrection
@@ -7896,6 +8586,89 @@ export interface components {
             /** Model */
             model?: string | null;
         };
+        /**
+         * UsageSourceCount
+         * @description Collector that produced entries of the aggregate, with its entry count.
+         */
+        UsageSourceCount: {
+            /** Collector */
+            collector: string;
+            /** Entries */
+            entries: number;
+        };
+        /**
+         * UsageSummary
+         * @description Usage of a project (optionally one task) over a period of `period_start`.
+         *     `total` covers every entry in scope, including groups cut by
+         *     `USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as
+         *     returned and never re-add groups into a total.
+         */
+        UsageSummary: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            group_by: components["schemas"]["UsageGroupBy"];
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            total: components["schemas"]["UsageAggregate"];
+            /** Groups */
+            groups?: components["schemas"]["UsageAggregate"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * UsageTokenTotal
+         * @description Sum of the known values. `known_sum` is a total only when `status` is
+         *     `exact` or `estimated`; it is a lower bound when `partial` and `None` when
+         *     nothing is known.
+         */
+        UsageTokenTotal: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: number | null;
+        };
+        /**
+         * UsageTotalStatus
+         * @description What an aggregated metric is worth, so no client presents a partial or
+         *     incomparable sum as an exact total.
+         *
+         *     `none`: no entry in scope. `exact`: every entry measured. `estimated`:
+         *     every entry has a value, at least one estimated. `partial`: some entries
+         *     are `unknown`, `known_sum` is only a lower bound. `unknown`: entries exist
+         *     but none has a value. `mixed_currency` (cost only): known costs are in
+         *     several currencies, they are never added together.
+         * @enum {string}
+         */
+        UsageTotalStatus: "none" | "exact" | "estimated" | "partial" | "unknown" | "mixed_currency";
         /**
          * User
          * @description `email` is normalized (trimmed, lower-case) and unique regardless of
@@ -10176,7 +10949,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10450,7 +11223,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10647,6 +11420,195 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSnapshot"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionSnapshotPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSnapshot"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description This launch already has an execution snapshot with a different content (`execution_snapshot_immutable`, with the recorded `snapshot_id` and `content_hash`). A snapshot is never rewritten: replaying the same payload is not an error. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "execution_snapshot_immutable",
+                     *         "snapshot_id": "00000000-0000-0000-0000-000000000000",
+                     *         "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description The snapshot body is refused (`execution_snapshot_refused`): a value looks like credential material or an absolute local path, a field name looks secret, or the body does not match the contract. Each entry names the JSON path and a closed pattern, never the value; nothing is stored. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "execution_snapshot_refused",
+                     *         "details": [
+                     *           {
+                     *             "path": "$.applied.harness_version",
+                     *             "pattern": "credential_material"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };
@@ -14290,7 +15252,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14299,8 +15261,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "actor_not_owned",
-                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *         "error_code": "usage_identity_conflict"
                      *       }
                      *     }
                      */
@@ -14314,6 +15275,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summarize_usage_api_v1_usage_summary_get: {
+        parameters: {
+            query: {
+                project_id: string;
+                task_id?: string | null;
+                group_by?: components["schemas"]["UsageGroupBy"];
+                since?: string | null;
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_usage_period"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };
@@ -14389,7 +15424,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Stale expected_version: version_conflict carries the current server_version. Read the entry and submit a new correction with its current version. An exact Idempotency-Key replay returns its original response before this check. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14398,9 +15433,358 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "actor_not_owned",
-                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *         "error_code": "usage_identity_conflict"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_budget_api_v1_projects__project_id__budget_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetStatus"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_budget_policy_api_v1_projects__project_id__budget_policy_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetPolicy"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_budget_policy_api_v1_projects__project_id__budget_policy_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetPolicyApprove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetPolicy"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. Nothing to approve: the policy is not in `enforce` mode or is already approved (`budget_approval_not_pending`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconcile_budget_api_v1_projects__project_id__budget_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetStatus"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;

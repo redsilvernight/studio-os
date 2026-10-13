@@ -27,7 +27,7 @@ ressource rattachee a un projet.
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. `POST /task-launches/{id}/snapshot` (DEC-0199) : N/A — idempotent par contenu (meme payload = snapshot d'origine, contenu different = `409 execution_snapshot_immutable`). Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
@@ -575,6 +575,19 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `task_launch_id` et `since` (date de mise a jour, corrections incluses),
   limitee aux projets accessibles. `limit` : defaut 100, maximum 500. Cette lecture
   fournit les entrees du ledger ; elle ne calcule pas de totaux ni de budgets.
+- GET /usage/summary (P03-usage-ui, additif) — `UsageSummary`, `200`.
+  `project_id` requis ; `task_id`, `since`, `until` (filtre `period_start`
+  dans `[since, until)`) et `group_by` (`none`, `task`, `configuration` =
+  harness/provider/model, `day` UTC) optionnels. Chaque fait compte une fois,
+  dans sa derniere forme corrigee. Chaque metrique porte un `status` :
+  `exact`, `estimated`, `partial` (`known_sum` = borne inferieure), `unknown`
+  (`known_sum` null), `none` (aucune entree). Des couts en plusieurs devises
+  ne sont jamais additionnes : `mixed_currency`, `known_sum` et `currency`
+  null, detail dans `by_currency`. Un client doit traiter un `status` inconnu
+  comme non exact (borne inferieure ou inconnu) ; de nouvelles valeurs de
+  `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
+  `total` couvre tout le perimetre. `until < since` -> `422
+  invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
 
 Les ecritures exigent un role autorise et la machine authentifiee comme
 `machine_id`, y compris pour un admin. Le projet doit etre accessible en
@@ -601,6 +614,38 @@ dans la meme transaction SQLite. Aucun envoi ni commit interne ; le replayer
 generique gere ordre, backoff et erreurs definitives en `dead_letter`, avec
 corps et motif conserves pour inspection. Une correction perimee doit etre
 relue puis reproposee, jamais appliquee de force.
+
+### Budgets (Mission Control P03-budgets, additif)
+
+- GET /projects/{project_id}/budget — `BudgetStatus` : politique, mode
+  effectif, `ceiling_guarantee`, compteurs (`consumed`, `held`,
+  `unknown_entries`), lancements actifs, reservations recentes (≤ 50).
+- PUT /projects/{project_id}/budget-policy — `BudgetPolicyUpdate` ->
+  `BudgetPolicy`. Creation sans `expected_version`, sinon `409
+  version_conflict`. Ecriture projet, refusee a `readonly` et aux credentials
+  de lancement. `enforce` est stocke en attente d'approbation. Une creation
+  (sans `expected_version`) qui trouve une politique deja creee, en course ou
+  en rejeu, recoit `200` seulement si cette politique est encore en version 1,
+  du meme auteur et de corps identique ; sinon `409 version_conflict`, jamais
+  un corps perdu en silence.
+- POST /projects/{project_id}/budget-policy/approve — admin seulement ;
+  `409 budget_approval_not_pending` hors attente. L'admin auteur de la
+  politique peut l'approuver lui-meme (auto-approbation autorisee) : choix a
+  confirmer par l'humain.
+- PUT et approve ne prennent pas d'`Idempotency-Key` : la concurrence passe
+  par `expected_version`, et un rejeu d'une ecriture versionnee deja appliquee
+  repond `409 version_conflict` (avec la version serveur).
+- POST /projects/{project_id}/budget/reconcile — solde les reservations des
+  lancements termines ou en retard selon la politique ; idempotent.
+
+Admission : POST task-launches et retry reservent sous verrou de la politique
+du projet, dans la transaction du lancement. Sans politique ou en
+`alert_only`, tout est admis et les depassements deviennent des `alerts` de la
+reservation. En `enforce` approuve : `409 budget_refused` avec `reason` ∈
+`budget_cost_exhausted|budget_tokens_exhausted|budget_slots_exhausted`, rien
+n'est cree. Un refus n'est pas mis en cache sous l'`Idempotency-Key` du
+lancement : un rejeu avec la meme cle reevalue l'admission. `TaskLaunch` et
+les evenements sont inchanges.
 
 ### AI Library (P1, additif, DEC-0062/0063/0064)
 
@@ -1001,6 +1046,14 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   de bord.
 - POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
   `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+- POST /task-launches/{id}/snapshot (`ExecutionSnapshotPayload`) -> `ExecutionSnapshot`, `201`
+  (P04-snapshot-capture, DEC-0199, additif) — machine cible seule (regles du report), envoye par
+  l'outbox. `Idempotency-Key` : N/A, idempotent par contenu : meme payload = meme snapshot ;
+  contenu different pour le meme lancement = `409 execution_snapshot_immutable`. Payload
+  refuse (secret, chemin absolu, nom de champ secret, ou non conforme au schema) =
+  `422 {"detail": {"error_code": "execution_snapshot_refused", "details": [{"path", "pattern"}]}}`
+  (meme principe que `secret_detected`) : jamais la valeur refusee, rien stocke. GET /task-launches/{id}/snapshot -> `ExecutionSnapshot` (portee projet
+  en lecture), `404` si aucun. Voir `docs/mission-control/snapshot-contract.md`.
 - POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
   (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
   credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon

@@ -81,6 +81,9 @@ class SnapshotCaptureErrorCode(StrEnum):
     REDACTION_REQUIRED = "redaction_required"
     PAYLOAD_TOO_LARGE = "payload_too_large"
     INTERNAL = "internal"
+    WORKTREE_UNVERIFIED = "worktree_unverified"
+    """Additive: git could not prove that the run's
+    worktree (top-level, branch) is the one prepared for the launch."""
 
 
 class SnapshotResourceRole(StrEnum):
@@ -128,7 +131,9 @@ class SnapshotProfileRef(ContractModel):
 
 
 class SnapshotResolution(ContractModel):
-    """Projection of the resolver output (DEC-0068/DEC-0198)."""
+    """Projection of the resolver output. `profile` is the
+    pin the launch was previewed/admitted against; `applied.profile` is the
+    pin recomputed when the run starts."""
 
     agent_stable_key: SafeLabel
     profile: SnapshotProfileRef | None = None
@@ -145,7 +150,14 @@ class SnapshotProjectionRef(ContractModel):
 
 
 class SnapshotAppliedParameters(ContractModel):
-    """What Bloc B really applied on the machine."""
+    """What Bloc B really applied on the machine.
+
+    Additive: `worktree_branch` is the branch git
+    reports for the run's worktree (observed, never the declared one);
+    `profile` is the work profile pin recomputed when the run starts — compare
+    it with `resolution.profile`, the pin the launch was previewed/admitted
+    against; `access_mode` is the mode the machine finally enforced (`None`
+    when it refused to run)."""
 
     harness_id: SafeLabel
     harness_version: SafeLabel | None = None
@@ -153,6 +165,9 @@ class SnapshotAppliedParameters(ContractModel):
     git_sha: GitSha | None = None
     git_dirty: bool | None = None
     local_policy_digest: Digest | None = None
+    worktree_branch: SafeLabel | None = None
+    profile: SnapshotProfileRef | None = None
+    access_mode: SafeLabel | None = None
 
 
 class SnapshotCaptureError(ContractModel):
@@ -194,6 +209,16 @@ class ExecutionSnapshotPayload(ContractModel):
         return self
 
     @property
+    def profile_drift(self) -> bool | None:
+        """Whether the profile previewed at admission differs from the one
+        recomputed when the run started; `None` when either side is unknown."""
+        preview = None if self.resolution is None else self.resolution.profile
+        applied = None if self.applied is None else self.applied.profile
+        if preview is None or applied is None:
+            return None
+        return preview != applied
+
+    @property
     def capture_reason(self) -> str | None:
         """Short machine-readable reason stored beside the status."""
         if not self.capture_errors:
@@ -229,10 +254,26 @@ def _walk(value: Any, path: str = "$") -> Iterator[tuple[str, str]]:
             yield from _walk(item, f"{path}[{index}]")
 
 
+ADDITIVE_APPLIED_FIELDS: tuple[str, ...] = ("worktree_branch", "profile", "access_mode")
+"""Fields added to `applied` after schema 1 shipped: left out of the canonical
+form while `None`, so a payload recorded before them keeps its hash."""
+
+
+def _canonical_dump(value: ContractModel) -> Any:
+    dumped = value.model_dump(mode="json")
+    if isinstance(value, ExecutionSnapshotPayload):
+        applied = dumped.get("applied")
+        if isinstance(applied, dict):
+            for name in ADDITIVE_APPLIED_FIELDS:
+                if applied.get(name) is None:
+                    applied.pop(name, None)
+    return dumped
+
+
 def canonical_json(value: Any) -> bytes:
     """Deterministic bytes: sorted keys, compact separators, UTF-8."""
     if isinstance(value, ContractModel):
-        value = value.model_dump(mode="json")
+        value = _canonical_dump(value)
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
         "utf-8"
     )

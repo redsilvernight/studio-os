@@ -1929,7 +1929,7 @@
       }
      },
      "409": {
-      "description": "Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` \u2014 only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`).",
+      "description": "Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` \u2014 only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run.",
       "content": {
        "application/json": {
         "example": {
@@ -2339,7 +2339,7 @@
       }
      },
      "409": {
-      "description": "Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` \u2014 only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`).",
+      "description": "Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` \u2014 only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run.",
       "content": {
        "application/json": {
         "example": {
@@ -2534,6 +2534,202 @@
          "detail": {
           "error_code": "invalid_launch_transition"
          }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/task-launches/{launch_id}/snapshot": {
+   "post": {
+    "tags": [
+     "task-launches"
+    ],
+    "summary": "Submit Task Launch Snapshot",
+    "description": "The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret. A refused body is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, never echoing the value; nothing is stored. `Idempotency-Key` is not used: the route is idempotent by content \u2014 replaying the same payload returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.",
+    "operationId": "submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "launch_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Launch Id"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExecutionSnapshot"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "This launch already has an execution snapshot with a different content (`execution_snapshot_immutable`, with the recorded `snapshot_id` and `content_hash`). A snapshot is never rewritten: replaying the same payload is not an error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "execution_snapshot_immutable",
+          "snapshot_id": "00000000-0000-0000-0000-000000000000",
+          "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "The snapshot body is refused (`execution_snapshot_refused`): a value looks like credential material or an absolute local path, a field name looks secret, or the body does not match the contract. Each entry names the JSON path and a closed pattern, never the value; nothing is stored.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "execution_snapshot_refused",
+          "details": [
+           {
+            "path": "$.applied.harness_version",
+            "pattern": "credential_material"
+           }
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExecutionSnapshotPayload"
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "task-launches"
+    ],
+    "summary": "Get Task Launch Snapshot",
+    "description": "Read the execution snapshot of one launch attempt: what was previewed (`resolution`) beside what the machine really applied (`applied`: git commit and branch observed in the worktree, harness version, projection digests, enforced profile and mode). `404` while the machine has not recorded it.",
+    "operationId": "get_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "launch_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Launch Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExecutionSnapshot"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
         }
        }
       }
@@ -7062,13 +7258,12 @@
       }
      },
      "409": {
-      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "actor_not_owned",
-          "message": "agent_id must be an agent attached to the authenticated machine"
+          "error_code": "usage_identity_conflict"
          }
         }
        }
@@ -7080,6 +7275,141 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/summary": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Summarize Usage",
+    "description": "Aggregate a project's usage (optionally one task) over period_start in [since, until), grouped by none, task, configuration (harness, provider, model) or UTC day. Each fact counts once in its latest corrected form. Every metric carries a status: known_sum is a total only when exact or estimated, a lower bound when partial; costs in several currencies are never added (mixed_currency, see by_currency). Groups are capped at 100 (truncated); total always covers the whole scope. until before since fails with 422 invalid_usage_period.",
+    "operationId": "summarize_usage_api_v1_usage_summary_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "group_by",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "$ref": "#/components/schemas/UsageGroupBy",
+       "default": "none"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageSummary"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_usage_period"
+         }
         }
        }
       }
@@ -7176,14 +7506,391 @@
       }
      },
      "409": {
-      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Usage identity rejected: machine_id must equal the authenticated machine, including for an admin (actor_not_owned). A source event cannot change its project, links or collector (usage_identity_conflict). Linked resources must belong to the same project and agree on task and session (invalid_usage_link). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Stale expected_version: version_conflict carries the current server_version. Read the entry and submit a new correction with its current version. An exact Idempotency-Key replay returns its original response before this check.",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "actor_not_owned",
-          "message": "agent_id must be an agent attached to the authenticated machine"
+          "error_code": "usage_identity_conflict"
          }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/budget": {
+   "get": {
+    "tags": [
+     "budgets"
+    ],
+    "summary": "Get Budget",
+    "description": "Budget status of a project over its current window: policy, effective mode, what the policy actually guarantees, meters (consumed, held, unknown entries) and recent reservations. Without a policy: alert-only, nothing limited.",
+    "operationId": "get_budget_api_v1_projects__project_id__budget_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BudgetStatus"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/budget-policy": {
+   "put": {
+    "tags": [
+     "budgets"
+    ],
+    "summary": "Put Budget Policy",
+    "description": "Create (no `expected_version`) or replace the project's budget policy. An `enforce` policy is stored pending approval and stays effectively alert-only until an admin approves it; every write clears a previous approval. Refused to a launch credential.",
+    "operationId": "put_budget_policy_api_v1_projects__project_id__budget_policy_put",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BudgetPolicyUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BudgetPolicy"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/budget-policy/approve": {
+   "post": {
+    "tags": [
+     "budgets"
+    ],
+    "summary": "Approve Budget Policy",
+    "description": "Approve a pending `enforce` policy (admin only). Only then can the budget refuse admissions.",
+    "operationId": "approve_budget_policy_api_v1_projects__project_id__budget_policy_approve_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BudgetPolicyApprove"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BudgetPolicy"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version. Nothing to approve: the policy is not in `enforce` mode or is already approved (`budget_approval_not_pending`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/budget/reconcile": {
+   "post": {
+    "tags": [
+     "budgets"
+    ],
+    "summary": "Reconcile Budget",
+    "description": "Settle the reservations of finished or overdue launches now, per the displayed policy (also done by every admission). Idempotent.",
+    "operationId": "reconcile_budget_api_v1_projects__project_id__budget_reconcile_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BudgetStatus"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
         }
        }
       }
@@ -16279,6 +16986,619 @@
     "title": "BootstrapSegment",
     "description": "Common (Studio-wide or user-owned) versus project-owned artifact."
    },
+   "BudgetAlert": {
+    "properties": {
+     "code": {
+      "$ref": "#/components/schemas/BudgetAlertCode"
+     },
+     "metric": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BudgetMetric"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "threshold": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Threshold"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "code"
+    ],
+    "title": "BudgetAlert"
+   },
+   "BudgetAlertCode": {
+    "type": "string",
+    "enum": [
+     "threshold_reached",
+     "limit_exceeded",
+     "slots_exhausted",
+     "unknown_usage",
+     "enforce_pending_approval"
+    ],
+    "title": "BudgetAlertCode"
+   },
+   "BudgetApprovalStatus": {
+    "type": "string",
+    "enum": [
+     "not_required",
+     "pending",
+     "approved"
+    ],
+    "title": "BudgetApprovalStatus"
+   },
+   "BudgetMeter": {
+    "properties": {
+     "metric": {
+      "$ref": "#/components/schemas/BudgetMetric"
+     },
+     "limit": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Limit"
+     },
+     "consumed": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Consumed"
+     },
+     "held": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Held"
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "title": "Unknown Entries",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "metric",
+     "consumed",
+     "held"
+    ],
+    "title": "BudgetMeter",
+    "description": "One limited metric over the current window. `consumed`: charged by\nreconciled runs and usage outside launches. `held`: outstanding\nreservations of runs not reconciled yet. `unknown_entries`: ledger\nentries whose measure for this metric is unknown (or in another currency)."
+   },
+   "BudgetMetric": {
+    "type": "string",
+    "enum": [
+     "cost",
+     "tokens",
+     "slots"
+    ],
+    "title": "BudgetMetric"
+   },
+   "BudgetMode": {
+    "type": "string",
+    "enum": [
+     "alert_only",
+     "enforce"
+    ],
+    "title": "BudgetMode",
+    "description": "`alert_only`: admit and record alerts. `enforce`: refuse an admission\nwhose reservation does not fit (only once approved)."
+   },
+   "BudgetPeriod": {
+    "type": "string",
+    "enum": [
+     "day",
+     "month",
+     "lifetime"
+    ],
+    "title": "BudgetPeriod",
+    "description": "Accounting window, UTC calendar: current day, current month, or the\nwhole project history."
+   },
+   "BudgetPolicy": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "mode": {
+      "$ref": "#/components/schemas/BudgetMode",
+      "default": "alert_only"
+     },
+     "period": {
+      "$ref": "#/components/schemas/BudgetPeriod",
+      "default": "month"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "default": "USD"
+     },
+     "cost_limit": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Limit"
+     },
+     "token_limit": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 9.223372036854776e+18,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Token Limit"
+     },
+     "max_active_launches": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 1000.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max Active Launches"
+     },
+     "reservation_cost": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reservation Cost"
+     },
+     "reservation_tokens": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 9.223372036854776e+18,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reservation Tokens"
+     },
+     "unknown_cost": {
+      "$ref": "#/components/schemas/UnknownCostPolicy",
+      "default": "charge_reservation"
+     },
+     "late_usage": {
+      "$ref": "#/components/schemas/LateUsagePolicy",
+      "default": "hold_reservation"
+     },
+     "settle_after_seconds": {
+      "type": "integer",
+      "maximum": 2592000.0,
+      "minimum": 0.0,
+      "title": "Settle After Seconds",
+      "default": 3600
+     },
+     "alert_thresholds": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "maxItems": 10,
+      "title": "Alert Thresholds"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "approval_status": {
+      "$ref": "#/components/schemas/BudgetApprovalStatus"
+     },
+     "effective_mode": {
+      "$ref": "#/components/schemas/BudgetMode"
+     },
+     "ceiling_guarantee": {
+      "$ref": "#/components/schemas/CeilingGuarantee"
+     },
+     "proposed_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Proposed By User Id"
+     },
+     "approved_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Approved By User Id"
+     },
+     "approved_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Approved At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "project_id",
+     "approval_status",
+     "effective_mode",
+     "ceiling_guarantee"
+    ],
+    "title": "BudgetPolicy"
+   },
+   "BudgetPolicyApprove": {
+    "properties": {
+     "expected_version": {
+      "type": "integer",
+      "title": "Expected Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "expected_version"
+    ],
+    "title": "BudgetPolicyApprove"
+   },
+   "BudgetPolicyUpdate": {
+    "properties": {
+     "mode": {
+      "$ref": "#/components/schemas/BudgetMode",
+      "default": "alert_only"
+     },
+     "period": {
+      "$ref": "#/components/schemas/BudgetPeriod",
+      "default": "month"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "default": "USD"
+     },
+     "cost_limit": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 10000000000.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Limit"
+     },
+     "token_limit": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 9.223372036854776e+18,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Token Limit"
+     },
+     "max_active_launches": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 1000.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max Active Launches"
+     },
+     "reservation_cost": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 10000000000.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reservation Cost"
+     },
+     "reservation_tokens": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 9.223372036854776e+18,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reservation Tokens"
+     },
+     "unknown_cost": {
+      "$ref": "#/components/schemas/UnknownCostPolicy",
+      "default": "charge_reservation"
+     },
+     "late_usage": {
+      "$ref": "#/components/schemas/LateUsagePolicy",
+      "default": "hold_reservation"
+     },
+     "settle_after_seconds": {
+      "type": "integer",
+      "maximum": 2592000.0,
+      "minimum": 0.0,
+      "title": "Settle After Seconds",
+      "default": 3600
+     },
+     "alert_thresholds": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "maxItems": 10,
+      "title": "Alert Thresholds"
+     },
+     "expected_version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "BudgetPolicyUpdate",
+    "description": "Create (`expected_version` absent) or replace the project's policy.\nA policy in `enforce` mode is stored pending approval."
+   },
+   "BudgetReservation": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "task_launch_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Launch Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/BudgetReservationStatus"
+     },
+     "reserved_cost": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reserved Cost"
+     },
+     "reserved_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reserved Tokens"
+     },
+     "settle_basis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SettleBasis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "alerts": {
+      "items": {
+       "$ref": "#/components/schemas/BudgetAlert"
+      },
+      "type": "array",
+      "title": "Alerts"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "settled_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Settled At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "task_launch_id",
+     "status",
+     "created_at"
+    ],
+    "title": "BudgetReservation"
+   },
+   "BudgetReservationStatus": {
+    "type": "string",
+    "enum": [
+     "held",
+     "settled",
+     "released"
+    ],
+    "title": "BudgetReservationStatus",
+    "description": "`held`: run admitted, not reconciled. `settled`: run over, charged from\nthe ledger (or its reservation, per policy). `released`: nothing held."
+   },
+   "BudgetStatus": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "policy": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BudgetPolicy"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "effective_mode": {
+      "$ref": "#/components/schemas/BudgetMode",
+      "default": "alert_only"
+     },
+     "ceiling_guarantee": {
+      "$ref": "#/components/schemas/CeilingGuarantee",
+      "default": "none"
+     },
+     "period_start": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Period Start"
+     },
+     "meters": {
+      "items": {
+       "$ref": "#/components/schemas/BudgetMeter"
+      },
+      "type": "array",
+      "title": "Meters"
+     },
+     "active_launches": {
+      "type": "integer",
+      "title": "Active Launches",
+      "default": 0
+     },
+     "reservations": {
+      "items": {
+       "$ref": "#/components/schemas/BudgetReservation"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Reservations"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id"
+    ],
+    "title": "BudgetStatus",
+    "description": "Read model of a project's budget. Without a policy: `alert_only`, no\nmeter, nothing limited."
+   },
    "Build": {
     "properties": {
      "created_at": {
@@ -16530,6 +17850,15 @@
     ],
     "title": "CapabilitySource",
     "description": "Where registered capabilities come from (P6 registry).\n\nP6 MVP only ever stores `declared` (explicitly registered, no discovery,\nno detection, no adapter report). The enum \u2014 not a closed vendor list \u2014\nis the extension point for future `detected` / `adapter-reported`\nsources; any other value is fail-closed until its semantics are defined."
+   },
+   "CeilingGuarantee": {
+    "type": "string",
+    "enum": [
+     "none",
+     "admission_only"
+    ],
+    "title": "CeilingGuarantee",
+    "description": "What the effective policy actually guarantees. `none`: alerts only.\n`admission_only`: admitted reservations stay within the limits; actual\nconsumption, reported after the run, may still exceed them."
    },
    "ChangePasswordRequest": {
     "properties": {
@@ -17687,6 +19016,124 @@
     ],
     "title": "EventType",
     "description": "Fixed dotted names (`domain.verb`: task.created, session.ended, ...).\nAdditive-only: new members may appear, existing ones are never renamed\nor removed \u2014 readers should tolerate unknown types."
+   },
+   "ExecutionSnapshot": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_launch_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Launch Id"
+     },
+     "content_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Hash"
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version"
+     },
+     "capture_status": {
+      "$ref": "#/components/schemas/SnapshotCaptureStatus"
+     },
+     "capture_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capture Reason"
+     },
+     "payload": {
+      "$ref": "#/components/schemas/ExecutionSnapshotPayload"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "retention_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Retention Until"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "task_launch_id",
+     "content_hash",
+     "schema_version",
+     "capture_status",
+     "payload",
+     "created_at",
+     "retention_until"
+    ],
+    "title": "ExecutionSnapshot",
+    "description": "Read model: one recorded snapshot of one launch attempt."
+   },
+   "ExecutionSnapshotPayload": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "capture_status": {
+      "$ref": "#/components/schemas/SnapshotCaptureStatus"
+     },
+     "resolution": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotResolution"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "applied": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotAppliedParameters"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "capture_errors": {
+      "items": {
+       "$ref": "#/components/schemas/SnapshotCaptureError"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Capture Errors"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "capture_status"
+    ],
+    "title": "ExecutionSnapshotPayload",
+    "description": "The hashed, immutable body of a snapshot."
    },
    "GitHubIntegration": {
     "properties": {
@@ -18931,6 +20378,15 @@
     ],
     "title": "InitializationTask",
     "description": "A standalone task the plan asks for. `key` is a plan-local stable\nidentifier (error reporting, duplicate detection), never persisted;\nreplay-safety comes from the task `title` within the project (an existing\ntask with the same title is `reused`, never duplicated). An optional\n`roadmap_step_key` links the task to a step of the plan's roadmap (the\nlink is created through the roadmap link service, same project)."
+   },
+   "LateUsagePolicy": {
+    "type": "string",
+    "enum": [
+     "hold_reservation",
+     "release"
+    ],
+    "title": "LateUsagePolicy",
+    "description": "A finished run that reported no usage after `settle_after_seconds`.\n`hold_reservation`: its reservation stays charged until usage arrives.\n`release`: nothing is charged until usage arrives. Usage reported later\nalways replaces the held amount."
    },
    "LibraryActivate": {
     "properties": {
@@ -24106,6 +25562,441 @@
     "title": "SessionStatus",
     "description": "Presence derived at read time (C1), never stored: `active`\n(recent activity), `idle` (no activity past the idle threshold),\n`expired` (no activity past the expire threshold \u2014 L2 closes these),\n`ended` (`ended_at` set). Same pattern as `MachineStatus` from\n`last_seen_at`, but driven by session-attached activity, never by a\ndedicated agent heartbeat."
    },
+   "SettleBasis": {
+    "type": "string",
+    "enum": [
+     "measured",
+     "reservation",
+     "none"
+    ],
+    "title": "SettleBasis"
+   },
+   "SnapshotAppliedParameters": {
+    "properties": {
+     "harness_id": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Harness Id"
+     },
+     "harness_version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Version"
+     },
+     "projections": {
+      "items": {
+       "$ref": "#/components/schemas/SnapshotProjectionRef"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Projections"
+     },
+     "git_sha": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Git Sha"
+     },
+     "git_dirty": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Git Dirty"
+     },
+     "local_policy_digest": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Local Policy Digest"
+     },
+     "worktree_branch": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Worktree Branch"
+     },
+     "profile": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotProfileRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "access_mode": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Access Mode"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "harness_id"
+    ],
+    "title": "SnapshotAppliedParameters",
+    "description": "What Bloc B really applied on the machine.\n\nAdditive: `worktree_branch` is the branch git\nreports for the run's worktree (observed, never the declared one);\n`profile` is the work profile pin recomputed when the run starts \u2014 compare\nit with `resolution.profile`, the pin the launch was previewed/admitted\nagainst; `access_mode` is the mode the machine finally enforced (`None`\nwhen it refused to run)."
+   },
+   "SnapshotCaptureError": {
+    "properties": {
+     "code": {
+      "$ref": "#/components/schemas/SnapshotCaptureErrorCode"
+     },
+     "field": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Field"
+     },
+     "detail": {
+      "type": "string",
+      "maxLength": 500,
+      "title": "Detail",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "code"
+    ],
+    "title": "SnapshotCaptureError"
+   },
+   "SnapshotCaptureErrorCode": {
+    "type": "string",
+    "enum": [
+     "resolution_unavailable",
+     "profile_unavailable",
+     "harness_version_unknown",
+     "projection_digest_unavailable",
+     "git_sha_unavailable",
+     "local_policy_unavailable",
+     "redaction_required",
+     "payload_too_large",
+     "internal",
+     "worktree_unverified"
+    ],
+    "title": "SnapshotCaptureErrorCode",
+    "description": "Closed vocabulary of explicit capture errors: a missing piece is named,\nnever silently omitted."
+   },
+   "SnapshotCaptureStatus": {
+    "type": "string",
+    "enum": [
+     "ok",
+     "partial",
+     "failed"
+    ],
+    "title": "SnapshotCaptureStatus"
+   },
+   "SnapshotProfileRef": {
+    "properties": {
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "contract_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Contract Version"
+     },
+     "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "stable_key",
+     "contract_version",
+     "digest"
+    ],
+    "title": "SnapshotProfileRef"
+   },
+   "SnapshotProjectionRef": {
+    "properties": {
+     "target": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Target"
+     },
+     "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "target",
+     "digest"
+    ],
+    "title": "SnapshotProjectionRef",
+    "description": "One file the harness adapter projected. `target` is a logical,\nrepository-relative identifier \u2014 never an absolute path."
+   },
+   "SnapshotResolution": {
+    "properties": {
+     "agent_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Agent Stable Key"
+     },
+     "profile": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotProfileRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "resources": {
+      "items": {
+       "$ref": "#/components/schemas/SnapshotResourceRef"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Resources"
+     },
+     "runtime": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SnapshotRuntimeRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "agent_stable_key"
+    ],
+    "title": "SnapshotResolution",
+    "description": "Projection of the resolver output. `profile` is the\npin the launch was previewed/admitted against; `applied.profile` is the\npin recomputed when the run starts."
+   },
+   "SnapshotResourceRef": {
+    "properties": {
+     "role": {
+      "$ref": "#/components/schemas/SnapshotResourceRole"
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version"
+     },
+     "version_origin": {
+      "$ref": "#/components/schemas/VersionOrigin"
+     },
+     "content_digest": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Content Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "role",
+     "resource_id",
+     "kind",
+     "stable_key",
+     "scope",
+     "version",
+     "version_origin"
+    ],
+    "title": "SnapshotResourceRef",
+    "description": "One Library version the resolver selected, with the digest of its\ncontent (the content itself is never copied)."
+   },
+   "SnapshotResourceRole": {
+    "type": "string",
+    "enum": [
+     "agent",
+     "rule",
+     "skill",
+     "model_profile",
+     "workflow",
+     "composed_agent"
+    ],
+    "title": "SnapshotResourceRole"
+   },
+   "SnapshotRuntimeRef": {
+    "properties": {
+     "level": {
+      "$ref": "#/components/schemas/RuntimeLevel"
+     },
+     "matched_kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "matched_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Matched Stable Key"
+     },
+     "runtime_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Id"
+     },
+     "runtime_binding_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Binding Id"
+     },
+     "harness_ref": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Ref"
+     },
+     "provider_ref": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider Ref"
+     },
+     "model_ref": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Ref"
+     },
+     "capabilities_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Capabilities Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "level",
+     "matched_kind",
+     "matched_stable_key",
+     "capabilities_digest"
+    ],
+    "title": "SnapshotRuntimeRef",
+    "description": "The runtime the resolver picked: references only, capabilities reduced\nto a digest."
+   },
    "StartWorkCandidate": {
     "properties": {
      "task_id": {
@@ -26304,6 +28195,15 @@
     "title": "TransitionRequest",
     "description": "Lifecycle change of a *roadmap* (`ROADMAP_TRANSITIONS`). `approve` here\nis the initial validation of a `proposed` roadmap; approving a revision\nproposal of an approved roadmap is `ProposalReview`. Both emit\n`roadmap.approved` / `roadmap.changes_requested` / `roadmap.rejected` with\n`payload.scope` = `roadmap` or `revision`."
    },
+   "UnknownCostPolicy": {
+    "type": "string",
+    "enum": [
+     "charge_reservation",
+     "ignore"
+    ],
+    "title": "UnknownCostPolicy",
+    "description": "A run whose usage has an unknown measure. `charge_reservation`: it costs\nat least its reservation (conservative). `ignore`: only known measures\ncount; the unknown entries stay visible in `unknown_entries`."
+   },
    "UploadCompleteRequest": {
     "properties": {
      "size_bytes": {
@@ -26535,6 +28435,301 @@
     ],
     "title": "UploadPartsRefreshResponse",
     "description": "`uploaded_parts` is storage's own record (`ListParts`), the\nauthoritative source of which parts are actually durable \u2014 the client\nmust adopt it (a part PUT that succeeded but whose local SQLite write was\nlost is recovered here, not re-uploaded). `part_urls` carries only the\nparts still missing, never a part already in `uploaded_parts`."
+   },
+   "UsageAggregate": {
+    "properties": {
+     "key": {
+      "$ref": "#/components/schemas/UsageGroupKey"
+     },
+     "entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Entries"
+     },
+     "first_period_start": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Period Start"
+     },
+     "last_period_end": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Period End"
+     },
+     "tokens_in": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "tokens_out": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "tokens_cached": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "total_tokens": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "cost": {
+      "$ref": "#/components/schemas/UsageCostTotal"
+     },
+     "duration": {
+      "$ref": "#/components/schemas/UsageDurationTotal"
+     },
+     "sources": {
+      "items": {
+       "$ref": "#/components/schemas/UsageSourceCount"
+      },
+      "type": "array",
+      "title": "Sources"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "entries",
+     "tokens_in",
+     "tokens_out",
+     "tokens_cached",
+     "total_tokens",
+     "cost",
+     "duration"
+    ],
+    "title": "UsageAggregate",
+    "description": "Aggregated measures of a set of ledger entries. Each entry counts once,\nin its latest corrected form: replays and cumulative snapshots never add\nup (ingestion is deduplicated on `(machine_id, source_event_id)`)."
+   },
+   "UsageCostTotal": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     },
+     "by_currency": {
+      "items": {
+       "$ref": "#/components/schemas/UsageCurrencyAmount"
+      },
+      "type": "array",
+      "title": "By Currency"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageCostTotal",
+    "description": "Cost summed per currency. `known_sum`/`currency` are set only when every\nknown cost shares one currency; with several currencies `status` is\n`mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum\napart. An unknown cost is never counted as zero."
+   },
+   "UsageCurrencyAmount": {
+    "properties": {
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "known_sum": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Known Sum"
+     },
+     "entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Entries"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "currency",
+     "known_sum",
+     "entries"
+    ],
+    "title": "UsageCurrencyAmount"
+   },
+   "UsageDurationTotal": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageDurationTotal",
+    "description": "Sum of measured wall-clock durations in seconds, same rule as tokens."
+   },
+   "UsageGroupBy": {
+    "type": "string",
+    "enum": [
+     "none",
+     "task",
+     "configuration",
+     "day"
+    ],
+    "title": "UsageGroupBy",
+    "description": "Dimension of a usage summary. `configuration` is the provenance the\nruntime reported (harness, provider, model); `day` is the UTC day of\n`period_start`."
+   },
+   "UsageGroupKey": {
+    "properties": {
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "task_title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Title"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     },
+     "day": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Day"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "UsageGroupKey",
+    "description": "Value of the grouping dimension. Fields outside the requested dimension\nstay `None`; a `None` inside it means the entries did not carry it (entry\nwithout task, model not reported)."
    },
    "UsageLedgerCorrection": {
     "properties": {
@@ -26967,6 +29162,165 @@
     ],
     "title": "UsageProvenance",
     "description": "Who produced the measure. `collector`/`collector_version` name the tool\nthat emitted the entry, `harness`/`harness_version` the agent runtime it ran:\ntwo entries with identical numbers but different provenance are not the same\nmeasurement, and a re-run of a different harness version is a new entry\nrather than an overwrite."
+   },
+   "UsageSourceCount": {
+    "properties": {
+     "collector": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Collector"
+     },
+     "entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Entries"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "collector",
+     "entries"
+    ],
+    "title": "UsageSourceCount",
+    "description": "Collector that produced entries of the aggregate, with its entry count."
+   },
+   "UsageSummary": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "group_by": {
+      "$ref": "#/components/schemas/UsageGroupBy"
+     },
+     "since": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Since"
+     },
+     "until": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Until"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "total": {
+      "$ref": "#/components/schemas/UsageAggregate"
+     },
+     "groups": {
+      "items": {
+       "$ref": "#/components/schemas/UsageAggregate"
+      },
+      "type": "array",
+      "title": "Groups"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "group_by",
+     "generated_at",
+     "total"
+    ],
+    "title": "UsageSummary",
+    "description": "Usage of a project (optionally one task) over a period of `period_start`.\n`total` covers every entry in scope, including groups cut by\n`USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as\nreturned and never re-add groups into a total."
+   },
+   "UsageTokenTotal": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageTokenTotal",
+    "description": "Sum of the known values. `known_sum` is a total only when `status` is\n`exact` or `estimated`; it is a lower bound when `partial` and `None` when\nnothing is known."
+   },
+   "UsageTotalStatus": {
+    "type": "string",
+    "enum": [
+     "none",
+     "exact",
+     "estimated",
+     "partial",
+     "unknown",
+     "mixed_currency"
+    ],
+    "title": "UsageTotalStatus",
+    "description": "What an aggregated metric is worth, so no client presents a partial or\nincomparable sum as an exact total.\n\n`none`: no entry in scope. `exact`: every entry measured. `estimated`:\nevery entry has a value, at least one estimated. `partial`: some entries\nare `unknown`, `known_sum` is only a lower bound. `unknown`: entries exist\nbut none has a value. `mixed_currency` (cost only): known costs are in\nseveral currencies, they are never added together."
    },
    "User": {
     "properties": {
@@ -28390,6 +30744,10 @@
   {
    "name": "usage",
    "description": "Measured usage ledger with per-metric coverage, source-event deduplication and versioned whole-block corrections. Writes belong to the authenticated machine."
+  },
+  {
+   "name": "budgets",
+   "description": "Explicit per-project launch budget: alert-only by default, `enforce` only once approved by an admin. Admission reserves a fixed per-launch amount under a project lock; the guarantee is `admission_only`, never a spending ceiling."
   },
   {
    "name": "review-queue",

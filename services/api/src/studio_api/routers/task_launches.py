@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.common import Page
+from studio_contracts.execution_snapshot import ExecutionSnapshot
 from studio_contracts.task_launch import (
     TaskLaunch,
     TaskLaunchCancel,
@@ -22,10 +23,15 @@ from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
+    RESP_409_BUDGET_REFUSED,
     RESP_409_IDEMPOTENCY,
     RESP_409_LAUNCH_TRANSITION,
+    RESP_409_SNAPSHOT_IMMUTABLE,
     RESP_409_VERSION_CONFLICT,
+    RESP_422_SNAPSHOT_REFUSED,
+    merge_conflict,
 )
+from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import launch_credentials as credentials_service
 from studio_api.services import task_launches as launches_service
@@ -49,8 +55,7 @@ router = APIRouter(tags=["task-launches"])
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
-        **RESP_409_IDEMPOTENCY,
-        **RESP_409_LAUNCH_TRANSITION,
+        **merge_conflict(RESP_409_LAUNCH_TRANSITION, RESP_409_IDEMPOTENCY, RESP_409_BUDGET_REFUSED),
     },
 )
 async def create_task_launch(
@@ -179,8 +184,7 @@ async def cancel_task_launch(
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
-        **RESP_409_IDEMPOTENCY,
-        **RESP_409_LAUNCH_TRANSITION,
+        **merge_conflict(RESP_409_LAUNCH_TRANSITION, RESP_409_IDEMPOTENCY, RESP_409_BUDGET_REFUSED),
     },
 )
 async def retry_task_launch(
@@ -259,6 +263,80 @@ async def report_task_launch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
     launch = await launches_service.report_launch(session, principal, launch, report)
     return TaskLaunch.model_validate(launch)
+
+
+@router.post(
+    "/api/v1/task-launches/{launch_id}/snapshot",
+    response_model=ExecutionSnapshot,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "The target machine records the immutable execution snapshot of this "
+        "launch attempt: references and digests only, never a "
+        "prompt, a file content, an absolute path or a secret. A refused body "
+        "is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, "
+        "never echoing the value; nothing is stored. `Idempotency-Key` is not "
+        "used: the route is idempotent by content — replaying the same payload "
+        "returns the recorded snapshot; a different payload for the same "
+        "launch is `409 execution_snapshot_immutable`. Only the launch's "
+        "target machine, with its durable credential."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_SNAPSHOT_IMMUTABLE,
+        **RESP_422_SNAPSHOT_REFUSED,
+    },
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ExecutionSnapshotPayload"}
+                }
+            },
+        }
+    },
+)
+async def submit_task_launch_snapshot(
+    launch_id: UUID,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> ExecutionSnapshot:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    payload = snapshots_service.parse_snapshot_body(body)
+    return await snapshots_service.submit_launch_snapshot(session, principal, launch, payload)
+
+
+@router.get(
+    "/api/v1/task-launches/{launch_id}/snapshot",
+    response_model=ExecutionSnapshot,
+    description=(
+        "Read the execution snapshot of one launch attempt: what was "
+        "previewed (`resolution`) beside what the machine really applied "
+        "(`applied`: git commit and branch observed in the worktree, "
+        "harness version, projection digests, enforced profile and mode). "
+        "`404` while the machine has not recorded it."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def get_task_launch_snapshot(
+    launch_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> ExecutionSnapshot:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    snapshot = await snapshots_service.get_snapshot_for_launch(session, launch.id)
+    if snapshot is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "execution snapshot not found")
+    return snapshot
 
 
 @router.post(
