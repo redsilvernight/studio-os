@@ -90,6 +90,7 @@ describe("libellés tolérants", () => {
     expect(verdictLabel("waiting_human")).toBe("Attend une personne");
     expect(verdictTone("failed")).toBe("danger");
     expect(reasonLabel("handed_off")).toBe("Résultat transmis");
+    expect(reasonLabel("launch_cancelled_session_open")).toBe("Lancement annulé, session encore ouverte");
     expect(protocolLabel("missing")).toBe("Aucune session");
   });
 

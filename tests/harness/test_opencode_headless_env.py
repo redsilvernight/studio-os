@@ -55,6 +55,7 @@ def test_environment_forces_the_model_and_keeps_only_the_studio_mcp(tmp_path: Pa
 
     inline = json.loads(overrides["OPENCODE_CONFIG_CONTENT"])
     assert inline["model"] == "anthropic/sonnet"
+    assert inline["permission"] == {"external_directory": "deny"}
     assert list(inline["mcp"]) == [STUDIO_MCP_SERVER_NAME]
     assert (
         inline["mcp"][STUDIO_MCP_SERVER_NAME]["headers"]["Authorization"] == f"Bearer {EPHEMERAL}"

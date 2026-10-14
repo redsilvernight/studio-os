@@ -5253,7 +5253,7 @@ export interface components {
          * @description Additive-only reason codes; one per truth-table row condition.
          * @enum {string}
          */
-        MissionReason: "launch_cancelled" | "launch_failed" | "launch_rejected" | "launch_expired" | "review_requested" | "decision_proposed" | "handed_off" | "process_exited_without_session" | "session_ended_without_handoff" | "process_exited_session_open" | "session_expired" | "machine_offline" | "launch_pending" | "process_running" | "session_idle";
+        MissionReason: "launch_cancelled" | "launch_cancelled_session_open" | "launch_failed" | "launch_rejected" | "launch_expired" | "review_requested" | "decision_proposed" | "handed_off" | "process_exited_without_session" | "session_ended_without_handoff" | "process_exited_session_open" | "session_expired" | "machine_offline" | "launch_pending" | "process_running" | "session_idle";
         /** MissionRun */
         MissionRun: {
             /**

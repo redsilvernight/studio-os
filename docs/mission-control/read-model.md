@@ -35,7 +35,8 @@ discordant reste visible ; la première entrée est la ligne gagnante.
 
 | # | Condition | Verdict | Reason |
 |---|---|---|---|
-| 1 | Lancement `cancelled` | `cancelled` | `launch_cancelled` |
+| 1a | Lancement `cancelled`, session liée non terminée | `needs_attention` | `launch_cancelled_session_open` |
+| 1b | Lancement `cancelled` | `cancelled` | `launch_cancelled` |
 | 2 | Lancement `failed` / `rejected` / `expired` | `failed` | `launch_failed` / `launch_rejected` / `launch_expired` |
 | 3 | `AIWork` en `review_requested` sur la session (sur la tâche si pas de session) | `waiting_human` | `review_requested` |
 | 4 | Décision proposée liée à la tâche | `waiting_human` | `decision_proposed` |
@@ -49,6 +50,12 @@ discordant reste visible ; la première entrée est la ligne gagnante.
 | 12 | Sinon (lancement `running`, session `active` / `idle`) | `running` | `process_running` / `session_idle` |
 
 ## Protocole vs processus (DEC-0201)
+
+Révision de verdict v2 (2026-10-14, DEC-0213) : une annulation avec session
+encore ouverte apparaît dans « À vérifier ». Le lancement reste annulé ;
+session, tâche et claims restent inchangés jusqu'à leur clôture explicite.
+`launch_cancelled` reste dans les raisons. Une annulation sans session ou
+avec session terminée conserve le verdict `cancelled`.
 
 La fin du processus (statut du lancement) et la clôture du protocole
 (session terminée **avec** une entrée de handoff) sont rapportées

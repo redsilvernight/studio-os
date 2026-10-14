@@ -235,6 +235,44 @@ async def test_rule_1_launch_cancelled_wins_over_every_later_row(
     assert "decision_proposed" in run["reasons"]
 
 
+@pytest.mark.parametrize("presence", ["active", "idle", "expired", "ended"])
+async def test_cancelled_launch_with_unclosed_session_needs_attention(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    presence: str,
+) -> None:
+    machine_model, _ = machine
+    await _online(db_session, machine_model)
+    task = await _task(db_session, project.id)
+    work_session = await _session(
+        db_session,
+        task,
+        machine_model,
+        last_activity_at={
+            "active": _ago(seconds=10),
+            "idle": _ago(minutes=30),
+            "expired": _ago(days=2),
+            "ended": _ago(minutes=30),
+        }[presence],
+        ended_at=_ago(minutes=5) if presence == "ended" else None,
+    )
+    launch = await _launch(
+        db_session, project.id, task, machine_model, status="cancelled", session_id=work_session.id
+    )
+    run = _runs(await _mission(client, auth_headers, project.id))[0]
+    assert run["launch"]["status"] == "cancelled"
+    assert run["verdict"] == ("cancelled" if presence == "ended" else "needs_attention")
+    assert "launch_cancelled" in run["reasons"]
+    if presence != "ended":
+        assert run["reasons"][0] == "launch_cancelled_session_open"
+        assert run["protocol_state"] == "open"
+        assert work_session.ended_at is None
+    assert run["run_id"] == str(launch.id)
+
+
 async def test_rule_2_failed_rejected_and_expired_launches_are_failed(
     client: AsyncClient,
     auth_headers: dict[str, str],

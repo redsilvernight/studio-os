@@ -141,6 +141,10 @@ def evaluate_run(facts: RunFacts) -> MissionEvaluation:
     matched: list[tuple[MissionVerdict, list[MissionReason]]] = []
 
     if launch is TaskLaunchStatus.CANCELLED:
+        if protocol is MissionProtocolState.OPEN:
+            matched.append(
+                (MissionVerdict.NEEDS_ATTENTION, [MissionReason.LAUNCH_CANCELLED_SESSION_OPEN])
+            )
         matched.append((MissionVerdict.CANCELLED, [MissionReason.LAUNCH_CANCELLED]))
     failure_reason = _LAUNCH_FAILURE_REASONS.get(launch) if launch is not None else None
     if failure_reason is not None:
