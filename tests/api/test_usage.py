@@ -526,6 +526,14 @@ async def test_listing_filters_limits_and_updated_since(
         )
         assert response.status_code == 200, response.text
         assert [entry["id"] for entry in response.json()] == [created.json()["id"]]
+    summary = await client.get(
+        "/api/v1/usage/summary",
+        params={"project_id": str(project.id), "task_launch_id": body["task_launch_id"]},
+        headers=auth_headers,
+    )
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["task_launch_id"] == body["task_launch_id"]
+    assert summary.json()["total"]["entries"] == 1
     response = await client.get("/api/v1/usage", params={"limit": 1}, headers=auth_headers)
     assert response.status_code == 200 and len(response.json()) == 1
     response = await client.get("/api/v1/usage", params={"limit": 501}, headers=auth_headers)

@@ -5,6 +5,9 @@
  * création est rejouable (`Idempotency-Key` fourni par l'appelant, une clé par
  * tentative logique) ; après toute mutation l'appelant relit, le serveur reste
  * la seule vérité. La machine cible seule rapporte l'exécution.
+ *
+ * Le snapshot d'exécution est une exception volontaire : il ne décrit pas un
+ * état courant mais une trace figée d'une tentative, lue telle quelle.
  */
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
@@ -24,6 +27,19 @@ export type TaskLaunchView = components["schemas"]["TaskLaunchView"];
  * de le deviner.
  */
 export type TaskLaunchWithProtocol = TaskLaunch & { protocol?: TaskLaunchProtocol };
+/**
+ * Enregistrement immuable de la configuration effective d'une tentative
+ * (DEC-0199). Références et empreintes seulement : le corps ne contient ni
+ * contenu, ni chemin absolu, ni secret. `404` tant que la machine cible n'a
+ * rien enregistré pour ce lancement : l'appelant traite alors l'absence
+ * comme « pas encore capturé », jamais comme un snapshot vide.
+ */
+export type ExecutionSnapshot = components["schemas"]["ExecutionSnapshot"];
+export type ExecutionSnapshotPayload = components["schemas"]["ExecutionSnapshotPayload"];
+export type SnapshotResolution = components["schemas"]["SnapshotResolution"];
+export type SnapshotAppliedParameters = components["schemas"]["SnapshotAppliedParameters"];
+export type SnapshotCaptureError = components["schemas"]["SnapshotCaptureError"];
+export type SnapshotCaptureStatus = components["schemas"]["SnapshotCaptureStatus"];
 export type EligibleMachines = components["schemas"]["EligibleMachines"];
 export type MachineEligibility = components["schemas"]["MachineEligibility"];
 export type IneligibilityReason = components["schemas"]["IneligibilityReason"];
@@ -72,6 +88,18 @@ export function listTaskLaunches(
 
 export function getTaskLaunch(client: StudioClient, launchId: string): Promise<TaskLaunch> {
   return unwrap(client.GET("/api/v1/task-launches/{launch_id}", { params: { path: { launch_id: launchId } } }));
+}
+
+/**
+ * Snapshot d'exécution du lancement : ce que la machine a réellement appliqué,
+ * figé au moment du run. Un `404` remonte en `ApiError` (rien n'est encore
+ * enregistré) ; le panneau traduit cette absence en « aucun snapshot » plutôt
+ * que d'afficher un état par défaut.
+ */
+export function getTaskLaunchSnapshot(client: StudioClient, launchId: string): Promise<ExecutionSnapshot> {
+  return unwrap(
+    client.GET("/api/v1/task-launches/{launch_id}/snapshot", { params: { path: { launch_id: launchId } } }),
+  );
 }
 
 export function createTaskLaunch(

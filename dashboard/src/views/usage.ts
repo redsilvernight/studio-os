@@ -142,6 +142,19 @@ export function tokensValueHtml(tokens: TokenTotal): string {
   return honestValueHtml(tokens.status, raw === null ? null : String(raw), raw === null ? null : formatTokens(raw), tokens, "tokens");
 }
 
+/** Total en une ligne de texte, mêmes règles d'honnêteté que le tableau. */
+export function usageTotalText(total: UsageAggregate): string {
+  const { duration, cost, total_tokens: tokens } = total;
+  const costKnown = cost.known_sum ?? null;
+  const durationKnown = duration.known_sum ?? null;
+  const tokensKnown = tokens.known_sum ?? null;
+  return [
+    `durée ${honestText(duration.status, durationKnown === null ? null : formatSeconds(durationKnown), duration)}`,
+    `coût ${honestText(cost.status, costKnown === null ? null : formatAmount(costKnown, cost.currency), cost)}`,
+    `jetons ${honestText(tokens.status, tokensKnown === null ? null : formatTokens(tokensKnown), tokens)}`,
+  ].join(" · ");
+}
+
 function coverageText(coverage: Coverage): string {
   const parts = [
     coverage.measured_entries > 0 ? `${coverage.measured_entries} mesurée(s)` : "",

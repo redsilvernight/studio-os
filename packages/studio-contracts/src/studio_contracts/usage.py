@@ -407,13 +407,14 @@ class UsageAggregate(ContractModel):
 
 
 class UsageSummary(ContractModel):
-    """Usage of a project (optionally one task) over a period of `period_start`.
+    """Usage of a project (optionally one task or one launch) over a period of `period_start`.
     `total` covers every entry in scope, including groups cut by
     `USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as
     returned and never re-add groups into a total."""
 
     project_id: UUID
     task_id: UUID | None = None
+    task_launch_id: UUID | None = None
     group_by: UsageGroupBy
     since: AwareDatetime | None = None
     until: AwareDatetime | None = None

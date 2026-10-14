@@ -546,6 +546,7 @@ async def summarize_usage(
     *,
     project_id: uuid.UUID,
     task_id: uuid.UUID | None = None,
+    task_launch_id: uuid.UUID | None = None,
     group_by: UsageGroupBy = UsageGroupBy.NONE,
     since: datetime | None = None,
     until: datetime | None = None,
@@ -570,6 +571,8 @@ async def summarize_usage(
         stmt = stmt.outerjoin(TaskModel, TaskModel.id == entry.task_id)
     if task_id is not None:
         stmt = stmt.where(entry.task_id == task_id)
+    if task_launch_id is not None:
+        stmt = stmt.where(entry.task_launch_id == task_launch_id)
     if since is not None:
         stmt = stmt.where(entry.period_start >= since)
     if until is not None:
@@ -599,6 +602,7 @@ async def summarize_usage(
     return UsageSummary(
         project_id=project_id,
         task_id=task_id,
+        task_launch_id=task_launch_id,
         group_by=group_by,
         since=since,
         until=until,
