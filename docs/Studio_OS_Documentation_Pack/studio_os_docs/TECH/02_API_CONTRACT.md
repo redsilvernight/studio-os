@@ -1061,6 +1061,18 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   `422 {"detail": {"error_code": "execution_snapshot_refused", "details": [{"path", "pattern"}]}}`
   (meme principe que `secret_detected`) : jamais la valeur refusee, rien stocke. GET /task-launches/{id}/snapshot -> `ExecutionSnapshot` (portee projet
   en lecture), `404` si aucun. Voir `docs/mission-control/snapshot-contract.md`.
+- GET /task-launches/{id}/replay-preview -> `TaskLaunchReplayPreview` (P04-replay-option, DEC-0214,
+  additif) — lecture seule, rien cree : compare le snapshot du lancement a ce qu'un retry utiliserait
+  aujourd'hui (harness, ressources Library par `(role, stable_key)`, runtime ; `change` ∈
+  `unchanged|changed|added|removed|unavailable`). `verdict` ∈ `ready|limited|refused` derive de
+  `limitations` (vocabulaire ferme `ReplayLimitationCode`, `severity` `refusal|limitation`).
+  `preview_digest` (`sha256:`) couvre tout sauf `generated_at`. Le retry (`TaskLaunchRetry`) accepte
+  `replay: {snapshot_content_hash, preview_digest}` optionnel : apercu recalcule, refus =
+  `409 {"error_code": "replay_refused", "codes": [...]}`, apercu different =
+  `409 {"error_code": "replay_preview_stale", "preview_digest"}`, rien cree ; lancement deja
+  relance : meme apercu confirme = tentative existante, sinon `409 replay_refused`
+  `codes: ["already_retried"]` ; sinon la nouvelle tentative porte `replay_basis` (`TaskLaunchReplayBasis`, additif sur la vue, `null` hors rejeu).
+  Le snapshot source n'est jamais reecrit ; branche et profil ne sont pas re-epingles.
 - POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
   (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
   credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon

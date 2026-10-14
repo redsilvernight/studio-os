@@ -44,6 +44,9 @@ export type EligibleMachines = components["schemas"]["EligibleMachines"];
 export type MachineEligibility = components["schemas"]["MachineEligibility"];
 export type IneligibilityReason = components["schemas"]["IneligibilityReason"];
 export type HarnessReport = components["schemas"]["HarnessReport"];
+export type TaskLaunchReplayPreview = components["schemas"]["TaskLaunchReplayPreview"];
+export type ReplayDifference = components["schemas"]["ReplayDifference"];
+export type ReplayLimitation = components["schemas"]["ReplayLimitation"];
 
 export const TASK_LAUNCH_PAGE_LIMIT = 100;
 
@@ -99,6 +102,19 @@ export function getTaskLaunch(client: StudioClient, launchId: string): Promise<T
 export function getTaskLaunchSnapshot(client: StudioClient, launchId: string): Promise<ExecutionSnapshot> {
   return unwrap(
     client.GET("/api/v1/task-launches/{launch_id}/snapshot", { params: { path: { launch_id: launchId } } }),
+  );
+}
+
+/**
+ * Aperçu de rejeu (P04, DEC-0214) : lecture seule, compare le snapshot du
+ * lancement à ce qu'un retry utiliserait aujourd'hui. Rien n'est créé.
+ */
+export function getTaskLaunchReplayPreview(
+  client: StudioClient,
+  launchId: string,
+): Promise<TaskLaunchReplayPreview> {
+  return unwrap(
+    client.GET("/api/v1/task-launches/{launch_id}/replay-preview", { params: { path: { launch_id: launchId } } }),
   );
 }
 

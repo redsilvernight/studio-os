@@ -30,6 +30,7 @@ from studio_contracts.task_launch import (
     TaskLaunchStatus,
     TaskLaunchView,
 )
+from studio_contracts.task_launch_replay import TaskLaunchReplayBasis
 from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.agent import AgentModel
@@ -174,6 +175,7 @@ async def create_launch(
     *,
     attempt: int = 1,
     retry_of_launch_id: uuid.UUID | None = None,
+    replay_basis: dict[str, Any] | None = None,
 ) -> TaskLaunchModel:
     now = datetime.now(UTC)
     admission = await budgets_service.decide_admission(session, project_id, now)
@@ -189,6 +191,7 @@ async def create_launch(
         expires_at=now + timedelta(seconds=launch_in.expires_in_seconds),
         attempt=attempt,
         retry_of_launch_id=retry_of_launch_id,
+        replay_basis=replay_basis,
     )
     session.add(launch)
     await session.flush()
@@ -416,6 +419,11 @@ async def protocol_views(
             recovery=derive_recovery(launch, machines.get(launch.machine_id), settings),
             attempt=launch.attempt,
             retry_of_launch_id=launch.retry_of_launch_id,
+            replay_basis=(
+                None
+                if launch.replay_basis is None
+                else TaskLaunchReplayBasis.model_validate(launch.replay_basis)
+            ),
         )
         for launch in launches
     ]
@@ -683,7 +691,7 @@ async def cancel_launch(
     )
 
 
-async def _existing_retry(session: AsyncSession, launch: TaskLaunchModel) -> TaskLaunchModel | None:
+async def existing_retry(session: AsyncSession, launch: TaskLaunchModel) -> TaskLaunchModel | None:
     """The attempt this launch already spawned, if any (at most one, unique
     index `uq_task_launches_retry_of`)."""
     result = await session.execute(
@@ -721,8 +729,18 @@ async def retry_launch(
     # An expiry commits, which releases the row lock: take it again so the
     # existing-retry check and the creation stay serialized.
     await session.refresh(launch, with_for_update=True)
-    existing = await _existing_retry(session, launch)
+    existing = await existing_retry(session, launch)
     if existing is not None:
+        # A replay never converges on an attempt it did not create: only the
+        # same accepted preview returns the existing attempt (DEC-0214).
+        if retry.replay is not None and (
+            existing.replay_basis is None
+            or existing.replay_basis.get("preview_digest") != retry.replay.preview_digest
+        ):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={"error_code": "replay_refused", "codes": ["already_retried"]},
+            )
         return existing
     if launch.status not in _TERMINAL_LAUNCH_STATUSES:
         raise HTTPException(
@@ -743,6 +761,11 @@ async def retry_launch(
     await authorize_create(
         session, principal, launch.project_id, task, machine, launch_in, settings, datetime.now(UTC)
     )
+    replay_basis = None
+    if retry.replay is not None:
+        from studio_api.services.task_launch_replay import confirm_replay
+
+        replay_basis = await confirm_replay(session, principal, launch, retry.replay, settings)
     return await create_launch(
         session,
         principal,
@@ -750,4 +773,5 @@ async def retry_launch(
         launch_in,
         attempt=launch.attempt + 1,
         retry_of_launch_id=launch.id,
+        replay_basis=replay_basis,
     )

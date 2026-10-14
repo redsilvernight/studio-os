@@ -22,6 +22,9 @@ import { usageTotalText } from "./usage";
 import type {
   ExecutionSnapshot,
   ExecutionSnapshotPayload,
+  ReplayDifference,
+  ReplayLimitation,
+  TaskLaunchReplayPreview,
   HarnessReport,
   IneligibilityReason,
   MachineEligibility,
@@ -60,6 +63,8 @@ export interface LaunchPanelData {
   snapshot?: ExecutionSnapshot | null;
   /** Usage rattaché à ce lancement (ledger) ; mêmes conventions que `snapshot`. */
   usage?: UsageSummary | null;
+  /** Aperçu de rejeu (DEC-0214), lecture seule ; mêmes conventions que `snapshot`. */
+  replay?: TaskLaunchReplayPreview | null;
 }
 
 export interface LaunchPanelState {
@@ -666,6 +671,78 @@ export function provenanceHtml(
   return `<div data-testid="launch-provenance">${provenanceNotice(snapshot)}${badge}<ul class="ds-list">${rows}</ul></div>`;
 }
 
+const REPLAY_VERDICT_LABELS: Record<string, string> = {
+  ready: "rejouable",
+  limited: "rejouable avec limitations",
+  refused: "rejeu refusé",
+};
+
+const REPLAY_LIMITATION_LABELS: Record<string, string> = {
+  launch_not_terminal: "le lancement n'est pas terminé",
+  already_retried: "une nouvelle tentative existe déjà",
+  snapshot_missing: "aucun snapshot d'exécution enregistré",
+  snapshot_capture_failed: "la capture du snapshot a échoué",
+  not_authorized: "droits insuffisants pour relancer",
+  target_not_admissible: "poste ou politique non admissible aujourd'hui",
+  agent_unresolvable: "l'agent ne se résout plus",
+  resolution_unrecorded: "la résolution d'origine n'a pas été enregistrée",
+  library_version_unavailable: "une version Library enregistrée n'existe plus",
+  source_worktree_dirty: "le worktree source contenait des changements non commités",
+  source_git_unrecorded: "l'état Git d'origine n'a pas été enregistré",
+  git_state_not_pinned: "la branche de tâche est reprise telle qu'elle est aujourd'hui",
+  profile_rechecked_on_machine: "le profil sera revérifié par le poste au démarrage",
+  output_not_reproducible: "la sortie d'un agent n'est pas reproductible",
+};
+
+const REPLAY_CHANGE_LABELS: Record<string, string> = {
+  unchanged: "inchangé",
+  changed: "changé",
+  added: "ajouté",
+  removed: "retiré",
+  unavailable: "indisponible",
+};
+
+export function replayVerdictTone(verdict: string): DsTone {
+  if (verdict === "ready") return "success";
+  if (verdict === "limited") return "warning";
+  return "danger";
+}
+
+function replayLimitationText(item: ReplayLimitation): string {
+  const label = REPLAY_LIMITATION_LABELS[item.code] ?? item.code;
+  return item.severity === "refusal" ? `Refus : ${label}` : `Limitation : ${label}`;
+}
+
+function replayDifferenceText(item: ReplayDifference): string {
+  const subject = item.role ? `${item.role} ${item.stable_key}` : item.stable_key;
+  const change = REPLAY_CHANGE_LABELS[item.change] ?? item.change;
+  return `${subject} — ${change} (${item.recorded ?? "—"} → ${item.current ?? "—"})`;
+}
+
+/**
+ * Aperçu de rejeu (DEC-0214), lecture seule : ce qu'un retry utiliserait
+ * aujourd'hui face au snapshot figé. Rien n'est lancé depuis ce bloc.
+ */
+export function replayPreviewHtml(replay: TaskLaunchReplayPreview | null | undefined): string {
+  if (replay === undefined) return "";
+  if (replay === null) {
+    return `<p class="ds-list-sub" data-testid="launch-replay">Aperçu de rejeu indisponible.</p>`;
+  }
+  const verdict = REPLAY_VERDICT_LABELS[replay.verdict] ?? replay.verdict;
+  const limits = (replay.limitations ?? [])
+    .map((item) => `<li class="ds-list-sub" data-testid="replay-limitation-${esc(item.code)}">${esc(replayLimitationText(item))}</li>`)
+    .join("");
+  const changes = (replay.differences ?? [])
+    .filter((item) => item.change !== "unchanged")
+    .map((item) => `<li class="ds-list-sub">${esc(replayDifferenceText(item))}</li>`)
+    .join("");
+  const diffBlock = changes === ""
+    ? `<p class="ds-list-sub">Aucune substitution par rapport au snapshot.</p>`
+    : `<p class="ds-list-sub">Substitutions :</p><ul>${changes}</ul>`;
+  return `<div data-testid="launch-replay">${dsBadge(verdict, replayVerdictTone(replay.verdict))}` +
+    `<ul>${limits}</ul>${diffBlock}</div>`;
+}
+
 export function launchPanelHtml(state: LaunchPanelState): string {
   const header = dsSectionHeader("Lancer sur…");
   const intro =
@@ -706,5 +783,9 @@ export function launchPanelHtml(state: LaunchPanelState): string {
     latestHtml(state) +
     `<p class="ds-list-sub"><strong>Provenance</strong> — neuf questions sur ce qu'a été ce lancement, lues dans son enregistrement figé.</p>` +
     provenanceHtml(state.data.latest, state.data.snapshot, state.data.usage) +
+    (state.data.replay === undefined
+      ? ""
+      : `<p class="ds-list-sub"><strong>Rejeu</strong> — ce qu'une nouvelle tentative utiliserait aujourd'hui, comparé au snapshot.</p>` +
+        replayPreviewHtml(state.data.replay)) +
     `</section>`;
 }

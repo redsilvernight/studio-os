@@ -327,6 +327,8 @@ rejected|expired`, miroir des transitions `ALLOWED_TRANSITIONS`),
 lie par la machine), `output_excerpt` (borne, expurge par la machine),
 `expires_at`, `finished_at` (nullable), + `created_at`/`updated_at`/
 `version` (concurrence optimiste, `409` + version serveur si perime).
+`replay_basis` (JSONB nullable, migration `0034`, DEC-0214) : base de rejeu acceptee
+(`TaskLaunchReplayBasis`) sur la tentative creee par un retry confirme, ecrite une fois.
 
 ## LaunchCredential (AIB P9, migration Alembic `0027`, table `launch_credentials`)
 

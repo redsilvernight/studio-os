@@ -16,6 +16,7 @@ from studio_contracts.task_launch import (
     TaskLaunchRetry,
     TaskLaunchView,
 )
+from studio_contracts.task_launch_replay import TaskLaunchReplayPreview
 
 from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
@@ -26,6 +27,7 @@ from studio_api.openapi_meta import (
     RESP_409_BUDGET_REFUSED,
     RESP_409_IDEMPOTENCY,
     RESP_409_LAUNCH_TRANSITION,
+    RESP_409_REPLAY,
     RESP_409_SNAPSHOT_IMMUTABLE,
     RESP_409_VERSION_CONFLICT,
     RESP_422_SNAPSHOT_REFUSED,
@@ -34,6 +36,7 @@ from studio_api.openapi_meta import (
 from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import launch_credentials as credentials_service
+from studio_api.services import task_launch_replay as replay_service
 from studio_api.services import task_launches as launches_service
 from studio_api.services import tasks as tasks_service
 from studio_api.settings import get_settings
@@ -178,13 +181,20 @@ async def cancel_task_launch(
         "retry per attempt: a second or concurrent retry returns the attempt "
         "the first one created. Only the requester (or an admin), with the "
         "target machine's aptitude re-checked like a creation. Accepts "
-        "`Idempotency-Key`."
+        "`Idempotency-Key`. Optional `replay` (P04): confirms a replay "
+        "preview; the server recomputes it and refuses a stale or refused "
+        "one, then records the accepted basis as `replay_basis`."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
-        **merge_conflict(RESP_409_LAUNCH_TRANSITION, RESP_409_IDEMPOTENCY, RESP_409_BUDGET_REFUSED),
+        **merge_conflict(
+            RESP_409_LAUNCH_TRANSITION,
+            RESP_409_IDEMPOTENCY,
+            RESP_409_BUDGET_REFUSED,
+            RESP_409_REPLAY,
+        ),
     },
 )
 async def retry_task_launch(
@@ -337,6 +347,27 @@ async def get_task_launch_snapshot(
     if snapshot is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "execution snapshot not found")
     return snapshot
+
+
+@router.get(
+    "/api/v1/task-launches/{launch_id}/replay-preview",
+    response_model=TaskLaunchReplayPreview,
+    description=(
+        "Read-only replay preview (P04): compares the attempt's execution "
+        "snapshot with what a retry would use now (harness, Library versions, "
+        "runtime), re-checks the caller's rights and the target machine, and "
+        "lists closed refusal/limitation codes. Creates nothing. Confirm it "
+        "through `POST /task-launches/{id}/retry` with `replay`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def get_task_launch_replay_preview(
+    launch_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> TaskLaunchReplayPreview:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    return await replay_service.compute_preview(session, principal, launch, get_settings())
 
 
 @router.post(
