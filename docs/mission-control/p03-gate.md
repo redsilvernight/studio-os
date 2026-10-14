@@ -120,6 +120,17 @@ workers restent en phase d'initialisation sous Windows ; aucun résultat de
 suite complète locale n'est revendiqué. Les vérifications GitHub associées
 à la PR fournissent la validation complète avant intégration.
 
+## Observation sur lancements réels (pile locale, 14 octobre)
+
+Après les quatre lancements réels de la démonstration P02 (DEC-0212), la
+section Consommation du projet jetable affiche 3 mesures studio-runner :
+durée 10 min 09 s mesurée, coût et jetons « inconnu » (aucun zéro fabriqué).
+Les regroupements par tâche, par configuration (`opencode · inconnu ·
+inconnu`), par jour et total seul sont cohérents entre eux. Deux limites :
+le lancement annulé n'a produit aucune mesure, et le fournisseur et le modèle
+restent inconnus alors que la session affiche le modèle. Preuve :
+`output/gate-demo-local/p03-ledger.txt`, ignoré par Git.
+
 ## Conditions de clôture
 
 1. Rapprochement des trois runs, rejeu, réservations et limites publiées :
