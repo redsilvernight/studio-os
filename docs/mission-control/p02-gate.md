@@ -7,8 +7,9 @@ sur `dev`. Environnement : Windows 11, Python 3.14.7, PostgreSQL 16.15,
 Alembic `0031`, MinIO local.
 
 **Verdict : gate non acceptée.** Les vérifications automatisées sont vertes et
-les mesures ont été reproduites. Le parcours réel reste bloqué par le déploiement
-et l'autorisation locale des lancements. Aucun critère de gate n'est coché.
+les mesures ont été reproduites. Le parcours réel, bloqué en production, a été
+démontré le 14 octobre sur une pile locale (section dédiée) ; la revue humaine
+reste attendue. Aucun critère de gate n'est coché.
 
 ## Parcours réellement observé
 
@@ -108,21 +109,59 @@ Aucune économie de tokens facturés, aucun coût provider et aucune couverture 
 collecteur réel ne sont déduits de ces chiffres. Les latences ne sont pas comparées
 comme un gain de performance entre deux exécutions locales.
 
+## Démonstration réelle sur pile locale (14 octobre 2026)
+
+Cadre : DEC-0212 (proposée) accepte une pile locale pour la démonstration réelle ;
+la revue humaine reste requise. Code : `dev` à `f3a12b3`. Pile Docker jetable
+`studio-gate-demo` (API, MCP, dashboard, Caddy, PostgreSQL, MinIO) sur
+`127.0.0.1:8865`, projet jetable « Gate demo », poste « Demo-desktop » avec un
+daemon isolé (`APPDATA` et `XDG_CONFIG_HOME` dédiés) et le vrai harness
+OpenCode 1.18.32 (modèle big-pickle). Chaque lancement est demandé dans le
+dashboard ; aucune écriture n'a été faite directement en base.
+
+| Parcours | Observé dans le dashboard |
+|---|---|
+| Handoff | Demandé → Accepté → En cours ; worktree `task/*` ; session, commit, AIWork ; « Processus terminé (code 0) · Handoff reçu · tâche : à relire » ; tâche Terminé |
+| exit0, consigne « sans protocole » | Consigne ignorée par l'agent : session et handoff faits ; « Résultat transmis » |
+| exit0, MCP coupé (`docker compose stop mcp`) | Commit fait, 0 session, 0 AIWork ; « Processus terminé (code 0) · Protocole non vérifié » ; tâche restée À faire |
+| Annulation | Confirmation explicite, processus arrêté 8 s après, 8 commits conservés ; « Annulé · annulé par le demandeur » |
+
+Mission Control (onglet Exécutions) : « 4 exécution(s) sur 168 h », À vérifier 1
+(« Processus terminé sans session »), Terminée 2 (« Résultat transmis »),
+Annulée 1. Le succès du processus est donc distinct de la preuve de protocole.
+Provenance du handoff : capture partielle (lancement sans agent), harness,
+mode `workspace_write`, commit et worktree propre ; « Combien » : 1 mesure,
+2 min 43 s, coût et jetons inconnus. Les jetons dans la sortie capturée
+apparaissent masqués `<token>`.
+
+Défauts constatés, non corrigés ici :
+
+- Après annulation, la session reste « toujours active » et la tâche « En
+  cours » alors que le processus est arrêté ; Mission Control ne la signale pas.
+- « Actualiser l'état » laisse « Protocole non vérifié » et Sessions (0) après
+  la fin ; seul le rechargement de la vue montre le handoff.
+- L'agent a lu hors de son worktree (configuration de démo, puis
+  `~/.config/opencode` réel) ; aucun jeton visible dans l'extrait capturé.
+- Le lancement annulé ne produit aucune mesure d'usage.
+- Un dossier `%SystemDrive%/` apparaît dans chaque worktree (effet probable de
+  l'override `APPDATA` propre à la démo).
+
+Preuves (textes, captures, SHA) dans `output/gate-demo-local/`, ignoré par Git.
+
 ## État des critères et reprise
 
-1. Démonstration réelle, mesures et tests archivés : mesures et tests acquis,
-   démonstration complète manquante ; critère non coché.
-2. Sessions actives/bloquées visibles et succès distinct de la preuve : couvert
-   par les tests locaux, à confirmer dans Mission Control déployé ; non coché.
-3. Lisibilité acceptée par un humain : revue du parcours réel encore attendue ;
+1. Démonstration réelle, mesures et tests archivés : les trois parcours sont
+   observés sur pile locale réelle (DEC-0212) ; critère non coché tant que
+   DEC-0212 et la revue ne sont pas acceptées.
+2. Sessions actives/bloquées visibles et succès distinct de la preuve : observé
+   dans Mission Control local, sauf la session orpheline après annulation ;
+   non coché.
+3. Lisibilité acceptée par un humain : revue du parcours réel attendue ;
    non coché. DEC-0201 reste la référence pour distinguer processus et protocole.
 
-Reprise : préparer et faire approuver le déploiement d'une version contenant P02,
-autoriser localement les lancements sur le poste pilote, puis exécuter une tâche
-jetable bornée depuis le navigateur. Observer les trois parcours (handoff,
-exit0 sans protocole, annulation), conserver les preuves, faire relire la lisibilité
-et mettre à jour ce rapport. Une preuve API seule ne suffit pas à accepter la gate.
-Le retour arrière prévu par l'étape est le parcours tâche V2.
+Reprise : faire relire la lisibilité sur ces preuves, accepter ou remplacer
+DEC-0212, traiter la session orpheline après annulation, puis mettre à jour ce
+rapport. Le retour arrière prévu par l'étape est le parcours tâche V2.
 
 Artefacts locaux conservés dans `output/p02-gate/` du worktree
 `mission-control-gate` : build, logs et JUnit, JSON backend/UI avant et après.
