@@ -6,10 +6,10 @@ Code testé : `95b2907a797234e6c0c99f0a59365e71862c1275`, intégration de la PR 
 sur `dev`. Environnement : Windows 11, Python 3.14.7, PostgreSQL 16.15,
 Alembic `0031`, MinIO local.
 
-**Verdict : gate non acceptée.** Les vérifications automatisées sont vertes et
-les mesures ont été reproduites. Le parcours réel, bloqué en production, a été
-démontré le 14 octobre sur une pile locale (section dédiée) ; la revue humaine
-reste attendue. Aucun critère de gate n'est coché.
+**Verdict : gate acceptée le 14 octobre 2026.** Les vérifications automatisées
+sont vertes et les mesures ont été reproduites. Le parcours réel, bloqué en
+production, a été démontré sur une pile locale (section dédiée) et accepté
+humainement avec DEC-0212.
 
 ## Parcours réellement observé
 
@@ -150,18 +150,18 @@ Preuves (textes, captures, SHA) dans `output/gate-demo-local/`, ignoré par Git.
 
 ## État des critères et reprise
 
-1. Démonstration réelle, mesures et tests archivés : les trois parcours sont
-   observés sur pile locale réelle (DEC-0212) ; critère non coché tant que
-   DEC-0212 et la revue ne sont pas acceptées.
-2. Sessions actives/bloquées visibles et succès distinct de la preuve : observé
-   dans Mission Control local, sauf la session orpheline après annulation ;
-   non coché.
-3. Lisibilité acceptée par un humain : revue du parcours réel attendue ;
-   non coché. DEC-0201 reste la référence pour distinguer processus et protocole.
+Acceptation humaine le 14 octobre 2026 : l'utilisateur accepte la
+démonstration locale, la lisibilité et DEC-0212 (acceptée). **Gate acceptée.**
 
-Reprise : faire relire la lisibilité sur ces preuves, accepter ou remplacer
-DEC-0212, traiter la session orpheline après annulation, puis mettre à jour ce
-rapport. Le retour arrière prévu par l'étape est le parcours tâche V2.
+1. Démonstration réelle, mesures et tests archivés : acquis sur pile locale
+   réelle (DEC-0212).
+2. Sessions actives/bloquées visibles et succès distinct de la preuve : acquis
+   dans Mission Control local ; la session orpheline après annulation est
+   acceptée comme défaut connu, suivi par la tâche `6db3817b`.
+3. Lisibilité acceptée par un humain : acceptée. DEC-0201 reste la référence
+   pour distinguer processus et protocole.
+
+Le retour arrière prévu par l'étape est le parcours tâche V2.
 
 Artefacts locaux conservés dans `output/p02-gate/` du worktree
 `mission-control-gate` : build, logs et JUnit, JSON backend/UI avant et après.

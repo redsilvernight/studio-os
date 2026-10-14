@@ -7,8 +7,9 @@ depuis `dev` à `175916dc`. Références : DEC-0195 et DEC-0197.
 
 Les trois sorties brutes originales du pilote sont archivées et rapprochées
 du collecteur jusqu'au résumé serveur et au règlement des réservations. Les
-deux critères techniques sont démontrés. La gate reste ouverte pour la revue
-humaine de la couverture initiale et de la politique d'alerte/blocage.
+deux critères techniques sont démontrés. La couverture initiale et la
+politique d'alerte/blocage ont été acceptées humainement le 14 octobre 2026,
+avec les limites de ce rapport. **Gate acceptée.**
 
 Le présent contrôle ne change aucune politique de budget du projet réel.
 Les admissions, réservations et écritures de ledger utilisées par les tests
@@ -137,6 +138,6 @@ restent inconnus alors que la session affiche le modèle. Preuve :
    démontré par le test d'acceptation et les régressions PostgreSQL.
 2. Mesures exactes, estimées et absentes distinctes, aucun coût fabriqué :
    démontré par les tests d'ingestion, de résumé et de collecteur.
-3. Faire accepter humainement la couverture initiale et la politique effective
-   d'alerte/blocage ; conserver les limites ci-dessus.
+3. Couverture initiale et politique effective d'alerte/blocage : acceptées
+   humainement le 14 octobre 2026 ; les limites ci-dessus restent valables.
 4. Intégrer la branche dans `dev` après les vérifications et la CI requises.
