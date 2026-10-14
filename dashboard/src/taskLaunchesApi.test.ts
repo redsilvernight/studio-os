@@ -5,6 +5,7 @@ import {
   createTaskLaunch,
   getEligibleMachines,
   getTaskLaunch,
+  getTaskLaunchSnapshot,
   listTaskLaunches,
   type TaskLaunch,
 } from "./taskLaunchesApi";
@@ -123,6 +124,25 @@ describe("getTaskLaunch / cancelTaskLaunch", () => {
     expect(POST).toHaveBeenCalledWith("/api/v1/task-launches/{launch_id}/cancel", {
       params: { path: { launch_id: "l1" } },
       body: { expected_version: 3 },
+    });
+  });
+});
+
+describe("getTaskLaunchSnapshot", () => {
+  it("GETs the immutable snapshot of one launch attempt", async () => {
+    const GET = vi.fn().mockResolvedValue(ok({ id: "s1", task_launch_id: "l1", capture_status: "ok" }));
+    const snapshot = await getTaskLaunchSnapshot(fakeClient({ GET }), "l1");
+    expect(GET).toHaveBeenCalledWith("/api/v1/task-launches/{launch_id}/snapshot", {
+      params: { path: { launch_id: "l1" } },
+    });
+    expect(snapshot.task_launch_id).toBe("l1");
+  });
+
+  it("maps a 404 to a structured ApiError: nothing recorded yet", async () => {
+    const GET = vi.fn().mockResolvedValue(fail(404, { detail: { error_code: "not_found" } }));
+    await expect(getTaskLaunchSnapshot(fakeClient({ GET }), "l1")).rejects.toMatchObject({
+      status: 404,
+      errorCode: "not_found",
     });
   });
 });

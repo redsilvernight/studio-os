@@ -83,6 +83,57 @@ const RESOLVED = {
 
 type Launch = Record<string, unknown>;
 
+const SNAPSHOT = {
+  id: "99999999-2222-4333-8444-555555555555",
+  project_id: P1,
+  task_launch_id: "l-existing",
+  content_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  schema_version: 1,
+  capture_status: "ok",
+  capture_reason: null,
+  created_at: "2026-10-01T09:59:00Z",
+  retention_until: "2026-12-30T09:59:00Z",
+  payload: {
+    schema_version: 1,
+    capture_status: "ok",
+    capture_errors: [],
+    resolution: {
+      agent_stable_key: "review-helper",
+      profile: { stable_key: "fast", contract_version: 3, digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222" },
+      resources: [
+        {
+          role: "rule",
+          resource_id: "r1",
+          kind: "rule",
+          stable_key: "python-conventions",
+          scope: "studio",
+          version: 2,
+          version_origin: "active",
+          content_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        },
+      ],
+      runtime: {
+        level: "project_default",
+        matched_kind: "agent_definition",
+        matched_stable_key: "opencode",
+        harness_ref: "claude-code",
+        model_ref: "claude-opus",
+        capabilities_digest: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      },
+    },
+    applied: {
+      harness_id: "claude-code",
+      harness_version: "2.1.0",
+      projections: [{ target: ".claude/settings.json", digest: "sha256:5555555555555555555555555555555555555555555555555555555555555555" }],
+      git_sha: "0f1e2d3",
+      git_dirty: true,
+      worktree_branch: "feat/provenance",
+      profile: { stable_key: "fast", contract_version: 3, digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222" },
+      access_mode: "read_only",
+    },
+  },
+};
+
 interface Captured {
   idempotencyKeys: (string | null)[];
   bodies: unknown[];
@@ -91,6 +142,9 @@ interface Captured {
   launch: Launch | null;
   cancelConflict: boolean;
   sessionEnded: boolean;
+  /** Snapshot renvoyé par la machine cible ; null = 404, aucun snapshot. */
+  snapshot: Record<string, unknown> | null;
+  snapshotReads: string[];
 }
 
 function launchFixture(overrides: Launch = {}): Launch {
@@ -115,8 +169,8 @@ function launchFixture(overrides: Launch = {}): Launch {
   };
 }
 
-function newCaptured(launch: Launch | null = null): Captured {
-  return { idempotencyKeys: [], bodies: [], cancelCalls: [], launch, cancelConflict: false, sessionEnded: false };
+function newCaptured(launch: Launch | null = null, snapshot: Record<string, unknown> | null = null): Captured {
+  return { idempotencyKeys: [], bodies: [], cancelCalls: [], launch, cancelConflict: false, sessionEnded: false, snapshot, snapshotReads: [] };
 }
 
 function apiStub(captured: Captured) {
@@ -163,6 +217,17 @@ function apiStub(captured: Captured) {
       captured.bodies.push(req.postDataJSON());
       captured.launch = launchFixture({ id: "l-new", status: "requested", version: 1, agent_stable_key: "review-helper" });
       return json(201, captured.launch);
+    }
+
+    // Snapshot d'exécution (DEC-0199) : trace figée du run, 404 = rien
+    // d'enregistré par la machine cible pour ce lancement.
+    if (method === "GET" && /\/task-launches\/[^/]+\/snapshot$/.test(url)) {
+      const launchId = url.split("/").slice(-2)[0] ?? "";
+      captured.snapshotReads.push(launchId);
+      if (captured.launch === null || captured.snapshot === null) {
+        return json(404, { detail: { error_code: "not_found" } });
+      }
+      return json(200, { ...captured.snapshot, task_launch_id: String(captured.launch.id) });
     }
 
     // Lecture d'un lancement : GET /task-launches/{id}.
@@ -385,6 +450,65 @@ test("divulgation progressive : repli fermé par défaut, ancre interne qui l'ou
   await expect(page.locator("#task-sessions")).toBeVisible();
   await expect(page.locator("h1")).toHaveText(TASK.title);
   await expect(page).toHaveURL(new RegExp(`#/tasks/${TASK_ID}$`));
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("provenance : neuf questions lues dans le snapshot figé du lancement", async ({ page }) => {
+  const captured = newCaptured(
+    launchFixture({
+      status: "succeeded",
+      agent_stable_key: "review-helper",
+      finished_at: "2026-10-01T10:05:00Z",
+    }),
+    SNAPSHOT,
+  );
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  const provenance = page.locator('[data-testid="launch-provenance"]');
+  await expect(provenance).toBeVisible();
+  await expect(provenance.locator('[data-testid^="provenance-"]')).toHaveCount(9);
+  expect(captured.snapshotReads).toContain("l-existing");
+
+  for (const question of [
+    "Qui",
+    "Où",
+    "Quelle configuration",
+    "Quel contexte",
+    "Quel code",
+    "Quand",
+    "Combien",
+    "Quel résultat",
+    "Quelles erreurs de capture",
+  ]) {
+    await expect(provenance).toContainText(question);
+  }
+
+  // Ce qui est réellement appliqué, pas la configuration affichée ailleurs.
+  await expect(page.locator('[data-testid="provenance-where"]')).toContainText("feat/provenance");
+  await expect(page.locator('[data-testid="provenance-config"]')).toContainText("fast v3");
+  await expect(page.locator('[data-testid="provenance-config"]')).toContainText("read_only");
+  await expect(page.locator('[data-testid="provenance-context"]')).toContainText("python-conventions");
+  await expect(page.locator('[data-testid="provenance-code"]')).toContainText("0f1e2d3");
+  await expect(page.locator('[data-testid="provenance-code"]')).toContainText("worktree modifié");
+  // Aucun coût inventé : le contrat ne le porte pas.
+  await expect(page.locator('[data-testid="provenance-how-much"]')).toContainText("inconnu");
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("provenance : 404 du snapshot affiché comme une absence, pas comme une valeur", async ({ page }) => {
+  const captured = newCaptured(launchFixture({ status: "running" }), null);
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  await expect(page.locator('[data-testid="launch-provenance-notice"]')).toContainText("aucun snapshot");
+  await expect(page.locator('[data-testid="provenance-code"]')).toContainText("inconnu");
+  await expect(page.locator('[data-testid="launch-panel"]')).not.toContainText("undefined");
+  expect(captured.snapshotReads.length).toBeGreaterThan(0);
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);

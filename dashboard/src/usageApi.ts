@@ -18,6 +18,7 @@ export type UsageTotalStatus = components["schemas"]["UsageTotalStatus"];
 export interface UsageSummaryQuery {
   projectId: string;
   taskId?: string;
+  taskLaunchId?: string;
   groupBy?: UsageGroupBy;
   since?: string;
   until?: string;
@@ -33,11 +34,13 @@ export async function fetchUsageSummary(client: StudioClient, query: UsageSummar
   const params: {
     project_id: string;
     task_id?: string;
+    task_launch_id?: string;
     group_by?: UsageGroupBy;
     since?: string;
     until?: string;
   } = { project_id: query.projectId };
   if (query.taskId !== undefined) params.task_id = query.taskId;
+  if (query.taskLaunchId !== undefined) params.task_launch_id = query.taskLaunchId;
   if (query.groupBy !== undefined) params.group_by = query.groupBy;
   if (query.since !== undefined) params.since = query.since;
   if (query.until !== undefined) params.until = query.until;

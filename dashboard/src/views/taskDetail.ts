@@ -72,7 +72,9 @@ import {
   createTaskLaunch,
   getEligibleMachines,
   getTaskLaunch,
+  getTaskLaunchSnapshot,
   listTaskLaunches,
+  type ExecutionSnapshot,
   type TaskLaunch,
 } from "../taskLaunchesApi";
 import {
@@ -823,7 +825,11 @@ function bindLaunchPanel(
   /** Adopte une lecture serveur comme seule vérité affichée. */
   function applyLatest(launch: TaskLaunch): void {
     if (state.data === null) return;
+    const changed = state.data.latest === null || state.data.latest.id !== launch.id;
     state.data = { ...state.data, latest: launch };
+    // Un nouveau lancement n'a pas de snapshot : celui du précédent ne lui
+    // appartient pas (provenance = faits de CE run, rien d'autre).
+    if (changed) state.data = { ...state.data, snapshot: undefined, usage: undefined };
     state.canCancel = canCancelLaunch(launch, ctx.identity);
   }
 
@@ -902,12 +908,17 @@ function bindLaunchPanel(
       render();
     }
     try {
-      const [fresh, sessions] = await Promise.all([
+      const [fresh, sessions, provenance] = await Promise.all([
         getTaskLaunch(ctx.client, latest.id),
         fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: task.id }).catch(() => null),
+        readProvenance(ctx.client, task.project_id, latest.id),
       ]);
       applyLatest(fresh);
-      if (sessions !== null && state.data !== null) state.data = { ...state.data, sessions };
+      if (state.data !== null) {
+        // Snapshot et usage lus appartiennent au launch relu : si l'id a changé,
+        // on ne les attribue pas à un autre run.
+        state.data = { ...state.data, sessions, ...(fresh.id === latest.id ? provenance : {}) };
+      }
       if (!silent) state.notice = "";
     } catch (error) {
       if (!silent) state.error = describeError(error);
@@ -924,6 +935,7 @@ function bindLaunchPanel(
     try {
       const fresh = await getTaskLaunch(ctx.client, latest.id);
       applyLatest(fresh);
+      if (state.data !== null) state.data = { ...state.data, ...(await readProvenance(ctx.client, task.project_id, fresh.id)) };
       state.notice = note;
     } catch (error) {
       state.error = describeError(error);
@@ -980,6 +992,9 @@ function bindLaunchPanel(
         newIdempotencyKey(),
       );
       applyLatest(created);
+      if (state.data !== null) {
+        state.data = { ...state.data, ...(await readProvenance(ctx.client, task.project_id, created.id)) };
+      }
       state.notice = "Lancement demandé : en attente de la machine cible, qui seule rapporte l'exécution.";
       dsNotify("Lancement demandé.", "success");
       render();
@@ -1071,12 +1086,32 @@ async function loadLaunchData(
       : [];
   const rawLaunches = launches.status === "fulfilled" && Array.isArray(launches.value) ? launches.value : [];
   const forTask = rawLaunches.filter((launch) => launch.task_id === task.id);
+  const latest = forTask.length === 0 ? null : (forTask[forTask.length - 1] ?? null);
   return {
     machines: machineList,
     agents: agentOptions,
-    latest: forTask.length === 0 ? null : (forTask[forTask.length - 1] ?? null),
+    latest,
     sessions,
+    ...(await readProvenance(client, task.project_id, latest?.id ?? null)),
   };
+}
+
+/**
+ * Snapshot figé du lancement (DEC-0199) et usage rattaché à ce run. Un `404`
+ * — la machine n'a rien enregistré — vaut « aucun snapshot » : c'est un fait,
+ * pas une erreur de lecture, et la provenance affiche alors l'absence.
+ */
+async function readProvenance(
+  client: StudioClient,
+  projectId: string,
+  launchId: string | null,
+): Promise<{ snapshot: ExecutionSnapshot | null; usage: UsageSummary | null }> {
+  if (launchId === null) return { snapshot: null, usage: null };
+  const [snapshot, usage] = await Promise.all([
+    getTaskLaunchSnapshot(client, launchId).catch(() => null),
+    fetchUsageSummary(client, { projectId, taskLaunchId: launchId }).catch(() => null),
+  ]);
+  return { snapshot, usage };
 }
 
 async function readComplements(

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
-import type { MachineEligibility, TaskLaunchWithProtocol } from "../taskLaunchesApi";
+import type { UsageAggregate, UsageSummary } from "../usageApi";
+import type {
+  ExecutionSnapshot,
+  MachineEligibility,
+  TaskLaunchWithProtocol,
+} from "../taskLaunchesApi";
 import {
   canCancelLaunch,
   cancelLaunchConfirmText,
@@ -19,9 +24,13 @@ import {
   linkedSessionHtml,
   machineOptionLabel,
   previewLines,
+  provenanceFacts,
+  provenanceHtml,
+  shortDigest,
   taskLaunchStatusLabel,
   taskLaunchStatusTone,
   type LaunchPanelState,
+  type ProvenanceFact,
 } from "./taskLaunchPanel";
 
 const identity = (overrides: Partial<AuthIdentity> = {}): AuthIdentity => ({
@@ -76,6 +85,134 @@ const state = (overrides: Partial<LaunchPanelState> = {}): LaunchPanelState => (
   error: "",
   ...overrides,
 });
+
+/** Empreinte de test : seule son identité compte, jamais sa valeur. */
+const digest = (seed: string): string => `sha256:${seed.repeat(64).slice(0, 64)}`;
+
+const snapshot = (overrides: Partial<ExecutionSnapshot> = {}): ExecutionSnapshot =>
+  ({
+    id: "s1",
+    project_id: "p1",
+    task_launch_id: "l1",
+    content_hash: digest("a"),
+    schema_version: 1,
+    capture_status: "ok",
+    capture_reason: null,
+    created_at: "2026-10-01T09:59:00Z",
+    retention_until: "2026-12-30T09:59:00Z",
+    payload: {
+      schema_version: 1,
+      capture_status: "ok",
+      capture_errors: [],
+      resolution: {
+        agent_stable_key: "review-helper",
+        profile: { stable_key: "fast", contract_version: 3, digest: digest("1") },
+        resources: [
+          {
+            role: "rule",
+            resource_id: "r1",
+            kind: "rule",
+            stable_key: "python-conventions",
+            scope: "studio",
+            version: 2,
+            version_origin: "active",
+            content_digest: digest("2"),
+          },
+        ],
+        runtime: {
+          level: "project_default",
+          matched_kind: "agent_definition",
+          matched_stable_key: "opencode",
+          harness_ref: "claude-code",
+          model_ref: "claude-opus",
+          capabilities_digest: digest("3"),
+        },
+      },
+      applied: {
+        harness_id: "claude-code",
+        harness_version: "2.1.0",
+        projections: [{ target: ".claude/settings.json", digest: digest("4") }],
+        git_sha: "0f1e2d3",
+        git_dirty: false,
+        worktree_branch: "feat/provenance",
+        profile: { stable_key: "fast", contract_version: 3, digest: digest("1") },
+        access_mode: "read_only",
+      },
+    },
+    ...overrides,
+  }) as unknown as ExecutionSnapshot;
+
+/** Snapshot présent mais presque vide : capture partielle, rien d'inventé. */
+const emptySnapshot = (): ExecutionSnapshot =>
+  ({
+    id: "s2",
+    task_launch_id: "l1",
+    content_hash: digest("b"),
+    schema_version: 1,
+    capture_status: "partial",
+    capture_reason: "git_sha_unavailable,resolution_unavailable",
+    created_at: "2026-10-01T09:59:00Z",
+    retention_until: "2026-12-30T09:59:00Z",
+    payload: {
+      schema_version: 1,
+      capture_status: "partial",
+      capture_errors: [
+        { code: "git_sha_unavailable", field: "applied.git_sha", detail: "git absent du worktree" },
+        { code: "resolution_unavailable", field: "resolution", detail: "aucun agent résolu" },
+      ],
+    },
+  }) as unknown as ExecutionSnapshot;
+
+const launchWithProvenance = (overrides: Partial<TaskLaunchWithProtocol> = {}): TaskLaunchWithProtocol =>
+  launch({
+    status: "succeeded",
+    agent_stable_key: "review-helper",
+    harness_id: "claude-code",
+    finished_at: "2026-10-01T10:05:00Z",
+    protocol: { status: "handed_off", session_id: "s1", task_status: "completed" },
+    ...overrides,
+  });
+
+const launchUsage = (overrides: Partial<UsageAggregate> = {}): UsageSummary => {
+  const unknownMetric = { status: "unknown" as const, known_sum: null, measured_entries: 0, estimated_entries: 0, unknown_entries: 2 };
+  const partial = { measured_entries: 1, estimated_entries: 0, unknown_entries: 1 };
+  return {
+    project_id: "aaaaaaaa-1111-4222-8333-444444444444",
+    task_id: null,
+    task_launch_id: "cccccccc-1111-4222-8333-444444444444",
+    group_by: "none",
+    since: null,
+    until: null,
+    generated_at: "2026-10-13T12:00:00Z",
+    total: {
+      key: {},
+      entries: 2,
+      first_period_start: "2026-10-11T10:00:00Z",
+      last_period_end: "2026-10-11T10:00:05Z",
+      tokens_in: unknownMetric,
+      tokens_out: unknownMetric,
+      tokens_cached: unknownMetric,
+      total_tokens: { status: "partial", known_sum: 330, ...partial },
+      cost: { status: "partial", known_sum: "0.125", currency: "USD", by_currency: [], ...partial },
+      duration: { status: "exact", known_sum: "17", measured_entries: 2, estimated_entries: 0, unknown_entries: 0 },
+      sources: [{ collector: "studio-runner", entries: 2 }],
+      ...overrides,
+    },
+    groups: [],
+    truncated: false,
+  };
+};
+
+const answerOf = (facts: ProvenanceFact[], id: string): string =>
+  facts.find((fact) => fact.id === id)?.answer ?? "";
+
+/** Bloc provenance du panneau : il est le dernier avant la fermeture de section. */
+const provenancePart = (html: string): string => {
+  const start = html.indexOf('<div data-testid="launch-provenance">');
+  if (start === -1) return "";
+  const end = html.indexOf("</section>", start);
+  return html.slice(start, end === -1 ? undefined : end);
+};
 
 describe("labels", () => {
   it("traduit les statuts de lancement", () => {
@@ -379,5 +516,167 @@ describe("preuve de protocole (TaskLaunchView.protocol)", () => {
     );
     expect(protocolBadge(notApplicable)).toBeNull();
     expect(notApplicable).not.toContain("Protocole non vérifié");
+  });
+});
+
+describe("provenance (DEC-0199)", () => {
+  it("neuf questions, neuf réponses, chacune tirée du snapshot figé", () => {
+    const facts = provenanceFacts(launchWithProvenance(), snapshot());
+    expect(facts).toHaveLength(9);
+    expect(facts.map((fact) => fact.question)).toEqual([
+      "Qui",
+      "Où",
+      "Quelle configuration",
+      "Quel contexte",
+      "Quel code",
+      "Quand",
+      "Combien",
+      "Quel résultat",
+      "Quelles erreurs de capture",
+    ]);
+    expect(new Set(facts.map((fact) => fact.id)).size).toBe(9);
+
+    expect(answerOf(facts, "who")).toContain("u1");
+    expect(answerOf(facts, "who")).toContain("review-helper");
+    expect(answerOf(facts, "where")).toContain("m1");
+    expect(answerOf(facts, "where")).toContain("feat/provenance");
+    expect(answerOf(facts, "config")).toContain("fast v3");
+    expect(answerOf(facts, "config")).toContain("claude-code 2.1.0");
+    expect(answerOf(facts, "config")).toContain("read_only");
+    expect(answerOf(facts, "context")).toContain("règle python-conventions v2");
+    expect(answerOf(facts, "context")).toContain("projections : .claude/settings.json");
+    expect(answerOf(facts, "code")).toContain("0f1e2d3");
+    expect(answerOf(facts, "code")).toContain("worktree propre");
+    expect(answerOf(facts, "when")).toContain("demandé le");
+    expect(answerOf(facts, "outcome")).toContain("Processus terminé (code 0)");
+    expect(answerOf(facts, "outcome")).toContain("à relire");
+    expect(answerOf(facts, "capture")).toContain("capture complète");
+  });
+
+  it("les neuf questions sont bien rendues dans le panneau", () => {
+    const html = provenanceHtml(launchWithProvenance(), snapshot());
+    expect(html.match(/data-testid="provenance-/g)).toHaveLength(9);
+    for (const id of ["who", "where", "config", "context", "code", "when", "how-much", "outcome", "capture"]) {
+      expect(html).toContain(`data-testid="provenance-${id}"`);
+    }
+    expect(html).toContain("Quelles erreurs de capture");
+  });
+
+  it("chaque fait manquant vaut « inconnu », jamais une valeur inventée", () => {
+    const bare = launch({
+      machine_id: "",
+      requested_by_user_id: "",
+      agent_stable_key: null,
+      created_at: "",
+      expires_at: "",
+      finished_at: null,
+    });
+    const facts = provenanceFacts(bare, emptySnapshot());
+    expect(facts).toHaveLength(9);
+    for (const id of ["who", "where", "config", "context", "code", "when"]) {
+      expect(answerOf(facts, id)).toContain("inconnu");
+    }
+    expect(answerOf(facts, "code")).toContain("inconnu (commit non capturé)");
+    expect(answerOf(facts, "when")).toContain("inconnu (lancement non terminé)");
+    expect(facts.every((fact) => fact.answer.trim() !== "")).toBe(true);
+    // Sans snapshot, la neuvième réponse dit l'absence, elle ne suppose rien.
+    expect(answerOf(provenanceFacts(bare, null), "capture")).toContain("inconnu (aucune capture)");
+
+    // Sans usage rattaché au lancement, « Combien » reste inconnu, même complet.
+    const complete = provenanceFacts(launchWithProvenance(), snapshot());
+    expect(answerOf(complete, "how-much")).toContain("inconnu");
+    expect(answerOf(complete, "how-much")).not.toMatch(/\d/);
+    expect(answerOf(provenanceFacts(bare, null, null), "how-much")).toContain("inconnu (consommation illisible)");
+    expect(answerOf(provenanceFacts(bare, null, launchUsage({ entries: 0 })), "how-much")).toContain(
+      "inconnu (aucune mesure d'usage rattachée à ce lancement)",
+    );
+  });
+
+  it("Combien : le total serveur du lancement, sans présenter un coût partiel comme exact", () => {
+    const answer = answerOf(provenanceFacts(launchWithProvenance(), snapshot(), launchUsage()), "how-much");
+    expect(answer).toContain("2 mesures");
+    expect(answer).toContain("durée 17 s");
+    expect(answer).toContain("coût au moins 0,125 USD · inconnu pour 1 entrée");
+    expect(answer).toContain("jetons au moins 330");
+  });
+
+  it("capture partielle : les erreurs nommées par le snapshot sont affichées telles quelles", () => {
+    const facts = provenanceFacts(launchWithProvenance(), emptySnapshot());
+    expect(answerOf(facts, "capture")).toContain("capture partielle");
+    expect(answerOf(facts, "capture")).toContain("git_sha_unavailable");
+    expect(answerOf(facts, "capture")).toContain("resolution_unavailable");
+  });
+
+  it("404 : la provenance nomme l'absence de snapshot au lieu d'un profil vide", () => {
+    const html = provenanceHtml(launchWithProvenance(), null);
+    expect(html).toContain("aucun snapshot");
+    expect(html).toContain('data-testid="launch-provenance-notice"');
+    expect(html.match(/data-testid="provenance-/g)).toHaveLength(9);
+    expect(html).not.toContain("undefined");
+
+    const panel = launchPanelHtml(
+      state({ data: { machines: [], agents: [], latest: launchWithProvenance(), snapshot: null } }),
+    );
+    expect(panel).toContain("aucun snapshot");
+  });
+
+  it("le rendu ne dépend que du snapshot : une configuration courante modifiée ne le change pas", () => {
+    const captured = snapshot();
+    const data = { machines: [machine()], agents: [], latest: launchWithProvenance(), snapshot: captured };
+    const previewFor = (stableKey: string, version: number): ResolvedAgentDefinition =>
+      ({
+        agent: { stable_key: "review-helper", version: 3, deprecated: false },
+        rules: [],
+        skills: [],
+        model_profile: { stable_key: stableKey, version },
+        runtime: null,
+        requirements: { coding: false },
+      }) as unknown as ResolvedAgentDefinition;
+
+    const before = provenancePart(launchPanelHtml(state({ data, preview: previewFor("fast", 3) })));
+    // Profil courant et postes affichés changent après la capture : la
+    // provenance, elle, reste celle du run.
+    const after = provenancePart(
+      launchPanelHtml(
+        state({
+          data: { ...data, machines: [machine({ display_name: "renamed", free_slots: 9 })] },
+          preview: previewFor("slow", 9),
+        }),
+      ),
+    );
+    expect(before).not.toBe("");
+    expect(after).toBe(before);
+    expect(after).toContain("fast v3");
+    expect(after).not.toContain("slow");
+    expect(after).not.toContain("renamed");
+  });
+
+  it("échappe tout texte venu du snapshot ou du lancement", () => {
+    const evil = '<script>alert("x")</script>';
+    const hostile = (): ExecutionSnapshot =>
+      snapshot({
+        payload: {
+          schema_version: 1,
+          capture_status: "partial",
+          capture_errors: [{ code: "internal", field: "applied", detail: evil }],
+          resolution: { agent_stable_key: evil },
+          applied: { harness_id: evil, git_sha: evil, worktree_branch: evil },
+        },
+      } as unknown as Partial<ExecutionSnapshot>);
+    const html = provenanceHtml(
+      launchWithProvenance({ machine_id: evil, requested_by_user_id: "\"><b>x</b>" }),
+      hostile(),
+    );
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<b>");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+    // Aucune valeur hostile ne devient un attribut exécutable.
+    expect(html).not.toMatch(/\son[a-z]+\s*=/i);
+  });
+
+  it("une empreinte reste une empreinte, même sans préfixe", () => {
+    expect(shortDigest(digest("1"))).toBe(`sha256:${"1".repeat(12)}…`);
+    expect(shortDigest("court")).toBe("court");
   });
 });

@@ -7324,6 +7324,23 @@
       }
      },
      {
+      "name": "task_launch_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Launch Id"
+      }
+     },
+     {
       "name": "group_by",
       "in": "query",
       "required": false,
@@ -29206,6 +29223,18 @@
       ],
       "title": "Task Id"
      },
+     "task_launch_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Launch Id"
+     },
      "group_by": {
       "$ref": "#/components/schemas/UsageGroupBy"
      },
@@ -29263,7 +29292,7 @@
      "total"
     ],
     "title": "UsageSummary",
-    "description": "Usage of a project (optionally one task) over a period of `period_start`.\n`total` covers every entry in scope, including groups cut by\n`USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as\nreturned and never re-add groups into a total."
+    "description": "Usage of a project (optionally one task or one launch) over a period of `period_start`.\n`total` covers every entry in scope, including groups cut by\n`USAGE_SUMMARY_MAX_GROUPS` (`truncated`). Clients display these values as\nreturned and never re-add groups into a total."
    },
    "UsageTokenTotal": {
     "properties": {
