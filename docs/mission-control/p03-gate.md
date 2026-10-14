@@ -34,7 +34,7 @@ retrouvée dans le scratchpad du collecteur du 2026-10-13, puis archivée le
 reconstruit. Empreintes SHA-256 :
 
 - Sortie originale : `4249a42840d420b556973aae34a84a3943b1bc9c3535d0ad974f29ef8df6cd5d`.
-- Fixture expurgée : `db864fb9703bde6762aea15a7660df72a3c067dcfda5f7b33da92edd92d710c2`.
+- Fixture expurgée versionnée (fins de ligne LF) : `b8fbbf3bbc2f38bf4315ae7e0da9887acea41bee23b9b29ea9e47e73b141d627`.
 
 Sur les trois sorties archivées, le rapprochement vérifié est de 103 855 tokens,
 dont 103 837 de cache, 6 en entrée et 12 en sortie ; durée murale de 30,902 s.
