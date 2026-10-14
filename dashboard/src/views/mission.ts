@@ -64,6 +64,7 @@ const VERDICT_TONE: Record<string, DsTone> = {
 
 const REASON_LABEL: Record<string, string> = {
   launch_cancelled: "Lancement annulé",
+  launch_cancelled_session_open: "Lancement annulé, session encore ouverte",
   launch_failed: "Lancement échoué",
   launch_rejected: "Lancement refusé",
   launch_expired: "Lancement expiré",

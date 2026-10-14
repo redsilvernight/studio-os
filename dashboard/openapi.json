@@ -21464,6 +21464,7 @@
     "type": "string",
     "enum": [
      "launch_cancelled",
+     "launch_cancelled_session_open",
      "launch_failed",
      "launch_rejected",
      "launch_expired",

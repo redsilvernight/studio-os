@@ -175,7 +175,8 @@ class OpenCodeAdapter(JsonMcpAdapter):
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
         inline: dict[str, Any] = {
-            "mcp": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}
+            "mcp": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)},
+            "permission": {"external_directory": "deny"},
         }
         if model:
             inline["model"] = model

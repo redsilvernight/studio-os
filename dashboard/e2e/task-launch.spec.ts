@@ -264,7 +264,11 @@ function apiStub(captured: Captured) {
           : [],
       );
     }
-    if (url.includes("/api/v1/ai-work")) return json(200, []);
+    if (url.includes("/api/v1/ai-work")) return json(200, captured.sessionEnded ? [{
+      id: "work-handoff", task_id: TASK_ID, session_id: captured.launch?.session_id,
+      status: "completed", summary: "Handoff réel actualisé", changed_files: [], tests_run: [],
+      started_at: "2026-10-01T10:00:00Z", ended_at: "2026-10-01T10:05:00Z",
+    }] : []);
     if (url.includes("/api/v1/claims")) return json(200, []);
     if (/\/api\/v1\/tasks\/[^/]+$/.test(url)) return json(200, TASK);
     if (url.includes("/api/v1/tasks")) return json(200, [TASK]);
@@ -411,10 +415,18 @@ test("session liée : lien vers la session puis vers le handoff une fois termin�
     version: 4,
     session_id: "sess-0000-4111-8111-000000000001",
     finished_at: "2026-10-01T10:05:00Z",
+    protocol: { status: "handed_off", session_id: "sess-0000-4111-8111-000000000001", ai_work_id: "work-handoff", task_status: "completed", criteria_checked: [] },
   });
   await page.locator('[data-action="launch-refresh"]').click();
   await expect(page.locator('[data-testid="launch-session-link"]')).toContainText("terminée");
   await expect(page.locator('[data-testid="launch-handoff-link"]')).toHaveAttribute("href", "#task-ai-work");
+  await expect(page.locator("#task-mecanique")).toHaveAttribute("open", "");
+  await expect(page.locator("#task-sessions")).toContainText("Terminée");
+  await expect(page.locator("#task-ai-work")).toContainText("Handoff réel actualisé");
+  await expect(page.locator('[data-testid="launch-latest"]')).not.toContainText("Protocole non vérifié");
+  await expect(page.locator('[data-action="launch-refresh"]')).toBeFocused();
+  await page.locator('[data-action="launch-refresh"]').click();
+  await expect(page.locator("#task-ai-work")).toContainText("Handoff réel actualisé");
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);

@@ -14,7 +14,8 @@ closure (session ended with a handoff entry) are reported separately
 
 Truth table, evaluated top to bottom, first match wins (verdict: reason):
 
-1. launch `cancelled` -> cancelled: launch_cancelled
+1a. launch `cancelled`, session open -> needs_attention: launch_cancelled_session_open
+1b. launch `cancelled` -> cancelled: launch_cancelled
 2. launch `failed`/`rejected`/`expired` -> failed: launch_failed/_rejected/_expired
 3. AIWork `review_requested` on the session (on the task when no session)
    -> waiting_human: review_requested
@@ -73,6 +74,7 @@ class MissionReason(StrEnum):
     """Additive-only reason codes; one per truth-table row condition."""
 
     LAUNCH_CANCELLED = "launch_cancelled"
+    LAUNCH_CANCELLED_SESSION_OPEN = "launch_cancelled_session_open"
     LAUNCH_FAILED = "launch_failed"
     LAUNCH_REJECTED = "launch_rejected"
     LAUNCH_EXPIRED = "launch_expired"

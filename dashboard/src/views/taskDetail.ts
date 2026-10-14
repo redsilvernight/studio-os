@@ -908,6 +908,19 @@ function bindLaunchPanel(
       render();
     }
     try {
+      if (!silent) {
+        const refreshed = await readComplements(root, ctx, task.id);
+        if (!container.isConnected) return;
+        const openDetails = Array.from(root.querySelectorAll<HTMLDetailsElement>("details[open][id]"), (node) => node.id);
+        if (pollTimer !== null) window.clearTimeout(pollTimer);
+        paint(root, ctx, { ...refreshed, notice: "", authed: ctx.authed });
+        for (const id of openDetails) {
+          const details = root.querySelector<HTMLDetailsElement>(`#${CSS.escape(id)}`);
+          if (details !== null) details.open = true;
+        }
+        root.querySelector<HTMLElement>("[data-action=launch-refresh]")?.focus();
+        return;
+      }
       const [fresh, sessions, provenance] = await Promise.all([
         getTaskLaunch(ctx.client, latest.id),
         fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: task.id }).catch(() => null),
@@ -924,7 +937,7 @@ function bindLaunchPanel(
       if (!silent) state.error = describeError(error);
     } finally {
       if (!silent) state.latestLoading = false;
-      render();
+      if (container.isConnected) render();
     }
   }
 

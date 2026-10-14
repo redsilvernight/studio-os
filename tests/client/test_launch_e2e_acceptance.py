@@ -591,6 +591,14 @@ async def test_requester_cancel_stops_a_running_machine_without_terminal_report(
 
                 running = await api_a.get_task_launch(launch.id)
                 assert running.status is TaskLaunchStatus.RUNNING
+                open_session = await api_b.start_session(
+                    WorkSessionCreate(
+                        task_id=fleet.task.id,
+                        machine_id=fleet.machine_b.id,
+                        agent_id=fleet.agent_b.id,
+                    ),
+                    idempotency_key=str(uuid.uuid4()),
+                )
                 cancelled = await _cancel_launch(api_a, launch.id, running.version)
                 assert cancelled.status is TaskLaunchStatus.CANCELLED
 
@@ -602,6 +610,15 @@ async def test_requester_cancel_stops_a_running_machine_without_terminal_report(
                 assert "failed" not in _statuses(store)
                 final = await api_a.get_task_launch(launch.id)
                 assert final.status is TaskLaunchStatus.CANCELLED
+                mission = (
+                    await api_a._request("GET", f"/api/v1/projects/{fleet.project.id}/mission")
+                ).json()
+                run = next(row for row in mission["runs"] if row["run_id"] == str(launch.id))
+                assert run["verdict"] == "needs_attention"
+                assert run["reasons"][0] == "launch_cancelled_session_open"
+                assert run["session"]["id"] == str(open_session.id)
+                assert run["session"]["ended_at"] is None
+                assert run["protocol_state"] == "open"
     finally:
         store.connection.close()
 

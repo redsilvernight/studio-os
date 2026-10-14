@@ -838,6 +838,13 @@ les evenements sont inchanges.
   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
 
 ### Mission Control (read model, additif, DEC-0196/DEC-0201)
+Revision de verdict v2 (2026-10-14, DEC-0213) : un lancement `cancelled`
+avec session liee non terminee (`active`, `idle`, `expired`) passe de
+`cancelled` a `needs_attention`, avec nouvelle raison
+`launch_cancelled_session_open` puis `launch_cancelled`. Sans session ou
+avec session terminee, le verdict reste `cancelled`. Le statut du lancement,
+la session, la tache et les claims ne sont pas modifies par cette projection.
+La demande d'annulation n'est jamais une preuve de handoff.
 - GET /api/v1/projects/{project_id}/mission — projection de lecture
   bornee des executions d'un projet, calculee a la lecture (aucun etat
   persiste) : un `MissionRun` par `TaskLaunch`, plus un par
@@ -1067,6 +1074,18 @@ Cycle : `requested -> accepted -> preparing -> running -> succeeded|failed`, plu
 rapporte par la machine). Etats terminaux sans sortie ; toute paire non listee dans
 `ALLOWED_TRANSITIONS` = `409 invalid_launch_transition`, mauvais acteur = `403`. Seule la machine
 cible rapporte l'execution ; `output_excerpt` borne (4000 car.) et expurge par la machine.
+Confinement local OpenCode : la configuration privee du lancement impose
+`permission.external_directory=deny`, y compris sous `run --auto` ; les outils
+soumis a cette permission refusent les dossiers externes, sauf la zone de
+sortie d'outils explicitement autorisee par OpenCode. Cela ne
+constitue pas une sandbox OS : les commandes shell, plugins et serveurs MCP
+s'executent avec les droits du compte local et peuvent lire ailleurs ; la
+decouverte interne des skills n'est pas couverte par cette permission. Le
+mode `workspace_write` ne garantit donc pas une isolation des lectures shell.
+Les variables systeme Windows sont conservees sans distinction de casse
+(`SYSTEMDRIVE` inclus). Le dossier litteral `%SystemDrive%` observe en demo
+n'est pas reproduit par les probes isolees avec ou sans cette variable ;
+sa cause reste non confirmee.
 Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
 `expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
 cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.
