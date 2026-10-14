@@ -30,7 +30,11 @@ async def test_archived_pilot_outputs_reconcile_ledger_summary_and_budget_after_
     project_id = uuid.UUID(world[0])
     await _put_policy(client, auth_headers, world[0], cost_limit="1", reservation_cost="0.6")
     launch_ids: set[uuid.UUID] = set()
-    for filename, duration in (("success.json", "10.383"), ("success_cache_read.json", "8.218")):
+    for filename, duration in (
+        ("success.json", "10.383"),
+        ("success_cache_read.json", "8.218"),
+        ("success_third_run.json", "12.301"),
+    ):
         admitted = await _admit(client, auth_headers, world)
         assert admitted.status_code == 201, admitted.text
         launch = TaskLaunch.model_validate(admitted.json())
@@ -86,19 +90,19 @@ async def test_archived_pilot_outputs_reconcile_ledger_summary_and_budget_after_
 
     ledger = await _ledger(client, auth_headers, project_id)
     summary = (await _summary(client, auth_headers, project_id)).total
-    assert summary.entries == len(ledger) == 2
+    assert summary.entries == len(ledger) == 3
     assert {entry.task_launch_id for entry in ledger} == launch_ids
-    assert summary.tokens_in.known_sum == 4
-    assert summary.tokens_out.known_sum == 8
-    assert summary.tokens_cached.known_sum == 68083
-    assert summary.total_tokens.known_sum == 68095
+    assert summary.tokens_in.known_sum == 6
+    assert summary.tokens_out.known_sum == 12
+    assert summary.tokens_cached.known_sum == 103837
+    assert summary.total_tokens.known_sum == 103855
     assert summary.total_tokens.status is UsageTotalStatus.EXACT
-    assert summary.cost.known_sum == Decimal("0.36400480")
+    assert summary.cost.known_sum == Decimal("0.46928960")
     assert summary.cost.status is UsageTotalStatus.EXACT
     assert summary.cost.currency == "USD"
-    assert summary.cost.measured_entries == 2
+    assert summary.cost.measured_entries == 3
     assert summary.cost.estimated_entries == summary.cost.unknown_entries == 0
-    assert summary.duration.known_sum == Decimal("18.601")
+    assert summary.duration.known_sum == Decimal("30.902")
     assert summary.duration.status is UsageTotalStatus.EXACT
     assert summary.cost.known_sum == sum(
         (entry.cost.value for entry in ledger if entry.cost.value is not None), Decimal(0)
