@@ -215,7 +215,7 @@ def effective_permissions(
     ]
 
 
-def _elements(definition: ResolvedAgentDefinition) -> list[ProfileElement]:
+def profile_elements(definition: ResolvedAgentDefinition) -> list[ProfileElement]:
     agent = definition.agent
     elements = [
         ProfileElement(
@@ -300,7 +300,7 @@ def resolve_profile(
     return ProfilePreview(
         stable_key=profile.stable_key,
         accepted=not refusals,
-        elements=_elements(definition),
+        elements=profile_elements(definition),
         runtime=runtime,
         runtime_origin=runtime_origin,
         permissions=decisions,

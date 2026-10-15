@@ -13,14 +13,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import Field, StringConstraints
+from pydantic import Field, SerializerFunctionWrapHandler, StringConstraints, model_serializer
 
 from studio_contracts.auth import MachineStatus
 from studio_contracts.bootstrap import HarnessId
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
+from studio_contracts.profiles import LaunchProfilePin
 from studio_contracts.task_launch_replay import TaskLaunchReplayBasis, TaskLaunchReplayConfirmation
 from studio_contracts.tasks import TaskStatus
 
@@ -116,6 +117,7 @@ class TaskLaunchCreate(IdempotentCreate):
     machine_id: UUID
     harness_id: HarnessId
     agent_stable_key: StableKey | None = None
+    profile_key: StableKey | None = None
     expires_in_seconds: int = Field(
         default=LAUNCH_DEFAULT_TTL_SECONDS, ge=60, le=LAUNCH_MAX_TTL_SECONDS
     )
@@ -125,7 +127,12 @@ class TaskLaunch(VersionedModel):
     """Server-held launch. `status` changes only through the transitions in
     `ALLOWED_TRANSITIONS`, each carrying `expected_version`. `session_id` is
     set by the machine once the work session exists. `requested_by_user_id`
-    is the owner-or-granted requester (AIB-J), fixed at creation."""
+    is the owner-or-granted requester (AIB-J), fixed at creation.
+
+    `profile` (additive) is the work-profile pin computed by the
+    server at creation. It is omitted from the serialized form when absent, so
+    an unprofiled launch reads exactly as before for an N-1 daemon; a profiled
+    launch only targets a machine that reported `launch_profiles`."""
 
     id: UUID
     project_id: UUID
@@ -140,6 +147,14 @@ class TaskLaunch(VersionedModel):
     output_excerpt: str | None = Field(default=None, max_length=LAUNCH_MAX_OUTPUT_CHARS)
     expires_at: datetime
     finished_at: datetime | None = None
+    profile: LaunchProfilePin | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_profile(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("profile") is None:
+            data.pop("profile", None)
+        return data
 
 
 class TaskLaunchProtocolStatus(StrEnum):
