@@ -663,8 +663,12 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
             closeDsDialog(root, "task-create-dialog");
             dsNotify(`Tâche « ${created.title} » créée.`, "success");
             // Le rechargement remplace le déclencheur : le refocaliser après,
-            // jamais <body> sans raison.
+            // jamais <body> sans raison. Le rechargement est asynchrone : si
+            // l'utilisateur a déplacé le focus entre-temps (skip-link, nav),
+            // on ne le lui reprend pas.
             void reload().then(() => {
+              const active = document.activeElement;
+              if (active !== null && active !== document.body && active.isConnected) return;
               root.querySelector<HTMLElement>("#task-new")?.focus();
             });
           })
