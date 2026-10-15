@@ -73,8 +73,10 @@ import {
   getEligibleMachines,
   getTaskLaunch,
   getTaskLaunchSnapshot,
+  getTaskLaunchReplayPreview,
   listTaskLaunches,
   type ExecutionSnapshot,
+  type TaskLaunchReplayPreview,
   type TaskLaunch,
 } from "../taskLaunchesApi";
 import {
@@ -829,7 +831,7 @@ function bindLaunchPanel(
     state.data = { ...state.data, latest: launch };
     // Un nouveau lancement n'a pas de snapshot : celui du précédent ne lui
     // appartient pas (provenance = faits de CE run, rien d'autre).
-    if (changed) state.data = { ...state.data, snapshot: undefined, usage: undefined };
+    if (changed) state.data = { ...state.data, snapshot: undefined, usage: undefined, replay: undefined };
     state.canCancel = canCancelLaunch(launch, ctx.identity);
   }
 
@@ -1118,13 +1120,18 @@ async function readProvenance(
   client: StudioClient,
   projectId: string,
   launchId: string | null,
-): Promise<{ snapshot: ExecutionSnapshot | null; usage: UsageSummary | null }> {
-  if (launchId === null) return { snapshot: null, usage: null };
-  const [snapshot, usage] = await Promise.all([
+): Promise<{
+  snapshot: ExecutionSnapshot | null;
+  usage: UsageSummary | null;
+  replay: TaskLaunchReplayPreview | null;
+}> {
+  if (launchId === null) return { snapshot: null, usage: null, replay: null };
+  const [snapshot, usage, replay] = await Promise.all([
     getTaskLaunchSnapshot(client, launchId).catch(() => null),
     fetchUsageSummary(client, { projectId, taskLaunchId: launchId }).catch(() => null),
+    getTaskLaunchReplayPreview(client, launchId).catch(() => null),
   ]);
-  return { snapshot, usage };
+  return { snapshot, usage, replay };
 }
 
 async function readComplements(

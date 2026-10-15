@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -50,4 +52,7 @@ class TaskLaunchModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     attempt: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     retry_of_launch_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("task_launches.id"), default=None
+    )
+    replay_basis: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), default=None
     )

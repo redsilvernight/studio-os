@@ -234,6 +234,21 @@ RESP_409_LAUNCH_TRANSITION: ErrorResponses = {
     )
 }
 
+RESP_409_REPLAY: ErrorResponses = {
+    409: _json_response(
+        "Replay refused, nothing created: the confirmed preview no longer "
+        "matches what the server computes now (`replay_preview_stale`, with "
+        "the current `preview_digest`), or the current preview is a refusal "
+        "(`replay_refused`, with its `codes`). Read the preview again.",
+        {
+            "detail": {
+                "error_code": "replay_preview_stale",
+                "preview_digest": "sha256:" + "0" * 64,
+            }
+        },
+    )
+}
+
 RESP_409_SNAPSHOT_IMMUTABLE: ErrorResponses = {
     409: _json_response(
         "This launch already has an execution snapshot with a different "

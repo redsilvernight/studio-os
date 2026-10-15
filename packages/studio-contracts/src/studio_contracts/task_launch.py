@@ -21,6 +21,7 @@ from pydantic import Field, StringConstraints
 from studio_contracts.auth import MachineStatus
 from studio_contracts.bootstrap import HarnessId
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
+from studio_contracts.task_launch_replay import TaskLaunchReplayBasis, TaskLaunchReplayConfirmation
 from studio_contracts.tasks import TaskStatus
 
 LAUNCH_DEFAULT_TTL_SECONDS = 900
@@ -216,6 +217,7 @@ class TaskLaunchRetry(IdempotentCreate):
     expires_in_seconds: int = Field(
         default=LAUNCH_DEFAULT_TTL_SECONDS, ge=60, le=LAUNCH_MAX_TTL_SECONDS
     )
+    replay: TaskLaunchReplayConfirmation | None = None
 
 
 class TaskLaunchView(TaskLaunch):
@@ -229,6 +231,7 @@ class TaskLaunchView(TaskLaunch):
     attempt: int = 1
     retry_of_launch_id: UUID | None = None
     recovery: TaskLaunchRecovery | None = None
+    replay_basis: TaskLaunchReplayBasis | None = None
 
 
 class TaskLaunchMachineReport(ContractModel):

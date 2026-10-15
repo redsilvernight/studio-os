@@ -515,7 +515,7 @@ export interface paths {
         put?: never;
         /**
          * Retry Task Launch
-         * @description Explicit recovery (P02): retry a terminal launch as a new attempt (`attempt` + 1, `retry_of_launch_id` = this launch) on the same task, machine, harness and agent; the previous attempt is never rewritten. A non-terminal launch is `409 launch_not_terminal`. One retry per attempt: a second or concurrent retry returns the attempt the first one created. Only the requester (or an admin), with the target machine's aptitude re-checked like a creation. Accepts `Idempotency-Key`.
+         * @description Explicit recovery (P02): retry a terminal launch as a new attempt (`attempt` + 1, `retry_of_launch_id` = this launch) on the same task, machine, harness and agent; the previous attempt is never rewritten. A non-terminal launch is `409 launch_not_terminal`. One retry per attempt: a second or concurrent retry returns the attempt the first one created. Only the requester (or an admin), with the target machine's aptitude re-checked like a creation. Accepts `Idempotency-Key`. Optional `replay` (P04): confirms a replay preview; the server recomputes it and refuses a stale or refused one, then records the accepted basis as `replay_basis`.
          */
         post: operations["retry_task_launch_api_v1_task_launches__launch_id__retry_post"];
         delete?: never;
@@ -582,6 +582,26 @@ export interface paths {
          * @description The target machine records the immutable execution snapshot of this launch attempt: references and digests only, never a prompt, a file content, an absolute path or a secret. A refused body is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, never echoing the value; nothing is stored. `Idempotency-Key` is not used: the route is idempotent by content — replaying the same payload returns the recorded snapshot; a different payload for the same launch is `409 execution_snapshot_immutable`. Only the launch's target machine, with its durable credential.
          */
         post: operations["submit_task_launch_snapshot_api_v1_task_launches__launch_id__snapshot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/task-launches/{launch_id}/replay-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Launch Replay Preview
+         * @description Read-only replay preview (P04): compares the attempt's execution snapshot with what a retry would use now (harness, Library versions, runtime), re-checks the caller's rights and the target machine, and lists closed refusal/limitation codes. Creates nothing. Confirm it through `POST /task-launches/{id}/retry` with `replay`.
+         */
+        get: operations["get_task_launch_replay_preview_api_v1_task_launches__launch_id__replay_preview_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5771,6 +5791,56 @@ export interface components {
             provenance?: components["schemas"]["WriteProvenance"];
         };
         /**
+         * ReplayChange
+         * @enum {string}
+         */
+        ReplayChange: "unchanged" | "changed" | "added" | "removed" | "unavailable";
+        /**
+         * ReplayDifference
+         * @description One compared element. `recorded` / `current` are short references
+         *     (`v3 sha256:…`, a harness id, a runtime key), never content.
+         */
+        ReplayDifference: {
+            subject_kind: components["schemas"]["ReplaySubjectKind"];
+            role?: components["schemas"]["SnapshotResourceRole"] | null;
+            /** Stable Key */
+            stable_key: string;
+            /** Recorded */
+            recorded?: string | null;
+            /** Current */
+            current?: string | null;
+            change: components["schemas"]["ReplayChange"];
+        };
+        /** ReplayLimitation */
+        ReplayLimitation: {
+            code: components["schemas"]["ReplayLimitationCode"];
+            severity: components["schemas"]["ReplaySeverity"];
+            /** Subject */
+            subject?: string | null;
+        };
+        /**
+         * ReplayLimitationCode
+         * @description Closed vocabulary. Refusals block the replay; limitations must be
+         *     accepted with the preview.
+         * @enum {string}
+         */
+        ReplayLimitationCode: "launch_not_terminal" | "already_retried" | "snapshot_missing" | "snapshot_capture_failed" | "not_authorized" | "target_not_admissible" | "agent_unresolvable" | "resolution_unrecorded" | "library_version_unavailable" | "source_worktree_dirty" | "source_git_unrecorded" | "git_state_not_pinned" | "profile_rechecked_on_machine" | "output_not_reproducible";
+        /**
+         * ReplaySeverity
+         * @enum {string}
+         */
+        ReplaySeverity: "refusal" | "limitation";
+        /**
+         * ReplaySubjectKind
+         * @enum {string}
+         */
+        ReplaySubjectKind: "harness" | "resource" | "runtime";
+        /**
+         * ReplayVerdict
+         * @enum {string}
+         */
+        ReplayVerdict: "ready" | "limited" | "refused";
+        /**
          * ReportFreshness
          * @description `fresh`: reported within the offline threshold. `stale`: older than
          *     that, shown for information only. `never_reported`: no report at all.
@@ -7842,6 +7912,67 @@ export interface components {
          */
         TaskLaunchRecoveryState: "ok" | "stale" | "offline_wip" | "failed";
         /**
+         * TaskLaunchReplayBasis
+         * @description Recorded on the attempt a replay created (additive on the view):
+         *     which snapshot it replays and which substitutions were accepted.
+         */
+        TaskLaunchReplayBasis: {
+            /**
+             * Source Launch Id
+             * Format: uuid
+             */
+            source_launch_id: string;
+            /** Snapshot Content Hash */
+            snapshot_content_hash: string;
+            /** Preview Digest */
+            preview_digest: string;
+            verdict: components["schemas"]["ReplayVerdict"];
+            /** Substitutions */
+            substitutions?: components["schemas"]["ReplayDifference"][];
+            /** Limitation Codes */
+            limitation_codes?: components["schemas"]["ReplayLimitationCode"][];
+        };
+        /**
+         * TaskLaunchReplayConfirmation
+         * @description Optional part of a retry body: the requester accepts this preview of
+         *     this snapshot, limitations and substitutions included.
+         */
+        TaskLaunchReplayConfirmation: {
+            /** Snapshot Content Hash */
+            snapshot_content_hash: string;
+            /** Preview Digest */
+            preview_digest: string;
+        };
+        /**
+         * TaskLaunchReplayPreview
+         * @description Read model of `GET /task-launches/{id}/replay-preview`. `preview_digest`
+         *     covers every field except itself and `generated_at`: the same sources
+         *     give the same digest, and a retry confirming another digest is stale.
+         */
+        TaskLaunchReplayPreview: {
+            /**
+             * Source Launch Id
+             * Format: uuid
+             */
+            source_launch_id: string;
+            /** Snapshot Id */
+            snapshot_id?: string | null;
+            /** Snapshot Content Hash */
+            snapshot_content_hash?: string | null;
+            verdict: components["schemas"]["ReplayVerdict"];
+            /** Differences */
+            differences?: components["schemas"]["ReplayDifference"][];
+            /** Limitations */
+            limitations?: components["schemas"]["ReplayLimitation"][];
+            /** Preview Digest */
+            preview_digest: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+        };
+        /**
          * TaskLaunchRetry
          * @description Explicit recovery input (P02): retry a terminal attempt as a new one.
          *     Only `expires_in_seconds` is settable — task, machine, harness and agent
@@ -7854,6 +7985,7 @@ export interface components {
              * @default 900
              */
             expires_in_seconds: number;
+            replay?: components["schemas"]["TaskLaunchReplayConfirmation"] | null;
         };
         /**
          * TaskLaunchStatus
@@ -7934,6 +8066,7 @@ export interface components {
             /** Retry Of Launch Id */
             retry_of_launch_id?: string | null;
             recovery?: components["schemas"]["TaskLaunchRecovery"] | null;
+            replay_basis?: components["schemas"]["TaskLaunchReplayBasis"] | null;
         };
         /**
          * TaskPlanItem
@@ -11225,7 +11358,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. Replay refused, nothing created: the confirmed preview no longer matches what the server computes now (`replay_preview_stale`, with the current `preview_digest`), or the current preview is a refusal (`replay_refused`, with its `codes`). Read the preview again. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11611,6 +11744,83 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_task_launch_replay_preview_api_v1_task_launches__launch_id__replay_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunchReplayPreview"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

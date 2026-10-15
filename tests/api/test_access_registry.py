@@ -141,6 +141,9 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("GET", "/api/v1/task-launches/{launch_id}/snapshot"): (
         Probe("/api/v1/task-launches/{launch}/snapshot"),
     ),
+    ("GET", "/api/v1/task-launches/{launch_id}/replay-preview"): (
+        Probe("/api/v1/task-launches/{launch}/replay-preview"),
+    ),
     ("POST", "/api/v1/tasks/{task_id}/release"): (Probe("/api/v1/tasks/{task}/release"),),
     ("GET", "/api/v1/sessions"): (Probe("/api/v1/sessions?task_id={task}"),),
     ("POST", "/api/v1/sessions"): (
