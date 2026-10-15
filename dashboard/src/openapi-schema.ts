@@ -455,7 +455,7 @@ export interface paths {
         put?: never;
         /**
          * Create Task Launch
-         * @description Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.
+         * @description Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Optional `profile_key`: the work profile the agent runs under, named against the reference profiles. It needs `agent_stable_key`, and the server pins it (`profile`: stable key, contract version, content digest) after resolving that agent — a profiled launch only targets a machine whose latest capabilities report `launch_profiles: true`, and an unprofiled launch simply omits `profile`. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.
          */
         post: operations["create_task_launch_api_v1_projects__project_id__task_launches_post"];
         delete?: never;
@@ -515,7 +515,7 @@ export interface paths {
         put?: never;
         /**
          * Retry Task Launch
-         * @description Explicit recovery (P02): retry a terminal launch as a new attempt (`attempt` + 1, `retry_of_launch_id` = this launch) on the same task, machine, harness and agent; the previous attempt is never rewritten. A non-terminal launch is `409 launch_not_terminal`. One retry per attempt: a second or concurrent retry returns the attempt the first one created. Only the requester (or an admin), with the target machine's aptitude re-checked like a creation. Accepts `Idempotency-Key`. Optional `replay` (P04): confirms a replay preview; the server recomputes it and refuses a stale or refused one, then records the accepted basis as `replay_basis`.
+         * @description Explicit recovery (P02): retry a terminal launch as a new attempt (`attempt` + 1, `retry_of_launch_id` = this launch) on the same task, machine, harness and agent; the previous attempt is never rewritten. A non-terminal launch is `409 launch_not_terminal`. One retry per attempt: a second or concurrent retry returns the attempt the first one created. Only the requester (or an admin), with the target machine's aptitude re-checked like a creation — a profiled attempt therefore inherits its `profile_key` and recomputes its `profile` pin from the Library as it stands now. Accepts `Idempotency-Key`. Optional `replay` (P04): confirms a replay preview; the server recomputes it and refuses a stale or refused one, then records the accepted basis as `replay_basis`.
          */
         post: operations["retry_task_launch_api_v1_task_launches__launch_id__retry_post"];
         delete?: never;
@@ -4725,6 +4725,21 @@ export interface components {
          */
         LateUsagePolicy: "hold_reservation" | "release";
         /**
+         * LaunchProfilePin
+         * @description What a launch was previewed/admitted against (DEC-0198, additive): the
+         *     profile's stable key, contract version and content digest. The machine
+         *     recomputes it when the run starts; any difference refuses the run with
+         *     `profile_version_changed` instead of executing a profile nobody saw.
+         */
+        LaunchProfilePin: {
+            /** Stable Key */
+            stable_key: string;
+            /** Contract Version */
+            contract_version: number;
+            /** Digest */
+            digest: string;
+        };
+        /**
          * LibraryActivate
          * @description Explicit activation: moves `active_version`
          *     only. `expected_resource_version` is the optimistic-concurrency guard
@@ -5063,6 +5078,8 @@ export interface components {
             max_launches: number;
             /** Bootstrap */
             bootstrap?: components["schemas"]["ProjectBootstrapStatus"][] | null;
+            /** Launch Profiles */
+            launch_profiles?: boolean | null;
         };
         /**
          * MachineCreate
@@ -7700,6 +7717,11 @@ export interface components {
          *     `ALLOWED_TRANSITIONS`, each carrying `expected_version`. `session_id` is
          *     set by the machine once the work session exists. `requested_by_user_id`
          *     is the owner-or-granted requester (AIB-J), fixed at creation.
+         *
+         *     `profile` (additive) is the work-profile pin computed by the
+         *     server at creation. It is omitted from the serialized form when absent, so
+         *     an unprofiled launch reads exactly as before for an N-1 daemon; a profiled
+         *     launch only targets a machine that reported `launch_profiles`.
          */
         TaskLaunch: {
             /**
@@ -7758,6 +7780,7 @@ export interface components {
             expires_at: string;
             /** Finished At */
             finished_at?: string | null;
+            profile?: components["schemas"]["LaunchProfilePin"] | null;
         };
         /**
          * TaskLaunchCancel
@@ -7792,6 +7815,8 @@ export interface components {
             harness_id: string;
             /** Agent Stable Key */
             agent_stable_key?: string | null;
+            /** Profile Key */
+            profile_key?: string | null;
             /**
              * Expires In Seconds
              * @default 900
@@ -8057,6 +8082,7 @@ export interface components {
             expires_at: string;
             /** Finished At */
             finished_at?: string | null;
+            profile?: components["schemas"]["LaunchProfilePin"] | null;
             protocol: components["schemas"]["TaskLaunchProtocol"];
             /**
              * Attempt
@@ -11084,7 +11110,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. Target machine not able to run a work profile, nothing stored: its latest capabilities report does not carry `launch_profiles: true` (`profile_unsupported_by_machine`) — only a machine whose daemon enforces profiles can admit a profiled launch. Drop `profile_key` to launch unprofiled on this machine. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11100,13 +11126,21 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Work profile request rejected, nothing stored: `profile_key` profiles one agent, so it needs `agent_stable_key` (`profile_requires_agent`), and it must name a reference profile the server can materialize (`unknown_profile`, echoing the refused `profile_key`). Both refusals describe the caller's own payload. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "unknown_profile",
+                     *         "profile_key": "coding"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };
@@ -11358,7 +11392,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. Replay refused, nothing created: the confirmed preview no longer matches what the server computes now (`replay_preview_stale`, with the current `preview_digest`), or the current preview is a refusal (`replay_refused`, with its `codes`). Read the preview again. */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Admission refused by the project's approved `enforce` budget, nothing stored: the launch's reservation does not fit (`budget_refused`, `reason` in `budget_cost_exhausted`, `budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee is `admission_only`: actual usage is reported after the run. Replay refused, nothing created: the confirmed preview no longer matches what the server computes now (`replay_preview_stale`, with the current `preview_digest`), or the current preview is a refusal (`replay_refused`, with its `codes`). Read the preview again. Target machine not able to run a work profile, nothing stored: its latest capabilities report does not carry `launch_profiles: true` (`profile_unsupported_by_machine`) — only a machine whose daemon enforces profiles can admit a profiled launch. Drop `profile_key` to launch unprofiled on this machine. */
             409: {
                 headers: {
                     [name: string]: unknown;
