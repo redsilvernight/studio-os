@@ -314,6 +314,33 @@ RESP_409_BUDGET_APPROVAL: ErrorResponses = {
     )
 }
 
+RESP_409_PROFILE_UNSUPPORTED: ErrorResponses = {
+    409: _json_response(
+        "Target machine not able to run a work profile, nothing stored: its "
+        "latest capabilities report does not carry `launch_profiles: true` "
+        "(`profile_unsupported_by_machine`) — only a machine whose daemon "
+        "enforces profiles can admit a profiled launch. Drop `profile_key` "
+        "to launch unprofiled on this machine.",
+        {"detail": {"error_code": "profile_unsupported_by_machine"}},
+    )
+}
+
+RESP_422_LAUNCH_PROFILE: ErrorResponses = {
+    422: _json_response(
+        "Work profile request rejected, nothing stored: "
+        "`profile_key` profiles one agent, so it needs `agent_stable_key` "
+        "(`profile_requires_agent`), and it must name a reference profile "
+        "the server can materialize (`unknown_profile`, echoing the refused "
+        "`profile_key`). Both refusals describe the caller's own payload.",
+        {
+            "detail": {
+                "error_code": "unknown_profile",
+                "profile_key": "coding",
+            }
+        },
+    )
+}
+
 RESP_409_LIBRARY: ErrorResponses = {
     409: _json_response(
         "Library reference conflict: the `stable_key` is already taken in "

@@ -99,7 +99,10 @@ opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),
 `POST /heartbeats`), `capabilities` (JSONB nullable, rapport
 `MachineCapabilities` rafraichi par chaque heartbeat qui en envoie un —
 harnesses par `harness_id` (`CapabilityToken`), `project_ids` UUID seuls,
-opt-in et occupation ; jamais un chemin ni un secret),
+opt-in et occupation ; `launch_profiles` (nullable, DEC-0198 : la machine
+sait-elle appliquer un pin de profil de travail — `true` seul autorise un
+lancement profile, `false`/`absent` le refuse) ; jamais un chemin ni un
+secret),
 `capabilities_reported_at` (nullable, heure de reception du dernier
 rapport — un rapport stale n'est jamais presente comme courant ;
 l'eligibilite e1963627 s'en sert), + champs communs mutables (contrat
@@ -329,6 +332,14 @@ lie par la machine), `output_excerpt` (borne, expurge par la machine),
 `version` (concurrence optimiste, `409` + version serveur si perime).
 `replay_basis` (JSONB nullable, migration `0034`, DEC-0214) : base de rejeu acceptee
 (`TaskLaunchReplayBasis`) sur la tentative creee par un retry confirme, ecrite une fois.
+`profile_key` (nullable), `profile_contract_version` (nullable) et `profile_digest`
+(nullable, `sha256:` + 64 hex) forment le pin de profil de travail (P04, DEC-0198,
+migration `0035`, additive et reversible) : trois colonnesrequisables cote requetes,
+assemblees en `LaunchProfilePin` par la propriete `TaskLaunchModel.profile`, seule forme que
+`TaskLaunch.profile` lit. Les trois sont nulles ensemble ou renseignees ensemble : un
+lancement sans profil ne les porte pas et la reponse omet alors la cle `profile`. Le pin est
+fige a la creation et jamais reecrit ; un retry herite `profile_key` et recalcule son digest
+depuis la Library du moment.
 
 ## LaunchCredential (AIB P9, migration Alembic `0027`, table `launch_credentials`)
 
