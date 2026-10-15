@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "task_id": "bb335466-469f-4e92-a044-dcd077f54971",
+  "roadmap_step": "P06-ops-evidence",
+  "assembled_at": "2026-10-15T10:36:05.3638578Z",
+  "existing_ticket_ids": [
+    "8592d0fd-a1f6-48ae-bce7-f8b6407c1740",
+    "538ea67b-1cf7-4772-9a3b-89a1eb12fa10",
+    "8fbf67fe-1575-49d0-b14e-2250391eb8a6"
+  ],
+  "readiness": {
+    "local": "isolated restore and automated tests passed",
+    "promotion_approved": false,
+    "public": "preflight passed; CSP, version routing and operational exercises remain qualified in ops-evidence.md"
+  },
+  "recovery": {
+    "schema_version": 1,
+    "task_id": "bb335466-469f-4e92-a044-dcd077f54971",
+    "run_id": "ops-bb335466-7c9e6845",
+    "started_at": "2026-10-15T10:29:13.6617218Z",
+    "checkout_commit": "b8b9d9b6fd1cd1ee409f623f1b3986c5c8781470",
+    "status": "passed",
+    "template_database": "studio_os_ops_bb335466",
+    "projects": [
+      "ops-bb335466-7c9e6845-source",
+      "ops-bb335466-7c9e6845-restore"
+    ],
+    "scripts_sha256": {
+      "restore.sh": "ED55ABCEEB429AA12F866F291D3D17399E2886966586C635678AFFF46C73D36E",
+      "backup.sh": "4883822C6F028FF727A761CDDC5CB31778F87FB97A164597CAEE20C20B90E82D",
+      "dotenv.sh": "682226DC29D93D567B4EF59D3F8B4609683E0ADE807AF30304BADA1C1DDE042D"
+    },
+    "runner_sha256": "649BEC147E012721A98B323114AB56E060D1EDDA0CD3836C621893C8BA4E4D0B",
+    "alembic_revision": "0034",
+    "source_row_counts": {
+      "tasks": 0,
+      "users": 0,
+      "agents": 0,
+      "builds": 0,
+      "events": 0,
+      "machines": 0,
+      "projects": 0,
+      "roadmaps": 0,
+      "runtimes": 0,
+      "decisions": 0,
+      "transfers": 0,
+      "vault_notes": 0,
+      "ai_work_logs": 0,
+      "producer_jobs": 0,
+      "roadmap_steps": 0,
+      "task_launches": 0,
+      "work_sessions": 0,
+      "account_tokens": 0,
+      "refresh_tokens": 0,
+      "roadmap_phases": 0,
+      "alembic_version": 1,
+      "budget_policies": 0,
+      "resource_claims": 0,
+      "idempotency_keys": 0,
+      "runtime_bindings": 0,
+      "vault_note_links": 0,
+      "library_resources": 0,
+      "roadmap_revisions": 0,
+      "launch_credentials": 0,
+      "budget_reservations": 0,
+      "execution_snapshots": 0,
+      "github_integrations": 0,
+      "ops_evidence_marker": 1,
+      "project_memberships": 0,
+      "vault_note_versions": 0,
+      "usage_ledger_entries": 0,
+      "library_project_locks": 0,
+      "machine_launch_grants": 0,
+      "library_resource_links": 0,
+      "roadmap_step_task_links": 0,
+      "library_resource_versions": 0,
+      "roadmap_step_dependencies": 0
+    },
+    "row_counts": {
+      "tasks": 0,
+      "users": 0,
+      "agents": 0,
+      "builds": 0,
+      "events": 0,
+      "machines": 0,
+      "projects": 0,
+      "roadmaps": 0,
+      "runtimes": 0,
+      "decisions": 0,
+      "transfers": 0,
+      "vault_notes": 0,
+      "ai_work_logs": 0,
+      "producer_jobs": 0,
+      "roadmap_steps": 0,
+      "task_launches": 0,
+      "work_sessions": 0,
+      "account_tokens": 0,
+      "refresh_tokens": 0,
+      "roadmap_phases": 0,
+      "alembic_version": 1,
+      "budget_policies": 0,
+      "resource_claims": 0,
+      "idempotency_keys": 0,
+      "runtime_bindings": 0,
+      "vault_note_links": 0,
+      "library_resources": 0,
+      "roadmap_revisions": 0,
+      "launch_credentials": 0,
+      "budget_reservations": 0,
+      "execution_snapshots": 0,
+      "github_integrations": 0,
+      "ops_evidence_marker": 1,
+      "project_memberships": 0,
+      "vault_note_versions": 0,
+      "usage_ledger_entries": 0,
+      "library_project_locks": 0,
+      "machine_launch_grants": 0,
+      "library_resource_links": 0,
+      "roadmap_step_task_links": 0,
+      "library_resource_versions": 0,
+      "roadmap_step_dependencies": 0
+    },
+    "restore_initial_public_tables": 0,
+    "restore_initial_buckets": 0,
+    "source_stopped_before_restore": true,
+    "object_sha256": "163ac3c3bccbfb93ea4259218e063433fd8118502e28e0c2e85a25742dbd6643",
+    "backup_sha256": "D7896E2597839C7FF1554F6DCEEA478C717BCC0C2B711955E0345BBEEECA56AD",
+    "stop_failures": [],
+    "finished_at": "2026-10-15T10:29:37.0014101Z"
+  },
+  "targeted": {
+    "checkout_commit": "dee24f62318d88133e1ba2f2c9c550eb994500d3",
+    "command": "uv run --no-sync pytest tests/api/test_load_basic.py tests/api/test_machines_self_service.py::test_a_user_revokes_its_own_machine tests/mcp/test_auth.py::test_authenticate_rejects_revoked_machine tests/api/test_refresh_tokens.py tests/client/test_launch_e2e_acceptance.py::test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_replay -q --junitxml=output/ops-evidence/targeted.xml",
+    "exit_code": 0,
+    "tests": 21,
+    "passed": 21,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit_duration_seconds": 8.121,
+    "junit_sha256": "1868971F9D46CFB0E5933B60448DDE5B7BF0C690C30514D16C74C6C56CCB0F13",
+    "skips": []
+  },
+  "full": {
+    "checkout_commit": "b8b9d9b6fd1cd1ee409f623f1b3986c5c8781470",
+    "command": "uv run --no-sync pytest -n 6 -q --junitxml=output/ops-evidence/full.xml",
+    "exit_code": 0,
+    "tests": 4073,
+    "passed": 4064,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 9,
+    "junit_duration_seconds": 252.766,
+    "junit_sha256": "063FE5ADE89791376D4005377620ED88FFBF7BE9D89517D828DED19AE213AF49",
+    "skips": [
+      {
+        "name": "test_symlink_escape_refused",
+        "reason": "symlinks not permitted on this machine"
+      },
+      {
+        "name": "test_broken_symlink_in_scope_does_not_crash_search",
+        "reason": "symlinks not permitted on this machine"
+      },
+      {
+        "name": "test_a_symlinked_config_file_is_refused",
+        "reason": "file symlinks unavailable"
+      },
+      {
+        "name": "test_supply_chain_opencode_version",
+        "reason": "OpenCode not available"
+      },
+      {
+        "name": "test_read_does_not_follow_scope_escaping_symlink",
+        "reason": "symlinks not permitted on this platform"
+      },
+      {
+        "name": "test_confine_refuses_symlink_escape",
+        "reason": "symlinks unavailable"
+      },
+      {
+        "name": "test_real_graphify_timings[small]",
+        "reason": "set STUDIO_CODE_GRAPH_PERF=1 to measure real Graphify"
+      },
+      {
+        "name": "test_real_graphify_timings[medium]",
+        "reason": "set STUDIO_CODE_GRAPH_PERF=1 to measure real Graphify"
+      },
+      {
+        "name": "test_real_graphify_timings[large]",
+        "reason": "set STUDIO_CODE_GRAPH_PERF=1 to measure real Graphify"
+      }
+    ]
+  },
+  "public_probes": {
+    "checked_at": "2026-10-15T10:25:56.7564594Z",
+    "probes": [
+      {
+        "url": "https://studio.flosrent.fr/healthz",
+        "status": 200,
+        "content_type": [
+          "application/json"
+        ],
+        "csp": null,
+        "report_only": [
+          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://storage.flosrent.fr ; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        ],
+        "hsts": [
+          "max-age=31536000"
+        ],
+        "version_json": null
+      },
+      {
+        "url": "https://studio.flosrent.fr/version",
+        "status": 200,
+        "content_type": [
+          "text/html"
+        ],
+        "csp": null,
+        "report_only": [
+          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://storage.flosrent.fr ; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        ],
+        "hsts": [
+          "max-age=31536000"
+        ],
+        "version_json": null
+      },
+      {
+        "url": "https://studio.flosrent.fr/",
+        "status": 200,
+        "content_type": [
+          "text/html"
+        ],
+        "csp": null,
+        "report_only": [
+          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://storage.flosrent.fr ; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        ],
+        "hsts": [
+          "max-age=31536000"
+        ],
+        "version_json": null
+      },
+      {
+        "url": "https://storage.flosrent.fr/minio/health/live",
+        "status": 200,
+        "content_type": null,
+        "csp": null,
+        "report_only": null,
+        "hsts": [
+          "max-age=31536000",
+          "max-age=31536000; includeSubDomains"
+        ],
+        "version_json": null
+      }
+    ]
+  },
+  "production_gate": {
+    "timestamp": "2026-10-15T10:27:25.96Z",
+    "ok": true,
+    "checks": [
+      {
+        "name": "repo.dev_preflight",
+        "status": "pass",
+        "details": {
+          "status": "aligned",
+          "promotable": true,
+          "remote_verified": true,
+          "branch": "dev",
+          "remote_ref": "origin/dev",
+          "local_sha": "b8b9d9b6fd1cd1ee409f623f1b3986c5c8781470",
+          "remote_sha": "b8b9d9b6fd1cd1ee409f623f1b3986c5c8781470",
+          "head_sha": "dee24f62318d88133e1ba2f2c9c550eb994500d3",
+          "left": 0,
+          "right": 0,
+          "fetch": "ok",
+          "message": "dev == origin/dev at b8b9d9b6fd1c"
+        }
+      },
+      {
+        "name": "instance.health",
+        "status": "pass",
+        "details": {
+          "url": "https://studio.flosrent.fr/healthz",
+          "status": "ok"
+        }
+      },
+      {
+        "name": "instance.openapi",
+        "status": "pass",
+        "details": {
+          "url": "https://studio.flosrent.fr/openapi.json",
+          "registration_routes": [
+            "/api/v1/auth/register",
+            "/api/v1/auth/resend-verification",
+            "/api/v1/auth/verify-email"
+          ]
+        }
+      },
+      {
+        "name": "release.beta",
+        "status": "pass",
+        "details": {
+          "tag": "desktop-dev",
+          "version": "0.6.0-dev.221",
+          "channel": "beta",
+          "api_origin": "http://127.0.0.1:8765",
+          "installer": "StudiOS-Setup-dev-0.6.0-dev.221.exe",
+          "size_bytes": 21086068,
+          "sha256": "5e4de81a66e9cd2d8787c7515cf745a717c5c2f3b6fa96df6fd0a89092a1ee62",
+          "release_url": "https://github.com/redsilvernight/studio-os/releases/tag/desktop-dev"
+        }
+      },
+      {
+        "name": "release.stable",
+        "status": "pass",
+        "details": {
+          "tag": "desktop-prod",
+          "version": "0.6.0-prod.201",
+          "channel": "stable",
+          "api_origin": "https://studio.flosrent.fr",
+          "installer": "StudiOS-Setup-prod-0.6.0-prod.201.exe",
+          "size_bytes": 19565811,
+          "sha256": "c38ba9b01ec70e8e3acb959f5581a9da7ce8decea152b09317328041b16de687",
+          "release_url": "https://github.com/redsilvernight/studio-os/releases/tag/desktop-prod"
+        }
+      }
+    ]
+  },
+  "deploy_ref": {
+    "desktop_channels": {
+      "url": "https://github.com/redsilvernight/studio-os/actions/runs/38131715318",
+      "conclusion": "success"
+    },
+    "ci": {
+      "url": "https://github.com/redsilvernight/studio-os/actions/runs/38131715312",
+      "conclusion": "success"
+    },
+    "branch": "deploy/ovh-vps",
+    "sha": "354e9fe790d128b1a2992bd62ec60e589358cb2f"
+  },
+  "collector_checks": [
+    "PowerShell parser passed",
+    "OutputRoot outside-checkout refusal passed",
+    "runner SHA-256 matches recovery receipt",
+    "source and restored row-count receipts match"
+  ]
+}
