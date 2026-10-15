@@ -10,6 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import MachineCapabilities, MachineStatus, Role
 from studio_contracts.events import EventCreate, EventType
+from studio_contracts.library import LibraryKind
+from studio_contracts.profiles import (
+    REFERENCE_PROFILES,
+    LaunchProfilePin,
+    pin_profile,
+    profile_elements,
+    reference_work_profile,
+)
 from studio_contracts.task_launch import (
     ALLOWED_TRANSITIONS,
     LAUNCH_POLL_MAX,
@@ -43,6 +51,7 @@ from studio_api.services import budgets as budgets_service
 from studio_api.services import events as events_service
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import launch_grants as grants_service
+from studio_api.services import resolution as resolution_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
@@ -104,6 +113,26 @@ async def _commit_with_event(
     return launch
 
 
+def authorize_profile_request(launch_in: TaskLaunchCreate) -> None:
+    """Shape gate of the optional work profile (DEC-0198): a `profile_key`
+    profiles one specific agent, so it needs that agent, and only a reference
+    profile key names a profile the server knows how to materialize. Both
+    refusals describe the caller's own payload, never a resource, so neither
+    is an oracle. `None` means "no profile asked for"."""
+    if launch_in.profile_key is None:
+        return
+    if launch_in.agent_stable_key is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "profile_requires_agent"},
+        )
+    if launch_in.profile_key not in REFERENCE_PROFILES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "unknown_profile", "profile_key": launch_in.profile_key},
+        )
+
+
 async def authorize_create(
     session: AsyncSession,
     principal: Principal,
@@ -121,6 +150,7 @@ async def authorize_create(
     request (owner, admin or grantee) is AIB-J (`launch_grants`)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "task_launch")
+    authorize_profile_request(launch_in)
     if task.project_id != project_id or launch_in.task_id != task.id:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -161,6 +191,37 @@ async def authorize_create(
             status.HTTP_409_CONFLICT,
             detail={"error_code": "project_not_registered"},
         )
+    if launch_in.profile_key is not None and capabilities.launch_profiles is not True:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "profile_unsupported_by_machine"},
+        )
+
+
+async def resolve_profile_pin(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    launch_in: TaskLaunchCreate,
+) -> LaunchProfilePin | None:
+    """The work-profile pin of a profiled launch (DEC-0198), `None` for an
+    unprofiled one. The profiled agent goes through the server's own P5
+    resolver — same visibility, versioning and runtime precedence as a
+    preview — and the pin carries the reference profile plus the element
+    versions it composes, so the machine recomputes the same digest or
+    refuses the run with `profile_version_changed` instead of executing a
+    profile nobody saw."""
+    if launch_in.profile_key is None or launch_in.agent_stable_key is None:
+        return None
+    profile = reference_work_profile(launch_in.profile_key, launch_in.agent_stable_key)
+    definition = await resolution_service.resolve_full(
+        session,
+        principal,
+        LibraryKind.AGENT_DEFINITION,
+        launch_in.agent_stable_key,
+        project_id,
+    )
+    return pin_profile(profile, profile_elements(definition))
 
 
 async def get_target_machine(session: AsyncSession, machine_id: uuid.UUID) -> MachineModel | None:
@@ -177,8 +238,13 @@ async def create_launch(
     retry_of_launch_id: uuid.UUID | None = None,
     replay_basis: dict[str, Any] | None = None,
 ) -> TaskLaunchModel:
+    """The attempt is created with the work-profile pin of its profile
+    (DEC-0198): a retry inherits `profile_key` and recomputes the pin, so a
+    Library version bump between two attempts shows up as a different digest
+    instead of silently running the first attempt's profile."""
     now = datetime.now(UTC)
     admission = await budgets_service.decide_admission(session, project_id, now)
+    pin = await resolve_profile_pin(session, principal, project_id, launch_in)
     launch = TaskLaunchModel(
         project_id=project_id,
         task_id=launch_in.task_id,
@@ -192,6 +258,9 @@ async def create_launch(
         attempt=attempt,
         retry_of_launch_id=retry_of_launch_id,
         replay_basis=replay_basis,
+        profile_key=launch_in.profile_key,
+        profile_contract_version=None if pin is None else pin.contract_version,
+        profile_digest=None if pin is None else pin.digest,
     )
     session.add(launch)
     await session.flush()
@@ -713,6 +782,10 @@ async def retry_launch(
     is `409 launch_not_terminal`: it is the target machine's to finish, and
     an `offline_wip` attempt is cancelled first, never doubled.
 
+    The work profile is inherited, not copied: `profile_key` travels to the
+    new attempt and its pin is recomputed from the Library as it stands now
+    (DEC-0198).
+
     One retry per attempt: the attempt row is locked while deciding and a
     second retry (replayed, concurrent or with another key) resolves to the
     attempt the first one created. Same requester rule as cancel; the target
@@ -756,6 +829,7 @@ async def retry_launch(
         machine_id=launch.machine_id,
         harness_id=launch.harness_id,
         agent_stable_key=launch.agent_stable_key,
+        profile_key=launch.profile_key,
         expires_in_seconds=retry.expires_in_seconds,
     )
     await authorize_create(
