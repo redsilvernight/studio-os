@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, SerializerFunctionWrapHandler, StringConstraints, model_serializer
+from pydantic import Field, StringConstraints
 
 from studio_contracts.auth import MachineStatus
 from studio_contracts.bootstrap import HarnessId
@@ -147,14 +147,7 @@ class TaskLaunch(VersionedModel):
     output_excerpt: str | None = Field(default=None, max_length=LAUNCH_MAX_OUTPUT_CHARS)
     expires_at: datetime
     finished_at: datetime | None = None
-    profile: LaunchProfilePin | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_absent_profile(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        data: dict[str, Any] = handler(self)
-        if data.get("profile") is None:
-            data.pop("profile", None)
-        return data
+    profile: LaunchProfilePin | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class TaskLaunchProtocolStatus(StrEnum):
