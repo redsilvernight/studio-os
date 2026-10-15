@@ -4726,7 +4726,7 @@ export interface components {
         LateUsagePolicy: "hold_reservation" | "release";
         /**
          * LaunchProfilePin
-         * @description What a launch was previewed/admitted against (DEC-0198, additive): the
+         * @description What a launch was previewed/admitted against (additive): the
          *     profile's stable key, contract version and content digest. The machine
          *     recomputes it when the run starts; any difference refuses the run with
          *     `profile_version_changed` instead of executing a profile nobody saw.

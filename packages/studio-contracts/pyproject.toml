@@ -3,7 +3,7 @@ name = "studio-contracts"
 version = "0.1.0"
 description = "Shared Pydantic contracts for Studio OS (API, Event, Auth/Sync, Data Model) — imported by Bloc A and Bloc B, no FastAPI/SQLAlchemy dependency"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7"]
+dependencies = ["pydantic>=2.12"]
 
 [build-system]
 requires = ["hatchling"]

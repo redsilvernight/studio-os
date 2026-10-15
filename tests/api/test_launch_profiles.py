@@ -354,6 +354,40 @@ async def test_pull_carries_the_profile_pin(
     )
 
 
+async def test_pull_withholds_a_profiled_launch_once_the_machine_stops_advertising(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+) -> None:
+    principal = await _principal(db_session, machine)
+    await _agent_definition(db_session, principal)
+    project_id, task_id, machine_id = await _target(
+        client, auth_headers, machine, launch_profiles=True
+    )
+    profiled = await _launch(
+        client,
+        auth_headers,
+        project_id,
+        task_id,
+        machine_id,
+        agent_stable_key=AGENT_KEY,
+        profile_key="coding",
+    )
+    assert profiled.status_code == 201, profiled.text
+    plain = await _launch(client, auth_headers, project_id, task_id, machine_id)
+    assert plain.status_code == 201, plain.text
+
+    await _heartbeat(client, auth_headers, machine_id, _caps(project_id))
+    pull = await client.get(
+        f"/api/v1/machines/{machine_id}/task-launches/pending", headers=auth_headers
+    )
+    assert pull.status_code == 200, pull.text
+    ids = {item["id"] for item in pull.json()["items"]}
+    assert plain.json()["id"] in ids
+    assert profiled.json()["id"] not in ids
+
+
 async def test_retry_inherits_the_profile_and_recomputes_its_pin(
     client: AsyncClient,
     auth_headers: dict[str, str],

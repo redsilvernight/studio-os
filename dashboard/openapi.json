@@ -20517,7 +20517,7 @@
      "digest"
     ],
     "title": "LaunchProfilePin",
-    "description": "What a launch was previewed/admitted against (DEC-0198, additive): the\nprofile's stable key, contract version and content digest. The machine\nrecomputes it when the run starts; any difference refuses the run with\n`profile_version_changed` instead of executing a profile nobody saw."
+    "description": "What a launch was previewed/admitted against (additive): the\nprofile's stable key, contract version and content digest. The machine\nrecomputes it when the run starts; any difference refuses the run with\n`profile_version_changed` instead of executing a profile nobody saw."
    },
    "LibraryActivate": {
     "properties": {

@@ -547,7 +547,9 @@ async def pull_pending(
 ) -> TaskLaunchPull:
     """The target machine pulls its non-terminal launches, oldest first,
     bounded. Only that machine may pull — a pull changes nothing, so it
-    emits no event (lazy server expiry aside)."""
+    emits no event (lazy server expiry aside). A profiled launch is withheld
+    from a machine whose latest report no longer advertises
+    `launch_profiles`: an earlier daemon would reject the whole page."""
     if machine_id != principal.machine.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -569,8 +571,17 @@ async def pull_pending(
     launches = list(result.scalars().all())
     for launch in launches:
         await expire_launch_if_overdue(session, principal, launch)
+    capabilities = (
+        None
+        if machine.capabilities is None
+        else heartbeats_service.parse_stored_capabilities(machine.capabilities)
+    )
+    profiles_supported = capabilities is not None and capabilities.launch_profiles is True
     live = [
-        launch for launch in launches if launch.status not in {s.value for s in TERMINAL_STATUSES}
+        launch
+        for launch in launches
+        if launch.status not in {s.value for s in TERMINAL_STATUSES}
+        and (profiles_supported or launch.profile_key is None)
     ]
     items = [TaskLaunch.model_validate(launch) for launch in live[:LAUNCH_POLL_MAX]]
     return TaskLaunchPull(items=items)
