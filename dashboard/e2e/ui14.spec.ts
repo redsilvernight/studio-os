@@ -410,6 +410,8 @@ test.describe("UI-14 clavier et focus", () => {
     await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
     await expect(page.locator("#ds-toast-region .ds-toast")).toContainText("créée");
+    // Le rechargement de la liste est asynchrone : il rend le focus au déclencheur.
+    await expect(page.locator("#task-new")).toBeFocused();
 
     await page.locator(".ds-skip-link").focus();
     await page.keyboard.press("Enter");
