@@ -411,6 +411,7 @@ export async function renderProjectDetail(
       projectName: project.name,
       roadmapId,
       canManageLifecycle,
+      client: ctx.client,
     });
     return;
   }

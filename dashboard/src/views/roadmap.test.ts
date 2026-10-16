@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
 import { ApiError, parseErrorBody } from "../api";
+import type { StudioClient } from "../api";
 import { isRoadmapManagerRole, roadmapCurrentStepHtml, roadmapDonePhasesHtml, roadmapExecutionHtml, roadmapFullyDone, roadmapLifecycleHtml, roadmapPhaseStripHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapProposalsHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
 import type { Roadmap, RoadmapDataSource, RoadmapPendingProposal } from "../roadmapTypes";
 
@@ -445,5 +446,89 @@ describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
     (root.querySelector('[data-mode="plan"]') as HTMLButtonElement).click();
     expect(root.querySelector('[data-mode="plan"]')?.getAttribute("aria-selected")).toBe("true");
     expect(root.querySelector(".roadmap-timeline")).not.toBeNull();
+  });
+});
+
+describe("Roadmap — panneau « Lancer un lot »", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  function fakeClient(): StudioClient {
+    return { GET: vi.fn(), POST: vi.fn() } as unknown as StudioClient;
+  }
+
+  async function renderWith(
+    projectId: string,
+    extra: { client?: StudioClient; canManageLifecycle?: boolean } = {},
+  ): Promise<HTMLElement> {
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, {
+      dataSource: createFixtureRoadmapDataSource(),
+      projectId,
+      projectName: "Projet test",
+      ...extra,
+    });
+    return root;
+  }
+
+  it("monte le panneau après l'étape courante sur une roadmap active", async () => {
+    const root = await renderWith(roadmapFixtureProjectIds.active, { client: fakeClient() });
+    const slot = root.querySelector("[data-admission-slot]");
+    expect(slot).not.toBeNull();
+    expect(root.querySelector("[data-admission-panel]")).not.toBeNull();
+    const current = root.querySelector("[data-current-step]");
+    expect(current?.nextElementSibling).toBe(slot);
+  });
+
+  it("n'affiche le panneau ni hors exécution, ni sans client, ni sans droit de gestion", async () => {
+    const withoutClient = await renderWith(roadmapFixtureProjectIds.active);
+    expect(withoutClient.querySelector("[data-admission-slot]")).toBeNull();
+
+    const withoutRight = await renderWith(roadmapFixtureProjectIds.active, { client: fakeClient(), canManageLifecycle: false });
+    expect(withoutRight.querySelector("[data-admission-slot]")).toBeNull();
+
+    const archived = await renderWith(roadmapFixtureProjectIds.completed, { client: fakeClient() });
+    expect(archived.querySelector("[data-admission-slot]")).toBeNull();
+  });
+
+  it("retire le panneau quand on passe en lecture Plan", async () => {
+    const root = await renderWith(roadmapFixtureProjectIds.active, { client: fakeClient() });
+    (root.querySelector('[data-mode="plan"]') as HTMLButtonElement).click();
+    expect(root.querySelector('[data-mode="plan"]')?.getAttribute("aria-selected")).toBe("true");
+    expect(root.querySelector("[data-admission-slot]")).toBeNull();
+  });
+
+  it("conserve l'état du panneau d'un paint à l'autre", async () => {
+    const client = {
+      GET: vi.fn().mockResolvedValue({
+        data: {
+          roadmap_id: "r1",
+          project_id: "p1",
+          roadmap_status: "active",
+          roadmap_version: 1,
+          harness_id: null,
+          launchable: [],
+          excluded: [],
+          machines: [{ machine_id: "m1", display_name: "poste-1", harnesses: [{ harness_id: "claude-code", detected: true }] }],
+          plan_digest: "digest-admission",
+          evaluated_at: new Date().toISOString(),
+        },
+        response: { ok: true, status: 200 },
+      }),
+      POST: vi.fn(),
+    } as unknown as StudioClient;
+    const root = await renderWith(roadmapFixtureProjectIds.active, { client });
+    const slot = root.querySelector("[data-admission-slot]");
+    (root.querySelector("[data-admission-preview]") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(root.querySelector("[data-admission-harness] option[value='claude-code']")).not.toBeNull());
+
+    // Un changement d'étape repaint la roadmap : le panneau garde son dry-run.
+    (root.querySelector<HTMLButtonElement>("[data-step-key]") as HTMLButtonElement).click();
+
+    expect(root.querySelector("[data-admission-slot]")).toBe(slot);
+    expect(root.querySelector("[data-admission-harness] option[value='claude-code']")).not.toBeNull();
+    // Un dry-run à l'ouverture + celui du clic ; aucun au repaint.
+    expect(client.GET).toHaveBeenCalledTimes(2);
   });
 });
