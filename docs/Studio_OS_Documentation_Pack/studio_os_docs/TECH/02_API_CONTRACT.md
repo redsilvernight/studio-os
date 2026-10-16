@@ -978,6 +978,26 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   phase, 300 etapes, 20 dependances et 20 taches prevues par etape, 500 taches
   prevues au total, metadonnees plates (20 cles, scalaires JSON, chaines 500).
 
+### Roadmap admission dry-run (Mission Control P05, additif, lecture seule)
+Contrat fige (`AdmissionDryRun` +
+`AdmissionSnapshot`/`compose_dry_run` dans
+`packages/studio-contracts/.../admission.py` et
+`services/api/.../services/admission_rules.py`).
+- `GET /roadmaps/{roadmap_id}/admission/dry-run` (`?harness_id=`, optionnel) ->
+  `AdmissionDryRun` : lecture pure, aucune ecriture, aucun `TaskLaunch` cree.
+  Liste les Tasks liees lancables (`launchable`, avec leurs `machine_ids`
+  eligibles) et les autres (`excluded`, avec la liste fermee `reasons`),
+  `steps_without_tasks` (etape sans Task liee), `machines` (eliguibilite par
+  projet), `plan_digest` (stable : meme etat serveur = meme digest, seul
+  `evaluated_at` bouge).
+- `reasons` : `roadmap_not_active`, `dependency_pending`, `task_data_missing`,
+  `task_completed`, `task_blocked`, `review_pending`, `launch_active`,
+  `task_claimed_elsewhere`, `claims_held_elsewhere`, `no_eligible_machine`.
+- Lecture ouverte a toute machine authentifiee ayant acces au projet (y compris
+  `readonly`, DEC-0103) ; `404 not_found` (roadmap inconnue), `403 forbidden`
+  (projet inaccessible). Le `harness_id` filtre les machines comme
+  `GET /tasks/{id}/eligible-machines`.
+
 ### Project initialization (Roadmaps P5, additif, DEC-0087) — contrat fige, routes implementees
 Contrat `studio.initialization/v1` (`ProjectInitializationPlan` +
 `ProjectInitializationRequest` dans `packages/studio-contracts/.../initialization.py`).

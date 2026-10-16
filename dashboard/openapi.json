@@ -15076,6 +15076,106 @@
     }
    }
   },
+  "/api/v1/roadmaps/{roadmap_id}/admission/dry-run": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Admission Dry Run",
+    "description": "Read-only admission dry-run of a roadmap's linked Tasks: which ones could be launched now, on which of the caller's machines, and the listed `reasons` every other Task is excluded. A step with no linked task is reported in `steps_without_tasks`. `harness_id` filters the machines to those able to run it (any detected harness when omitted). Creates no `TaskLaunch`, reserves nothing and changes no state: the same server state yields the same lists, reasons and `plan_digest`.",
+    "operationId": "admission_dry_run_api_v1_roadmaps__roadmap_id__admission_dry_run_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "harness_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Harness Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AdmissionDryRun"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/projects/initialization/preview": {
    "post": {
     "tags": [
@@ -16541,6 +16641,187 @@
     },
     "type": "object",
     "title": "ActiveWork"
+   },
+   "AdmissionCandidate": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "step_key": {
+      "type": "string",
+      "title": "Step Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "machine_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Machine Ids"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "step_key",
+     "title",
+     "machine_ids"
+    ],
+    "title": "AdmissionCandidate"
+   },
+   "AdmissionDryRun": {
+    "properties": {
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "roadmap_status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "roadmap_version": {
+      "type": "integer",
+      "title": "Roadmap Version"
+     },
+     "harness_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Id"
+     },
+     "launchable": {
+      "items": {
+       "$ref": "#/components/schemas/AdmissionCandidate"
+      },
+      "type": "array",
+      "title": "Launchable"
+     },
+     "excluded": {
+      "items": {
+       "$ref": "#/components/schemas/AdmissionExclusion"
+      },
+      "type": "array",
+      "title": "Excluded"
+     },
+     "steps_without_tasks": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Steps Without Tasks"
+     },
+     "machines": {
+      "items": {
+       "$ref": "#/components/schemas/MachineEligibility"
+      },
+      "type": "array",
+      "title": "Machines"
+     },
+     "plan_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Digest"
+     },
+     "evaluated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Evaluated At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "roadmap_id",
+     "project_id",
+     "roadmap_status",
+     "roadmap_version",
+     "plan_digest",
+     "evaluated_at"
+    ],
+    "title": "AdmissionDryRun"
+   },
+   "AdmissionExclusion": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "step_key": {
+      "type": "string",
+      "title": "Step Key"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/AdmissionExclusionReason"
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Reasons"
+     },
+     "waiting_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Waiting On"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "step_key",
+     "reasons"
+    ],
+    "title": "AdmissionExclusion"
+   },
+   "AdmissionExclusionReason": {
+    "type": "string",
+    "enum": [
+     "roadmap_not_active",
+     "dependency_pending",
+     "task_data_missing",
+     "task_completed",
+     "task_blocked",
+     "review_pending",
+     "launch_active",
+     "task_claimed_elsewhere",
+     "claims_held_elsewhere",
+     "no_eligible_machine"
+    ],
+    "title": "AdmissionExclusionReason",
+    "description": "Deterministic, listed in this declaration order."
    },
    "Agent": {
     "properties": {
