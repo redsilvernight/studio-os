@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import MachineCapabilities, MachineStatus, Role
 from studio_contracts.events import EventCreate, EventType
@@ -83,16 +83,18 @@ def _launch_event_payload(launch: TaskLaunchModel, previous_status: str) -> dict
     }
 
 
-async def _commit_with_event(
+async def _stage_launch_event(
     session: AsyncSession,
     principal: Principal,
     launch: TaskLaunchModel,
     event_type: EventType,
     previous_status: str,
     actor: tuple[Literal["user", "agent", "system"], uuid.UUID] | None = None,
-) -> TaskLaunchModel:
+) -> EventModel:
+    """Stage the launch's event in the caller's transaction (flush only, no
+    commit), so a unit of work and its audit trail become durable atomically."""
     actor_type, actor_id = actor or await tasks_service.event_actor(session, principal, None)
-    event = await events_service.stage_event(
+    return await events_service.stage_event(
         session,
         EventCreate(
             event_id=uuid.uuid4(),
@@ -106,6 +108,27 @@ async def _commit_with_event(
             payload=_launch_event_payload(launch, previous_status),
         ),
     )
+
+
+async def _commit_with_event(
+    session: AsyncSession,
+    principal: Principal,
+    launch: TaskLaunchModel,
+    event_type: EventType,
+    previous_status: str,
+    actor: tuple[Literal["user", "agent", "system"], uuid.UUID] | None = None,
+    *,
+    event: EventModel | None = None,
+) -> TaskLaunchModel:
+    """Commit the launch together with its event and publish it. `event` lets a
+    caller that already staged the event (`stage_launch`) reuse it instead of
+    staging a second one; otherwise it is staged here. Stays the single commit
+    seam of a launch write, so a crash injected before it leaves neither launch
+    nor reservation behind."""
+    if event is None:
+        event = await _stage_launch_event(
+            session, principal, launch, event_type, previous_status, actor
+        )
     await session.commit()
     await session.refresh(launch)
     await session.refresh(event)
@@ -228,7 +251,7 @@ async def get_target_machine(session: AsyncSession, machine_id: uuid.UUID) -> Ma
     return await session.get(MachineModel, machine_id)
 
 
-async def create_launch(
+async def stage_launch(
     session: AsyncSession,
     principal: Principal,
     project_id: uuid.UUID,
@@ -237,11 +260,22 @@ async def create_launch(
     attempt: int = 1,
     retry_of_launch_id: uuid.UUID | None = None,
     replay_basis: dict[str, Any] | None = None,
-) -> TaskLaunchModel:
-    """The attempt is created with the work-profile pin of its profile
+) -> tuple[TaskLaunchModel, EventModel]:
+    """Budget admission, launch row, reservation and `task_launch.requested`
+    event staged in the caller's transaction — no commit. The task's advisory
+    xact lock (held until commit/rollback) serializes concurrent admissions of
+    the same task, so a batch and a direct creation never both pass the budget
+    or the duplicate check at once. Returns the launch and its staged event;
+    the caller commits, refreshes both and publishes the event.
+
+    The attempt is created with the work-profile pin of its profile
     (DEC-0198): a retry inherits `profile_key` and recomputes the pin, so a
     Library version bump between two attempts shows up as a different digest
     instead of silently running the first attempt's profile."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"task-launch:{launch_in.task_id}"},
+    )
     now = datetime.now(UTC)
     admission = await budgets_service.decide_admission(session, project_id, now)
     pin = await resolve_profile_pin(session, principal, project_id, launch_in)
@@ -266,12 +300,38 @@ async def create_launch(
     await session.flush()
     if admission is not None:
         await budgets_service.record_reservation(session, project_id, launch.id, admission)
+    event = await _stage_launch_event(
+        session, principal, launch, EventType.TASK_LAUNCH_REQUESTED, previous_status=""
+    )
+    return launch, event
+
+
+async def create_launch(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    launch_in: TaskLaunchCreate,
+    *,
+    attempt: int = 1,
+    retry_of_launch_id: uuid.UUID | None = None,
+    replay_basis: dict[str, Any] | None = None,
+) -> TaskLaunchModel:
+    launch, event = await stage_launch(
+        session,
+        principal,
+        project_id,
+        launch_in,
+        attempt=attempt,
+        retry_of_launch_id=retry_of_launch_id,
+        replay_basis=replay_basis,
+    )
     return await _commit_with_event(
         session,
         principal,
         launch,
         EventType.TASK_LAUNCH_REQUESTED,
         previous_status="",
+        event=event,
     )
 
 

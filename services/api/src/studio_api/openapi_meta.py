@@ -288,6 +288,24 @@ RESP_409_BUDGET_REFUSED: ErrorResponses = {
     )
 }
 
+RESP_409_ADMISSION: ErrorResponses = {
+    409: _json_response(
+        "Roadmap admission batch refused, nothing stored: the recomputed plan "
+        "moved since the confirmed dry-run (`admission_plan_changed`, with the "
+        "fresh `plan`) or at least one item is refused (`admission_refused`, "
+        "with every `refusals` entry: `duplicate_item`, `not_launchable` with "
+        "its `exclusion_reasons`, `machine_not_eligible`, or `budget_refused` "
+        "with its `budget`). Re-read the dry-run and retry.",
+        {
+            "detail": {
+                "error_code": "admission_plan_changed",
+                "plan": {"plan_digest": "0" * 64},
+                "refusals": [],
+            }
+        },
+    )
+}
+
 RESP_422_SNAPSHOT_REFUSED: ErrorResponses = {
     422: _json_response(
         "The snapshot body is refused (`execution_snapshot_refused`): a value "

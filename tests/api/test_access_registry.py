@@ -516,6 +516,16 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("GET", "/api/v1/roadmaps/{roadmap_id}/admission/dry-run"): (
         Probe(_RM + "/admission/dry-run"),
     ),
+    ("POST", "/api/v1/roadmaps/{roadmap_id}/admission"): (
+        Probe(
+            _RM + "/admission",
+            {
+                "plan_digest": "0" * 64,
+                "harness_id": "claude-code",
+                "items": [{"task_id": "{task}", "machine_id": "{outsider_machine}"}],
+            },
+        ),
+    ),
 }
 
 
@@ -746,6 +756,8 @@ def _render(value: Any, world: dict[str, str]) -> Any:
         if value.get("$plan"):
             return _plan(world["slug"])  # re-initialize the member's project by slug
         return {k: _render(v, world) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_render(item, world) for item in value]
     if isinstance(value, str):
         return value.format(**world, new_uuid=uuid.uuid4(), now=datetime.now(UTC).isoformat())
     return value

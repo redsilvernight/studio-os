@@ -210,6 +210,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/roadmaps/{roadmap_id}/hydration/preview"): _P,
     ("POST", "/api/v1/roadmaps/{roadmap_id}/hydration/apply"): _P,
     ("GET", "/api/v1/roadmaps/{roadmap_id}/admission/dry-run"): _P,
+    ("POST", "/api/v1/roadmaps/{roadmap_id}/admission"): _P,
 }
 
 
