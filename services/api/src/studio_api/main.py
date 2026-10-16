@@ -12,6 +12,7 @@ from studio_api.middleware import setup_middleware
 from studio_api.observability import configure_logging
 from studio_api.routers import (
     accounts,
+    admission,
     agents,
     ai_integration,
     ai_work,
@@ -303,6 +304,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_integration.router)
     app.include_router(users.router)
     app.include_router(roadmaps.router)
+    app.include_router(admission.router)
     app.include_router(initialization.router)
     app.include_router(vault.router)
 

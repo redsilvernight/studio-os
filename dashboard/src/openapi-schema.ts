@@ -2608,6 +2608,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roadmaps/{roadmap_id}/admission/dry-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admission Dry Run
+         * @description Read-only admission dry-run of a roadmap's linked Tasks: which ones could be launched now, on which of the caller's machines, and the listed `reasons` every other Task is excluded. A step with no linked task is reported in `steps_without_tasks`. `harness_id` filters the machines to those able to run it (any detected harness when omitted). Creates no `TaskLaunch`, reserves nothing and changes no state: the same server state yields the same lists, reasons and `plan_digest`.
+         */
+        get: operations["admission_dry_run_api_v1_roadmaps__roadmap_id__admission_dry_run_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/initialization/preview": {
         parameters: {
             query?: never;
@@ -2939,6 +2959,75 @@ export interface components {
              */
             claims: components["schemas"]["ClaimItem"][];
         };
+        /** AdmissionCandidate */
+        AdmissionCandidate: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Step Key */
+            step_key: string;
+            /** Title */
+            title: string;
+            /** Machine Ids */
+            machine_ids: string[];
+        };
+        /** AdmissionDryRun */
+        AdmissionDryRun: {
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            roadmap_status: components["schemas"]["RoadmapStatus"];
+            /** Roadmap Version */
+            roadmap_version: number;
+            /** Harness Id */
+            harness_id?: string | null;
+            /** Launchable */
+            launchable?: components["schemas"]["AdmissionCandidate"][];
+            /** Excluded */
+            excluded?: components["schemas"]["AdmissionExclusion"][];
+            /** Steps Without Tasks */
+            steps_without_tasks?: string[];
+            /** Machines */
+            machines?: components["schemas"]["MachineEligibility"][];
+            /** Plan Digest */
+            plan_digest: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+        };
+        /** AdmissionExclusion */
+        AdmissionExclusion: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Step Key */
+            step_key: string;
+            /** Title */
+            title?: string | null;
+            /** Reasons */
+            reasons: components["schemas"]["AdmissionExclusionReason"][];
+            /** Waiting On */
+            waiting_on?: string[];
+        };
+        /**
+         * AdmissionExclusionReason
+         * @description Deterministic, listed in this declaration order.
+         * @enum {string}
+         */
+        AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
         /**
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
@@ -22052,6 +22141,85 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    admission_dry_run_api_v1_roadmaps__roadmap_id__admission_dry_run_get: {
+        parameters: {
+            query?: {
+                harness_id?: string | null;
+            };
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionDryRun"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
