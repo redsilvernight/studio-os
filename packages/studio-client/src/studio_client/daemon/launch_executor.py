@@ -13,6 +13,8 @@ process tree is killed and no further report is sent.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import tempfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -20,6 +22,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from uuid import UUID
 
+from studio_contracts.auth import AgentCreate
 from studio_contracts.profiles import MachinePolicy
 from studio_contracts.task_launch import (
     LAUNCH_MAX_OUTPUT_CHARS,
@@ -232,12 +235,14 @@ class LaunchExecutor:
                 launch, resolved, mode=mode, ctx=ctx, worktree=prepared.worktree
             )
             executable = resolved.adapter.resolve_executable(ctx)
+            model = self._models.get(launch.harness_id)
+            agent_id = await self._ensure_launch_agent(launch.harness_id, model)
             prompt = build_instruction(
                 project_id=launch.project_id,
                 task_id=launch.task_id,
+                agent_id=agent_id,
                 agent_stable_key=launch.agent_stable_key,
             )
-            model = self._models.get(launch.harness_id)
             credential = await self._client.issue_launch_credential(launch.id)
             with tempfile.TemporaryDirectory(
                 prefix="studio-launch-", ignore_cleanup_errors=True
@@ -276,6 +281,11 @@ class LaunchExecutor:
                 launch,
                 TaskLaunchStatus.FAILED,
                 reason_code=TaskLaunchReasonCode.PREPARATION_FAILED,
+                output_excerpt=(
+                    "[studio:agent_identity_unavailable]"
+                    if error.step == "agent_identity"
+                    else None
+                ),
             )
         except LaunchError as error:
             logger.warning("launch could not start: %s", error.reason)
@@ -296,6 +306,25 @@ class LaunchExecutor:
         finally:
             self._processes.pop(launch.id, None)
             self._tasks.pop(launch.id, None)
+
+    async def _ensure_launch_agent(self, harness_id: str, model: str | None) -> UUID:
+        identity = json.dumps(
+            {"harness": harness_id, "model": model}, sort_keys=True, separators=(",", ":")
+        )
+        stable_key = f"launch-agent-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+        try:
+            agent, _ = await self._client.ensure_agent(
+                AgentCreate(
+                    display_name=f"studio-{harness_id}",
+                    agent_kind="worker",
+                    harness=harness_id,
+                    model=model,
+                    stable_key=stable_key,
+                )
+            )
+        except StudioApiError:
+            raise PreparationError("agent_identity", "agent_identity_unavailable") from None
+        return agent.id
 
     async def _capture_snapshot(
         self,

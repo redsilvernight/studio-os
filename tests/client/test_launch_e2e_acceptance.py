@@ -58,7 +58,7 @@ from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContex
 from studio_client.outbox import OutboxReplayer, OutboxStore, OutboxTable, connect
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import MemoryTokenStore
-from studio_contracts.auth import HarnessReport, MachineCapabilities
+from studio_contracts.auth import Agent, AgentCreate, HarnessReport, MachineCapabilities
 from studio_contracts.common import Page
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
 from studio_contracts.task_launch import (
@@ -85,10 +85,14 @@ def _offline_transport() -> httpx.MockTransport:
 
 
 class _WithStubCredential:
-    """Delegates to a real client except `issue_launch_credential`."""
+    """Keeps online launch admission separate from the offline report client."""
 
-    def __init__(self, client: Any) -> None:
+    def __init__(self, client: Any, *, identity_client: StudioApiClient) -> None:
         self._client = client
+        self._identity_client = identity_client
+
+    async def ensure_agent(self, agent_in: AgentCreate) -> tuple[Agent, bool]:
+        return await self._identity_client.ensure_agent(agent_in)
 
     async def issue_launch_credential(self, launch_id: uuid.UUID) -> Any:
         return SimpleNamespace(token="ephemeral-test-token")  # noqa: S106
@@ -413,11 +417,10 @@ async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_rep
 
                 # The harness runs offline in the prepared worktree.
                 harness = FakeHarness("print('studio launch ok')")
-                # The ephemeral credential needs the server and an accepted
-                # launch: issuance is online-only (fail-closed offline), so this
-                # test hands the executor a stub for that one call.
+                # Identity admission and credential issuance need the server;
+                # the offline cut only exercises the reporting outbox.
                 executor = LaunchExecutor(
-                    client=_WithStubCredential(offline),
+                    client=_WithStubCredential(offline, identity_client=api_b),
                     reporter=reporter,
                     preparer=LaunchPreparer(),
                     runner=LaunchRunner(),
