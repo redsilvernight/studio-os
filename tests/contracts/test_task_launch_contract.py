@@ -274,3 +274,23 @@ def test_view_payload_without_protocol_stays_a_task_launch() -> None:
     with pytest.raises(ValidationError):
         TaskLaunchView.model_validate(payload)
     assert TaskLaunch.model_validate(payload) == launch
+
+
+def test_profile_is_absent_from_an_unprofiled_launch_payload() -> None:
+    payload = _launch().model_dump(mode="json")
+    assert "profile" not in payload
+    assert TaskLaunch.model_validate(payload).profile is None
+
+
+def test_profiled_launch_round_trips_its_pin() -> None:
+    pin = {"stable_key": "coding", "contract_version": 1, "digest": "sha256:" + "a" * 64}
+    launch = _launch(profile=pin)
+    payload = launch.model_dump(mode="json")
+    assert payload["profile"] == pin
+    assert TaskLaunch.model_validate(payload) == launch
+
+
+def test_profile_key_is_a_stable_key() -> None:
+    assert _create(profile_key="architecture-read-only").profile_key == "architecture-read-only"
+    with pytest.raises(ValidationError):
+        _create(profile_key="../coding")

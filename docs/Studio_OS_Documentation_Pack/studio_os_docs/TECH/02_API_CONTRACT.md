@@ -1038,7 +1038,7 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 ### Task launches (AIB R2, additif, contrat fige — implemente)
 Ressource `TaskLaunch` (`studio_contracts.task_launch`) : demande typee de demarrer une tache sur
 une machine cible. Donnees seules, jamais une commande : ids et cles stables uniquement
-(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `expires_in_seconds`) ; champs
+(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `profile_key?`, `expires_in_seconds`) ; champs
 inconnus refuses, donc ni ligne de commande, argument, chemin, ni variable d'environnement
 representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
 - POST /projects/{project_id}/task-launches (`Idempotency-Key`, `TaskLaunchCreate`) -> `TaskLaunch`
@@ -1046,6 +1046,26 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
   sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
   rapport perime (R1) = `409` explicite.
+- Profil de travail sur un lancement (P04, DEC-0198, additif) : `profile_key?` nomme un profil de
+  reference (`REFERENCE_PROFILES` de `studio_contracts.profiles`, ex. `coding`,
+  `architecture-read-only`) ; le serveur materialise ce profil pour l'agent demande et l'epingle
+  dans `TaskLaunch.profile` (`LaunchProfilePin` : `stable_key`, `contract_version`, `digest`
+  `sha256:`), calcule par `pin_profile(reference_work_profile(profile_key, agent_stable_key),
+  profile_elements(<ResolvedAgentDefinition>))` — l'agent passe par le resolver serveur
+  commun (P5, visibilite/versionnage/precedence runtime inclus), donc le digest que la machine
+  recalcule est celui-la. Trois refus, tous sur le corps de l'appelant :
+  `profile_key` sans `agent_stable_key` =
+  `422 {"detail": {"error_code": "profile_requires_agent"}}` ; cle hors `REFERENCE_PROFILES` =
+  `422 {"detail": {"error_code": "unknown_profile", "profile_key": ...}}` ; machine dont le
+  dernier rapport de capacites n'a pas `launch_profiles: true` =
+  `409 {"detail": {"error_code": "profile_unsupported_by_machine"}}` (un `false` ou un rapport
+  sans le champ valent refus : une machine qui ne dit pas qu'elle sait appliquer un profil ne
+  peut pas en recevoir un). `profile` est absent de la reponse — et de `TaskLaunchPull` — d'un
+  lancement sans profil : un daemon N-1 lit alors exactement le meme JSON qu'avant.
+  Le retry herite `profile_key` de la tentative qu'il remplace et recalcule son pin depuis la
+  Library du moment : une version d'element qui bouge change le `digest` au lieu de faire
+  tourner le profil d'une tentative fermee. La machine revalide le pin au demarrage et refuse
+  le run (`profile_version_changed`) plutot que d'executer un profil que personne n'a vu.
 - GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
 - POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
 - GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de

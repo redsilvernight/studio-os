@@ -215,7 +215,7 @@ def effective_permissions(
     ]
 
 
-def _elements(definition: ResolvedAgentDefinition) -> list[ProfileElement]:
+def profile_elements(definition: ResolvedAgentDefinition) -> list[ProfileElement]:
     agent = definition.agent
     elements = [
         ProfileElement(
@@ -300,7 +300,7 @@ def resolve_profile(
     return ProfilePreview(
         stable_key=profile.stable_key,
         accepted=not refusals,
-        elements=_elements(definition),
+        elements=profile_elements(definition),
         runtime=runtime,
         runtime_origin=runtime_origin,
         permissions=decisions,
@@ -310,7 +310,7 @@ def resolve_profile(
 
 
 class LaunchProfilePin(ContractModel):
-    """What a launch was previewed/admitted against (DEC-0198, additive): the
+    """What a launch was previewed/admitted against (additive): the
     profile's stable key, contract version and content digest. The machine
     recomputes it when the run starts; any difference refuses the run with
     `profile_version_changed` instead of executing a profile nobody saw."""

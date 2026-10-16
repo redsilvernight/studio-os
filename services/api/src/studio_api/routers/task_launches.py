@@ -27,9 +27,11 @@ from studio_api.openapi_meta import (
     RESP_409_BUDGET_REFUSED,
     RESP_409_IDEMPOTENCY,
     RESP_409_LAUNCH_TRANSITION,
+    RESP_409_PROFILE_UNSUPPORTED,
     RESP_409_REPLAY,
     RESP_409_SNAPSHOT_IMMUTABLE,
     RESP_409_VERSION_CONFLICT,
+    RESP_422_LAUNCH_PROFILE,
     RESP_422_SNAPSHOT_REFUSED,
     merge_conflict,
 )
@@ -52,13 +54,26 @@ router = APIRouter(tags=["task-launches"])
         "Request a typed task launch on a target machine (AIB R2). Data "
         "only, never a command: ids and stable keys. Requires a writer "
         "role; the target machine's owner (or an admin) may request. "
+        "Optional `profile_key`: the work profile the agent runs "
+        "under, named against the reference profiles. It needs "
+        "`agent_stable_key`, and the server pins it (`profile`: stable key, "
+        "contract version, content digest) after resolving that agent — a "
+        "profiled launch only targets a machine whose latest capabilities "
+        "report `launch_profiles: true`, and an unprofiled launch simply "
+        "omits `profile`. "
         "Accepts `Idempotency-Key`: the same key with the identical body "
         "returns the original launch instead of a duplicate."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
-        **merge_conflict(RESP_409_LAUNCH_TRANSITION, RESP_409_IDEMPOTENCY, RESP_409_BUDGET_REFUSED),
+        **RESP_422_LAUNCH_PROFILE,
+        **merge_conflict(
+            RESP_409_LAUNCH_TRANSITION,
+            RESP_409_IDEMPOTENCY,
+            RESP_409_BUDGET_REFUSED,
+            RESP_409_PROFILE_UNSUPPORTED,
+        ),
     },
 )
 async def create_task_launch(
@@ -180,7 +195,9 @@ async def cancel_task_launch(
         "rewritten. A non-terminal launch is `409 launch_not_terminal`. One "
         "retry per attempt: a second or concurrent retry returns the attempt "
         "the first one created. Only the requester (or an admin), with the "
-        "target machine's aptitude re-checked like a creation. Accepts "
+        "target machine's aptitude re-checked like a creation — a profiled "
+        "attempt therefore inherits its `profile_key` and recomputes its "
+        "`profile` pin from the Library as it stands now. Accepts "
         "`Idempotency-Key`. Optional `replay` (P04): confirms a replay "
         "preview; the server recomputes it and refuses a stale or refused "
         "one, then records the accepted basis as `replay_basis`."
@@ -194,6 +211,7 @@ async def cancel_task_launch(
             RESP_409_IDEMPOTENCY,
             RESP_409_BUDGET_REFUSED,
             RESP_409_REPLAY,
+            RESP_409_PROFILE_UNSUPPORTED,
         ),
     },
 )

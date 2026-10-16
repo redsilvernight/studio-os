@@ -40,10 +40,14 @@ def machine_token_env(credential: str) -> dict[str, str]:
     return {"STUDIO_CLIENT_MACHINE_TOKEN": credential}
 
 
-def entry_with_credential(entry: Mapping[str, object], credential: str) -> dict[str, object]:
+def entry_with_credential(
+    entry: Mapping[str, object], credential: str, *, url: str
+) -> dict[str, object]:
     """Copy of the user's MCP entry whose Bearer header carries the launch's
-    ephemeral credential instead of the durable token."""
+    ephemeral credential instead of the durable token, pointed at the server
+    that issued it rather than whatever server the user entry names."""
     replaced = dict(entry)
+    replaced["url"] = url
     headers = replaced.get("headers")
     updated = dict(headers) if isinstance(headers, Mapping) else {}
     updated["Authorization"] = f"Bearer {credential}"

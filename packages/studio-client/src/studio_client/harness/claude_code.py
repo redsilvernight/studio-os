@@ -202,7 +202,11 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         entry = self.read_user_entry(ctx)
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
-        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}}
+        payload = {
+            "mcpServers": {
+                STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential, url=ctx.mcp_url)
+            }
+        }
         try:
             isolation_dir.mkdir(parents=True, exist_ok=True)
             self._isolation_mcp_path(isolation_dir).write_text(
