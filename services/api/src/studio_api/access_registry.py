@@ -209,6 +209,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("DELETE", "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/links/{task_id}"): _P,
     ("POST", "/api/v1/roadmaps/{roadmap_id}/hydration/preview"): _P,
     ("POST", "/api/v1/roadmaps/{roadmap_id}/hydration/apply"): _P,
+    ("GET", "/api/v1/roadmaps/{roadmap_id}/admission/dry-run"): _P,
 }
 
 

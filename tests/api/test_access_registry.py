@@ -513,6 +513,9 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/roadmaps/{roadmap_id}/hydration/apply"): (
         Probe(_RM + "/hydration/apply", {"expected_version": 1}),
     ),
+    ("GET", "/api/v1/roadmaps/{roadmap_id}/admission/dry-run"): (
+        Probe(_RM + "/admission/dry-run"),
+    ),
 }
 
 
