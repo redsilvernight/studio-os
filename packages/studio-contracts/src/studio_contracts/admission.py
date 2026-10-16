@@ -17,12 +17,12 @@ from uuid import UUID
 from pydantic import Field
 
 from studio_contracts.auth import CapabilityToken, MachineEligibility
+from studio_contracts.bootstrap import HarnessId
 from studio_contracts.common import ContractModel
 from studio_contracts.roadmaps import RoadmapStatus
 from studio_contracts.task_launch import (
     LAUNCH_DEFAULT_TTL_SECONDS,
     LAUNCH_MAX_TTL_SECONDS,
-    HarnessId,
     StableKey,
     TaskLaunch,
 )

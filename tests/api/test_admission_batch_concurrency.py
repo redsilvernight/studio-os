@@ -381,41 +381,30 @@ async def test_two_batches_cannot_exceed_the_admitted_slots(
     real_engine: AsyncEngine, real_client: AsyncClient, world: World
 ) -> None:
     await _enforce(real_client, world, max_active_launches=2)
-    roadmap_a = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
-    roadmap_b = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
-    tasks_a = [
-        await _task(real_client, world.headers, world.project_id),
-        await _task(real_client, world.headers, world.project_id),
-    ]
-    tasks_b = [
-        await _task(real_client, world.headers, world.project_id),
-        await _task(real_client, world.headers, world.project_id),
-    ]
-    await _link(real_client, world.headers, roadmap_a["id"], "S1", tasks_a[0])
-    await _link(real_client, world.headers, roadmap_a["id"], "S2", tasks_a[1])
-    await _link(real_client, world.headers, roadmap_b["id"], "S1", tasks_b[0])
-    await _link(real_client, world.headers, roadmap_b["id"], "S2", tasks_b[1])
-
-    plan_a = await _plan(real_client, world.headers, roadmap_a["id"])
-    plan_b = await _plan(real_client, world.headers, roadmap_b["id"])
+    roadmap = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
+    tasks = [await _task(real_client, world.headers, world.project_id) for _ in range(4)]
+    for step_key, task_id in zip(("S1", "S2", "S3", "S4"), tasks, strict=True):
+        await _link(real_client, world.headers, roadmap["id"], step_key, task_id)
+    tasks_a, tasks_b = tasks[:2], tasks[2:]
+    plan = await _plan(real_client, world.headers, roadmap["id"])
 
     await _warm_pool(async_sessionmaker(real_engine, expire_on_commit=False), 2)
     responses = await asyncio.gather(
         _admit(
             real_client,
-            roadmap_a["id"],
+            roadmap["id"],
             world.headers,
-            digest=plan_a["plan_digest"],
-            machine_id=_machine_for(plan_a, tasks_a[0]),
+            digest=plan["plan_digest"],
+            machine_id=_machine_for(plan, tasks_a[0]),
             task_ids=tasks_a,
             key=str(uuid.uuid4()),
         ),
         _admit(
             real_client,
-            roadmap_b["id"],
+            roadmap["id"],
             world.headers,
-            digest=plan_b["plan_digest"],
-            machine_id=_machine_for(plan_b, tasks_b[0]),
+            digest=plan["plan_digest"],
+            machine_id=_machine_for(plan, tasks_b[0]),
             task_ids=tasks_b,
             key=str(uuid.uuid4()),
         ),
@@ -551,7 +540,7 @@ async def test_batch_committed_first_lets_a_later_unit_launch_add_a_second(
     assert unit.status_code in {201, 409}, unit.text
     active = await _active_for_task(real_engine, task_id)
     assert active == (2 if unit.status_code == 201 else 1)
-    assert await _launch_counts(real_engine, world.project_id)[0] == active
+    assert (await _launch_counts(real_engine, world.project_id))[0] == active
 
 
 async def test_concurrent_batch_never_launches_an_already_active_task(
