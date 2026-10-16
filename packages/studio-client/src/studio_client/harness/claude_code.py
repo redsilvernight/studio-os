@@ -185,7 +185,9 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
                 "--permission-mode",
                 "default",
                 "--disallowedTools",
-                self._WRITE_TOOLS,
+                f"{self._WRITE_TOOLS},SendMessage",
+                "--tools",
+                self._READ_ONLY_TOOLS,
             )
         return (
             "-p",
