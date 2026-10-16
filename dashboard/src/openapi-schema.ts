@@ -2628,6 +2628,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roadmaps/{roadmap_id}/admission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admit Roadmap Batch
+         * @description Admit a whole batch of a roadmap's linked Tasks or nothing. `plan_digest` is the digest of the dry-run the human confirmed: the server recomputes the plan under a roadmap then task lock and refuses `409 admission_plan_changed` (carrying the fresh `plan`) if it moved — a second tab or another user sees this once Tasks became `launch_active`. Otherwise every item must be launchable on a machine of its `machine_ids`, unique, and admitted by the project budget; any refusal rolls the whole batch back and answers `409 admission_refused` with every `refusals` entry. On success the `TaskLaunch` rows, their reservations and events are written in one transaction. Requires a writer role and the right to launch on each target machine. Accepts `Idempotency-Key`: replaying the same key returns the original result.
+         */
+        post: operations["admit_roadmap_batch_api_v1_roadmaps__roadmap_id__admission_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/initialization/preview": {
         parameters: {
             query?: never;
@@ -2958,6 +2978,60 @@ export interface components {
              * @default []
              */
             claims: components["schemas"]["ClaimItem"][];
+        };
+        /** AdmissionBatchItem */
+        AdmissionBatchItem: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+        };
+        /**
+         * AdmissionBatchRequest
+         * @description Admit a whole batch or nothing. `plan_digest` is the digest of the
+         *     dry-run the human confirmed: the server recomputes the plan under lock and
+         *     refuses with `admission_plan_changed` if it moved. Launch options are
+         *     shared by every item, as in `TaskLaunchCreate`.
+         */
+        AdmissionBatchRequest: {
+            /** Plan Digest */
+            plan_digest: string;
+            /** Harness Id */
+            harness_id: string;
+            /** Items */
+            items: components["schemas"]["AdmissionBatchItem"][];
+            /** Agent Stable Key */
+            agent_stable_key?: string | null;
+            /** Profile Key */
+            profile_key?: string | null;
+            /**
+             * Expires In Seconds
+             * @default 900
+             */
+            expires_in_seconds: number;
+        };
+        /** AdmissionBatchResult */
+        AdmissionBatchResult: {
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /** Plan Digest */
+            plan_digest: string;
+            /** Launches */
+            launches: components["schemas"]["TaskLaunch"][];
+            /**
+             * Admitted At
+             * Format: date-time
+             */
+            admitted_at: string;
         };
         /** AdmissionCandidate */
         AdmissionCandidate: {
@@ -22208,6 +22282,110 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admit_roadmap_batch_api_v1_roadmaps__roadmap_id__admission_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdmissionBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionBatchResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Roadmap admission batch refused, nothing stored: the recomputed plan moved since the confirmed dry-run (`admission_plan_changed`, with the fresh `plan`) or at least one item is refused (`admission_refused`, with every `refusals` entry: `duplicate_item`, `not_launchable` with its `exclusion_reasons`, `machine_not_eligible`, or `budget_refused` with its `budget`). Re-read the dry-run and retry. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "admission_plan_changed",
+                     *         "plan": {
+                     *           "plan_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+                     *         },
+                     *         "refusals": []
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

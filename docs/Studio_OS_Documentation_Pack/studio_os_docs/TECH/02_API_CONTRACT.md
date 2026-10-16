@@ -997,6 +997,21 @@ Contrat fige (`AdmissionDryRun` +
   `readonly`, DEC-0103) ; `404 not_found` (roadmap inconnue), `403 forbidden`
   (projet inaccessible). Le `harness_id` filtre les machines comme
   `GET /tasks/{id}/eligible-machines`.
+- `POST /roadmaps/{roadmap_id}/admission` (`AdmissionBatchRequest`,
+  `Idempotency-Key`) -> `201 AdmissionBatchResult` : admet tout le lot ou rien.
+  Sous verrou transactionnel (roadmap puis Tasks triees), le serveur recalcule le
+  dry-run ; `plan_digest` different -> `409 admission_plan_changed` avec le
+  `plan` frais. Sinon chaque item doit etre `launchable` sur une machine de ses
+  `machine_ids`, sans doublon, et passer l'admission budget ; tout refus ->
+  `409 admission_refused` avec `refusals` (`duplicate_item`, `not_launchable`
+  + `exclusion_reasons`, vide pour une Task hors roadmap, `machine_not_eligible`,
+  `budget_refused` + `budget`).
+  `TaskLaunch`, reservations budget et evenements `task_launch.requested` sont
+  ecrits dans une seule transaction : un crash avant commit ne laisse rien, un
+  rejeu avec la meme cle rend le resultat original, un second onglet ou un
+  second utilisateur recoit `admission_plan_changed` (Tasks devenues
+  `launch_active`). Ecriture : roles writer ayant le droit de lancer sur chaque
+  machine visee. Aucune migration.
 
 ### Project initialization (Roadmaps P5, additif, DEC-0087) — contrat fige, routes implementees
 Contrat `studio.initialization/v1` (`ProjectInitializationPlan` +
