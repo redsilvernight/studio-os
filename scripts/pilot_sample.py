@@ -145,7 +145,7 @@ def report(snapshot: dict[str, Any], metrics: dict[str, Any]) -> str:
 
 Tâche `db685418-bfd4-4d2e-85d2-2a0867b2e1e7`. Relevé descriptif du
 16 octobre 2026, branche issue de `dev` `71da001a`.
-**Recommandation : différer l'historique par configuration. Décision humaine en attente.**
+**No-go provisoire sur l'historique validé humainement le 16 octobre 2026 (DEC-0219).**
 
 ## Périmètre et dénominateurs
 
@@ -196,11 +196,13 @@ Le transcript stream du second run n'est pas une observation supplémentaire.
 La démo locale citée dans ce document porte sur un projet jetable et quatre
 lancements, dont une annulation sans mesure ; elle reste également séparée.
 
-## Proposition de reprise à valider humainement
+## Décision et proposition de reprise
 
 Différer `P06-history-option` tant que les dénominateurs de runs réels et leur
-attribution ne sont pas disponibles. Aucune décision, activation d'historique,
-publication ou clôture de roadmap n'est déduite de ce rapport.
+attribution ne sont pas disponibles : no-go provisoire confirmé par l'utilisateur
+le 16 octobre 2026 et enregistré dans DEC-0219. La méthode de reprise ci-dessous
+reste une proposition ; la validation ne fixe ni calendrier ni minimum.
+L'activation de l'historique et la clôture des gates techniques restent suspendues.
 
 Proposition de collecte suivante : sept jours complets après disponibilité des
 routes et champs requis, fenêtre exacte publiée à l'ouverture. Collecter tous les
