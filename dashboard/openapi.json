@@ -15176,6 +15176,133 @@
     }
    }
   },
+  "/api/v1/roadmaps/{roadmap_id}/admission": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Admit Roadmap Batch",
+    "description": "Admit a whole batch of a roadmap's linked Tasks or nothing. `plan_digest` is the digest of the dry-run the human confirmed: the server recomputes the plan under a roadmap then task lock and refuses `409 admission_plan_changed` (carrying the fresh `plan`) if it moved \u2014 a second tab or another user sees this once Tasks became `launch_active`. Otherwise every item must be launchable on a machine of its `machine_ids`, unique, and admitted by the project budget; any refusal rolls the whole batch back and answers `409 admission_refused` with every `refusals` entry. On success the `TaskLaunch` rows, their reservations and events are written in one transaction. Requires a writer role and the right to launch on each target machine. Accepts `Idempotency-Key`: replaying the same key returns the original result.",
+    "operationId": "admit_roadmap_batch_api_v1_roadmaps__roadmap_id__admission_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AdmissionBatchRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AdmissionBatchResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Roadmap admission batch refused, nothing stored: the recomputed plan moved since the confirmed dry-run (`admission_plan_changed`, with the fresh `plan`) or at least one item is refused (`admission_refused`, with every `refusals` entry: `duplicate_item`, `not_launchable` with its `exclusion_reasons`, `machine_not_eligible`, or `budget_refused` with its `budget`). Re-read the dry-run and retry.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "admission_plan_changed",
+          "plan": {
+           "plan_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "refusals": []
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/projects/initialization/preview": {
    "post": {
     "tags": [
@@ -16641,6 +16768,128 @@
     },
     "type": "object",
     "title": "ActiveWork"
+   },
+   "AdmissionBatchItem": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "machine_id"
+    ],
+    "title": "AdmissionBatchItem"
+   },
+   "AdmissionBatchRequest": {
+    "properties": {
+     "plan_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Digest"
+     },
+     "harness_id": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Harness Id"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/AdmissionBatchItem"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Items"
+     },
+     "agent_stable_key": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Stable Key"
+     },
+     "profile_key": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Key"
+     },
+     "expires_in_seconds": {
+      "type": "integer",
+      "maximum": 86400.0,
+      "minimum": 60.0,
+      "title": "Expires In Seconds",
+      "default": 900
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "plan_digest",
+     "harness_id",
+     "items"
+    ],
+    "title": "AdmissionBatchRequest",
+    "description": "Admit a whole batch or nothing. `plan_digest` is the digest of the\ndry-run the human confirmed: the server recomputes the plan under lock and\nrefuses with `admission_plan_changed` if it moved. Launch options are\nshared by every item, as in `TaskLaunchCreate`."
+   },
+   "AdmissionBatchResult": {
+    "properties": {
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "plan_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Digest"
+     },
+     "launches": {
+      "items": {
+       "$ref": "#/components/schemas/TaskLaunch"
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Launches"
+     },
+     "admitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Admitted At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "roadmap_id",
+     "plan_digest",
+     "launches",
+     "admitted_at"
+    ],
+    "title": "AdmissionBatchResult"
    },
    "AdmissionCandidate": {
     "properties": {

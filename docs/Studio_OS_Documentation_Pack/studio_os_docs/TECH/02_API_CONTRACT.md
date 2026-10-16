@@ -1004,7 +1004,8 @@ Contrat fige (`AdmissionDryRun` +
   `plan` frais. Sinon chaque item doit etre `launchable` sur une machine de ses
   `machine_ids`, sans doublon, et passer l'admission budget ; tout refus ->
   `409 admission_refused` avec `refusals` (`duplicate_item`, `not_launchable`
-  + `exclusion_reasons`, `machine_not_eligible`, `budget_refused` + `budget`).
+  + `exclusion_reasons`, vide pour une Task hors roadmap, `machine_not_eligible`,
+  `budget_refused` + `budget`).
   `TaskLaunch`, reservations budget et evenements `task_launch.requested` sont
   ecrits dans une seule transaction : un crash avant commit ne laisse rien, un
   rejeu avec la meme cle rend le resultat original, un second onglet ou un
