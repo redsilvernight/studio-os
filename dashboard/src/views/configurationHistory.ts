@@ -65,7 +65,7 @@ export function keyValue(value: string | null | undefined): string {
 }
 
 export function rateValueText(rate: ConfigurationRate): string {
-  if (rate.value === null) return "non calculable (n = 0)";
+  if (rate.value === null || rate.value === undefined) return "non calculable (n = 0)";
   const percent = (rate.value * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
   return `${rate.numerator}/${rate.denominator} (${percent} %)`;
 }
@@ -90,12 +90,12 @@ function groupHeading(group: ConfigurationHistoryGroup): string {
   return (
     `<h3>${esc(harness)} · ${esc(version)}</h3>` +
     `<p class="ds-list-sub">Fournisseur : ${esc(keyValue(key.provider))} · Modèle : ${esc(keyValue(key.model))} · Profil : ${esc(profile)}</p>` +
-    `<p class="ds-list-sub" data-history-group-meta>${esc(String(group.launches))} lancement(s) · ${esc(statusCountsText(group.status_counts))}</p>`
+    `<p class="ds-list-sub" data-history-group-meta>${esc(String(group.launches))} lancement(s) · ${esc(statusCountsText(group.status_counts ?? {}))}</p>`
   );
 }
 
 function ratesTableHtml(group: ConfigurationHistoryGroup): string {
-  const rows = group.rates
+  const rows = (group.rates ?? [])
     .map(
       (rate) =>
         `<tr data-history-rate="${esc(rate.key)}"><th scope="row">${esc(RATE_LABEL[rate.key] ?? rate.key)}</th>` +
@@ -136,12 +136,14 @@ function groupHtml(group: ConfigurationHistoryGroup): string {
 }
 
 function unattributedHtml(history: ConfigurationHistory): string {
-  const unattributed = history.unattributed;
-  const total = unattributed.ledger_entries + unattributed.ai_work_entries;
+  const unattributed = history.unattributed ?? { ledger_entries: 0, ai_work_entries: 0 };
+  const ledgerEntries = unattributed.ledger_entries ?? 0;
+  const aiWorkEntries = unattributed.ai_work_entries ?? 0;
+  const total = ledgerEntries + aiWorkEntries;
   const body =
     total === 0
       ? `<p class="ds-list-sub">Aucune entrée non attribuée sur la période.</p>`
-      : `<p class="ds-list-sub">Entrées du ledger sans lancement : ${esc(String(unattributed.ledger_entries))} · Travail IA sans lancement : ${esc(String(unattributed.ai_work_entries))}.</p>` +
+      : `<p class="ds-list-sub">Entrées du ledger sans lancement : ${esc(String(ledgerEntries))} · Travail IA sans lancement : ${esc(String(aiWorkEntries))}.</p>` +
         `<p class="ds-list-sub">Ces faits sont affichés séparément, jamais répartis dans un groupe.</p>`;
   return `<section class="workspace-section" aria-label="Non attribué" data-history-unattributed>${dsSectionHeader("Non attribué")}${body}</section>`;
 }
@@ -168,12 +170,13 @@ function techRows(history: ConfigurationHistory): DsTechRow[] {
 }
 
 export function configurationHistoryHtml(history: ConfigurationHistory): string {
+  const historyGroups = history.groups ?? [];
   const groups =
-    history.groups.length === 0
+    historyGroups.length === 0
       ? `<p class="ds-list-sub" data-history-empty>Aucune configuration sur cette période.</p>`
-      : history.groups.map(groupHtml).join("");
+      : historyGroups.map(groupHtml).join("");
   const truncated = history.truncated
-    ? `<p class="ds-list-sub" data-history-truncated>Liste limitée aux ${history.groups.length} configurations ; les totaux de chaque groupe restent ceux du serveur.</p>`
+    ? `<p class="ds-list-sub" data-history-truncated>Liste limitée aux ${historyGroups.length} configurations ; les totaux de chaque groupe restent ceux du serveur.</p>`
     : "";
   return (
     `${groups}${truncated}` +
