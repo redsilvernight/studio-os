@@ -94,7 +94,10 @@ Les lancements unitaires sont typés, autorisés et testés pour le rejeu :
 **Manque constaté dans le périmètre.** Preview groupée, admission atomique avec
 réévaluation des préconditions, suivi du batch, réservation ou règle explicite
 de concurrence, reprise et gates humaines. `free_slots` provient d'un heartbeat :
-ce n'est pas une réservation. Les claims restent des avertissements.
+ce n'est pas une réservation. Le serveur en déduit toutefois les lancements
+qu'il a admis et que ce heartbeat ne peut pas avoir comptés (`requested` non
+expirés, lancements démarrés créés après le rapport), sous le verrou
+`machine-slots:<machine_id>`. Les claims restent des avertissements.
 
 **Réutiliser / étendre.** Composer le DAG et `eligibility.evaluate` avec les
 TaskLaunch unitaires ; ne pas recréer un DAG ni un moteur de résolution.

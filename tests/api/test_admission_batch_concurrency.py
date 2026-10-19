@@ -612,3 +612,113 @@ async def test_one_batch_never_exceeds_a_machine_free_slots(
         (second, world.machine_id, "machine_not_eligible")
     ]
     assert await _launch_counts(real_engine, world.project_id) == (0, 0)
+
+
+def _free_slots(plan: dict[str, Any], machine_id: str) -> int:
+    machine = next(m for m in plan["machines"] if m["machine_id"] == machine_id)
+    return int(machine["free_slots"])
+
+
+async def test_a_second_batch_before_the_next_heartbeat_is_refused_at_capacity(
+    real_engine: AsyncEngine, real_client: AsyncClient, world: World
+) -> None:
+    """Two sequential batches on a 1-slot machine, both before the daemon's
+    next heartbeat: the first launch is admitted but not yet in
+    `running_launches`, so the second batch still sees the machine full."""
+    await _heartbeat(
+        real_client, world.headers, world.machine_id, _caps(world.project_id, max_launches=1)
+    )
+    roadmap = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
+    first = await _task(real_client, world.headers, world.project_id)
+    second = await _task(real_client, world.headers, world.project_id)
+    await _link(real_client, world.headers, roadmap["id"], "S1", first)
+    await _link(real_client, world.headers, roadmap["id"], "S2", second)
+
+    plan = await _plan(real_client, world.headers, roadmap["id"])
+    admitted = await _admit(
+        real_client,
+        roadmap["id"],
+        world.headers,
+        digest=plan["plan_digest"],
+        machine_id=world.machine_id,
+        task_ids=[first],
+        key=str(uuid.uuid4()),
+    )
+    assert admitted.status_code == 201, admitted.text
+
+    fresh = await _plan(real_client, world.headers, roadmap["id"])
+    assert _free_slots(fresh, world.machine_id) == 0
+    refused = await _admit(
+        real_client,
+        roadmap["id"],
+        world.headers,
+        digest=fresh["plan_digest"],
+        machine_id=world.machine_id,
+        task_ids=[second],
+        key=str(uuid.uuid4()),
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert _error_code(refused) == "admission_refused"
+    reasons = {r["reason"] for r in refused.json()["detail"]["refusals"]}
+    assert reasons <= {"machine_not_eligible", "not_launchable"}, reasons
+    assert await _active_for_task(real_engine, second) == 0
+    assert (await _launch_counts(real_engine, world.project_id))[0] == 1
+
+
+async def test_a_unit_launch_before_the_next_heartbeat_fills_the_batch_slot(
+    real_engine: AsyncEngine, real_client: AsyncClient, world: World
+) -> None:
+    await _heartbeat(
+        real_client, world.headers, world.machine_id, _caps(world.project_id, max_launches=1)
+    )
+    roadmap = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
+    unit_task = await _task(real_client, world.headers, world.project_id)
+    batch_task = await _task(real_client, world.headers, world.project_id)
+    await _link(real_client, world.headers, roadmap["id"], "S1", batch_task)
+
+    unit = await _launch_unit(
+        real_client, world.headers, world.project_id, unit_task, world.machine_id
+    )
+    assert unit.status_code == 201, unit.text
+
+    plan = await _plan(real_client, world.headers, roadmap["id"])
+    assert _free_slots(plan, world.machine_id) == 0
+    refused = await _admit(
+        real_client,
+        roadmap["id"],
+        world.headers,
+        digest=plan["plan_digest"],
+        machine_id=world.machine_id,
+        task_ids=[batch_task],
+        key=str(uuid.uuid4()),
+    )
+    assert refused.status_code == 409, refused.text
+    assert _error_code(refused) == "admission_refused"
+    assert await _active_for_task(real_engine, batch_task) == 0
+
+
+async def test_a_heartbeat_counting_the_launch_does_not_double_count_it(
+    real_engine: AsyncEngine, real_client: AsyncClient, world: World
+) -> None:
+    """Once the daemon reports the accepted launch in `running_launches`, the
+    server stops subtracting it."""
+    roadmap = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
+    task_id = await _task(real_client, world.headers, world.project_id)
+    unit = await _launch_unit(
+        real_client, world.headers, world.project_id, task_id, world.machine_id
+    )
+    assert unit.status_code == 201, unit.text
+    plan = await _plan(real_client, world.headers, roadmap["id"])
+    assert _free_slots(plan, world.machine_id) == 1
+
+    async with async_sessionmaker(real_engine, expire_on_commit=False)() as update:
+        launch = await update.get(TaskLaunchModel, uuid.UUID(unit.json()["id"]))
+        assert launch is not None
+        launch.status = "accepted"
+        await update.commit()
+    await _heartbeat(
+        real_client, world.headers, world.machine_id, _caps(world.project_id, running_launches=1)
+    )
+    plan = await _plan(real_client, world.headers, roadmap["id"])
+    assert _free_slots(plan, world.machine_id) == 1

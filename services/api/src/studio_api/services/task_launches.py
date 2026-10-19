@@ -265,7 +265,9 @@ async def stage_launch(
     event staged in the caller's transaction — no commit. The task's advisory
     xact lock (held until commit/rollback) serializes concurrent admissions of
     the same task, so a batch and a direct creation never both pass the budget
-    or the duplicate check at once. Returns the launch and its staged event;
+    or the duplicate check at once; the machine's `machine-slots` lock, taken
+    after it, makes a batch counting that machine's unreported launches wait
+    for this one. Returns the launch and its staged event;
     the caller commits, refreshes both and publishes the event.
 
     The attempt is created with the work-profile pin of its profile
@@ -275,6 +277,10 @@ async def stage_launch(
     await session.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
         {"key": f"task-launch:{launch_in.task_id}"},
+    )
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"machine-slots:{launch_in.machine_id}"},
     )
     now = datetime.now(UTC)
     admission = await budgets_service.decide_admission(session, project_id, now)
