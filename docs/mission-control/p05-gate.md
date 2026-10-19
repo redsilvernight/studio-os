@@ -1,7 +1,8 @@
 # P05-gate — pilote à deux machines et arrêt aux gates
 
-Tâche `8a0f715c-efa7-4935-a681-b4b69c599967`. **Gate non acceptée ; aucun
-critère coché.**
+Tâche `8a0f715c-efa7-4935-a681-b4b69c599967`. **Gate acceptée par l'humain
+le 19 octobre 2026, au vu de la redémonstration ; les limites de « Non
+démontré » sont acceptées en l'état.**
 
 ## Critères
 
@@ -144,7 +145,6 @@ Constats :
 
 ## Non démontré
 
-- Revue humaine.
 - Coupure du daemon sur `Flo-laptop` lui-même.
 - Correctif du sélecteur de harness dans le dashboard.
 
