@@ -124,11 +124,11 @@ function machineDisplayName(plan: AdmissionDryRun, machineId: string): string {
   return (plan.machines ?? []).find((machine) => machine.machine_id === machineId)?.display_name ?? machineId;
 }
 
-function detectedHarnessIds(plan: AdmissionDryRun): string[] {
+function configuredHarnessIds(plan: AdmissionDryRun): string[] {
   const ids: string[] = [];
   for (const machine of plan.machines ?? []) {
     for (const harness of machine.harnesses ?? []) {
-      if (harness.detected && !ids.includes(harness.harness_id)) ids.push(harness.harness_id);
+      if (harness.configured && !ids.includes(harness.harness_id)) ids.push(harness.harness_id);
     }
   }
   return ids;
@@ -187,7 +187,11 @@ function buildBody(state: PanelState): AdmissionBatchRequest | null {
 }
 
 function harnessOptionsHtml(plan: AdmissionDryRun, selected: string): string {
-  const options = detectedHarnessIds(plan)
+  const ids = configuredHarnessIds(plan);
+  // Le harnais choisi reste proposé même si le dernier dry-run ne l'annonce
+  // plus : sinon le <select> se vide et la sélection est perdue.
+  if (selected !== "" && !ids.includes(selected)) ids.push(selected);
+  const options = ids
     .map((id) => `<option value="${esc(id)}"${id === selected ? " selected" : ""}>${esc(id)}</option>`)
     .join("");
   return `<option value="">Choisir un harnais</option>${options}`;
@@ -333,7 +337,11 @@ export async function renderAdmissionPanelInto(root: HTMLElement, ctx: Admission
 
   function bind(): void {
     root.querySelector("[data-admission-preview]")?.addEventListener("click", onPreview);
-    root.querySelector<HTMLSelectElement>("[data-admission-harness]")?.addEventListener("change", onHarness);
+    const harnessSelect = root.querySelector<HTMLSelectElement>("[data-admission-harness]");
+    if (harnessSelect !== null) {
+      harnessSelect.value = state.harnessId;
+      harnessSelect.addEventListener("change", onHarness);
+    }
     root.querySelector("[data-admission-confirm]")?.addEventListener("click", onConfirm);
     root.querySelector("[data-admission-submit]")?.addEventListener("click", onSubmit);
     root.querySelector("[data-admission-cancel]")?.addEventListener("click", onCancel);
