@@ -288,6 +288,8 @@ async def admit_batch(
     await _lock_xact(session, f"admission:{roadmap_id}")
     for task_id in sorted({item.task_id for item in body.items}, key=str):
         await _lock_xact(session, f"task-launch:{task_id}")
+    for machine_id in sorted({item.machine_id for item in body.items}, key=str):
+        await _lock_xact(session, f"machine-slots:{machine_id}")
 
     plan = await dry_run(session, principal, roadmap_id, str(body.harness_id), settings)
     if plan.plan_digest != body.plan_digest:
