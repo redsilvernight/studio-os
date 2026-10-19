@@ -51,7 +51,10 @@ branche `task/f33a3c2d-launch-profile`. Agent de Bibliothèque `p04-architect`.
 - Protocole Studio de bout en bout dans un lancement : le rejeu appelle
   `studio_start_work` mais pas `studio_handoff` (`handoff_not_observed`),
   faute d'`agent_id` injecté. Le hook SessionStart du poste vise le serveur de
-  production, pas la pile jetable.
+  production, pas la pile jetable. Corrigé depuis par `d943816c`
+  (16 octobre) : l'instruction de lancement injecte l'`agent_id` du serveur
+  émetteur, prioritaire sur le hook. Pas encore redémontré dans un lancement
+  profilé avec handoff observé.
 - Revue humaine.
 
 Preuves : `output/gate-demo-local/` (`p04-*.txt`, `snapshot-*.json`,

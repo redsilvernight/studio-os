@@ -188,8 +188,6 @@ function buildBody(state: PanelState): AdmissionBatchRequest | null {
 
 function harnessOptionsHtml(plan: AdmissionDryRun, selected: string): string {
   const ids = configuredHarnessIds(plan);
-  // Le harnais choisi reste proposé même si le dernier dry-run ne l'annonce
-  // plus : sinon le <select> se vide et la sélection est perdue.
   if (selected !== "" && !ids.includes(selected)) ids.push(selected);
   const options = ids
     .map((id) => `<option value="${esc(id)}"${id === selected ? " selected" : ""}>${esc(id)}</option>`)
