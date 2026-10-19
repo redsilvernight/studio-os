@@ -14,6 +14,112 @@ export type UsageSummary = components["schemas"]["UsageSummary"];
 export type UsageAggregate = components["schemas"]["UsageAggregate"];
 export type UsageGroupBy = components["schemas"]["UsageGroupBy"];
 export type UsageTotalStatus = components["schemas"]["UsageTotalStatus"];
+export type UsageTokenTotal = components["schemas"]["UsageTokenTotal"];
+export type UsageCostTotal = components["schemas"]["UsageCostTotal"];
+
+/* ------------------------------------------------------------------ */
+/* Historique des configurations (P06-history-option, DEC-0221).       */
+/*                                                                     */
+/* TODO(openapi-sync) : ces types sont un miroir local exact de        */
+/* `ConfigurationHistory` (studio_contracts/usage.py) tant que         */
+/* l'openapi n'a pas été régénéré. Les remplacer par les types générés */
+/* (`components["schemas"]["ConfigurationHistory"]`) à la prochaine    */
+/* synchronisation, sans changer le reste du module.                   */
+/* ------------------------------------------------------------------ */
+
+export type ConfigurationRateKey = "succeeded" | "session_linked" | "usage_measured";
+
+export interface ConfigurationKey {
+  harness: string;
+  profile_key: string | null;
+  profile_contract_version: number | null;
+  profile_digest: string | null;
+  harness_version: string | null;
+  provider: string | null;
+  model: string | null;
+}
+
+/** `value` est une fraction 0..1, `null` quand le dénominateur vaut 0. */
+export interface ConfigurationRate {
+  key: ConfigurationRateKey;
+  definition: string;
+  numerator: number;
+  denominator: number;
+  covered: number;
+  launches: number;
+  value: number | null;
+}
+
+export interface ConfigurationHistoryGroup {
+  key: ConfigurationKey;
+  launches: number;
+  first_requested_at: string;
+  last_requested_at: string;
+  status_counts: Record<string, number>;
+  rates: ConfigurationRate[];
+  ledger_entries: number;
+  ai_work_entries: number;
+  total_tokens: UsageTokenTotal;
+  cost: UsageCostTotal;
+  comparable: false;
+}
+
+export interface ConfigurationHistoryUnattributed {
+  ledger_entries: number;
+  ai_work_entries: number;
+}
+
+export interface ConfigurationHistory {
+  project_id: string;
+  since: string;
+  until: string;
+  generated_at: string;
+  population: "task_launch";
+  ranking: "none";
+  launches: number;
+  groups: ConfigurationHistoryGroup[];
+  unattributed: ConfigurationHistoryUnattributed;
+  caveats: string[];
+  truncated: boolean;
+}
+
+export interface ConfigurationHistoryQuery {
+  since: string;
+  until: string;
+}
+
+function isConfigurationHistory(value: unknown): value is ConfigurationHistory {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const candidate = value as { groups?: unknown; unattributed?: unknown };
+  return (
+    Array.isArray(candidate.groups) &&
+    typeof candidate.unattributed === "object" &&
+    candidate.unattributed !== null &&
+    !Array.isArray(candidate.unattributed)
+  );
+}
+
+/** GET /api/v1/usage/configuration-history?project_id&since&until (lecture seule). */
+export async function fetchConfigurationHistory(
+  client: StudioClient,
+  projectId: string,
+  query: ConfigurationHistoryQuery,
+): Promise<ConfigurationHistory> {
+  // Le chemin n'existe pas encore dans `paths` (openapi non régénéré) :
+  // cast local, le contrat est vérifié par `isConfigurationHistory`.
+  const get = client.GET as unknown as (
+    path: string,
+    init: { params: { query: { project_id: string; since: string; until: string } } },
+  ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
+  const result = await get("/api/v1/usage/configuration-history", {
+    params: { query: { project_id: projectId, since: query.since, until: query.until } },
+  });
+  if (result.response.ok && result.data !== undefined) {
+    if (!isConfigurationHistory(result.data)) throw new Error("Réponse d'historique des configurations inattendue.");
+    return result.data;
+  }
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
 
 export interface UsageSummaryQuery {
   projectId: string;
