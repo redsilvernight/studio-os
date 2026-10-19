@@ -669,16 +669,20 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
   test("espacement du texte augmenté : contenu essentiel intact", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/tasks");
-    await page.addStyleTag({
-      content: "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }",
+    // Feuille construite (CSSOM) : simule une feuille utilisateur WCAG 1.4.12
+    // sans <style> inline, que la CSP appliquée bloquerait.
+    await page.evaluate(() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(
+        "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }",
+      );
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
     });
     const view = page.locator("#view");
     await expect(view.locator("h1")).toBeVisible();
     await expect(view.locator("#task-new")).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(1);
-    // Le <style> injecté par le test lui-même déclenche la politique
-    // report-only (attendu) ; aucun autre signal CSP.
-    expect(csp.every((message) => /inline style/i.test(message))).toBe(true);
+    expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
 });
@@ -727,7 +731,7 @@ test.describe("UI-14 balayage automatisé axe", () => {
     expect(blocking).toEqual([]);
     expect(fatal).toEqual([]);
     // Signaux attendus uniquement : injection <script> d'axe lui-même
-    // (report-only, preuve que la politique est active) et bruit réseau
+    // (bloquée par la CSP, axe s'exécute via evaluate) et bruit réseau
     // "Failed to load resource" (backend absent en E2E : /healthz 401,
     // /machines 404 volontaire pour la présence déduite UI-9).
     const networkNoise = /inline script|failed to load resource/i;

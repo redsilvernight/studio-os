@@ -97,10 +97,10 @@ VITE_STUDIO_API_URL=http://localhost:8000
 No CORS is configured (backend has none either) — same-origin or
 same-machine dev only for now.
 
-## Content-Security-Policy (Report-Only, DEC-0061)
+## Content-Security-Policy (enforced, DEC-0061)
 
-No enforcement header anywhere yet — `Content-Security-Policy-Report-Only`
-only, until the browser tests prove the main flows clean.
+`Content-Security-Policy` is enforced at the Caddy edge and on `vite preview`
+(e2e) since étape 9.3, after the Report-Only phase ended with zero violation.
 
 - Policy source of truth: `csp-policy.ts` (`buildDashboardCsp`) — mirrored
   by the Caddy edge (`docker/Caddyfile`, dashboard site).
@@ -113,9 +113,8 @@ only, until the browser tests prove the main flows clean.
   `on*=` handlers in `dist/` or `src/` templates).
 - Browser test: `e2e/csp.spec.ts` (`npm run test:e2e`) — stubbed API, login,
   all main hash routes, zero CSP console errors, zero page errors.
-- Exit to enforcement: green e2e on real-backend (or write-covering) flows
-  + zero staging violations over a real usage cycle, then rename the header
-  to `Content-Security-Policy` in `Caddyfile` + `vite.config.ts`.
+- Rollback: rename the header back to `Content-Security-Policy-Report-Only`
+  in `Caddyfile` (`CSP_HEADER` in `csp-policy.ts` for e2e).
 
 ## OpenAPI client / types
 
