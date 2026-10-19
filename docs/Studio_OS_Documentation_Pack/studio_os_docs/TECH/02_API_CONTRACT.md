@@ -588,6 +588,20 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
   `total` couvre tout le perimetre. `until < since` -> `422
   invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
+- GET /usage/configuration-history (P06-history-option, additif, DEC-0221) —
+  `ConfigurationHistory`, `200`. `project_id` requis ; `since`, `until`
+  (filtre `created_at` du TaskLaunch dans `[since, until)`, memes regles et
+  `422 invalid_usage_period` que /usage/summary). Population : TaskLaunch.
+  Cle de groupe : `harness` et `profile_*` epingles sur le lancement ;
+  `harness_version`, `provider`, `model` tires du ledger lie par
+  `task_launch_id` (`null` = jamais rapporte, `"mixed"` = valeurs distinctes).
+  Chaque taux (`succeeded`, `session_linked`, `usage_measured`) porte
+  `definition`, `numerator`, `denominator` (n), `covered`/`launches` ;
+  `value` null si n = 0. Groupes tries par cle, jamais par un taux :
+  `ranking = "none"`, `comparable = false`. `unattributed` compte ledger et
+  AIWork de la periode sans lancement. `caveats` contient toujours
+  `tests_not_quality`, `not_ranked`, `no_minimum_sample`. Aucun effectif
+  minimum. Groupes plafonnes a 100 (`truncated`). Meme acces que /usage/summary.
 
 Les ecritures exigent un role autorise et la machine authentifiee comme
 `machine_id`, y compris pour un admin. Le projet doit etre accessible en
