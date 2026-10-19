@@ -295,6 +295,7 @@ async def admit_batch(
 
     candidates = {candidate.task_id: candidate for candidate in plan.launchable}
     exclusions = {exclusion.task_id: exclusion for exclusion in plan.excluded}
+    free_slots = {machine.machine_id: machine.free_slots for machine in plan.machines}
     refusals: list[AdmissionRefusal] = []
     staged: list[tuple[TaskLaunchModel, EventModel]] = []
     seen: set[uuid.UUID] = set()
@@ -317,11 +318,12 @@ async def admit_batch(
                 )
             )
             continue
-        if item.machine_id not in candidate.machine_ids:
+        if item.machine_id not in candidate.machine_ids or free_slots.get(item.machine_id, 0) <= 0:
             refusals.append(
                 _refusal(item.task_id, item.machine_id, AdmissionRefusalReason.MACHINE_NOT_ELIGIBLE)
             )
             continue
+        free_slots[item.machine_id] -= 1
         machine = await session.get(MachineModel, item.machine_id)
         if machine is None:
             refusals.append(

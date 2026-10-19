@@ -579,3 +579,36 @@ async def test_concurrent_batch_never_launches_an_already_active_task(
     launched = await _launch_counts(real_engine, world.project_id)
     assert launched[0] == await _active_for_task(real_engine, task_id)
     assert launched[0] <= 2
+
+
+async def test_one_batch_never_exceeds_a_machine_free_slots(
+    real_engine: AsyncEngine, real_client: AsyncClient, world: World
+) -> None:
+    await _heartbeat(
+        real_client, world.headers, world.machine_id, _caps(world.project_id, max_launches=1)
+    )
+    roadmap = await _active_roadmap(real_client, world.headers, world.project_id, DOCUMENT)
+    first = await _task(real_client, world.headers, world.project_id)
+    second = await _task(real_client, world.headers, world.project_id)
+    await _link(real_client, world.headers, roadmap["id"], "S1", first)
+    await _link(real_client, world.headers, roadmap["id"], "S2", second)
+
+    plan = await _plan(real_client, world.headers, roadmap["id"])
+    assert world.machine_id in {_machine_for(plan, first), _machine_for(plan, second)}
+    response = await _admit(
+        real_client,
+        roadmap["id"],
+        world.headers,
+        digest=plan["plan_digest"],
+        machine_id=world.machine_id,
+        task_ids=[first, second],
+        key=str(uuid.uuid4()),
+    )
+
+    assert response.status_code == 409, response.text
+    assert _error_code(response) == "admission_refused"
+    refusals = response.json()["detail"]["refusals"]
+    assert [(r["task_id"], r["machine_id"], r["reason"]) for r in refusals] == [
+        (second, world.machine_id, "machine_not_eligible")
+    ]
+    assert await _launch_counts(real_engine, world.project_id) == (0, 0)
