@@ -21,14 +21,14 @@ prépare la décision humaine ; il ne la remplace pas.
 | P01-architecture-gate | [baseline.md](baseline.md), DEC-0200 | Acceptée par l'humain le 10 octobre 2026 |
 | P02-gate | [p02-gate.md](p02-gate.md), DEC-0212 | Acceptée le 14 octobre 2026 (pile locale) |
 | P03-gate | [p03-gate.md](p03-gate.md), DEC-0212 | Acceptée le 14 octobre 2026 |
-| P04-gate | [p04-gate.md](p04-gate.md) | Rapport : « non acceptée » ; défaut `agent_id` corrigé (`d943816c`), handoff dans un lancement profilé non redémontré |
-| P05-gate | [p05-gate.md](p05-gate.md) | Démonstration deux machines faite le 19 octobre ; rapport : « non acceptée » ; défauts corrigés (`aed07f4e`, `e3d162ee`, `349913e8`) mais non redémontrés ; revue humaine non démontrée |
+| P04-gate | [p04-gate.md](p04-gate.md), PR #167 | Redémontrée le 19 octobre (`c80ce25f`) : lancement profilé `read_only` et rejeu `succeeded`, `studio_start_work` + `studio_handoff` observés avec l'`agent_id` du serveur démo. Reste : revue humaine |
+| P05-gate | [p05-gate.md](p05-gate.md), PR #167 | Redémontrée le 19 octobre (`c80ce25f`) : admission unique par slot, éligibilité harness, coupure daemon sur `Flo`, refus local. Restent : revue humaine, coupure sur `Flo-laptop`, sélecteur de harness du dashboard |
 | P06-ops-evidence | [ops-evidence.md](ops-evidence.md) | Restauration isolée PostgreSQL/MinIO reproduite ; promotion publique sous réserves |
 | P06-history-option | [pilot-data.md](pilot-data.md), DEC-0221, PR #165 | Livrée ; critère 2 (rapprochement ledger/AIWork sur échantillon réel) ouvert, attend des données de production |
 
 Écart à trancher : Studio OS compte P04-gate, P05-gate et P06-history-option
 `done`, alors que leurs rapports gardent une gate non acceptée ou un critère
-ouvert. Soit l'acceptation humaine a eu lieu et les rapports sont à mettre à
+ouvert ou une revue humaine en attente. Soit l'acceptation humaine a eu lieu et les rapports sont à mettre à
 jour (date, auteur), soit ces étapes sont à rouvrir ou à passer en `skipped`
 motivé. Sans cet arbitrage, le critère 1 n'est pas satisfait.
 
