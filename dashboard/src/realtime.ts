@@ -15,6 +15,9 @@ import type { components } from "./openapi-schema";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
 
+/** Événement `window` émis par le shell à chaque bascule direct/perdu du flux. */
+export const LIVE_CHANGE_EVENT = "studio:live-change";
+
 export interface RealtimeCallbacks {
   /** Called (debounced) after one or more live events land. */
   onRefetch: () => void;
@@ -22,6 +25,8 @@ export interface RealtimeCallbacks {
   onConflict?: (event: EventEnvelope) => void;
   /** The stream was refused for good (401/403); live updates stopped. */
   onDenied?: (status: number) => void;
+  /** Live stream up (`true`) or lost and reconnecting (`false`). */
+  onLiveChange?: (live: boolean) => void;
 }
 
 export interface RealtimeOptions {
@@ -76,6 +81,9 @@ export function startRealtimeConnection(
     },
     onDenied: (status) => {
       callbacks.onDenied?.(status);
+    },
+    onLiveChange: (live) => {
+      callbacks.onLiveChange?.(live);
     },
   });
 

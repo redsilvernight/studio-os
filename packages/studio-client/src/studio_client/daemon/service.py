@@ -797,6 +797,17 @@ class BridgeService:
         capability_error = check_capability(request.command, self._granted_capabilities)
         if capability_error is not None:
             return self._local_error(request, capability_error)
+        if (
+            request.command is BridgeCommand.SKILLS_APPLY
+            and request.payload.get("resolutions") is not None
+            and "skills.resolve" not in self._granted_capabilities
+        ):
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.CAPABILITY_MISSING,
+                "Targeted skill resolutions require the skills.resolve capability.",
+            )
         if request.command in _LOCAL_FEATURE_COMMANDS and self.controller.local_features is None:
             return self._error(
                 request,
@@ -843,13 +854,20 @@ class BridgeService:
             )
         if isinstance(payload, HandshakeResponse):
             self._granted_capabilities = set(payload.granted_capabilities)
+        payload_data = payload.model_dump(mode="json")
+        if (
+            request.command is BridgeCommand.SKILLS_PREVIEW
+            and "skills.resolve" not in self._granted_capabilities
+        ):
+            for entry in payload_data["skills"]:
+                entry.pop("preview_hash", None)
         response = BridgeResponse(
             message_id=_message_id(),
             correlation_id=request.correlation_id,
             request_id=request.message_id,
             sent_at=_now(),
             command=request.command,
-            payload=payload.model_dump(mode="json"),
+            payload=payload_data,
         )
         return response.model_dump(mode="json")
 
@@ -883,6 +901,7 @@ class BridgeService:
                             "identity.enroll",
                             "skills.read",
                             "skills.apply",
+                            "skills.resolve",
                             "setup.plan",
                             "setup.apply",
                             "launch.settings",

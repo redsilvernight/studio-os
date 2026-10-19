@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 
 import pytest
-from studio_client.harness.base import STUDIO_MCP_SERVER_NAME, AdapterRefusal, HarnessContext
+from studio_client.harness.base import (
+    STUDIO_MCP_SERVER_NAME,
+    AccessMode,
+    AdapterRefusal,
+    HarnessContext,
+)
 from studio_client.harness.claude_code import ClaudeCodeAdapter
 
 from tests.harness.support import MCP_URL, base_env
@@ -155,3 +160,28 @@ def test_extra_argv_without_deployed_hooks_still_drops_every_settings_source(
 
     assert extra[extra.index("--setting-sources") + 1] == ""
     assert "--settings" not in extra
+
+
+@pytest.mark.parametrize("mode", [AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE])
+def test_tool_restrictions_keep_studio_mcp_and_isolation(tmp_path: Path, mode: AccessMode) -> None:
+    adapter = ClaudeCodeAdapter()
+    ctx = make_ctx(tmp_path)
+    isolation = tmp_path / "isolation"
+    argv = adapter.headless_argv("inspect the project", mode=mode)
+    extra = adapter.headless_extra_argv(ctx, model="sonnet", isolation_dir=isolation, mode=mode)
+
+    assert "--strict-mcp-config" in extra
+    assert extra[extra.index("--mcp-config") + 1] == str(isolation / "studio-mcp.json")
+    assert extra[extra.index("--model") + 1] == "sonnet"
+    allowed = set(extra[extra.index("--allowedTools") + 1].split(","))
+    assert f"mcp__{STUDIO_MCP_SERVER_NAME}" in allowed
+    assert extra[extra.index("--setting-sources") + 1] == ""
+    if mode is AccessMode.READ_ONLY:
+        assert set(argv[argv.index("--tools") + 1].split(",")) == {"Read", "Grep", "Glob"}
+        assert "SendMessage" in argv[argv.index("--disallowedTools") + 1].split(",")
+        assert not {"SendMessage", "ListAgents", "Agent", "Bash", "PowerShell"} & allowed
+    else:
+        assert "--tools" not in argv + extra
+        assert "--disallowedTools" not in argv + extra
+        assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
+        assert allowed == {"Read", "Edit", "Write", "Bash", "Grep", "Glob", "mcp__studio-os"}

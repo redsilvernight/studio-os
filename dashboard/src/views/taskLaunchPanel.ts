@@ -6,18 +6,36 @@
  * hors ligne ou inéligible reste visible mais non sélectionnable, avec sa
  * raison. Le suivi relit la même vérité serveur ; l'annulation n'est offerte
  * qu'au demandeur (ou à un administrateur), sur un lancement non terminal.
+ *
+ * Le statut du processus et la preuve de protocole sont deux faits distincts :
+ * un code de sortie 0 décrit le processus, jamais le travail rendu. Un handoff
+ * reçu est un résultat transmis, jamais une validation.
  */
-import { dsBadge, dsEmptyState, dsField, dsSectionHeader, dsSkeleton } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsField, dsSectionHeader, dsSkeleton, type DsTone } from "../ds/ds";
 import { machineLabel } from "../actorNames";
 import { esc, fmtTime } from "../ui";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
+import { taskStatusLabel } from "../taskStatus";
+import type { UsageSummary } from "../usageApi";
+import { usageTotalText } from "./usage";
 import type {
+  ExecutionSnapshot,
+  ExecutionSnapshotPayload,
+  ReplayDifference,
+  ReplayLimitation,
+  TaskLaunchReplayPreview,
   HarnessReport,
   IneligibilityReason,
   MachineEligibility,
+  SnapshotAppliedParameters,
+  SnapshotCaptureError,
+  SnapshotResolution,
   TaskLaunch,
+  TaskLaunchProtocol,
+  TaskLaunchProtocolStatus,
   TaskLaunchStatus,
+  TaskLaunchWithProtocol,
 } from "../taskLaunchesApi";
 
 export interface AgentOption {
@@ -33,9 +51,20 @@ export interface LaunchSession {
 export interface LaunchPanelData {
   machines: MachineEligibility[];
   agents: AgentOption[];
-  latest: TaskLaunch | null;
+  /** Dernier lancement du projet pour cette tâche : porte la preuve de protocole. */
+  latest: TaskLaunchWithProtocol | null;
   /** Sessions de la tâche, pour résoudre l'état de la session liée (best-effort). */
   sessions?: LaunchSession[] | null;
+  /**
+   * Snapshot figé du dernier lancement (DEC-0199). `undefined` = pas encore
+   * lu, `null` = la machine n'a rien enregistré (404). Dans les deux cas la
+   * provenance ne comble rien : elle nomme l'absence.
+   */
+  snapshot?: ExecutionSnapshot | null;
+  /** Usage rattaché à ce lancement (ledger) ; mêmes conventions que `snapshot`. */
+  usage?: UsageSummary | null;
+  /** Aperçu de rejeu (DEC-0214), lecture seule ; mêmes conventions que `snapshot`. */
+  replay?: TaskLaunchReplayPreview | null;
 }
 
 export interface LaunchPanelState {
@@ -59,7 +88,7 @@ const LAUNCH_STATUS_FR: Record<TaskLaunchStatus, string> = {
   accepted: "Accepté par le poste",
   preparing: "Préparation",
   running: "En cours",
-  succeeded: "Terminé (succès)",
+  succeeded: "Processus terminé (code 0)",
   failed: "Échec",
   cancelled: "Annulé",
   rejected: "Refusé par le poste",
@@ -109,8 +138,6 @@ export function taskLaunchStatusTone(
   status: TaskLaunchStatus,
 ): "neutral" | "success" | "warning" | "danger" | "info" {
   switch (status) {
-    case "succeeded":
-      return "success";
     case "failed":
     case "rejected":
       return "danger";
@@ -121,8 +148,58 @@ export function taskLaunchStatusTone(
     case "running":
       return "info";
     default:
+      // `succeeded` reste neutre : un code de sortie 0 décrit le processus,
+      // pas le travail rendu par l'agent (voir le badge de protocole).
       return "neutral";
   }
+}
+
+/**
+ * Preuve de protocole d'un lancement, telle que la liste projet la dérive.
+ * Son absence (lecture par id, serveur plus ancien) vaut « non vérifié » :
+ * l'UI ne comble jamais le trou par une lecture du code de sortie.
+ */
+export function launchProtocolStatus(launch: TaskLaunchWithProtocol): TaskLaunchProtocolStatus {
+  return launch.protocol?.status ?? "unverified";
+}
+
+/**
+ * Statut courant de la tâche après le handoff. `completed` reste « à relire » :
+ * une tâche marquée terminée par l'agent n'est ni relue ni validée ici.
+ */
+export function launchProtocolTaskLabel(taskStatus: string | null | undefined): string | null {
+  if (taskStatus === null || taskStatus === undefined || taskStatus === "") return null;
+  if (taskStatus === "completed") return "à relire";
+  return taskStatusLabel(taskStatus);
+}
+
+export function launchProtocolBadgeLabel(protocol: TaskLaunchProtocol | null | undefined): string | null {
+  const status = protocol?.status ?? "unverified";
+  if (status === "not_applicable") return null;
+  if (status === "awaiting") return "Handoff attendu";
+  if (status === "unverified") return "Protocole non vérifié";
+  const taskLabel = launchProtocolTaskLabel(protocol?.task_status);
+  return taskLabel === null ? "Handoff reçu" : `Handoff reçu · tâche : ${taskLabel}`;
+}
+
+/** Ton du badge : un handoff reçu n'est jamais un succès, donc jamais vert. */
+export function launchProtocolBadgeTone(status: TaskLaunchProtocolStatus): DsTone {
+  switch (status) {
+    case "awaiting":
+      return "info";
+    case "unverified":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
+/** Badge de protocole à côté du statut ; vide quand le protocole ne s'applique pas. */
+export function launchProtocolBadgeHtml(launch: TaskLaunchWithProtocol): string {
+  const status = launchProtocolStatus(launch);
+  const label = launchProtocolBadgeLabel(launch.protocol);
+  if (label === null) return "";
+  return dsBadge(label, launchProtocolBadgeTone(status));
 }
 
 const REASON_FR: Record<IneligibilityReason, string> = {
@@ -252,7 +329,7 @@ function previewHtml(state: LaunchPanelState): string {
  * handoff de la tâche. L'état affiché vient des sessions chargées ; à défaut
  * le lien reste, sans inventer d'état.
  */
-export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunch): string {
+export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunchWithProtocol): string {
   if (!latest.session_id) return "";
   const linked = state.data?.sessions?.find((session) => session.id === latest.session_id) ?? null;
   const ended = linked !== null && linked.ended_at !== null && linked.ended_at !== undefined && linked.ended_at !== "";
@@ -284,6 +361,10 @@ export function latestHtml(state: LaunchPanelState): string {
       ? `<button class="ds-btn ds-btn--danger" type="button" data-action="launch-cancel">Annuler le lancement</button>`
       : "") +
     `</div>`;
+  const protocolBadge = launchProtocolBadgeHtml(latest);
+  const badges =
+    dsBadge(taskLaunchStatusLabel(latest.status), taskLaunchStatusTone(latest.status)) +
+    (protocolBadge === "" ? "" : ` ${protocolBadge}`);
   return `<div class="ds-list-item" data-testid="launch-latest"><div class="grow">` +
     `<div class="ds-list-title">${esc(details.join(" · "))}</div>` +
     `<div class="ds-list-sub">Demandé ${esc(fmtTime(latest.created_at))} · expire ${esc(fmtTime(latest.expires_at))}` +
@@ -292,7 +373,7 @@ export function latestHtml(state: LaunchPanelState): string {
     linkedSessionHtml(state, latest) +
     (latest.output_excerpt ? `<pre class="mono">${esc(latest.output_excerpt)}</pre>` : "") +
     actions +
-    `</div>${dsBadge(taskLaunchStatusLabel(latest.status), taskLaunchStatusTone(latest.status))}</div>`;
+    `</div>${badges}</div>`;
 }
 
 export function launchConfirmText(
@@ -305,6 +386,361 @@ export function launchConfirmText(
     `Lancer cette tâche sur « ${machine?.display_name ?? "?"} » (harnais ${harnessId || "?"}, ${agent}) ? ` +
     `Le poste cible décide localement (opt-in, projet enregistré) et rapporte l'exécution ; le statut affiché ne vient que de lui.`
   );
+}
+
+/**
+ * Provenance (DEC-0199) — neuf questions sur ce qu'une exécution a été, lues
+ * dans le seul enregistrement figé du run.
+ *
+ * Deux règles structurent la section. Le rendu ne lit jamais la configuration
+ * courante (profil, résolveur, postes) : seul le snapshot fait foi, seul le
+ * lancement figé complète ce que la capture ne porte pas. Et chaque fait manquant
+ * est nommé « inconnu » avec sa cause — une case vide serait lue comme une
+ * information, donc comme une valeur inventée.
+ */
+export interface ProvenanceFact {
+  /** Ancre stable : une question par identifiant, dans l'ordre d'affichage. */
+  id: string;
+  question: string;
+  answer: string;
+}
+
+const UNKNOWN = "inconnu";
+
+/** Fait absent : le trou est nommé, jamais comblé. */
+function unknown(note = ""): string {
+  return note === "" ? UNKNOWN : `${UNKNOWN} (${note})`;
+}
+
+function rawText(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/** Date affichée sans échappement interne : la réponse entière est échappée une fois. */
+function timeText(value: string | null | undefined): string {
+  const raw = rawText(value);
+  if (raw === null) return unknown("date absente");
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString("fr-FR");
+}
+
+/** Empreinte affichée abrégée : elle prouve une identité, elle ne la reconstitue pas. */
+export function shortDigest(digest: string): string {
+  const separator = digest.indexOf(":");
+  const prefix = separator === -1 ? "" : digest.slice(0, separator + 1);
+  const body = separator === -1 ? digest : digest.slice(separator + 1);
+  return body.length <= 12 ? digest : `${prefix}${body.slice(0, 12)}…`;
+}
+
+function digestText(value: string | null | undefined, note = "empreinte absente"): string {
+  const raw = rawText(value);
+  return raw === null ? unknown(note) : shortDigest(raw);
+}
+
+function profileText(profile: { stable_key: string; contract_version: number; digest: string } | null | undefined): string | null {
+  const key = rawText(profile?.stable_key);
+  if (key === null) return null;
+  const version = typeof profile?.contract_version === "number" ? ` v${profile.contract_version}` : "";
+  const digest = rawText(profile?.digest);
+  return `${key}${version}${digest === null ? "" : ` (${shortDigest(digest)})`}`;
+}
+
+const RESOURCE_ROLE_FR: Record<string, string> = {
+  agent: "agent",
+  rule: "règle",
+  skill: "compétence",
+  model_profile: "profil de modèle",
+  workflow: "flux",
+  composed_agent: "agent composé",
+};
+
+function resourceText(resource: NonNullable<SnapshotResolution["resources"]>[number]): string {
+  const key = rawText(resource.stable_key);
+  if (key === null) return unknown("clé stable absente");
+  const role = RESOURCE_ROLE_FR[resource.role] ?? resource.role;
+  const version = typeof resource.version === "number" ? ` v${resource.version}` : "";
+  const digest = rawText(resource.content_digest);
+  return `${role} ${key}${version}${digest === null ? "" : ` (${shortDigest(digest)})`}`;
+}
+
+function runtimeText(resolution: SnapshotResolution | null | undefined): string {
+  const runtime = resolution?.runtime ?? null;
+  const level = rawText(runtime?.level);
+  if (runtime === null || runtime === undefined || level === null) return unknown("runtime non capturé");
+  const matched = rawText(runtime.matched_stable_key);
+  const refs = [
+    rawText(runtime.harness_ref) === null ? null : `harnais ${String(rawText(runtime.harness_ref))}`,
+    rawText(runtime.provider_ref) === null ? null : `fournisseur ${String(rawText(runtime.provider_ref))}`,
+    rawText(runtime.model_ref) === null ? null : `modèle ${String(rawText(runtime.model_ref))}`,
+  ].filter((line): line is string => line !== null);
+  return (
+    `${level}${matched === null ? "" : ` → ${matched}`}` +
+    (refs.length === 0 ? "" : ` (${refs.join(", ")})`) +
+    ` · capacités ${digestText(runtime?.capabilities_digest)}`
+  );
+}
+
+function projectionsText(applied: SnapshotAppliedParameters | null | undefined): string {
+  const projections = applied?.projections ?? [];
+  if (projections.length === 0) return unknown("aucune projection enregistrée");
+  return projections
+    .map((projection) => `${rawText(projection.target) ?? unknown("cible absente")} (${digestText(projection.digest)})`)
+    .join(" · ");
+}
+
+function contextText(payload: ExecutionSnapshotPayload | null | undefined): string {
+  const resolution = payload?.resolution ?? null;
+  const applied = payload?.applied ?? null;
+  if (resolution === null && applied === null) return unknown("résolution et paramètres non capturés");
+  const resources = resolution?.resources ?? [];
+  return [
+    `agent ${rawText(resolution?.agent_stable_key) ?? unknown("agent non capturé")}`,
+    resources.length === 0 ? "aucune ressource résolue" : resources.map(resourceText).join(" · "),
+    `runtime : ${runtimeText(resolution)}`,
+    `projections : ${projectionsText(applied)}`,
+  ].join(" · ");
+}
+
+function configurationText(payload: ExecutionSnapshotPayload | null | undefined): string {
+  const applied = payload?.applied ?? null;
+  const resolution = payload?.resolution ?? null;
+  const appliedProfile = profileText(applied?.profile);
+  const previewProfile = profileText(resolution?.profile);
+  const profile = appliedProfile ?? previewProfile ?? unknown("profil non capturé");
+  const drift =
+    appliedProfile !== null && previewProfile !== null && appliedProfile !== previewProfile
+      ? ` · dérive par rapport à la preview : ${previewProfile}`
+      : "";
+  const harness = rawText(applied?.harness_id);
+  const harnessVersion = rawText(applied?.harness_version);
+  const accessMode =
+    rawText(applied?.access_mode) ??
+    (applied !== null && applied.access_mode === null ? "aucun mode imposé" : unknown("mode non capturé"));
+  return (
+    `profil ${profile}${drift}` +
+    ` · harnais ${harness ?? unknown("harnais non capturé")}` +
+    ` ${harnessVersion ?? unknown("version inconnue")}` +
+    ` · mode d'accès ${accessMode}`
+  );
+}
+
+function codeText(applied: SnapshotAppliedParameters | null | undefined): string {
+  const sha = rawText(applied?.git_sha);
+  const dirty =
+    typeof applied?.git_dirty === "boolean"
+      ? applied.git_dirty
+        ? "worktree modifié"
+        : "worktree propre"
+      : unknown("propreté non capturée");
+  return `commit ${sha ?? unknown("commit non capturé")} · ${dirty}`;
+}
+
+function whenText(launch: TaskLaunch | null): string {
+  if (launch === null) return unknown("lancement absent");
+  return (
+    `demandé le ${timeText(launch.created_at)}` +
+    ` · terminé le ${rawText(launch.finished_at) === null ? unknown("lancement non terminé") : timeText(launch.finished_at)}` +
+    ` · expire le ${timeText(launch.expires_at)}`
+  );
+}
+
+function outcomeText(launch: TaskLaunch | null): string {
+  if (launch === null) return unknown("lancement absent");
+  const withProtocol = launch as TaskLaunchWithProtocol;
+  const protocol = launchProtocolBadgeLabel(withProtocol.protocol) ?? "protocole non applicable";
+  const reason = launch.reason_code !== "none" ? launchReasonCodeLabel(launch.reason_code) : "aucun motif signalé";
+  return `${taskLaunchStatusLabel(launch.status)} · ${reason} · ${protocol}`;
+}
+
+const CAPTURE_STATUS_FR: Record<string, string> = {
+  ok: "capture complète",
+  partial: "capture partielle",
+  failed: "capture échouée",
+};
+
+export function captureStatusLabel(status: string): string {
+  return CAPTURE_STATUS_FR[status] ?? status;
+}
+
+/** `ok` décrit la capture, pas le travail rendu : le badge reste neutre. */
+export function captureStatusTone(status: string): DsTone {
+  if (status === "failed") return "danger";
+  if (status === "partial") return "warning";
+  return "neutral";
+}
+
+function captureErrorsText(snapshot: ExecutionSnapshot | null | undefined): string {
+  if (snapshot === null || snapshot === undefined) return unknown("aucune capture");
+  const errors: SnapshotCaptureError[] = snapshot.payload?.capture_errors ?? [];
+  const status = captureStatusLabel(rawText(snapshot.capture_status) ?? UNKNOWN);
+  const reason = rawText(snapshot.capture_reason);
+  if (errors.length === 0) {
+    return `${status} · ${reason === null ? "aucune erreur de capture" : `motif : ${reason}`}`;
+  }
+  return (
+    `${status} · ${errors
+      .map((error) => {
+        const field = rawText(error.field);
+        return `${error.code}${field === null ? "" : ` (${field})`} : ${error.detail}`;
+      })
+      .join(" · ")}`
+  );
+}
+
+function howMuchText(usage: UsageSummary | null | undefined): string {
+  if (usage === undefined) return unknown("consommation pas encore chargée");
+  if (usage === null) return unknown("consommation illisible");
+  const total = usage.total;
+  if (total.entries === 0) return unknown("aucune mesure d'usage rattachée à ce lancement");
+  return `${total.entries} mesure${total.entries > 1 ? "s" : ""} · ${usageTotalText(total)}`;
+}
+
+/**
+ * Les neuf réponses, toujours neuf. `launch`, `snapshot` et l'usage enregistré
+ * pour ce lancement sont les seules entrées : la configuration courante n'a
+ * aucun chemin vers cette fonction.
+ */
+export function provenanceFacts(
+  launch: TaskLaunch | null,
+  snapshot: ExecutionSnapshot | null | undefined,
+  usage?: UsageSummary | null,
+): ProvenanceFact[] {
+  const payload = snapshot?.payload ?? null;
+  const resolution = payload?.resolution ?? null;
+  const applied = payload?.applied ?? null;
+  const requester = rawText(launch?.requested_by_user_id);
+  const agent = rawText(resolution?.agent_stable_key) ?? rawText(launch?.agent_stable_key);
+  const machine = rawText(launch?.machine_id);
+  const branch = rawText(applied?.worktree_branch);
+  return [
+    {
+      id: "who",
+      question: "Qui",
+      answer: `demandeur ${requester ?? unknown("demandeur non enregistré")} · agent ${agent ?? unknown("agent non capturé")}`,
+    },
+    {
+      id: "where",
+      question: "Où",
+      answer: `poste ${machine ?? unknown("poste non enregistré")} · branche ${branch ?? unknown("branche non capturée")}`,
+    },
+    { id: "config", question: "Quelle configuration", answer: configurationText(payload) },
+    { id: "context", question: "Quel contexte", answer: contextText(payload) },
+    { id: "code", question: "Quel code", answer: codeText(applied) },
+    { id: "when", question: "Quand", answer: whenText(launch) },
+    { id: "how-much", question: "Combien", answer: howMuchText(usage) },
+    { id: "outcome", question: "Quel résultat", answer: outcomeText(launch) },
+    { id: "capture", question: "Quelles erreurs de capture", answer: captureErrorsText(snapshot) },
+  ];
+}
+
+function provenanceNotice(snapshot: ExecutionSnapshot | null | undefined): string {
+  if (snapshot === undefined) {
+    return `<p class="ds-list-sub" data-testid="launch-provenance-notice">Snapshot pas encore chargé pour ce lancement.</p>`;
+  }
+  if (snapshot === null) {
+    return (
+      `<p class="ds-notice ds-notice--warning" role="status" data-testid="launch-provenance-notice">` +
+      `Cet lancement n'a aucun snapshot d'exécution enregistré : la machine cible ne l'a pas encore rapporté.</p>`
+    );
+  }
+  return (
+    `<p class="ds-list-sub">Ce que la machine a réellement appliqué, figé au moment du run. ` +
+    `Rien ici ne vient de la configuration courante ; les empreintes sont abrégées à l'affichage.</p>`
+  );
+}
+
+export function provenanceHtml(
+  launch: TaskLaunch | null,
+  snapshot: ExecutionSnapshot | null | undefined,
+  usage?: UsageSummary | null,
+): string {
+  const facts = provenanceFacts(launch, snapshot, usage);
+  const status = rawText(snapshot?.capture_status);
+  const badge = status === null ? "" : ` ${dsBadge(captureStatusLabel(status), captureStatusTone(status))}`;
+  const rows = facts
+    .map(
+      (fact) =>
+        `<div class="ds-list-item" data-testid="provenance-${fact.id}">` +
+        `<div class="grow"><div class="ds-list-title">${esc(fact.question)}</div>` +
+        `<div class="ds-list-sub">${esc(fact.answer)}</div></div></div>`,
+    )
+    .join("");
+  return `<div data-testid="launch-provenance">${provenanceNotice(snapshot)}${badge}<ul class="ds-list">${rows}</ul></div>`;
+}
+
+const REPLAY_VERDICT_LABELS: Record<string, string> = {
+  ready: "rejouable",
+  limited: "rejouable avec limitations",
+  refused: "rejeu refusé",
+};
+
+const REPLAY_LIMITATION_LABELS: Record<string, string> = {
+  launch_not_terminal: "le lancement n'est pas terminé",
+  already_retried: "une nouvelle tentative existe déjà",
+  snapshot_missing: "aucun snapshot d'exécution enregistré",
+  snapshot_capture_failed: "la capture du snapshot a échoué",
+  not_authorized: "droits insuffisants pour relancer",
+  target_not_admissible: "poste ou politique non admissible aujourd'hui",
+  agent_unresolvable: "l'agent ne se résout plus",
+  resolution_unrecorded: "la résolution d'origine n'a pas été enregistrée",
+  library_version_unavailable: "une version Library enregistrée n'existe plus",
+  source_worktree_dirty: "le worktree source contenait des changements non commités",
+  source_git_unrecorded: "l'état Git d'origine n'a pas été enregistré",
+  git_state_not_pinned: "la branche de tâche est reprise telle qu'elle est aujourd'hui",
+  profile_rechecked_on_machine: "le profil sera revérifié par le poste au démarrage",
+  output_not_reproducible: "la sortie d'un agent n'est pas reproductible",
+};
+
+const REPLAY_CHANGE_LABELS: Record<string, string> = {
+  unchanged: "inchangé",
+  changed: "changé",
+  added: "ajouté",
+  removed: "retiré",
+  unavailable: "indisponible",
+};
+
+export function replayVerdictTone(verdict: string): DsTone {
+  if (verdict === "ready") return "success";
+  if (verdict === "limited") return "warning";
+  return "danger";
+}
+
+function replayLimitationText(item: ReplayLimitation): string {
+  const label = REPLAY_LIMITATION_LABELS[item.code] ?? item.code;
+  return item.severity === "refusal" ? `Refus : ${label}` : `Limitation : ${label}`;
+}
+
+function replayDifferenceText(item: ReplayDifference): string {
+  const subject = item.role ? `${item.role} ${item.stable_key}` : item.stable_key;
+  const change = REPLAY_CHANGE_LABELS[item.change] ?? item.change;
+  return `${subject} — ${change} (${item.recorded ?? "—"} → ${item.current ?? "—"})`;
+}
+
+/**
+ * Aperçu de rejeu (DEC-0214), lecture seule : ce qu'un retry utiliserait
+ * aujourd'hui face au snapshot figé. Rien n'est lancé depuis ce bloc.
+ */
+export function replayPreviewHtml(replay: TaskLaunchReplayPreview | null | undefined): string {
+  if (replay === undefined) return "";
+  if (replay === null) {
+    return `<p class="ds-list-sub" data-testid="launch-replay">Aperçu de rejeu indisponible.</p>`;
+  }
+  const verdict = REPLAY_VERDICT_LABELS[replay.verdict] ?? replay.verdict;
+  const limits = (replay.limitations ?? [])
+    .map((item) => `<li class="ds-list-sub" data-testid="replay-limitation-${esc(item.code)}">${esc(replayLimitationText(item))}</li>`)
+    .join("");
+  const changes = (replay.differences ?? [])
+    .filter((item) => item.change !== "unchanged")
+    .map((item) => `<li class="ds-list-sub">${esc(replayDifferenceText(item))}</li>`)
+    .join("");
+  const diffBlock = changes === ""
+    ? `<p class="ds-list-sub">Aucune substitution par rapport au snapshot.</p>`
+    : `<p class="ds-list-sub">Substitutions :</p><ul>${changes}</ul>`;
+  return `<div data-testid="launch-replay">${dsBadge(verdict, replayVerdictTone(replay.verdict))}` +
+    `<ul>${limits}</ul>${diffBlock}</div>`;
 }
 
 export function launchPanelHtml(state: LaunchPanelState): string {
@@ -345,5 +781,11 @@ export function launchPanelHtml(state: LaunchPanelState): string {
     `<div data-testid="launch-preview">${previewHtml(state)}</div>` +
     `<p class="ds-list-sub"><strong>Dernier lancement</strong> — l'état affiché est celui rapporté par la machine cible.</p>` +
     latestHtml(state) +
+    `<p class="ds-list-sub"><strong>Provenance</strong> — neuf questions sur ce qu'a été ce lancement, lues dans son enregistrement figé.</p>` +
+    provenanceHtml(state.data.latest, state.data.snapshot, state.data.usage) +
+    (state.data.replay === undefined
+      ? ""
+      : `<p class="ds-list-sub"><strong>Rejeu</strong> — ce qu'une nouvelle tentative utiliserait aujourd'hui, comparé au snapshot.</p>` +
+        replayPreviewHtml(state.data.replay)) +
     `</section>`;
 }

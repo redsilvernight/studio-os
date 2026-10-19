@@ -38,6 +38,7 @@ class _Version:
     version: int
     title: str
     text: str
+    description: str | None = None
 
     @property
     def content(self) -> dict[str, str]:
@@ -72,6 +73,7 @@ def _projection(
     text: str = "# Git flow\n\nUse task branches.",
     scope: str = "studio",
     deprecated: bool = False,
+    description: str | None = None,
 ) -> LibraryContextItem:
     return LibraryContextItem(
         library_kind="skill",
@@ -83,6 +85,7 @@ def _projection(
         text=text,
         content_schema="studio.library.skill/v1",
         deprecated=deprecated,
+        description=description,
     )
 
 
@@ -133,6 +136,39 @@ def test_render_has_compatible_frontmatter_and_provenance() -> None:
     assert "\r" not in rendered
 
 
+@pytest.mark.parametrize("description", [None, "", " \t\r\n "])
+def test_render_falls_back_to_title_for_empty_description(description: str | None) -> None:
+    rendered = render_skill(_projection(description=description))
+
+    assert 'description: "Studio Git Flow"\n' in rendered
+
+
+def test_render_uses_definition_description_with_yaml_safe_escaping() -> None:
+    rendered = render_skill(
+        _projection(description=' Utiliser /next : "tâche".\r\n Déclencheurs : /next hotfix. ')
+    )
+    frontmatter = rendered.split("---", 2)[1]
+    description_line = frontmatter.splitlines()[2]
+
+    assert json.loads(description_line.removeprefix("description: ")) == (
+        'Utiliser /next : "tâche". Déclencheurs : /next hotfix.'
+    )
+
+
+@pytest.mark.asyncio
+async def test_fetch_preserves_version_description_for_skill_rendering() -> None:
+    resource = _Resource(uuid4(), "next", "studio")
+    description = "Mener une tâche de bout en bout. Déclencheur : /next."
+    api = _FakeApi([resource], [_Version(resource.id, 1, "Next", "body", description)])
+
+    (projection,) = await fetch_skill_projections(api, None)
+
+    assert projection.description == description
+    assert f"description: {json.dumps(description, ensure_ascii=False)}\n" in render_skill(
+        projection
+    )
+
+
 def test_plan_distinguishes_current_missing_and_drifted(tmp_path: Path) -> None:
     first = _projection()
     second = _projection("release-skill", text="Release safely.")
@@ -150,6 +186,29 @@ def test_plan_distinguishes_current_missing_and_drifted(tmp_path: Path) -> None:
     assert [target.harness for target in plan.current] == ["agents"]
     assert [target.harness for target in plan.drifted] == ["claude"]
     assert len(plan.missing) == 2
+
+
+def test_partial_sync_keeps_unselected_manifest_and_retired_copies(tmp_path: Path) -> None:
+    old = [_projection(key, text="old") for key in ("delegate", "graphify", "studio-old")]
+    apply_skill_sync(plan_skill_sync(tmp_path, old))
+    before = json.loads((tmp_path / ".studio-os" / "library-skills-manifest.json").read_text())
+    plan = plan_skill_sync(
+        tmp_path,
+        [
+            _projection("delegate", text="new"),
+            _projection("graphify", text="new"),
+            _projection("studio-old", deprecated=True),
+        ],
+    )
+    result = apply_skill_sync(plan, selected_keys={"delegate"})
+    assert all("delegate" in str(path) for path in result.written)
+    assert result.removed == ()
+    assert (tmp_path / ".agents" / "skills" / "studio-old" / "SKILL.md").is_file()
+    after = json.loads(result.manifest_path.read_text())
+    assert [row for row in after["skills"] if row["stable_key"] != "delegate"] == [
+        row for row in before["skills"] if row["stable_key"] != "delegate"
+    ]
+    assert plan_skill_sync(tmp_path, [_projection("graphify", text="new")]).outdated
 
 
 def test_apply_refuses_drift_without_overwrite_and_changes_nothing(tmp_path: Path) -> None:

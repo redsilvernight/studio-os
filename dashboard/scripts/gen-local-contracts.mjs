@@ -70,6 +70,7 @@ const MODELS = [
   "SkillsCheckResult",
   "SkillCheckEntry",
   "SkillTargetState",
+  "SkillResolution",
   "LaunchSettingsRequest",
   "LaunchSettings",
   "LaunchSettingsView",

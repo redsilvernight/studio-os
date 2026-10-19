@@ -6,12 +6,21 @@
  * (événement, acteur/source, moment, contexte utile), jamais un dump JSON :
  * seules des clés d'affichage connues sont extraites du payload, les types
  * inconnus restent tolérés (contrat additif) avec un libellé générique.
+ *
+ * Les signaux `coordination.*` passent par la même timeline : leur libellé
+ * vient de `intentLabel` (`../coordination`), pas du type brut.
+ *
+ * Bruit `ai_work.*` (DEC-0165 D5) : la paire started/completed d'un même
+ * `payload.ai_work_id` sature la timeline. Le rendu n'affiche qu'une entrée
+ * par travail IA via `collapseAiWork`, fonction pure : la timeline brute
+ * chargée depuis l'API n'est jamais modifiée.
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { dsEmptyState, dsSkeleton } from "../ds/ds";
 import type { components } from "../openapi-schema";
 import { agentLabel, machineLabel } from "../actorNames";
+import { COORDINATION_PREFIX, intentLabel, type CoordinationIntent } from "../coordination";
 import { describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 
@@ -86,8 +95,21 @@ const EVENT_LABEL: Record<string, string> = {
   "marketing.post.published": "Publication marketing publiée",
 };
 
-/** Libellé humain d'un type d'événement ; les types futurs restent tolérés. */
+/** Intentions `coordination.*` reconnues ; une intention future reste tolérée. */
+const COORDINATION_INTENTS: readonly CoordinationIntent[] = ["heads_up", "question", "blocked_by", "handoff"];
+
+/** Libellé humain d'un type d'événement ; les types futurs restent tolérés.
+ *
+ * La timeline est volontairement non filtrée (DEC-0051) : elle contient donc
+ * aussi les signaux `coordination.*`, qui sont des événements comme les
+ * autres. Reconnus, ils sont nommés par `intentLabel` (source unique des
+ * intentions, `../coordination`) ; un `coordination.<inconnu>` retombe sur le
+ * libellé générique, jamais sur le type brut affiché à l'écran. */
 export function timelineEventLabel(eventType: string): string {
+  if (eventType.startsWith(COORDINATION_PREFIX)) {
+    const intent = eventType.slice(COORDINATION_PREFIX.length) as CoordinationIntent;
+    if (COORDINATION_INTENTS.includes(intent)) return intentLabel(intent);
+  }
   return EVENT_LABEL[eventType] ?? "Événement";
 }
 
@@ -128,6 +150,47 @@ export function timelineEventActor(event: TimelineEvent): string {
 
 export function countTimelineEvents(timeline: Timeline): number {
   return timeline.days.reduce((total, day) => total + day.events.length, 0);
+}
+
+const AI_WORK_PREFIX = "ai_work.";
+const AI_WORK_ID_KEY = "ai_work_id";
+
+/** Identifiant de regroupement d'un événement `ai_work.*`, "" sinon (jamais regroupé). */
+function aiWorkGroupId(event: TimelineEvent): string {
+  if (!event.event_type.startsWith(AI_WORK_PREFIX)) return "";
+  const raw: unknown = event.payload[AI_WORK_ID_KEY];
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+/**
+ * Une seule entrée affichée par travail IA : les événements `ai_work.*` d'un
+ * même `payload.ai_work_id` sont réduits au plus récent (`server_timestamp` max),
+ * qui reste dans son jour d'origine ; les jours sans événement disparaissent et
+ * l'ordre relatif des autres événements est conservé. Fonction pure : l'entrée
+ * n'est jamais modifiée et l'opération est idempotente.
+ */
+export function collapseAiWork(timeline: Timeline): Timeline {
+  const latest = new Map<string, TimelineEvent>();
+  for (const day of timeline.days) {
+    for (const event of day.events) {
+      const id = aiWorkGroupId(event);
+      if (id === "") continue;
+      const seen = latest.get(id);
+      if (seen === undefined || event.server_timestamp > seen.server_timestamp) latest.set(id, event);
+    }
+  }
+  const kept = new Set<TimelineEvent>();
+  const days = timeline.days.flatMap((day) => {
+    const events = day.events.filter((event) => {
+      const id = aiWorkGroupId(event);
+      if (id === "") return true;
+      if (latest.get(id) !== event || kept.has(event)) return false;
+      kept.add(event);
+      return true;
+    });
+    return events.length === 0 ? [] : [{ ...day, events }];
+  });
+  return { ...timeline, days };
 }
 
 function eventHtml(event: TimelineEvent): string {
@@ -204,25 +267,27 @@ export interface TimelineViewData {
 }
 
 export function timelineHtml(data: TimelineViewData): string {
-  const total = countTimelineEvents(data.timeline);
+  const timeline = collapseAiWork(data.timeline);
+  const total = countTimelineEvents(timeline);
   if (total === 0) {
     return dsEmptyState(
       "Aucune activité pour ce projet",
       "Aucun événement enregistré pour le moment. Certains types d'événements ne sont pas encore émis par le serveur.",
     );
   }
-  const view = data.view ?? defaultCalendarView(data.timeline);
-  const day = data.timeline.days.find((d) => d.date === view.selected && d.events.length > 0);
+  const view = data.view ?? defaultCalendarView(timeline);
+  const day = timeline.days.find((d) => d.date === view.selected && d.events.length > 0);
   const dayBody = day === undefined ? `<p class="ds-list-sub">Aucun événement ce jour-là.</p>` : dayHtml(day);
+  const fetched = countTimelineEvents(data.timeline);
   const more =
-    total >= data.limit && data.limit < TIMELINE_LIMIT_MAX
+    fetched >= data.limit && data.limit < TIMELINE_LIMIT_MAX
       ? `<button class="ds-btn" type="button" data-timeline-more>Charger l'historique plus ancien</button>`
       : "";
   const capped =
-    total >= data.limit && data.limit >= TIMELINE_LIMIT_MAX
+    fetched >= data.limit && data.limit >= TIMELINE_LIMIT_MAX
       ? `<p class="ds-list-sub">L'historique affiché atteint la limite serveur (${TIMELINE_LIMIT_MAX} événements) : seuls les plus récents sont visibles ici.</p>`
       : "";
-  return `<div class="tl-layout">${calendarHtml(data.timeline, view)}<div class="tl-selected">${dayBody}</div></div>${more}${capped}`;
+  return `<div class="tl-layout">${calendarHtml(timeline, view)}<div class="tl-selected">${dayBody}</div></div>${more}${capped}`;
 }
 
 export function activityLoadingHtml(): string {
@@ -260,7 +325,7 @@ export async function renderActivityInto(root: HTMLElement, ctx: ActivityContext
     root.innerHTML = activityLoadingHtml();
     try {
       const timeline = await fetchTimeline(ctx.client, ctx.projectId, limit);
-      let view = defaultCalendarView(timeline);
+      let view = defaultCalendarView(collapseAiWork(timeline));
       const paint = (): void => {
         root.innerHTML = timelineHtml({ timeline, limit, view });
         root.querySelectorAll<HTMLButtonElement>("[data-cal-day]").forEach((b) =>
@@ -276,7 +341,7 @@ export async function renderActivityInto(root: HTMLElement, ctx: ActivityContext
           }),
         );
         root.querySelector("[data-cal-latest]")?.addEventListener("click", () => {
-          view = defaultCalendarView(timeline);
+          view = defaultCalendarView(collapseAiWork(timeline));
           paint();
         });
         root.querySelector("[data-timeline-more]")?.addEventListener("click", () => {

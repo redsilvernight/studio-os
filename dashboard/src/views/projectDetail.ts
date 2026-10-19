@@ -9,20 +9,30 @@
  * GET /timeline?project_id, GET /decisions?project_id. Aucun onglet décoratif.
  * Les deep links (#/projects/<id>/<onglet>) représentent l'état et le
  * back/forward navigateur fonctionne (rendu piloté par le hash, sans état JS).
+ *
+ * Boîte « Coordination à traiter » (vue d'ensemble) : lecture humaine des
+ * signaux `coordination.*` déjà interprétés par `../coordination` (source
+ * unique, module non modifié ici). Chargement au mieux : un échec laisse la
+ * page intacte et n'affiche qu'un « indisponible », jamais une alerte bloquante.
  */
 import type { StudioClient } from "../api";
 import type { Roadmap, RoadmapDataSource } from "../roadmapTypes";
 import { ApiError, parseErrorBody } from "../api";
 import type { components } from "../openapi-schema";
-import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsStatus, dsTechDetails } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsStatus, dsTechDetails, type DsTone } from "../ds/ds";
+import { fetchProjectCoordination, intentLabel, openItems, type CoordinationIntent, type CoordinationItem } from "../coordination";
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
+import { ACTION_LABEL } from "../language";
 import { renderActivityInto } from "./activity";
+import { renderConfigurationHistoryInto } from "./configurationHistory";
 import { renderAiIntegrationInto } from "./aiIntegration";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderMembersInto } from "./members";
+import { renderMissionInto, renderMissionSummaryInto, type LiveState } from "./mission";
+import { renderProjectUsageInto } from "./usage";
 import { renderTasksInto } from "./tasks";
 import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
 
@@ -34,9 +44,11 @@ type ResourceClaim = components["schemas"]["ResourceClaim"];
 export type ProjectTab =
   | "overview"
   | "roadmap"
+  | "mission"
   | "tasks"
   | "claims"
   | "activity"
+  | "history"
   | "decisions"
   | "members"
   | "ai-integration";
@@ -45,14 +57,17 @@ export interface ProjectDetailContext {
   client: StudioClient;
   authed: boolean;
   roadmapDataSource?: RoadmapDataSource;
+  live?: () => LiveState;
 }
 
 export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix: string }> = [
   { id: "overview", label: "Vue d'ensemble", suffix: "" },
+  { id: "mission", label: "Exécutions", suffix: "/mission" },
   { id: "roadmap", label: "Roadmap", suffix: "/roadmap" },
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
   { id: "claims", label: "Réservations", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
+  { id: "history", label: "Historique", suffix: "/history" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
   { id: "members", label: "Membres", suffix: "/members" },
   { id: "ai-integration", label: "Intégration IA", suffix: "/ai-integration" },
@@ -75,7 +90,7 @@ function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
 }
 
 /** Onglets quotidiens ; les surfaces expertes (Membres, Intégration IA) vivent sous « Plus ». */
-export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["members", "ai-integration"];
+export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["history", "members", "ai-integration"];
 
 function projectTabLink(projectId: string, entry: (typeof PROJECT_TABS)[number], tab: ProjectTab): string {
   const active = entry.id === tab;
@@ -242,6 +257,67 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
     `</div>`;
 }
 
+/** Teinte DS par intention : un blocage se voit, une question s'informe. */
+const COORDINATION_TONE: Record<CoordinationIntent, DsTone> = {
+  question: "info",
+  blocked_by: "warning",
+  handoff: "neutral",
+  heads_up: "neutral",
+};
+
+/** Un signal ouvert : intention, texte cité (donnée d'une autre session, échappé), heure, tâche liée. */
+function coordinationItemHtml(item: CoordinationItem): string {
+  const link = item.taskId === null ? "" : ` · <a href="#/tasks/${esc(item.taskId)}">${esc(ACTION_LABEL.openTask)}</a>`;
+  return (
+    `<li class="ds-list-item" data-coordination-intent="${esc(item.intent)}"><div class="grow">` +
+    `<div class="ds-list-title">${dsBadge(intentLabel(item.intent), COORDINATION_TONE[item.intent])}</div>` +
+    `<div class="ds-list-sub">${esc(item.text)}</div>` +
+    `<div class="ds-list-sub"><time datetime="${esc(item.at)}">${esc(fmtTime(item.at))}</time>${link}</div>` +
+    `</div></li>`
+  );
+}
+
+/**
+ * Boîte « Coordination à traiter » : seules les questions et blocages sans
+ * réponse sont listés. `items === null` = chargement impossible, la page reste
+ * utilisable. Aucun identifiant visible : le lien porte la tâche, pas son UUID.
+ */
+export function projectCoordinationHtml(items: CoordinationItem[] | null): string {
+  const body =
+    items === null
+      ? `<p class="ds-list-sub" data-coordination-unavailable>Coordination indisponible : les signaux entre postes ne sont pas affichés.</p>`
+      : (() => {
+          const pending = openItems(items);
+          if (pending.length === 0) return `<p class="ds-list-sub">Rien à traiter.</p>`;
+          return `<ul class="ds-list">${pending.map(coordinationItemHtml).join("")}</ul>`;
+        })();
+  return `<section class="workspace-section" aria-label="Coordination à traiter">${dsSectionHeader("Coordination à traiter")}${body}</section>`;
+}
+
+export interface CoordinationBoxContext {
+  client: StudioClient;
+  projectId: string;
+  authed: boolean;
+}
+
+/**
+ * Chargement au mieux : un échec (réseau, 403, 500) laisse la page intacte et
+ * se limite à « indisponible » — jamais de relance ni d'alerte bloquante.
+ */
+export async function renderProjectCoordinationInto(root: HTMLElement, ctx: CoordinationBoxContext): Promise<void> {
+  if (!ctx.authed) {
+    root.innerHTML = "";
+    return;
+  }
+  let items: CoordinationItem[] | null = null;
+  try {
+    items = await fetchProjectCoordination(ctx.client, ctx.projectId);
+  } catch {
+    items = null;
+  }
+  root.innerHTML = projectCoordinationHtml(items);
+}
+
 async function fetchProject(client: StudioClient, id: string): Promise<Project> {
   const result = await client.GET("/api/v1/projects/{project_id}", { params: { path: { project_id: id } } });
   if (result.response.ok && result.data !== undefined) return result.data;
@@ -292,6 +368,23 @@ export async function renderProjectDetail(
       }
     }
     panel.innerHTML = projectOverviewHtml(project, state, Date.now(), step);
+    const missionSlot = document.createElement("div");
+    panel.querySelector(".workspace-hero")?.after(missionSlot);
+    // La coordination ne bloque rien : deux emplacements distincts, chargés
+    // en parallèle, chaque rendu gère son propre échec.
+    const coordinationSlot = document.createElement("div");
+    panel.querySelector(".workspace-hero")?.after(coordinationSlot);
+    const usageSlot = document.createElement("div");
+    missionSlot.after(usageSlot);
+    await Promise.all([
+      renderProjectUsageInto(usageSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed }),
+      renderProjectCoordinationInto(coordinationSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed }),
+      renderMissionSummaryInto(missionSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live }),
+    ]);
+    return;
+  }
+  if (tab === "mission") {
+    await renderMissionInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live });
     return;
   }
   if (tab === "tasks") {
@@ -321,6 +414,7 @@ export async function renderProjectDetail(
       projectName: project.name,
       roadmapId,
       canManageLifecycle,
+      client: ctx.client,
     });
     return;
   }
@@ -335,6 +429,10 @@ export async function renderProjectDetail(
   }
   if (tab === "activity") {
     await renderActivityInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed });
+    return;
+  }
+  if (tab === "history") {
+    await renderConfigurationHistoryInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed });
     return;
   }
   if (tab === "members") {

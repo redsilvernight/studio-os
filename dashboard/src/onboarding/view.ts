@@ -39,6 +39,7 @@ import { toWorkspaceViewModel } from "../workspaces/workspaces";
 import { pickWorkspaceFolder, type FolderPickOutcome } from "../views/workspacesPage";
 import { createProject, type Project } from "../creationsApi";
 import { newIdempotencyKey } from "../claimsApi";
+import { daemonGrantsEnroll } from "./enrollGrant";
 import { ONBOARDING_STEPS, nextStep, previousStep, stepById, type OnboardingStep } from "./steps";
 import {
   loadOnboardingState,
@@ -621,26 +622,7 @@ export function enrollErrorMessage(error: LocalError): string {
 const ENROLL_UPDATE_MESSAGE =
   "L'assistant local de cette version ne sait pas enregistrer le poste. Mettez l'application à jour ou demandez à un administrateur.";
 
-/**
- * DEC-0130 : la session ne part que vers un démon qui a accordé
- * `identity.enroll` à l'instant (négociation fraîche : un démon redémarré
- * oublie ses accords). Un ancien démon ne la reçoit jamais.
- */
-export async function daemonGrantsEnroll(platform: Platform): Promise<boolean> {
-  try {
-    const peer = (await platform.desktopInfo())?.peer;
-    if (!peer) return false;
-    const answer = await platform.request("runtime.handshake", { peer });
-    if (!answer.ok) return false;
-    const reply = answer.response.payload as { outcome?: string; granted_capabilities?: string[] };
-    return (
-      (reply.outcome === "compatible" || reply.outcome === "compatible_degraded") &&
-      (reply.granted_capabilities ?? []).includes("identity.enroll")
-    );
-  } catch {
-    return false;
-  }
-}
+export { daemonGrantsEnroll };
 
 const MAX_MACHINE_NAME = 100;
 

@@ -107,6 +107,13 @@ def test_build_capabilities_defaults_to_closed() -> None:
     assert harness.detected is False and harness.configured is False
 
 
+def test_capability_report_announces_launch_profiles() -> None:
+    config = _config()
+    registry = HarnessRegistry([StubAdapter(Detection(DetectionState.CONFIGURED))])
+    assert build_capabilities(config, registry=registry).launch_profiles is True
+    assert build_capabilities(config, registry=registry, running_launches=1).launch_profiles is True
+
+
 def test_workspace_projects_are_reported_and_honoured() -> None:
     git_project, workspace_project = uuid4(), uuid4()
     config = _config(

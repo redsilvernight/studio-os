@@ -11,15 +11,21 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
 from studio_client.daemon.launch_executor import LaunchExecutor, ResolvedLaunch
 from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.errors import StudioApiError
+from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.outbox import OutboxStore
 from studio_client.outbox.models import OutboxTable
 from studio_client.outbox.store import connect
+from studio_client.usage import USAGE_PATH, UsageWriteQueue
+from studio_client.usage.recorder import LaunchUsageRecorder
+from studio_contracts.auth import Agent, AgentCreate
 from studio_contracts.task_launch import TaskLaunch, TaskLaunchStatus
+from studio_contracts.usage import MeasurementCoverage, UsageLedgerEntryCreate
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -73,7 +79,9 @@ class FakeAdapter(HarnessAdapter):
     def resolve_executable(self, ctx: HarnessContext) -> Path:
         return Path(sys.executable)
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
         return self._argv
 
     def headless_environment(
@@ -105,6 +113,27 @@ class FakeAdapter(HarnessAdapter):
 class FakeClient:
     def __init__(self) -> None:
         self.statuses: dict[UUID, TaskLaunchStatus] = {}
+        self.machine_id = uuid4()
+        self.agents: dict[str, Agent] = {}
+        self.ensure_inputs: list[AgentCreate] = []
+        self.credential_launch_ids: list[UUID] = []
+
+    async def ensure_agent(self, agent_in: AgentCreate) -> tuple[Agent, bool]:
+        self.ensure_inputs.append(agent_in)
+        assert agent_in.stable_key is not None
+        if agent_in.stable_key in self.agents:
+            return self.agents[agent_in.stable_key], False
+        now = datetime.now(UTC)
+        agent = Agent(
+            id=uuid4(),
+            machine_id=self.machine_id,
+            created_at=now,
+            updated_at=now,
+            version=1,
+            **agent_in.model_dump(),
+        )
+        self.agents[agent_in.stable_key] = agent
+        return agent, True
 
     async def get_task_launch(self, launch_id: UUID) -> TaskLaunch:
         return _launch(status=self.statuses.get(launch_id, TaskLaunchStatus.RUNNING))
@@ -113,19 +142,21 @@ class FakeClient:
         return SimpleNamespace(title="Demo task")
 
     async def issue_launch_credential(self, launch_id: UUID) -> Any:
+        self.credential_launch_ids.append(launch_id)
         return SimpleNamespace(token="ephemeral-token")  # noqa: S106
 
 
 def _executor(
     tmp_path: Path,
     repo: Path,
-    adapter: FakeAdapter,
+    adapter: HarnessAdapter,
     client: FakeClient,
     *,
     timeout: float = 30.0,
     secrets: tuple[str, ...] = (),
     models: dict[str, str] | None = None,
     env: dict[str, str] | None = None,
+    home: Path | None = None,
 ) -> tuple[LaunchExecutor, OutboxStore]:
     store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
 
@@ -135,7 +166,11 @@ def _executor(
             task_title="Demo task",
             adapter=adapter,
             ctx=HarnessContext(
-                workspace_root=repo, mcp_url="http://x", env=env or {}, probe_cwd=repo
+                workspace_root=repo,
+                mcp_url="http://x",
+                env=env or {},
+                probe_cwd=repo,
+                home=home or tmp_path,
             ),
         )
 
@@ -152,6 +187,13 @@ def _executor(
     return executor, store
 
 
+def _body(excerpt: object) -> str:
+    lines = str(excerpt).splitlines()
+    if lines and lines[0].startswith("[studio:launch_diagnostics]"):
+        lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
 def _statuses(store: OutboxStore) -> list[str]:
     return [str(row.payload["status"]) for row in store.list_pending(OutboxTable.MUTATIONS)]
 
@@ -166,7 +208,75 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     rows = store.list_pending(OutboxTable.MUTATIONS)
     assert [row.payload["status"] for row in rows] == ["preparing", "running", "succeeded"]
     assert [row.payload["expected_version"] for row in rows] == [1, 2, 3]
-    assert rows[-1].payload["output_excerpt"].strip() == "ok"
+    assert _body(rows[-1].payload["output_excerpt"]) == "ok"
+
+
+async def test_launch_agent_identity_reuses_harness_and_model_metadata(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    client = FakeClient()
+    prompts: list[str] = []
+
+    class PromptAdapter(FakeAdapter):
+        def headless_argv(
+            self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+        ) -> tuple[str, ...]:
+            prompts.append(prompt)
+            return super().headless_argv(prompt, mode=mode)
+
+    executor, _ = _executor(tmp_path, repo, PromptAdapter(("-c", "print('ok')")), client)
+    for model in ("provider/model-a", "provider/model-a", "provider/model-b", None):
+        executor._models = {} if model is None else {"fake": model}
+        launch = _launch().model_copy(update={"agent_stable_key": "architect"})
+        executor.submit(launch)
+        await executor._tasks[launch.id]
+
+    first, repeated, changed, unknown = client.ensure_inputs
+    assert first == repeated
+    assert first.stable_key is not None and first.stable_key.startswith("launch-agent-")
+    assert first.stable_key != "architect"
+    assert first.stable_key != changed.stable_key != unknown.stable_key
+    assert len(client.agents) == 3
+    assert first.display_name == "studio-fake"
+    assert first.agent_kind == "worker"
+    assert first.harness == "fake"
+    assert first.model == "provider/model-a"
+    assert changed.model == "provider/model-b"
+    assert unknown.model is None
+    assert all(agent.provider is None for agent in client.ensure_inputs)
+    identities = [
+        next(line for line in prompt.splitlines() if line.startswith("agent_id :"))
+        for prompt in prompts
+    ]
+    assert identities[0] == identities[1]
+    assert identities[0] != identities[2] != identities[3]
+    for prompt, agent_in in zip(prompts, client.ensure_inputs, strict=True):
+        assert f"agent_id : {client.agents[agent_in.stable_key or ''].id}" in prompt
+
+
+async def test_agent_identity_failure_never_starts_or_issues_a_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class FailingClient(FakeClient):
+        async def ensure_agent(self, agent_in: AgentCreate) -> tuple[Agent, bool]:
+            raise StudioApiError(409, "idempotency_key_payload_mismatch", "durable-token")
+
+    repo = _repo(tmp_path)
+    client = FailingClient()
+    executor, store = _executor(tmp_path, repo, FakeAdapter(("-c", "print('ok')")), client)
+    starts: list[object] = []
+    monkeypatch.setattr(executor._runner, "start", lambda *args, **kwargs: starts.append(args))
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    assert starts == []
+    assert client.credential_launch_ids == []
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    assert _statuses(store) == ["preparing", "failed"]
+    assert rows[-1].payload["reason_code"] == "preparation_failed"
+    assert rows[-1].payload["output_excerpt"] == "[studio:agent_identity_unavailable]"
+    assert "durable-token" not in str(rows[-1].payload)
+    assert "durable-token" not in caplog.text
 
 
 async def test_launched_harness_never_inherits_the_daemon_secrets(tmp_path: Path) -> None:
@@ -191,7 +301,7 @@ async def test_launched_harness_never_inherits_the_daemon_secrets(tmp_path: Path
     await executor._tasks[launch.id]
 
     rows = store.list_pending(OutboxTable.MUTATIONS)
-    assert rows[-1].payload["output_excerpt"].strip() == "None None True"
+    assert _body(rows[-1].payload["output_excerpt"]) == "None None True"
 
 
 async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(
@@ -211,7 +321,7 @@ async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(
     await executor._tasks[launch.id]
 
     rows = store.list_pending(OutboxTable.MUTATIONS)
-    model, isolation = str(rows[-1].payload["output_excerpt"]).split()
+    model, isolation = _body(rows[-1].payload["output_excerpt"]).split()
     assert model == "provider/forced"
     assert not Path(isolation).exists()
 
@@ -274,7 +384,7 @@ async def test_excerpt_strips_ansi_escapes(tmp_path: Path) -> None:
 
     excerpt = store.list_pending(OutboxTable.MUTATIONS)[-1].payload["output_excerpt"]
     assert "\x1b" not in excerpt
-    assert excerpt.strip() == "green"
+    assert _body(excerpt) == "green"
 
 
 class _MachineTokenAdapter(FakeAdapter):
@@ -394,3 +504,107 @@ async def test_expired_while_running_is_stopped(tmp_path: Path) -> None:
 
     assert "succeeded" not in _statuses(store)
     assert "failed" not in _statuses(store)
+
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "usage" / "claude_code" / "2.1.287"
+
+
+def _usage_executor(
+    tmp_path: Path, repo: Path, adapter: FakeAdapter
+) -> tuple[LaunchExecutor, OutboxStore]:
+    executor, store = _executor(tmp_path, repo, adapter, FakeClient())
+    executor._usage = LaunchUsageRecorder(UsageWriteQueue(store))
+    return executor, store
+
+
+def _print_file(path: Path) -> FakeAdapter:
+    return FakeAdapter(("-c", f"import sys; sys.stdout.write(open({str(path)!r}).read())"))
+
+
+def _rows_by_kind(store: OutboxStore, kind: str) -> list[Any]:
+    return [row for row in store.list_pending(OutboxTable.MUTATIONS) if row.extra["kind"] == kind]
+
+
+async def test_claude_run_produces_a_measured_usage_entry(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    executor, store = _usage_executor(tmp_path, repo, _print_file(FIXTURES / "success.json"))
+    launch = _launch().model_copy(update={"harness_id": "claude-code"})
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    reports = _rows_by_kind(store, "task_launch_report")
+    assert [row.payload["status"] for row in reports] == ["preparing", "running", "succeeded"]
+    # The readable result follows the protocol diagnostics header.
+    assert reports[-1].payload["output_excerpt"].splitlines()[-1] == "OK"
+    (usage,) = _rows_by_kind(store, "usage.create")
+    entry = UsageLedgerEntryCreate.model_validate(usage.payload)
+    assert usage.extra["path"] == USAGE_PATH
+    assert entry.source_event_id == f"task-launch.{launch.id}"
+    assert entry.task_launch_id == launch.id
+    assert entry.machine_id == launch.machine_id
+    assert entry.provenance.collector == "studio-claude-code"
+    assert entry.provenance.harness == "claude-code"
+    assert entry.provenance.model == "claude-opus-5-5"
+    assert entry.tokens_in.value == 2
+    assert entry.tokens_cached.value == 32926
+    assert entry.cost.coverage is MeasurementCoverage.MEASURED
+    assert entry.duration.coverage is MeasurementCoverage.MEASURED
+    assert entry.period_end >= entry.period_start
+
+
+async def test_corrupted_claude_output_never_fails_the_run(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    executor, store = _usage_executor(tmp_path, repo, _print_file(FIXTURES / "corrupted.json"))
+    launch = _launch().model_copy(update={"harness_id": "claude-code"})
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    reports = _rows_by_kind(store, "task_launch_report")
+    assert reports[-1].payload["status"] == "succeeded"
+    (usage,) = _rows_by_kind(store, "usage.create")
+    entry = UsageLedgerEntryCreate.model_validate(usage.payload)
+    assert entry.tokens_in.value is None
+    assert entry.tokens_in.coverage is MeasurementCoverage.UNKNOWN
+    assert entry.cost.coverage is MeasurementCoverage.UNKNOWN
+    assert entry.duration.coverage is MeasurementCoverage.MEASURED
+
+
+async def test_uncertified_harness_records_duration_only(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    executor, store = _usage_executor(tmp_path, repo, FakeAdapter(("-c", "print('ok')")))
+    launch = _launch().model_copy(update={"harness_id": "codex"})
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    assert (
+        _rows_by_kind(store, "task_launch_report")[-1]
+        .payload["output_excerpt"]
+        .splitlines()[-1]
+        .strip()
+        == "ok"
+    )
+    (usage,) = _rows_by_kind(store, "usage.create")
+    entry = UsageLedgerEntryCreate.model_validate(usage.payload)
+    assert entry.provenance.collector == "studio-runner"
+    assert entry.coverage_by_metric == {
+        "tokens_in": MeasurementCoverage.UNKNOWN,
+        "tokens_out": MeasurementCoverage.UNKNOWN,
+        "tokens_cached": MeasurementCoverage.UNKNOWN,
+        "cost": MeasurementCoverage.UNKNOWN,
+        "duration": MeasurementCoverage.MEASURED,
+    }
+
+
+async def test_failing_usage_queue_never_fails_the_run(tmp_path: Path) -> None:
+    class BrokenQueue(UsageWriteQueue):
+        def enqueue_entry(self, entry: Any, *, idempotency_key: UUID) -> bool:
+            raise RuntimeError("disk full")
+
+    repo = _repo(tmp_path)
+    executor, store = _executor(tmp_path, repo, FakeAdapter(("-c", "print('ok')")), FakeClient())
+    executor._usage = LaunchUsageRecorder(BrokenQueue(store))
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    assert _statuses(store) == ["preparing", "running", "succeeded"]

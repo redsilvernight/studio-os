@@ -88,6 +88,8 @@ export interface StreamCallbacks {
    * periodic keep-alive comment (routers/events.py). Used by the DASH-3
    * watchdog; optional so DASH-0/1 callers are unaffected. */
   onActivity?: () => void;
+  /** The server accepted the stream (2xx with a body). */
+  onOpen?: () => void;
 }
 
 export interface StreamHandle {
@@ -182,6 +184,7 @@ export async function connectEventStream(
     if (!response.ok || response.body === null) {
       throw new StreamHttpError(response.status);
     }
+    callbacks.onOpen?.();
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     for (;;) {
@@ -225,6 +228,9 @@ export interface LiveStreamCallbacks {
   /** The server refused the stream for good (401/403): the loop stops
    *  instead of retrying forever. A new token or project opens a new loop. */
   onDenied?: (status: number) => void;
+  /** `true` once the server answers, `false` when a connection attempt
+   *  fails or drops (the loop keeps reconnecting). Called only on change. */
+  onLiveChange?: (live: boolean) => void;
 }
 
 export interface LiveStreamOptions {
@@ -260,6 +266,13 @@ export function openLiveProjectStream(
   let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
   let backoffTimer: ReturnType<typeof setTimeout> | null = null;
   let resolveBackoff: (() => void) | null = null;
+  let live: boolean | null = null;
+
+  function setLive(next: boolean): void {
+    if (next === live) return;
+    live = next;
+    callbacks.onLiveChange?.(next);
+  }
 
   function clearWatchdog(): void {
     if (watchdogTimer !== null) {
@@ -301,6 +314,9 @@ export function openLiveProjectStream(
           onActivity: () => {
             armWatchdog();
           },
+          onOpen: () => {
+            setLive(true);
+          },
         },
         { sinceSeq: lastSeq, signal: abort.signal },
       );
@@ -308,6 +324,7 @@ export function openLiveProjectStream(
       clearWatchdog();
       if (inner.lastSeq !== null) lastSeq = inner.lastSeq;
       if (stopped) break;
+      setLive(false);
       if (deniedStatus !== null) {
         stopped = true;
         callbacks.onDenied?.(deniedStatus);

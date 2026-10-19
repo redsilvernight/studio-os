@@ -12,7 +12,9 @@ import json
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +39,11 @@ from studio_client.config import ClientConfig
 from studio_client.daemon.local_features import LocalFeatureError
 from studio_client.errors import AuthenticationError, StudioApiError
 from studio_client.skill_sync import (
+    SkillPlanEntry,
     SkillSyncConflictError,
     SkillSyncError,
     SkillSyncPlan,
+    SkillTargetPlan,
     apply_skill_sync,
     diff_skill_plan,
     fetch_skill_projections,
@@ -185,6 +189,20 @@ def check_skills(
     return summarize(plan)
 
 
+def _preview_hash(entry: SkillPlanEntry) -> str:
+    payload = {
+        "stable_key": entry.projection.stable_key,
+        "version": entry.projection.version,
+        "desired_sha256": entry.sha256,
+        "targets": [(target.harness, target.current_sha256) for target in entry.all_targets],
+    }
+    return sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _target_label(plan: SkillSyncPlan, target: SkillTargetPlan) -> str:
+    return target.path.relative_to(plan.home).as_posix()
+
+
 def preview_skills(
     config: ClientConfig,
     token_store: TokenStore,
@@ -203,7 +221,8 @@ def preview_skills(
                 )
                 for target in entry.targets
             ],
-            diff="",
+            diff=diff_skill_plan(replace(plan, entries=(entry,), retired=())),
+            preview_hash=_preview_hash(entry),
         )
         for entry in plan.entries
     ]
@@ -236,22 +255,62 @@ def apply_skills(
             retryable=False,
         )
     plan = _fetch_and_plan(config, token_store, home if home is not None else Path.home())
-    conflicts = list(plan.locally_modified)
-    conflict_keys = [target.path.name for target in conflicts] if conflicts else []
+    selected_keys: set[str] | None = None
+    if request.resolutions is not None:
+        entries = {entry.projection.stable_key: entry for entry in plan.entries}
+        for resolution in request.resolutions:
+            entry = entries.get(resolution.stable_key)
+            if entry is None or resolution.preview_hash != _preview_hash(entry):
+                raise _error(
+                    LocalErrorCode.INVALID_REQUEST,
+                    "Skill versions changed since preview; compare them again before applying.",
+                    ComponentId.DAEMON,
+                    retryable=False,
+                )
+        selected_keys = {
+            resolution.stable_key
+            for resolution in request.resolutions
+            if resolution.choice == "library"
+        }
+    selected_plan = (
+        plan
+        if selected_keys is None
+        else replace(
+            plan,
+            entries=tuple(
+                entry for entry in plan.entries if entry.projection.stable_key in selected_keys
+            ),
+            retired=(),
+        )
+    )
+    overwrite = request.overwrite or selected_keys is not None
+    remaining = (
+        plan
+        if selected_keys is None
+        else replace(
+            plan,
+            entries=tuple(
+                entry for entry in plan.entries if entry.projection.stable_key not in selected_keys
+            ),
+        )
+    )
+    conflicts = list(remaining.locally_modified)
+    conflict_keys = [_target_label(plan, target) for target in conflicts]
     added: list[str] = []
     updated: list[str] = []
 
-    for target in plan.missing:
-        added.append(target.path.name)
-    for target in plan.outdated:
-        updated.append(target.path.name)
-    if request.overwrite:
-        updated.extend(conflict_keys)
-        conflict_keys = []
+    for target in selected_plan.missing:
+        added.append(_target_label(plan, target))
+    for target in selected_plan.outdated:
+        updated.append(_target_label(plan, target))
+    if overwrite:
+        updated.extend(_target_label(plan, target) for target in selected_plan.locally_modified)
+        if selected_keys is None:
+            conflict_keys = []
     enabled = auto_sync_enabled(config, data_root)
 
     try:
-        result = apply_skill_sync(plan, overwrite=request.overwrite)
+        result = apply_skill_sync(plan, overwrite=overwrite, selected_keys=selected_keys)
     except SkillSyncConflictError as exc:
         _LOGGER.warning("skills.apply: conflicts prevented overwrite (%s)", exc)
         status = SkillsSyncStatus(
@@ -269,10 +328,30 @@ def apply_skills(
             retryable=False,
         ) from exc
 
+    except (SkillSyncError, OSError, ValueError) as exc:
+        raise _error(
+            LocalErrorCode.INVALID_REQUEST,
+            "The skill plan could not be applied safely; compare the versions again.",
+            ComponentId.DAEMON,
+            retryable=False,
+        ) from exc
+
     state = SkillSyncStatusState.UPDATED if (added or updated) else SkillSyncStatusState.UP_TO_DATE
+    if conflict_keys:
+        state = SkillSyncStatusState.CONFLICTS
+    elif selected_keys is not None and (remaining.missing or remaining.outdated):
+        state = SkillSyncStatusState.NOT_SYNCED
+    previous = _load_status(data_root) if data_root is not None else None
+    successful_sync = (
+        datetime.now(UTC)
+        if state in {SkillSyncStatusState.UPDATED, SkillSyncStatusState.UP_TO_DATE}
+        else previous.last_successful_sync
+        if previous is not None
+        else None
+    )
     status = SkillsSyncStatus(
         state=state,
-        last_successful_sync=datetime.now(UTC),
+        last_successful_sync=successful_sync,
         last_check=datetime.now(UTC),
         added=added,
         updated=updated,
@@ -422,14 +501,14 @@ class _AutoSyncRunner:
         try:
             plan = _fetch_and_plan(self.config, self.token_store, self.home)
             conflicts = list(plan.locally_modified)
-            conflict_keys = [target.path.name for target in conflicts] if conflicts else []
+            conflict_keys = [_target_label(plan, target) for target in conflicts]
             added: list[str] = []
             updated: list[str] = []
 
             for target in plan.missing:
-                added.append(target.path.name)
+                added.append(_target_label(plan, target))
             for target in plan.outdated:
-                updated.append(target.path.name)
+                updated.append(_target_label(plan, target))
 
             if conflicts:
                 _LOGGER.info(

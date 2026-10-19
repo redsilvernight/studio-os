@@ -1,7 +1,6 @@
 # C4 — Gate de production publique et runbook incident
 
-Le serveur Flo-laptop doit d’abord être mis à niveau avec le déploiement local
-one-shot décrit dans [FLO_LAPTOP_DEPLOYMENT.md](FLO_LAPTOP_DEPLOYMENT.md). Cette
+Le serveur (VPS OVH) se met à niveau selon [04_DEPLOIEMENT_OVH.md](Studio_OS_Documentation_Pack/studio_os_docs/HUMAN/04_DEPLOIEMENT_OVH.md). Cette
 opération ne promeut aucun artefact Desktop.
 
 Ce gate clôt la roadmap « Desktop Distribution, Updates & Public Registration ».

@@ -67,19 +67,19 @@ dependencies when that chunk is requested, so nothing deferred is fetched
 from the home page (checked by `e2e/bundle-lazy.spec.ts`).
 
 **Budget for the initial load: 60 kB JS gzip, 20 kB CSS gzip**
-(`INITIAL_*_GZIP_BUDGET` in `scripts/analyze-bundle.mjs`). Rationale: current
-values are 52.5 kB / 11.3 kB, leaving ~14 % / ~40 % headroom for normal growth
-of the shell; crossing it must be a deliberate, measured decision.
+(`INITIAL_*_GZIP_BUDGET` in `scripts/analyze-bundle.mjs`), enforced in CI by
+`npm run check:bundle`. Current values (2026-10-10): 41.3 kB / 11.9 kB;
+crossing the budget must be a deliberate, measured decision.
 `chunkSizeWarningLimit` is left at Vite's default: the warning is gone, not
 silenced.
 
-Known remaining weight in the entry chunk, not addressed here: the generated
-`src/platform/generated/local-contracts.generated.ts` (~173 kB before
-minification, imported by the Desktop bridge that `getPlatform()` statically
-links even in web mode) — it is a generated contract file, and making the
-platform adapter asynchronous is a wider change. Global CSS is still one
-entry stylesheet (per-view CSS split would risk cross-view style regressions
-for ~3 kB gzip).
+The generated local contract (`platform/contracts.ts` and
+`local-contracts.generated.ts`, ~20 kB gzip) is loaded by the Desktop bridge
+on its first request, never in web mode; elsewhere it is imported for types
+only. `daemonGrantsEnroll` lives in `onboarding/enrollGrant.ts` so the sign-out
+path does not drag the onboarding view into the entry chunk. Global CSS is
+still one entry stylesheet (per-view CSS split would risk cross-view style
+regressions for ~3 kB gzip).
 
 ## API URL configuration
 
@@ -97,10 +97,10 @@ VITE_STUDIO_API_URL=http://localhost:8000
 No CORS is configured (backend has none either) — same-origin or
 same-machine dev only for now.
 
-## Content-Security-Policy (Report-Only, DEC-0061)
+## Content-Security-Policy (enforced, DEC-0061)
 
-No enforcement header anywhere yet — `Content-Security-Policy-Report-Only`
-only, until the browser tests prove the main flows clean.
+`Content-Security-Policy` is enforced at the Caddy edge and on `vite preview`
+(e2e) since étape 9.3, after the Report-Only phase ended with zero violation.
 
 - Policy source of truth: `csp-policy.ts` (`buildDashboardCsp`) — mirrored
   by the Caddy edge (`docker/Caddyfile`, dashboard site).
@@ -113,9 +113,8 @@ only, until the browser tests prove the main flows clean.
   `on*=` handlers in `dist/` or `src/` templates).
 - Browser test: `e2e/csp.spec.ts` (`npm run test:e2e`) — stubbed API, login,
   all main hash routes, zero CSP console errors, zero page errors.
-- Exit to enforcement: green e2e on real-backend (or write-covering) flows
-  + zero staging violations over a real usage cycle, then rename the header
-  to `Content-Security-Policy` in `Caddyfile` + `vite.config.ts`.
+- Rollback: rename the header back to `Content-Security-Policy-Report-Only`
+  in `Caddyfile` (`CSP_HEADER` in `csp-policy.ts` for e2e).
 
 ## OpenAPI client / types
 

@@ -493,7 +493,7 @@ def test_skills_sync_writes_verbatim_copies_and_is_idempotent(
     capsys.readouterr()
 
     keys = canonical_skill_keys(repo)
-    assert len(keys) == 7
+    assert len(keys) == 9
     planned = {item.path for item in plan_files(repo, load_manifest(repo)) if item.kind == "skill"}
     assert planned == {f".claude/skills/{key}/SKILL.md" for key in keys}
     for key in keys:

@@ -30,9 +30,10 @@ import type {
   RoadmapStep,
 } from "../roadmapTypes";
 import { agentRef } from "../actorNames";
-import { ApiError } from "../api";
+import { ApiError, type StudioClient } from "../api";
 import { describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
+import { renderAdmissionPanelInto } from "./admissionPanel";
 
 export type RoadmapMode = "plan" | "execution";
 
@@ -44,6 +45,8 @@ export interface RoadmapViewContext {
   roadmapId?: string;
   /** Show lifecycle actions (admin/developer identity from `/auth/me`); omitted = demo sources only. */
   canManageLifecycle?: boolean;
+  /** Canonical API client; set it to offer the admission panel on an active roadmap in execution mode. */
+  client?: StudioClient;
 }
 
 const STATUS_LABELS: Record<RoadmapStatus, string> = {
@@ -561,6 +564,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   let pendingLifecycle: RoadmapLifecycleTransition | null = null;
   let lifecycleErrorHtml: string | null = null;
   let reviewErrorHtml: string | null = null;
+  let admissionSlot: { id: string; node: HTMLElement } | null = null;
   const refreshRoadmaps = async (): Promise<void> => {
     try {
       roadmaps = (await ctx.dataSource.listRoadmaps?.(ctx.projectId)) ?? roadmaps;
@@ -583,6 +587,25 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
     }
   }
 
+  // Le panneau « Lancer un lot » garde son état entre deux rendus de la
+  // roadmap : on réutilise le même élément (et ses écouteurs) au lieu de le
+  // reconstruire à chaque paint. Un changement de roadmap, lui, exige un
+  // panneau neuf : l'ancien interrogerait la mauvaise roadmap.
+  const mountAdmission = (current: Roadmap): void => {
+    if (ctx.client === undefined || mode !== "execution" || current.status !== "active" || !canManage) return;
+    const reading = root.querySelector<HTMLElement>("[data-roadmap-reading]");
+    if (reading === null) return;
+    if (admissionSlot === null || admissionSlot.id !== current.id) {
+      const node = document.createElement("div");
+      node.setAttribute("data-admission-slot", "");
+      void renderAdmissionPanelInto(node, { client: ctx.client, roadmapId: current.id });
+      admissionSlot = { id: current.id, node };
+    }
+    const anchor = root.querySelector("[data-current-step]");
+    if (anchor !== null) anchor.insertAdjacentElement("afterend", admissionSlot.node);
+    else reading.append(admissionSlot.node);
+  };
+
   const paint = (): void => {
     if (roadmap === null) {
       root.innerHTML = `<div class="roadmap-optional">${dsEmptyState("Ce projet fonctionne sans roadmap", "Ajoutez-en une uniquement si un plan par étapes vous aide.")}` +
@@ -601,6 +624,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       reviewErrorHtml,
     );
     bind();
+    mountAdmission(roadmap);
   };
 
   const openEditor = (document: RoadmapDocument): void => {

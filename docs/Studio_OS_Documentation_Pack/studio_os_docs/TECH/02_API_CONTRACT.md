@@ -27,7 +27,7 @@ ressource rattachee a un projet.
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. `POST /task-launches/{id}/snapshot` (DEC-0199) : N/A — idempotent par contenu (meme payload = snapshot d'origine, contenu different = `409 execution_snapshot_immutable`). Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
@@ -553,6 +553,118 @@ paritaire HTTP/MCP). Avant : ligne inexistante -> `500` (violation FK),
 ligne d'une autre machine -> `201` silencieux. Les appelants existants
 n'utilisant que leurs propres agents n'observent aucun changement.
 
+### Usage ledger (Mission Control P03-ingest, additif, DEC-0197)
+
+- POST /usage — `UsageLedgerEntryCreate` -> `UsageLedgerEntry`, `201`.
+  `Idempotency-Key` supporte. L'unicite `(machine_id, source_event_id)`
+  deduplique aussi des envois portant des cles HTTP differentes : une
+  observation deja recue renvoie l'entree existante, sans ajouter ni remplacer
+  ses mesures. Un changement de projet, de liens ou de collecteur sous cette
+  identite est refuse avec `409 usage_identity_conflict`.
+- POST /usage/corrections — `UsageLedgerCorrection` -> `UsageLedgerEntry`,
+  `200`. `Idempotency-Key` supporte, y compris pour le rejeu d'une correction
+  dont l'accuse de reception a ete perdu. Avec cette cle, mutation du ledger
+  et reponse memorisee sont validees dans la meme transaction PostgreSQL.
+  `expected_version` doit correspondre
+  a la version courante, sinon `409 version_conflict` avec `server_version`.
+  La correction remplace tout le bloc de mesures, periode, tarification et
+  provenance ; le collecteur et les liens restent fixes. Snapshot cumulatif
+  puis mesure finale corrigent la meme entree ; leurs valeurs ne s'additionnent
+  jamais. Une mesure inconnue reste NULL avec couverture `unknown`.
+- GET /usage — liste bornee, filtree par `project_id`, `task_id`, `session_id`,
+  `task_launch_id` et `since` (date de mise a jour, corrections incluses),
+  limitee aux projets accessibles. `limit` : defaut 100, maximum 500. Cette lecture
+  fournit les entrees du ledger ; elle ne calcule pas de totaux ni de budgets.
+- GET /usage/summary (P03-usage-ui, additif) — `UsageSummary`, `200`.
+  `project_id` requis ; `task_id`, `since`, `until` (filtre `period_start`
+  dans `[since, until)`) et `group_by` (`none`, `task`, `configuration` =
+  harness/provider/model, `day` UTC) optionnels. Chaque fait compte une fois,
+  dans sa derniere forme corrigee. Chaque metrique porte un `status` :
+  `exact`, `estimated`, `partial` (`known_sum` = borne inferieure), `unknown`
+  (`known_sum` null), `none` (aucune entree). Des couts en plusieurs devises
+  ne sont jamais additionnes : `mixed_currency`, `known_sum` et `currency`
+  null, detail dans `by_currency`. Un client doit traiter un `status` inconnu
+  comme non exact (borne inferieure ou inconnu) ; de nouvelles valeurs de
+  `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
+  `total` couvre tout le perimetre. `until < since` -> `422
+  invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
+- GET /usage/configuration-history (P06-history-option, additif, DEC-0221) —
+  `ConfigurationHistory`, `200`. `project_id` requis ; `since`, `until`
+  (filtre `created_at` du TaskLaunch dans `[since, until)` ; defauts
+  `until` = maintenant, `since` = `until` - 30 jours, contrairement a
+  /usage/summary ; `until < since` -> `422 invalid_usage_period`).
+  Population : TaskLaunch.
+  Cle de groupe : `harness` et `profile_*` epingles sur le lancement ;
+  `harness_version`, `provider`, `model` tires du ledger lie par
+  `task_launch_id` (`null` = jamais rapporte, `"mixed"` = valeurs distinctes).
+  Chaque taux (`succeeded`, `session_linked`, `usage_measured`) porte
+  `definition`, `numerator`, `denominator` (n), `covered`/`launches` ;
+  `value` (fraction 0..1) null si n = 0. Groupes tries par cle (`null` en
+  dernier), jamais par un taux : `ranking = "none"`, `comparable = false`.
+  `unattributed` compte les entrees ledger sans `task_launch_id` (filtre
+  `period_start`) et les AIWork (filtre `started_at`) hors session d'un
+  lancement de la periode. `caveats` contient toujours `tests_not_quality`,
+  `not_ranked`, `no_minimum_sample`, `ledger_derived_fields`. Aucun effectif
+  minimum. Groupes plafonnes a 100 (`truncated`). Meme acces que /usage/summary.
+
+Les ecritures exigent un role autorise et la machine authentifiee comme
+`machine_id`, y compris pour un admin. Le projet doit etre accessible en
+ecriture ; les liens optionnels doivent designer des objets compatibles du
+meme projet et de la meme machine. Une machine etrangere est refusee
+(`409 actor_not_owned`) ; un projet hors scope est refuse (`403`).
+Les credentials ephemeres de TaskLaunch autorisent
+seulement les deux POST, pour leur propre tache et leur propre lancement ;
+ils n'autorisent pas GET /usage. Les controles d'acces sont revalides avant
+une reponse d'idempotence memorisee.
+
+Capacites du stockage : chaque compteur de tokens est au plus
+`9223372036854775807` ; le cout est au plus `9999999999.99999999`
+(`Numeric(18,8)`) et la duree au plus `99999999999.999` secondes
+(`Numeric(14,3)`). Les deux POST refusent un depassement avec
+`422 invalid_usage_measurement` et le nom de la metrique. Cette erreur
+definitive reste inspectable en dead-letter ; elle ne devient pas une erreur
+SQL rejouee comme un incident transitoire.
+
+Bloc B : `studio_client.usage.UsageWriteQueue` met creation et correction dans
+`pending_mutations` avec un UUID fourni par le collecteur et conserve ce meme
+UUID pendant le rejeu. L'appelant persiste observation locale et ligne outbox
+dans la meme transaction SQLite. Aucun envoi ni commit interne ; le replayer
+generique gere ordre, backoff et erreurs definitives en `dead_letter`, avec
+corps et motif conserves pour inspection. Une correction perimee doit etre
+relue puis reproposee, jamais appliquee de force.
+
+### Budgets (Mission Control P03-budgets, additif)
+
+- GET /projects/{project_id}/budget — `BudgetStatus` : politique, mode
+  effectif, `ceiling_guarantee`, compteurs (`consumed`, `held`,
+  `unknown_entries`), lancements actifs, reservations recentes (≤ 50).
+- PUT /projects/{project_id}/budget-policy — `BudgetPolicyUpdate` ->
+  `BudgetPolicy`. Creation sans `expected_version`, sinon `409
+  version_conflict`. Ecriture projet, refusee a `readonly` et aux credentials
+  de lancement. `enforce` est stocke en attente d'approbation. Une creation
+  (sans `expected_version`) qui trouve une politique deja creee, en course ou
+  en rejeu, recoit `200` seulement si cette politique est encore en version 1,
+  du meme auteur et de corps identique ; sinon `409 version_conflict`, jamais
+  un corps perdu en silence.
+- POST /projects/{project_id}/budget-policy/approve — admin seulement ;
+  `409 budget_approval_not_pending` hors attente. L'admin auteur de la
+  politique peut l'approuver lui-meme (auto-approbation autorisee) : choix a
+  confirmer par l'humain.
+- PUT et approve ne prennent pas d'`Idempotency-Key` : la concurrence passe
+  par `expected_version`, et un rejeu d'une ecriture versionnee deja appliquee
+  repond `409 version_conflict` (avec la version serveur).
+- POST /projects/{project_id}/budget/reconcile — solde les reservations des
+  lancements termines ou en retard selon la politique ; idempotent.
+
+Admission : POST task-launches et retry reservent sous verrou de la politique
+du projet, dans la transaction du lancement. Sans politique ou en
+`alert_only`, tout est admis et les depassements deviennent des `alerts` de la
+reservation. En `enforce` approuve : `409 budget_refused` avec `reason` ∈
+`budget_cost_exhausted|budget_tokens_exhausted|budget_slots_exhausted`, rien
+n'est cree. Un refus n'est pas mis en cache sous l'`Idempotency-Key` du
+lancement : un rejeu avec la meme cle reevalue l'admission. `TaskLaunch` et
+les evenements sont inchanges.
+
 ### AI Library (P1, additif, DEC-0062/0063/0064)
 
 - GET /library — liste filtree (`kind`, `scope`, `project_id`, `limit`,
@@ -565,6 +677,12 @@ n'utilisant que leurs propres agents n'observent aucun changement.
 - GET /library/{id} — `404` si inexistante OU User-scope d'autrui (jamais
   `403`, pour ne pas reveler l'existence).
 - GET /library/{id}/versions — snapshots immuables, ordre croissant.
+  Chaque version expose `title` et `description` (optionnelle, `null` par
+  defaut). Le client conserve la description de la version effective
+  (verrou projet, sinon active) dans `LibraryContextItem.description`.
+  `studio-client skills sync` utilise cette description dans le frontmatter
+  `SKILL.md`, avec repli sur `title` si absente, vide ou composee uniquement
+  d'espaces ; les espaces et retours a la ligne sont normalises.
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
   `active_version`). `Idempotency-Key` supporte. Dependances epinglees
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
@@ -737,6 +855,39 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   emission serveur a ce jour (question ouverte n°9,
   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
 
+### Mission Control (read model, additif, DEC-0196/DEC-0201)
+Revision de verdict v2 (2026-10-14, DEC-0213) : un lancement `cancelled`
+avec session liee non terminee (`active`, `idle`, `expired`) passe de
+`cancelled` a `needs_attention`, avec nouvelle raison
+`launch_cancelled_session_open` puis `launch_cancelled`. Sans session ou
+avec session terminee, le verdict reste `cancelled`. Le statut du lancement,
+la session, la tache et les claims ne sont pas modifies par cette projection.
+La demande d'annulation n'est jamais une preuve de handoff.
+- GET /api/v1/projects/{project_id}/mission — projection de lecture
+  bornee des executions d'un projet, calculee a la lecture (aucun etat
+  persiste) : un `MissionRun` par `TaskLaunch`, plus un par
+  `WorkSession` manuelle (`source: session`). Sources existantes
+  uniquement : lancements, sessions, `AIWorkLog`, claims actifs
+  (expirees exclues), machines et decisions proposees. Query params :
+  `window_hours` (defaut 168, max 720), `limit` (defaut 20, max 50),
+  `cursor` (opaque, optionnel). Reponse `ProjectMission{project_id,
+  generated_at, window_hours, runs, counts, next_cursor, truncated}` :
+  `runs` = page courante (`MissionRun` : verdict, raisons, etat du
+  protocole, ecarts de donnees), `counts` = comptes par verdict sur
+  toute la fenetre (pas seulement la page), `next_cursor` null en fin
+  de liste. Le serveur applique seul la table de verite
+  (`packages/studio-contracts/.../mission.py`, detail :
+  `docs/mission-control/read-model.md`) et renvoie le verdict ; les
+  clients affichent le verdict et ne le re-derivent jamais. `exit_code
+  == 0` seul ne donne jamais `done` : `done` exige une session terminee
+  avec entree de handoff (`handed_off`, DEC-0201). Donnees incompletes
+  explicites (`data_gaps` : `machine_unknown`/`session_not_found`/
+  `task_not_found`), jamais comblees. Sans Bearer : `401` ; projet
+  inaccessible ou inexistant : `403` (pas d'oracle d'existence,
+  DEC-0103) ; `cursor` invalide : `422` (`invalid_cursor`). Les clients
+  doivent tolerer un `verdict`, une `reason`, un `protocol_state` ou un
+  `data_gaps` inconnus (vocabulaires additifs uniquement).
+
 ### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085 ; implemente P2/P3, DEC-0086)
 Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
 **implementees** par P2/P3 (canoniques, memes services que le MCP, DEC-0046).
@@ -845,6 +996,41 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   phase, 300 etapes, 20 dependances et 20 taches prevues par etape, 500 taches
   prevues au total, metadonnees plates (20 cles, scalaires JSON, chaines 500).
 
+### Roadmap admission dry-run (Mission Control P05, additif, lecture seule)
+Contrat fige (`AdmissionDryRun` +
+`AdmissionSnapshot`/`compose_dry_run` dans
+`packages/studio-contracts/.../admission.py` et
+`services/api/.../services/admission_rules.py`).
+- `GET /roadmaps/{roadmap_id}/admission/dry-run` (`?harness_id=`, optionnel) ->
+  `AdmissionDryRun` : lecture pure, aucune ecriture, aucun `TaskLaunch` cree.
+  Liste les Tasks liees lancables (`launchable`, avec leurs `machine_ids`
+  eligibles) et les autres (`excluded`, avec la liste fermee `reasons`),
+  `steps_without_tasks` (etape sans Task liee), `machines` (eliguibilite par
+  projet), `plan_digest` (stable : meme etat serveur = meme digest, seul
+  `evaluated_at` bouge).
+- `reasons` : `roadmap_not_active`, `dependency_pending`, `task_data_missing`,
+  `task_completed`, `task_blocked`, `review_pending`, `launch_active`,
+  `task_claimed_elsewhere`, `claims_held_elsewhere`, `no_eligible_machine`.
+- Lecture ouverte a toute machine authentifiee ayant acces au projet (y compris
+  `readonly`, DEC-0103) ; `404 not_found` (roadmap inconnue), `403 forbidden`
+  (projet inaccessible). Le `harness_id` filtre les machines comme
+  `GET /tasks/{id}/eligible-machines`.
+- `POST /roadmaps/{roadmap_id}/admission` (`AdmissionBatchRequest`,
+  `Idempotency-Key`) -> `201 AdmissionBatchResult` : admet tout le lot ou rien.
+  Sous verrou transactionnel (roadmap puis Tasks triees), le serveur recalcule le
+  dry-run ; `plan_digest` different -> `409 admission_plan_changed` avec le
+  `plan` frais. Sinon chaque item doit etre `launchable` sur une machine de ses
+  `machine_ids`, sans doublon, et passer l'admission budget ; tout refus ->
+  `409 admission_refused` avec `refusals` (`duplicate_item`, `not_launchable`
+  + `exclusion_reasons`, vide pour une Task hors roadmap, `machine_not_eligible`,
+  `budget_refused` + `budget`).
+  `TaskLaunch`, reservations budget et evenements `task_launch.requested` sont
+  ecrits dans une seule transaction : un crash avant commit ne laisse rien, un
+  rejeu avec la meme cle rend le resultat original, un second onglet ou un
+  second utilisateur recoit `admission_plan_changed` (Tasks devenues
+  `launch_active`). Ecriture : roles writer ayant le droit de lancer sur chaque
+  machine visee. Aucune migration.
+
 ### Project initialization (Roadmaps P5, additif, DEC-0087) — contrat fige, routes implementees
 Contrat `studio.initialization/v1` (`ProjectInitializationPlan` +
 `ProjectInitializationRequest` dans `packages/studio-contracts/.../initialization.py`).
@@ -905,7 +1091,7 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 ### Task launches (AIB R2, additif, contrat fige — implemente)
 Ressource `TaskLaunch` (`studio_contracts.task_launch`) : demande typee de demarrer une tache sur
 une machine cible. Donnees seules, jamais une commande : ids et cles stables uniquement
-(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `expires_in_seconds`) ; champs
+(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `profile_key?`, `expires_in_seconds`) ; champs
 inconnus refuses, donc ni ligne de commande, argument, chemin, ni variable d'environnement
 representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
 - POST /projects/{project_id}/task-launches (`Idempotency-Key`, `TaskLaunchCreate`) -> `TaskLaunch`
@@ -913,6 +1099,26 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
   sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
   rapport perime (R1) = `409` explicite.
+- Profil de travail sur un lancement (P04, DEC-0198, additif) : `profile_key?` nomme un profil de
+  reference (`REFERENCE_PROFILES` de `studio_contracts.profiles`, ex. `coding`,
+  `architecture-read-only`) ; le serveur materialise ce profil pour l'agent demande et l'epingle
+  dans `TaskLaunch.profile` (`LaunchProfilePin` : `stable_key`, `contract_version`, `digest`
+  `sha256:`), calcule par `pin_profile(reference_work_profile(profile_key, agent_stable_key),
+  profile_elements(<ResolvedAgentDefinition>))` — l'agent passe par le resolver serveur
+  commun (P5, visibilite/versionnage/precedence runtime inclus), donc le digest que la machine
+  recalcule est celui-la. Trois refus, tous sur le corps de l'appelant :
+  `profile_key` sans `agent_stable_key` =
+  `422 {"detail": {"error_code": "profile_requires_agent"}}` ; cle hors `REFERENCE_PROFILES` =
+  `422 {"detail": {"error_code": "unknown_profile", "profile_key": ...}}` ; machine dont le
+  dernier rapport de capacites n'a pas `launch_profiles: true` =
+  `409 {"detail": {"error_code": "profile_unsupported_by_machine"}}` (un `false` ou un rapport
+  sans le champ valent refus : une machine qui ne dit pas qu'elle sait appliquer un profil ne
+  peut pas en recevoir un). `profile` est absent de la reponse — et de `TaskLaunchPull` — d'un
+  lancement sans profil : un daemon N-1 lit alors exactement le meme JSON qu'avant.
+  Le retry herite `profile_key` de la tentative qu'il remplace et recalcule son pin depuis la
+  Library du moment : une version d'element qui bouge change le `digest` au lieu de faire
+  tourner le profil d'une tentative fermee. La machine revalide le pin au demarrage et refuse
+  le run (`profile_version_changed`) plutot que d'executer un profil que personne n'a vu.
 - GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
 - POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
 - GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de
@@ -920,6 +1126,26 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   de bord.
 - POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
   `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+- POST /task-launches/{id}/snapshot (`ExecutionSnapshotPayload`) -> `ExecutionSnapshot`, `201`
+  (P04-snapshot-capture, DEC-0199, additif) — machine cible seule (regles du report), envoye par
+  l'outbox. `Idempotency-Key` : N/A, idempotent par contenu : meme payload = meme snapshot ;
+  contenu different pour le meme lancement = `409 execution_snapshot_immutable`. Payload
+  refuse (secret, chemin absolu, nom de champ secret, ou non conforme au schema) =
+  `422 {"detail": {"error_code": "execution_snapshot_refused", "details": [{"path", "pattern"}]}}`
+  (meme principe que `secret_detected`) : jamais la valeur refusee, rien stocke. GET /task-launches/{id}/snapshot -> `ExecutionSnapshot` (portee projet
+  en lecture), `404` si aucun. Voir `docs/mission-control/snapshot-contract.md`.
+- GET /task-launches/{id}/replay-preview -> `TaskLaunchReplayPreview` (P04-replay-option, DEC-0214,
+  additif) — lecture seule, rien cree : compare le snapshot du lancement a ce qu'un retry utiliserait
+  aujourd'hui (harness, ressources Library par `(role, stable_key)`, runtime ; `change` ∈
+  `unchanged|changed|added|removed|unavailable`). `verdict` ∈ `ready|limited|refused` derive de
+  `limitations` (vocabulaire ferme `ReplayLimitationCode`, `severity` `refusal|limitation`).
+  `preview_digest` (`sha256:`) couvre tout sauf `generated_at`. Le retry (`TaskLaunchRetry`) accepte
+  `replay: {snapshot_content_hash, preview_digest}` optionnel : apercu recalcule, refus =
+  `409 {"error_code": "replay_refused", "codes": [...]}`, apercu different =
+  `409 {"error_code": "replay_preview_stale", "preview_digest"}`, rien cree ; lancement deja
+  relance : meme apercu confirme = tentative existante, sinon `409 replay_refused`
+  `codes: ["already_retried"]` ; sinon la nouvelle tentative porte `replay_basis` (`TaskLaunchReplayBasis`, additif sur la vue, `null` hors rejeu).
+  Le snapshot source n'est jamais reecrit ; branche et profil ne sont pas re-epingles.
 - POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
   (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
   credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon
@@ -933,6 +1159,18 @@ Cycle : `requested -> accepted -> preparing -> running -> succeeded|failed`, plu
 rapporte par la machine). Etats terminaux sans sortie ; toute paire non listee dans
 `ALLOWED_TRANSITIONS` = `409 invalid_launch_transition`, mauvais acteur = `403`. Seule la machine
 cible rapporte l'execution ; `output_excerpt` borne (4000 car.) et expurge par la machine.
+Confinement local OpenCode : la configuration privee du lancement impose
+`permission.external_directory=deny`, y compris sous `run --auto` ; les outils
+soumis a cette permission refusent les dossiers externes, sauf la zone de
+sortie d'outils explicitement autorisee par OpenCode. Cela ne
+constitue pas une sandbox OS : les commandes shell, plugins et serveurs MCP
+s'executent avec les droits du compte local et peuvent lire ailleurs ; la
+decouverte interne des skills n'est pas couverte par cette permission. Le
+mode `workspace_write` ne garantit donc pas une isolation des lectures shell.
+Les variables systeme Windows sont conservees sans distinction de casse
+(`SYSTEMDRIVE` inclus). Le dossier litteral `%SystemDrive%` observe en demo
+n'est pas reproduit par les probes isolees avec ou sans cette variable ;
+sa cause reste non confirmee.
 Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
 `expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
 cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.

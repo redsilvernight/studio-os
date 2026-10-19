@@ -38,6 +38,16 @@ def test_instruction_carries_the_optional_stable_key() -> None:
     assert "dev-agent" not in build_instruction(project_id=PROJECT, task_id=TASK)
 
 
+def test_instruction_uses_the_issuing_servers_agent_identity() -> None:
+    agent_id = uuid4()
+    text = build_instruction(project_id=PROJECT, task_id=TASK, agent_id=agent_id)
+    assert f"agent_id : {agent_id}" in text
+    assert "studio_log_ai_work" in text
+    assert "prioritaire sur toute identité" in text
+    assert "autre serveur" in text
+    assert "agent_id fourni par le harness" not in text
+
+
 @pytest.mark.parametrize(
     ("adapter", "expected"),
     [
@@ -47,7 +57,7 @@ def test_instruction_carries_the_optional_stable_key() -> None:
                 "-p",
                 "do the work",
                 "--output-format",
-                "text",
+                "json",
                 "--permission-mode",
                 "acceptEdits",
             ),

@@ -12,11 +12,13 @@ from studio_api.middleware import setup_middleware
 from studio_api.observability import configure_logging
 from studio_api.routers import (
     accounts,
+    admission,
     agents,
     ai_integration,
     ai_work,
     auth,
     bootstrap_plan,
+    budgets,
     builds,
     claims,
     coordination,
@@ -31,6 +33,7 @@ from studio_api.routers import (
     library,
     machines,
     metrics,
+    mission,
     producer,
     projects,
     resolutions,
@@ -45,6 +48,7 @@ from studio_api.routers import (
     tasks,
     timeline,
     transfers,
+    usage,
     users,
     vault,
     version,
@@ -108,6 +112,15 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "AI work ledger. Entries reference an agent attached to the "
         "caller's own machine; foreign or unknown agents are rejected. "
         "Review transitions to approved/rejected require a privileged role."
+    ),
+    "usage": (
+        "Measured usage ledger with per-metric coverage, source-event deduplication and "
+        "versioned whole-block corrections. Writes belong to the authenticated machine."
+    ),
+    "budgets": (
+        "Explicit per-project launch budget: alert-only by default, `enforce` only once "
+        "approved by an admin. Admission reserves a fixed per-launch amount under a "
+        "project lock; the guarantee is `admission_only`, never a spending ceiling."
     ),
     "review-queue": (
         "Aggregated view of AI work reviews, proposed decisions, and recent "
@@ -275,7 +288,10 @@ def create_app() -> FastAPI:
     app.include_router(bootstrap_plan.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
+    app.include_router(usage.router)
+    app.include_router(budgets.router)
     app.include_router(review_queue.router)
+    app.include_router(mission.router)
     app.include_router(timeline.router)
     app.include_router(github.router)
     app.include_router(builds.router)
@@ -288,6 +304,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_integration.router)
     app.include_router(users.router)
     app.include_router(roadmaps.router)
+    app.include_router(admission.router)
     app.include_router(initialization.router)
     app.include_router(vault.router)
 

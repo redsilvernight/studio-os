@@ -205,7 +205,8 @@ def launch_environment(source: Mapping[str, str]) -> dict[str, str]:
     """Allowlisted environment for a remotely launched harness: only what it
     needs to start and find its own login, never the daemon's other secrets
     (machine token, cloud keys, unrelated API tokens)."""
-    return {key: source[key] for key in _LAUNCH_ENV if key in source}
+    allowed = {key.casefold() for key in _LAUNCH_ENV}
+    return {key: value for key, value in source.items() if key.casefold() in allowed}
 
 
 def _sanitised_env(source: Mapping[str, str]) -> dict[str, str]:

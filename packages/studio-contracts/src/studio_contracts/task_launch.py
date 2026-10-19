@@ -18,8 +18,12 @@ from uuid import UUID
 
 from pydantic import Field, StringConstraints
 
+from studio_contracts.auth import MachineStatus
 from studio_contracts.bootstrap import HarnessId
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
+from studio_contracts.profiles import LaunchProfilePin
+from studio_contracts.task_launch_replay import TaskLaunchReplayBasis, TaskLaunchReplayConfirmation
+from studio_contracts.tasks import TaskStatus
 
 LAUNCH_DEFAULT_TTL_SECONDS = 900
 LAUNCH_MAX_TTL_SECONDS = 86400
@@ -113,6 +117,7 @@ class TaskLaunchCreate(IdempotentCreate):
     machine_id: UUID
     harness_id: HarnessId
     agent_stable_key: StableKey | None = None
+    profile_key: StableKey | None = None
     expires_in_seconds: int = Field(
         default=LAUNCH_DEFAULT_TTL_SECONDS, ge=60, le=LAUNCH_MAX_TTL_SECONDS
     )
@@ -122,7 +127,12 @@ class TaskLaunch(VersionedModel):
     """Server-held launch. `status` changes only through the transitions in
     `ALLOWED_TRANSITIONS`, each carrying `expected_version`. `session_id` is
     set by the machine once the work session exists. `requested_by_user_id`
-    is the owner-or-granted requester (AIB-J), fixed at creation."""
+    is the owner-or-granted requester (AIB-J), fixed at creation.
+
+    `profile` (additive) is the work-profile pin computed by the
+    server at creation. It is omitted from the serialized form when absent, so
+    an unprofiled launch reads exactly as before for an N-1 daemon; a profiled
+    launch only targets a machine that reported `launch_profiles`."""
 
     id: UUID
     project_id: UUID
@@ -137,6 +147,99 @@ class TaskLaunch(VersionedModel):
     output_excerpt: str | None = Field(default=None, max_length=LAUNCH_MAX_OUTPUT_CHARS)
     expires_at: datetime
     finished_at: datetime | None = None
+    profile: LaunchProfilePin | None = Field(default=None, exclude_if=lambda v: v is None)
+
+
+class TaskLaunchProtocolStatus(StrEnum):
+    """Whether the launched agent followed the Studio protocol, derived at
+    read time from the launch's linked work session, never stored and never
+    inferred from the exit code. `not_applicable`: the harness never ran
+    (rejected, cancelled or expired before `running`). `awaiting`: the launch
+    is live and its session is not closed yet. `unverified`: the launch is
+    terminal without a linked session or with a session never closed — an
+    exit code 0 alone lands here. `handed_off`: the linked session is closed,
+    whatever the launch status, so a deferred terminal report or a
+    `blocked`/`in_progress` handoff is never a failure. Never an approval:
+    `handed_off` does not complete or review the task."""
+
+    NOT_APPLICABLE = "not_applicable"
+    AWAITING = "awaiting"
+    UNVERIFIED = "unverified"
+    HANDED_OFF = "handed_off"
+
+
+class TaskLaunchProtocol(ContractModel):
+    """Protocol proof of one launch. `task_status` is the task's current
+    status, set only when `handed_off`."""
+
+    status: TaskLaunchProtocolStatus
+    session_id: UUID | None = None
+    task_status: TaskStatus | None = None
+
+
+class TaskLaunchRecoveryState(StrEnum):
+    """Recovery verdict of one attempt (P02), derived at read time from the
+    launch status and the target machine's presence — never stored, never
+    reported by a machine. `failed`: the attempt ended `failed`.
+    `offline_wip`: the attempt is `accepted`/`preparing`/`running` and its
+    machine is `offline`, so work may still be in progress where nobody can
+    reach it — not a failure, never retried implicitly. `stale`: the attempt
+    can no longer progress on its own — `requested` on an `offline` machine,
+    or closed `expired`. `ok`: nothing to recover (a live attempt on an
+    answering machine, `succeeded`, `cancelled`, `rejected`)."""
+
+    OK = "ok"
+    STALE = "stale"
+    OFFLINE_WIP = "offline_wip"
+    FAILED = "failed"
+
+
+class TaskLaunchRecoveryReason(StrEnum):
+    """Closed vocabulary behind a recovery verdict, never free text."""
+
+    NONE = "none"
+    LAUNCH_FAILED = "launch_failed"
+    LAUNCH_EXPIRED = "launch_expired"
+    MACHINE_OFFLINE = "machine_offline"
+
+
+class TaskLaunchRecovery(ContractModel):
+    """Why an attempt reads the way it does (P02). `machine_status` is the
+    target machine's derived presence; `stale_since` is when the attempt
+    stopped progressing (machine last seen, or the attempt's expiry), `None`
+    when there is nothing to recover. Recovery itself is always explicit: a
+    retry creates a new attempt, the previous one is never rewritten."""
+
+    state: TaskLaunchRecoveryState
+    reason: TaskLaunchRecoveryReason = TaskLaunchRecoveryReason.NONE
+    machine_status: MachineStatus
+    stale_since: datetime | None = None
+
+
+class TaskLaunchRetry(IdempotentCreate):
+    """Explicit recovery input (P02): retry a terminal attempt as a new one.
+    Only `expires_in_seconds` is settable — task, machine, harness and agent
+    are inherited from the attempt it retries, so a retry can never quietly
+    become a different job. The body is optional."""
+
+    expires_in_seconds: int = Field(
+        default=LAUNCH_DEFAULT_TTL_SECONDS, ge=60, le=LAUNCH_MAX_TTL_SECONDS
+    )
+    replay: TaskLaunchReplayConfirmation | None = None
+
+
+class TaskLaunchView(TaskLaunch):
+    """Read model of the project launch list (dashboard, MCP) and of a retry.
+    `TaskLaunch` itself stays unchanged: daemons parse it strictly from the
+    pending pull and the by-id read, so an N-1 daemon never sees `protocol`,
+    `recovery` or the attempt chain. `attempt` starts at 1; a retry points at
+    the attempt it replaces through `retry_of_launch_id` (P02, additive)."""
+
+    protocol: TaskLaunchProtocol
+    attempt: int = 1
+    retry_of_launch_id: UUID | None = None
+    recovery: TaskLaunchRecovery | None = None
+    replay_basis: TaskLaunchReplayBasis | None = None
 
 
 class TaskLaunchMachineReport(ContractModel):

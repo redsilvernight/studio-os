@@ -15,6 +15,11 @@ its own local policy, prepares the task worktree, runs a fake harness in the
 network is cut around the whole reporting chain, so the outbox alone carries it
 and a reconnect replays it in order; a replay attempt while offline must stop
 transiently and keep every row.
+
+The project's launch list then states what the exit code cannot: `protocol` is
+the proof read off the linked work session — `handed_off` when the agent ran
+the consigne, `unverified` for an exit code 0 alone — and it never moves when
+the outbox replays again.
 """
 
 from __future__ import annotations
@@ -49,16 +54,21 @@ from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.outbox import OutboxReplayer, OutboxStore, OutboxTable, connect
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import MemoryTokenStore
-from studio_contracts.auth import HarnessReport, MachineCapabilities
+from studio_contracts.auth import Agent, AgentCreate, HarnessReport, MachineCapabilities
+from studio_contracts.common import Page
+from studio_contracts.sessions import WorkSession, WorkSessionCreate
 from studio_contracts.task_launch import (
     TaskLaunch,
     TaskLaunchCreate,
+    TaskLaunchProtocol,
+    TaskLaunchProtocolStatus,
     TaskLaunchReasonCode,
     TaskLaunchStatus,
+    TaskLaunchView,
 )
 
 HARNESS = "claude-code"
@@ -75,10 +85,14 @@ def _offline_transport() -> httpx.MockTransport:
 
 
 class _WithStubCredential:
-    """Delegates to a real client except `issue_launch_credential`."""
+    """Keeps online launch admission separate from the offline report client."""
 
-    def __init__(self, client: Any) -> None:
+    def __init__(self, client: Any, *, identity_client: StudioApiClient) -> None:
         self._client = client
+        self._identity_client = identity_client
+
+    async def ensure_agent(self, agent_in: AgentCreate) -> tuple[Agent, bool]:
+        return await self._identity_client.ensure_agent(agent_in)
 
     async def issue_launch_credential(self, launch_id: uuid.UUID) -> Any:
         return SimpleNamespace(token="ephemeral-test-token")  # noqa: S106
@@ -128,7 +142,9 @@ class FakeHarness(HarnessAdapter):
     def resolve_executable(self, ctx: HarnessContext) -> Path:
         return Path(sys.executable)
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
         self.prompts.append(prompt)
         return ("-c", self._script)
 
@@ -321,6 +337,38 @@ async def _wait_for_report(store: OutboxStore, status: str, *, timeout: float = 
     raise AssertionError(f"no {status!r} report was enqueued within {timeout}s")
 
 
+async def _launch_protocol(
+    api: StudioApiClient, project_id: UUID, launch_id: UUID
+) -> TaskLaunchProtocol:
+    """The protocol proof the project launch list publishes for one launch —
+    the read model that separates "the harness exited 0" from "the harness ran
+    the consigne". `GET /projects/{id}/task-launches` is the only launch read
+    that carries it; the by-id read stays a bare `TaskLaunch`."""
+    response = await api._request("GET", f"/api/v1/projects/{project_id}/task-launches")
+    page = Page[TaskLaunchView].model_validate(response.json())
+    views = {view.id: view for view in page.items}
+    assert launch_id in views, [str(view.id) for view in page.items]
+    return views[launch_id].protocol
+
+
+async def _run_protocol(api: StudioApiClient, fleet: SimpleNamespace) -> WorkSession:
+    """What the launched agent does on the target machine while the launch
+    runs: the work session `studio_start_work` opens and links to the launch,
+    then closed by the handoff. A closed linked session is the proof, whatever
+    the launch becomes afterwards."""
+    session = await api.start_session(
+        WorkSessionCreate(
+            task_id=fleet.task.id,
+            machine_id=fleet.machine_b.id,
+            agent_id=fleet.agent_b.id,
+        ),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    handed_off = await api.end_session(session.id)
+    assert handed_off.ended_at is not None
+    return handed_off
+
+
 async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_replay(
     tmp_path: Path,
     app_transport: ASGITransport,
@@ -369,11 +417,10 @@ async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_rep
 
                 # The harness runs offline in the prepared worktree.
                 harness = FakeHarness("print('studio launch ok')")
-                # The ephemeral credential needs the server and an accepted
-                # launch: issuance is online-only (fail-closed offline), so this
-                # test hands the executor a stub for that one call.
+                # Identity admission and credential issuance need the server;
+                # the offline cut only exercises the reporting outbox.
                 executor = LaunchExecutor(
-                    client=_WithStubCredential(offline),
+                    client=_WithStubCredential(offline, identity_client=api_b),
                     reporter=reporter,
                     preparer=LaunchPreparer(),
                     runner=LaunchRunner(),
@@ -401,9 +448,23 @@ async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_rep
                 assert str(fleet.project.id) in consigne
                 assert str(fleet.task.id) in consigne
 
-                # Reconnect: the whole report chain replays in order.
+                # Reconnect: the report chain replays in order, up to the run.
+                running_drain = await OutboxReplayer(store, api_b, _RETRY).replay_ready(limit=3)
+                assert running_drain.succeeded == 3
+                assert running_drain.dead_lettered == 0
+                running = await api_a.get_task_launch(launch.id)
+                assert running.status is TaskLaunchStatus.RUNNING
+
+                # The launched agent follows the consigne while the launch
+                # runs: its session links to the launch, the handoff closes it.
+                awaiting = await _launch_protocol(api_a, fleet.project.id, launch.id)
+                assert awaiting.status is TaskLaunchProtocolStatus.AWAITING
+                assert awaiting.session_id is None
+                session = await _run_protocol(api_b, fleet)
+
+                # The terminal report, deferred by the cut, lands after it.
                 drained = await OutboxReplayer(store, api_b, _RETRY).replay_ready()
-                assert drained.succeeded == 4
+                assert drained.succeeded == 1
                 assert drained.dead_lettered == 0
                 assert store.list_pending(OutboxTable.MUTATIONS, ready_only=False) == []
 
@@ -412,8 +473,16 @@ async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_rep
                 assert final.version == 5
                 assert "studio launch ok" in (final.output_excerpt or "")
 
+                # The launch list proves the protocol the terminal report only
+                # hints at: the closed session, not the exit code.
+                handed_off = await _launch_protocol(api_a, fleet.project.id, launch.id)
+                assert handed_off.status is TaskLaunchProtocolStatus.HANDED_OFF
+                assert handed_off.session_id == session.id
+                assert handed_off.task_status is not None
+
                 # Idempotent replay: the same launch request returns the original,
-                # and a second replay pass has nothing left to send.
+                # a second replay pass has nothing left to send, and the proof
+                # the list publishes is unchanged by either.
                 again = await _request_launch(
                     api_a,
                     fleet.project.id,
@@ -425,6 +494,7 @@ async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_rep
                 second_drain = await OutboxReplayer(store, api_b, _RETRY).replay_ready()
                 assert second_drain.succeeded == 0
                 assert second_drain.dead_lettered == 0
+                assert await _launch_protocol(api_a, fleet.project.id, launch.id) == handed_off
                 launches = (
                     (
                         await db_session.execute(
@@ -524,6 +594,14 @@ async def test_requester_cancel_stops_a_running_machine_without_terminal_report(
 
                 running = await api_a.get_task_launch(launch.id)
                 assert running.status is TaskLaunchStatus.RUNNING
+                open_session = await api_b.start_session(
+                    WorkSessionCreate(
+                        task_id=fleet.task.id,
+                        machine_id=fleet.machine_b.id,
+                        agent_id=fleet.agent_b.id,
+                    ),
+                    idempotency_key=str(uuid.uuid4()),
+                )
                 cancelled = await _cancel_launch(api_a, launch.id, running.version)
                 assert cancelled.status is TaskLaunchStatus.CANCELLED
 
@@ -535,5 +613,85 @@ async def test_requester_cancel_stops_a_running_machine_without_terminal_report(
                 assert "failed" not in _statuses(store)
                 final = await api_a.get_task_launch(launch.id)
                 assert final.status is TaskLaunchStatus.CANCELLED
+                mission = (
+                    await api_a._request("GET", f"/api/v1/projects/{fleet.project.id}/mission")
+                ).json()
+                run = next(row for row in mission["runs"] if row["run_id"] == str(launch.id))
+                assert run["verdict"] == "needs_attention"
+                assert run["reasons"][0] == "launch_cancelled_session_open"
+                assert run["session"]["id"] == str(open_session.id)
+                assert run["session"]["ended_at"] is None
+                assert run["protocol_state"] == "open"
+    finally:
+        store.connection.close()
+
+
+async def test_exit_zero_without_the_consigne_is_never_handed_off(
+    tmp_path: Path,
+    app_transport: ASGITransport,
+    db_session: AsyncSession,
+) -> None:
+    """The same launch, the same exit code 0, the consigne ignored: no
+    `studio_start_work`, no `studio_handoff`, so no session to close. The
+    launch list must read `unverified` — never `handed_off` off the exit code
+    alone — and replaying the reports again must not turn it into one."""
+    fleet = await _fleet(db_session)
+    repo = _repo(tmp_path)
+    outbox_path = tmp_path / "machine-b-outbox.sqlite3"
+    store = OutboxStore(connect(outbox_path))
+    try:
+        async with _client(fleet.token_b, fleet.machine_b.id, app_transport) as api_b:
+            await _report_capabilities(api_b, fleet.machine_b.id, fleet.project.id)
+            async with _client(fleet.token_a, fleet.machine_a.id, app_transport) as api_a:
+                launch = await _request_launch(
+                    api_a,
+                    fleet.project.id,
+                    fleet.task.id,
+                    fleet.machine_b.id,
+                    str(uuid.uuid4()),
+                )
+                reporter = LaunchReporter(store)
+                puller = LaunchPuller(
+                    api_b, fleet.machine_b.id, lambda: _policy(fleet.project.id), reporter
+                )
+                [accepted] = await puller.poll()
+                await OutboxReplayer(store, api_b, _RETRY).replay_ready()
+
+                harness = FakeHarness("print('studio launch ok')")
+                executor = LaunchExecutor(
+                    client=api_b,
+                    reporter=reporter,
+                    preparer=LaunchPreparer(),
+                    runner=LaunchRunner(),
+                    resolve=_resolver(repo, harness, fleet.task.title),
+                    timeout_seconds=30,
+                )
+                executor.submit(accepted)
+                await executor._tasks[accepted.id]
+                await executor.aclose()
+
+                assert _statuses(store) == ["preparing", "running", "succeeded"]
+                assert await api_b.list_sessions(task_id=fleet.task.id) == []
+
+                drained = await OutboxReplayer(store, api_b, _RETRY).replay_ready()
+                assert drained.succeeded == 3
+                assert drained.dead_lettered == 0
+                assert store.list_pending(OutboxTable.MUTATIONS, ready_only=False) == []
+
+                final = await api_a.get_task_launch(launch.id)
+                assert final.status is TaskLaunchStatus.SUCCEEDED
+                assert final.version == 5
+                assert final.session_id is None
+                assert "studio launch ok" in (final.output_excerpt or "")
+
+                unverified = await _launch_protocol(api_a, fleet.project.id, launch.id)
+                assert unverified.status is TaskLaunchProtocolStatus.UNVERIFIED
+                assert unverified.session_id is None
+                assert unverified.task_status is None
+
+                replayed = await OutboxReplayer(store, api_b, _RETRY).replay_ready()
+                assert replayed.succeeded == 0
+                assert replayed.dead_lettered == 0
+                assert await _launch_protocol(api_a, fleet.project.id, launch.id) == unverified
     finally:
         store.connection.close()

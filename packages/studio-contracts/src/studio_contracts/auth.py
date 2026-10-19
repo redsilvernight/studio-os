@@ -199,6 +199,7 @@ class MachineCapabilities(ContractModel):
     running_launches: int = Field(default=0, ge=0)
     max_launches: int = Field(default=0, ge=0)
     bootstrap: list[ProjectBootstrapStatus] | None = Field(default=None, max_length=256)
+    launch_profiles: bool | None = None
 
 
 class HeartbeatRequest(ContractModel):
