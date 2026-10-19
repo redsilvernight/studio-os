@@ -58,7 +58,7 @@ physique ni l'acceptation humaine de la gate.
 
 ## Démonstration réelle deux machines
 
-Non réalisée. Cadre : DEC-0212 (pile locale jetable). Machines : `Flo`
+Réalisée le 19 octobre 2026 (heures locales). Cadre : DEC-0212 (pile locale jetable). Machines : `Flo`
 (poste fixe, héberge la pile) et `Flo-laptop`, reliées par Tailscale.
 
 Pile `studio-gate-demo` sur `Flo`, Caddy publié sur `127.0.0.1:8865` et sur
@@ -77,7 +77,31 @@ indépendante C ; un slot par machine.
 | Coupure du daemon `Flo-laptop` en cours de lancement | Lancement signalé hors ligne ; réadmission sans doublon ni dépassement de slot |
 | Politique locale de `Flo-laptop` sans harness autorisé | Lancement `rejected` visible, sans relance automatique |
 
+Résultats relevés dans `task_launches` et `machines` de la pile démo, et via le
+dashboard :
+
+| Scénario | Observé |
+|---|---|
+| Admission batch A + C | Batch 08:46:03 : `f2e18bc6` A sur `Demo-Flo`, `0c472ec3` C sur `Demo-Flo-laptop`, `running` en parallèle puis `succeeded` (08:47:36, 08:47:13) ; B exclue du dry-run (« En attente de S1 ») |
+| Handoff A, S1 `done` | Plan à 33 % ; `4ecfe4e6` B sur `Demo-Flo` (08:49:56 → `succeeded` 08:52:05) ; le dry-run suivant exclut B (lancement actif, tâche réservée) |
+| Coupure du daemon | `91794719` D `running` 09:15:41 ; daemon arrêté au plus tard 09:16:13, dernier heartbeat 09:16:03 ; à 09:17:32 le poste est « hors ligne, capacité atteinte », non éligible, un seul lancement actif. Relance du daemon 09:21:30 : `91794719` déclaré orphelin, `failed`/`harness_exited` (09:21:50), sans relance automatique ; réadmission `88371340` `running` 09:22:36 → `succeeded` 09:24:09 |
+| Refus local (`allowed_harnesses: []`) | `f1b2a0a3` E : `requested` puis `rejected`/`harness_not_allowed` à 09:31:08 ; inchangé une minute plus tard, aucun nouveau lancement |
+
+Constats et limites :
+
+- Un batch antérieur (08:07:45) a admis deux lancements sur `Demo-Flo` à un
+  slot ; le refus local `a9792ab3` (`capacity_reached`) a préservé la borne.
+  L'admission serveur ne l'a pas empêché : à analyser hors de cette gate.
+- Pendant la coupure, le lancement reste `running` côté serveur jusqu'au retour
+  du daemon ; seul le poste passe hors ligne (seuil 90 s).
+- Pré-requis découverts : branche `dev` dans le dépôt pilote
+  (`preparation_failed` sinon), entrée MCP `studio-os` dans `opencode.json`
+  (`mcp_entry_missing`), clé API valide du CLI opencode (`harness_exited`).
+- Le refus local est atteint alors que le poste annonce opencode non configuré :
+  le serveur laisse ce harness sélectionnable.
+- Dashboard : le sélecteur de harness du batch se vide après un dry-run ; la
+  session expire en cours de démonstration.
+
 ## Non démontré
 
-- Démonstration physique deux machines (critère 3).
 - Revue humaine.
