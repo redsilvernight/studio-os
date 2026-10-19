@@ -1320,6 +1320,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/configuration-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Configuration History
+         * @description Describe a project's launch configurations over TaskLaunch.created_at in [since, until). Each group pins the harness and work profile of the launch and derives harness_version, provider and model from the ledger entries linked by task_launch_id (null when no entry reports them, 'mixed' when they disagree). Rates are descriptive, never a ranking, and always carry numerator, denominator, coverage and definition; value is null when the denominator is zero. Groups are ordered by key (null last), capped at 100 (truncated). Ledger entries without task_launch_id and AI work outside any launch of the period are reported as unattributed, never folded into a group. until before since fails with 422 invalid_usage_period; defaults are until=now and since=until-30 days.
+         */
+        get: operations["configuration_history_api_v1_usage_configuration_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/corrections": {
         parameters: {
             query?: never;
@@ -3800,6 +3820,174 @@ export interface components {
          * @enum {string}
          */
         ClaimStatus: "active" | "released" | "expired";
+        /**
+         * ConfigurationHistory
+         * @description Configuration history of a project over `[since, until)` of the launch's
+         *     `created_at`. Population is TaskLaunch; groups are ordered by key (stable,
+         *     `None` last), never by a rate: `ranking` is always `"none"`. `caveats`
+         *     always contains `tests_not_quality`, `not_ranked` and `no_minimum_sample`.
+         */
+        ConfigurationHistory: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /**
+             * Until
+             * Format: date-time
+             */
+            until: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Population
+             * @default task_launch
+             * @constant
+             */
+            population: "task_launch";
+            /**
+             * Ranking
+             * @default none
+             * @constant
+             */
+            ranking: "none";
+            /** Launches */
+            launches: number;
+            /** Groups */
+            groups?: components["schemas"]["ConfigurationHistoryGroup"][];
+            unattributed?: components["schemas"]["ConfigurationHistoryUnattributed"];
+            /** Caveats */
+            caveats?: string[];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * ConfigurationHistoryGroup
+         * @description Launches of one configuration over the period. Groups are descriptive and
+         *     never comparable to each other (`comparable` is always `False`).
+         */
+        ConfigurationHistoryGroup: {
+            key: components["schemas"]["ConfigurationKey"];
+            /** Launches */
+            launches: number;
+            /**
+             * First Requested At
+             * Format: date-time
+             */
+            first_requested_at: string;
+            /**
+             * Last Requested At
+             * Format: date-time
+             */
+            last_requested_at: string;
+            /** Status Counts */
+            status_counts?: {
+                [key: string]: number;
+            };
+            /** Rates */
+            rates?: components["schemas"]["ConfigurationRate"][];
+            /**
+             * Ledger Entries
+             * @default 0
+             */
+            ledger_entries: number;
+            /**
+             * Ai Work Entries
+             * @default 0
+             */
+            ai_work_entries: number;
+            total_tokens: components["schemas"]["UsageTokenTotal"];
+            cost: components["schemas"]["UsageCostTotal"];
+            /**
+             * Comparable
+             * @default false
+             * @constant
+             */
+            comparable: false;
+        };
+        /**
+         * ConfigurationHistoryUnattributed
+         * @description What happened in the period but cannot be tied to a launch: ledger
+         *     entries without `task_launch_id`, AIWork entries whose session belongs to
+         *     no launch of the period. Shown, never folded into a group.
+         */
+        ConfigurationHistoryUnattributed: {
+            /**
+             * Ledger Entries
+             * @default 0
+             */
+            ledger_entries: number;
+            /**
+             * Ai Work Entries
+             * @default 0
+             */
+            ai_work_entries: number;
+        };
+        /**
+         * ConfigurationKey
+         * @description Configuration a launch ran with. `harness`, `profile_*` are pinned on the
+         *     TaskLaunch; `harness_version`, `provider`, `model` come from the ledger
+         *     entries linked by `task_launch_id` and are `None` when no entry reported
+         *     them, `"mixed"` when entries disagree.
+         */
+        ConfigurationKey: {
+            /** Harness */
+            harness: string;
+            /** Profile Key */
+            profile_key?: string | null;
+            /** Profile Contract Version */
+            profile_contract_version?: number | null;
+            /** Profile Digest */
+            profile_digest?: string | null;
+            /** Harness Version */
+            harness_version?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+        };
+        /**
+         * ConfigurationRate
+         * @description A rate is never shown without its `n` (`denominator`), its definition and
+         *     its coverage: `covered` launches out of `launches` could be judged at all.
+         *     `value` is `None` when `denominator` is 0, never 0.
+         */
+        ConfigurationRate: {
+            key: components["schemas"]["ConfigurationRateKey"];
+            /** Definition */
+            definition: string;
+            /** Numerator */
+            numerator: number;
+            /** Denominator */
+            denominator: number;
+            /** Covered */
+            covered: number;
+            /** Launches */
+            launches: number;
+            /** Value */
+            value?: number | null;
+        };
+        /**
+         * ConfigurationRateKey
+         * @description Descriptive rates, each with a fixed definition. `succeeded`: succeeded
+         *     launches over terminal launches. `session_linked`: launches with a session
+         *     over all launches. `usage_measured`: launches with at least one ledger
+         *     entry whose `total` tokens are measured or estimated, over all launches.
+         * @enum {string}
+         */
+        ConfigurationRateKey: "succeeded" | "session_linked" | "usage_measured";
         ContextLimits: {
             [key: string]: unknown;
         };
@@ -15711,6 +15899,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_usage_period"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    configuration_history_api_v1_usage_configuration_history_get: {
+        parameters: {
+            query: {
+                project_id: string;
+                since?: string | null;
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationHistory"];
                 };
             };
             /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
