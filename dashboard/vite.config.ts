@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { defineConfig, loadEnv } from "vite";
-import { buildDashboardCsp, CSP_REPORT_ONLY_HEADER } from "./csp-policy";
+import { buildDashboardCsp, CSP_HEADER } from "./csp-policy";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   version: string;
@@ -25,14 +25,16 @@ export default defineConfig(({ mode }) => {
         "/healthz": { target: API_TARGET, changeOrigin: true },
       },
     },
-    // E2E only (DEC-0061): serve the Report-Only policy on the preview server
-    // so Playwright detects violations. Never an enforcement header here.
+    // E2E only (DEC-0061): serve the same enforced policy as the Caddy edge
+    // on the preview server so Playwright sees what production blocks.
+    // `http://storage.test` stands in for STORAGE_DOMAIN (stubbed pre-signed
+    // uploads in e2e/ui10.spec.ts).
     preview: {
       port: 4173,
       // IPv4 loopback explicitly: CI and Playwright probe 127.0.0.1, while
       // Vite would otherwise bind ::1 on some hosts (DEC-0061 e2e).
       host: "127.0.0.1",
-      headers: { [CSP_REPORT_ONLY_HEADER]: buildDashboardCsp() },
+      headers: { [CSP_HEADER]: buildDashboardCsp({ connectExtra: ["http://storage.test"] }) },
     },
     test: {
       include: ["src/**/*.test.ts"],
