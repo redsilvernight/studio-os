@@ -407,6 +407,36 @@ async def test_rule_5_handed_off_is_done(
     assert run["handoff"]["status"] == "completed"
 
 
+async def test_long_handoff_summary_is_previewed_not_a_500(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+) -> None:
+    machine_model, _ = machine
+    await _online(db_session, machine_model)
+    task = await _task(db_session, project.id)
+    ended = _ago(minutes=3)
+    work_session = await _session(
+        db_session, task, machine_model, last_activity_at=ended, ended_at=ended
+    )
+    await _launch(db_session, project.id, task, machine_model, session_id=work_session.id)
+    await _ai_work(
+        db_session,
+        project.id,
+        agent,
+        work_session=work_session,
+        status="completed",
+        summary="x" * 1500,
+    )
+
+    run = _runs(await _mission(client, auth_headers, project.id))[0]
+    assert len(run["handoff"]["summary"]) == 280
+    assert run["handoff"]["summary"].endswith("…")
+
+
 async def test_rule_6_launch_succeeded_without_a_session_needs_attention(
     client: AsyncClient,
     auth_headers: dict[str, str],
