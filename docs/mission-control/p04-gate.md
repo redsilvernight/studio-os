@@ -2,7 +2,8 @@
 
 Tâche `f33a3c2d-59bf-4e76-a5e0-ac485817421a`. Observation partielle du
 14 octobre 2026, sur la pile locale de la démonstration P02 (DEC-0212), code
-`dev` à `f3a12b3`. **Gate non acceptée ; aucun critère coché.**
+`dev` à `f3a12b3`. **Gate acceptée par l'humain le 19 octobre 2026, au vu de
+la redémonstration ci-dessous.**
 
 ## Observé
 
@@ -67,7 +68,8 @@ Même recette, code `dev` à `c80ce25f` (inclut `d943816c` et la PR #156).
 
 ## Non démontré
 
-- Revue humaine.
+- `--tools` et `--disallowedTools` sur la ligne de commande réelle (couverts
+  par tests seulement).
 
 Preuves : `output/gate-demo-local/` (`p04-*.txt`, `p04-redemo-*.json`,
 `snapshot-*.json`, `replay-preview-ro.json`), ignoré par Git.

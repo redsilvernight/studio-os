@@ -21,16 +21,13 @@ prépare la décision humaine ; il ne la remplace pas.
 | P01-architecture-gate | [baseline.md](baseline.md), DEC-0200 | Acceptée par l'humain le 10 octobre 2026 |
 | P02-gate | [p02-gate.md](p02-gate.md), DEC-0212 | Acceptée le 14 octobre 2026 (pile locale) |
 | P03-gate | [p03-gate.md](p03-gate.md), DEC-0212 | Acceptée le 14 octobre 2026 |
-| P04-gate | [p04-gate.md](p04-gate.md) | Rapport : « non acceptée » ; défaut `agent_id` corrigé (`d943816c`), handoff dans un lancement profilé non redémontré |
-| P05-gate | [p05-gate.md](p05-gate.md) | Démonstration deux machines faite le 19 octobre ; rapport : « non acceptée » ; défauts corrigés (`aed07f4e`, `e3d162ee`, `349913e8`) mais non redémontrés ; revue humaine non démontrée |
+| P04-gate | [p04-gate.md](p04-gate.md), PR #167, DEC-0222 | Redémontrée le 19 octobre (`c80ce25f`) : lancement profilé `read_only` et rejeu `succeeded`, `studio_start_work` + `studio_handoff` observés avec l'`agent_id` du serveur démo. **Acceptée par l'humain le 19 octobre 2026** |
+| P05-gate | [p05-gate.md](p05-gate.md), PR #167, DEC-0222 | Redémontrée le 19 octobre (`c80ce25f`) : admission unique par slot, éligibilité harness, coupure daemon sur `Flo`, refus local. **Acceptée par l'humain le 19 octobre 2026** ; limites acceptées : coupure sur `Flo-laptop`, sélecteur de harness du dashboard |
 | P06-ops-evidence | [ops-evidence.md](ops-evidence.md) | Restauration isolée PostgreSQL/MinIO reproduite ; promotion publique sous réserves |
-| P06-history-option | [pilot-data.md](pilot-data.md), DEC-0221, PR #165 | Livrée ; critère 2 (rapprochement ledger/AIWork sur échantillon réel) ouvert, attend des données de production |
+| P06-history-option | [pilot-data.md](pilot-data.md), DEC-0221, PR #165, DEC-0223 | Livrée ; critère 2 (rapprochement ledger/AIWork sur données de production) **accepté par l'humain comme limite documentée le 19 octobre 2026**, à faire après promotion |
 
-Écart à trancher : Studio OS compte P04-gate, P05-gate et P06-history-option
-`done`, alors que leurs rapports gardent une gate non acceptée ou un critère
-ouvert. Soit l'acceptation humaine a eu lieu et les rapports sont à mettre à
-jour (date, auteur), soit ces étapes sont à rouvrir ou à passer en `skipped`
-motivé. Sans cet arbitrage, le critère 1 n'est pas satisfait.
+Plus d'écart ouvert : toutes les étapes sont satisfaites ou ont une limite
+acceptée par l'humain. Le critère 1 est satisfait côté documentation.
 
 Le détail par étape (critères cochés côté serveur) n'a pas été relu : l'API
 roadmap complète n'est pas exposée en MCP et l'accès HTTP direct n'a pas été
@@ -58,6 +55,7 @@ et Playwright non relancés localement : la CI de la PR fait foi.
 
 ## Non démontré
 
-- Acceptation humaine des gates P04, P05 et de celle-ci.
+- Acceptation humaine de cette gate (P04 et P05 acceptées le 19 octobre 2026).
 - Parcours réel complet sur le VPS de production et restauration de même canal.
-- Rapprochement ledger/AIWork sur données de production.
+- Rapprochement ledger/AIWork sur données de production (limite acceptée,
+  DEC-0223).
