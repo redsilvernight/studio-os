@@ -142,7 +142,7 @@ def _ledger_derived(
     if not values:
         return None
     if len(values) == 1:
-        return next(iter(values))
+        return str(next(iter(values)))
     return CONFIGURATION_MIXED
 
 

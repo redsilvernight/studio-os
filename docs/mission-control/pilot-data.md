@@ -86,10 +86,12 @@ prolonger la fenêtre avec accord humain et publier les nouvelles bornes.
 Le 19 octobre 2026, l'utilisateur a levé le no-go. L'historique est livré comme vue descriptive :
 `GET /api/v1/usage/configuration-history` et l'onglet « Historique » du projet.
 La population est TaskLaunch. Chaque taux affiche n, période, définition et couverture.
-Les groupes ne sont ni classés ni comparables. Les valeurs inconnues ou mixtes sont affichées telles quelles.
+Les groupes ne sont ni classés ni comparables.
+Les valeurs inconnues ou mixtes sont affichées telles quelles.
 La vue rappelle aussi que des tests réussis ne garantissent pas la qualité.
 Le rapprochement avec le ledger et AIWork sur un échantillon de production reste à relever.
-Tant qu'il n'est pas fait, le critère correspondant de l'étape n'est pas coché. Aucun minimum d'effectif n'est fixé.
+Tant qu'il n'est pas fait, le critère correspondant de l'étape n'est pas coché.
+Aucun minimum d'effectif n'est fixé.
 
 ## Reproduction et audit
 
