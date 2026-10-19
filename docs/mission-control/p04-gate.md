@@ -46,16 +46,28 @@ branche `task/f33a3c2d-launch-profile`. Agent de Bibliothèque `p04-architect`.
   reprenait l'URL de l'entrée utilisateur, et le jeton éphémère du lancement
   partait vers un autre serveur. Elle vise maintenant le serveur émetteur.
 
+## Redémonstration (19 octobre 2026)
+
+Même recette, code `dev` à `c80ce25f` (inclut `d943816c` et la PR #156).
+
+- `architecture-read-only` sur `claude-code` 2.1.287 : `succeeded`, sans
+  `handoff_not_observed`. Snapshot `capture ok`, `access_mode: read_only`.
+- Protocole de bout en bout : `studio_start_work` avec l'`agent_id` du serveur
+  émetteur, puis `studio_handoff` (`task_status=completed`) ; tâche `completed`,
+  session `ended`.
+- Rejeu confirmé (aperçu `limited`, mêmes trois limitations) : `succeeded` en
+  `read_only`, second `studio_start_work` + `studio_handoff` avec le même
+  `agent_id` ; deux sessions `ended` sur la tâche.
+- Outils utilisés par l'agent, dans les deux lancements : `Glob`, `Read` et MCP Studio seulement.
+  Worktree sans commit ni modification.
+- `--tools Read,Grep,Glob` et `SendMessage` dans `--disallowedTools` : couverts
+  par `tests/harness/test_claude_headless_env.py` et
+  `tests/client/test_launch_profile_enforce.py` (33 passés), pas observés sur
+  la ligne de commande du lancement.
+
 ## Non démontré
 
-- Protocole Studio de bout en bout dans un lancement : le rejeu appelle
-  `studio_start_work` mais pas `studio_handoff` (`handoff_not_observed`),
-  faute d'`agent_id` injecté. Le hook SessionStart du poste vise le serveur de
-  production, pas la pile jetable. Corrigé depuis par `d943816c`
-  (16 octobre) : l'instruction de lancement injecte l'`agent_id` du serveur
-  émetteur, prioritaire sur le hook. Pas encore redémontré dans un lancement
-  profilé avec handoff observé.
 - Revue humaine.
 
-Preuves : `output/gate-demo-local/` (`p04-*.txt`, `snapshot-*.json`,
-`replay-preview-ro.json`), ignoré par Git.
+Preuves : `output/gate-demo-local/` (`p04-*.txt`, `p04-redemo-*.json`,
+`snapshot-*.json`, `replay-preview-ro.json`), ignoré par Git.
