@@ -176,6 +176,9 @@ export function apiStub(captured: Captured, options: StubOptions = {}) {
     if (url.endsWith("/api/v1/resolutions")) return json(200, { agent: null, rules: [], skills: [], requirements: {}, composed_agents: [], workflows: [], model_profile: null, runtime: null });
     if (method === "GET" && /\/api\/v1\/machines\/?$/.test(url)) return json(404, { detail: "not found" });
     if (/\/api\/v1\/projects\/[^/]+\/state$/.test(url)) return json(200, { project_id: P1, active_tasks: [], active_claims: [], generated_at: "2026-09-12T10:00:00Z" });
+    if (/\/api\/v1\/projects\/[^/]+\/mission(\?|$)/.test(url)) {
+      return json(200, { project_id: P1, generated_at: "2026-09-12T10:00:00Z", window_hours: 72, runs: [], counts: { by_verdict: {}, total: 0 }, next_cursor: null, truncated: false });
+    }
     if (/\/api\/v1\/projects\/[^/]+$/.test(url)) return json(200, d.project);
     if (url.endsWith("/api/v1/projects")) return json(200, [d.project]);
     if (options.tasksUnauthorized === true && url.includes("/api/v1/tasks") && method === "GET") return json(401, { detail: "Not authenticated" });

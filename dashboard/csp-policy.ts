@@ -2,9 +2,9 @@
  * Dashboard Content-Security-Policy construction (DEC-0061).
  *
  * Single source of truth for the policy served in `vite preview` (Playwright
- * e2e) and documented for the Caddy edge (`docker/Caddyfile`, Report-Only
- * phase). No enforcement header anywhere until the browser tests prove the
- * main flows clean (DEC-0061, condition de sortie Report-Only).
+ * e2e) and mirrored at the Caddy edge (`docker/Caddyfile`). Enforced since
+ * the Report-Only exit condition was met: e2e green and zero violation on
+ * the production domain (DEC-0061, étape 9.3).
  *
  * Environment-dependent parameters (never hardcoded origins):
  * - `connectExtra`: additional `connect-src` origins — the pre-signed
@@ -12,7 +12,7 @@
  *   `VITE_STUDIO_API_URL` points cross-origin, that API origin. Prod
  *   same-origin deployments need only the storage domain.
  */
-export const CSP_REPORT_ONLY_HEADER = "Content-Security-Policy-Report-Only";
+export const CSP_HEADER = "Content-Security-Policy";
 
 export interface CspOptions {
   connectExtra?: string[];

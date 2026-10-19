@@ -29,7 +29,7 @@ Limite assumée : l'ancien écran (liste plate de 12–13 entrées, anciennes vu
 
 Aucun état utilisateur n'est lié à la V2 : pas de migration de données, pas de contrat API modifié, une seule préférence locale optionnelle. Revenir à une version antérieure du dashboard est donc sans perte :
 
-- **Serveur / dashboard web** : retour automatique du code précédent en cas d'échec du déploiement, ou redéploiement d'un commit antérieur (`docs/FLO_LAPTOP_DEPLOYMENT.md`, « Échec et retour arrière ») ; les migrations ne sont jamais rétrogradées, et la V2 n'en ajoute aucune.
+- **Serveur / dashboard web** : retour automatique du code précédent en cas d'échec du déploiement, ou redéploiement d'un commit antérieur (`docs/Studio_OS_Documentation_Pack/studio_os_docs/HUMAN/04_DEPLOIEMENT_OVH.md`, « Mise a jour ») ; les migrations ne sont jamais rétrogradées, et la V2 n'en ajoute aucune.
 - **Desktop** : restauration dans la voie d'origine par `desktop-promote.yml` (`workflow_dispatch`, explicitement humaine), jamais de promotion croisée Dev → Prod (`docs/DESKTOP_P10_PACKAGING.md`, DEC-0162).
 - La préférence `studio-os.nav-mode` est ignorée par une version qui ne la connaît pas (clé inconnue).
 

@@ -77,7 +77,9 @@ def build_capabilities(
     extra_project_ids: Iterable[UUID] = (),
 ) -> MachineCapabilities:
     """Pure report builder: detected harnesses (IDs + state + version),
-    registered project IDs, launch opt-in and occupancy.
+    registered project IDs, launch opt-in and occupancy. `launch_profiles`
+    advertises that this machine applies the work profile a launch carries
+    (DEC-0198), which is what makes the server send one.
 
     `extra_project_ids` adds projects registered by a local source other than
     `config.git_watches` — namely the Desktop workspace registry (project ↔
@@ -103,4 +105,5 @@ def build_capabilities(
         running_launches=running_launches,
         max_launches=config.max_concurrent_launches,
         bootstrap=bootstrap_statuses(config) or None,
+        launch_profiles=True,
     )

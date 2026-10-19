@@ -27,6 +27,13 @@ from studio_contracts.local.daemon_control import (
 )
 from studio_contracts.local.handshake import ProtocolVersion
 from studio_contracts.local.identity import IdentityBinding, ProfileRef, partition_key
+from studio_contracts.profiles import (
+    LaunchProfilePin,
+    WorkProfile,
+    pin_profile,
+    profile_elements,
+    reference_work_profile,
+)
 from studio_contracts.task_launch import TaskLaunch
 
 from studio_client.api_client import StudioApiClient
@@ -34,12 +41,15 @@ from studio_client.capabilities import build_capabilities, neutral_context
 from studio_client.config import ClientConfig, GitWatchConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_godot_watchers
 from studio_client.daemon.launch_executor import LaunchExecutor, ResolvedLaunch
-from studio_client.daemon.launch_policy import build_launch_policy
+from studio_client.daemon.launch_policy import LaunchProfile, build_launch_policy
 from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
-from studio_client.daemon.launch_settings_bridge import effective_launch_config
+from studio_client.daemon.launch_settings_bridge import (
+    effective_launch_config,
+    load_machine_policy,
+)
 from studio_client.daemon.skills_bridge import start_auto_sync
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
@@ -65,6 +75,8 @@ from studio_client.outbox import (
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import KeyringTokenStore, TokenStore
+from studio_client.usage import UsageWriteQueue
+from studio_client.usage.recorder import LaunchUsageRecorder
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
@@ -154,6 +166,60 @@ def _launch_secrets() -> tuple[str, ...]:
     return (token,) if token else ()
 
 
+def _unresolved_profile(expected: LaunchProfilePin) -> LaunchProfile:
+    """Fail-closed profile for a pin this machine could not recompute: the
+    resolved pin is taken over an empty profile that asks no permission, so it
+    can never match the pin the launch was previewed against — a profiled
+    launch never falls back to the legacy coding mode."""
+    work = WorkProfile(
+        stable_key=expected.stable_key,
+        title="unresolved",
+        agent_stable_key="studio:unresolved",
+    )
+    return LaunchProfile(expected=expected, resolved=pin_profile(work), permissions=())
+
+
+async def resolve_launch_profile(
+    client: StudioApiClient, launch: TaskLaunch
+) -> LaunchProfile | None:
+    """Recomputes the work profile a launch was created against (DEC-0198).
+    `None` means the launch carries no profile: it keeps the legacy coding mode
+    already gated by `LaunchPolicy`. Otherwise the pin is rebuilt from the
+    common resolver output, so a Library change since the preview shows up as a
+    different pin and `enforce_profile` refuses the run. An unknown profile
+    key, a profiled launch without an agent definition or an unreachable
+    resolver all yield a profile that fails enforcement."""
+
+    expected = launch.profile
+    if expected is None:
+        return None
+    agent_key = launch.agent_stable_key
+    if agent_key is None:
+        _LOGGER.warning(
+            "profiled launch %s carries no agent definition; refusing closed", launch.id
+        )
+        return _unresolved_profile(expected)
+    try:
+        definition = await client.resolve_agent(agent_key, project_id=launch.project_id)
+        work = reference_work_profile(expected.stable_key, agent_key)
+        resolved = pin_profile(work, profile_elements(definition))
+    except KeyError:
+        _LOGGER.warning("unknown work profile %r; refusing closed", expected.stable_key)
+        return _unresolved_profile(expected)
+    except Exception:  # noqa: BLE001
+        _LOGGER.warning(
+            "work profile %r could not be resolved; refusing closed",
+            expected.stable_key,
+            exc_info=True,
+        )
+        return _unresolved_profile(expected)
+    return LaunchProfile(
+        expected=expected,
+        resolved=resolved,
+        permissions=tuple(work.permissions),
+    )
+
+
 def build_launch_resolver(
     client: StudioApiClient,
     registry: HarnessRegistry,
@@ -161,10 +227,10 @@ def build_launch_resolver(
     *,
     workspace_repo: Callable[[UUID], Path | None] | None = None,
 ) -> Callable[[TaskLaunch], Awaitable[ResolvedLaunch | None]]:
-    """Resolves a launch to the repository, task title, adapter and probing
-    context. The repository comes from `git_watches`, else from a registered
-    workspace (`workspace_repo`). `None` means the launch cannot be prepared
-    locally (no known repository, or unknown harness)."""
+    """Resolves a launch to the repository, task title, adapter, work profile
+    and probing context. The repository comes from `git_watches`, else from a
+    registered workspace (`workspace_repo`). `None` means the launch cannot be
+    prepared locally (no known repository, or unknown harness)."""
 
     async def resolve(launch: TaskLaunch) -> ResolvedLaunch | None:
         repo_root = config.git_repo_for_project(launch.project_id)
@@ -179,6 +245,7 @@ def build_launch_resolver(
         if adapter is None:
             _LOGGER.warning("launch cannot be prepared: unknown harness %s", launch.harness_id)
             return None
+        profile = await resolve_launch_profile(client, launch)
         title: str | None = None
         try:
             title = (await client.get_task(launch.task_id)).title
@@ -189,6 +256,7 @@ def build_launch_resolver(
             task_title=title,
             adapter=adapter,
             ctx=neutral_context(config),
+            profile=profile,
         )
 
     return resolve
@@ -393,6 +461,9 @@ class DaemonRuntime:
                     poll_seconds=self.config.launch_status_poll_seconds,
                     secrets=_launch_secrets(),
                     models=self.config.launch_models,
+                    usage=LaunchUsageRecorder(UsageWriteQueue(store)),
+                    machine_policy=lambda: load_machine_policy(self.config, self.data_root),
+                    capture_snapshots=True,
                 )
                 self._launch_executor = executor
                 executor.start()
@@ -416,6 +487,7 @@ class DaemonRuntime:
                             extra_project_ids=self._workspace_project_ids(),
                         ),
                         reporter,
+                        is_executing=executor.owns,
                     ),
                     launch_executor=executor,
                 )

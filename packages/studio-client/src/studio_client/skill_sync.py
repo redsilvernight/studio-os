@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -152,7 +152,9 @@ def render_skill(projection: LibraryContextItem) -> str:
     """Render a Library skill as a harness-compatible ``SKILL.md``."""
 
     _validate_projection(projection)
-    description = " ".join(projection.title.split())
+    description = " ".join((projection.description or "").split())
+    if not description:
+        description = " ".join(projection.title.split())
     body = projection.text.replace("\r\n", "\n").replace("\r", "\n").strip()
     provenance = (
         "<!-- studio-os-library: "
@@ -305,9 +307,40 @@ def apply_skill_sync(
     plan: SkillSyncPlan,
     *,
     overwrite: bool = False,
+    selected_keys: set[str] | None = None,
 ) -> SkillSyncResult:
     """Apply a plan atomically per file, backing up authorized overwrites."""
 
+    if selected_keys is not None:
+        known = {entry.projection.stable_key for entry in plan.entries}
+        if selected_keys - known:
+            raise SkillSyncError("unknown skill selection")
+        if not selected_keys:
+            return SkillSyncResult(
+                written=(), backups=(), manifest_path=plan.manifest_path, removed=()
+            )
+        manifest = json.loads(plan.manifest_text)
+        previous = (
+            json.loads(plan.manifest_path.read_text(encoding="utf-8"))
+            if plan.manifest_path.is_file()
+            else {}
+        )
+        if not isinstance(previous, dict) or not isinstance(previous.get("skills", []), list):
+            raise SkillSyncError("invalid existing skill manifest")
+        manifest["skills"] = [
+            row
+            for row in previous.get("skills", [])
+            if isinstance(row, dict) and row.get("stable_key") not in selected_keys
+        ] + [row for row in manifest["skills"] if row["stable_key"] in selected_keys]
+        manifest["skills"].sort(key=lambda row: row["stable_key"])
+        plan = replace(
+            plan,
+            entries=tuple(
+                entry for entry in plan.entries if entry.projection.stable_key in selected_keys
+            ),
+            retired=(),
+            manifest_text=json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        )
     conflicts = [target for target in plan.locally_modified]
     if conflicts and not overwrite:
         paths = ", ".join(str(target.path) for target in conflicts)

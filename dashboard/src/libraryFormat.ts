@@ -27,7 +27,8 @@ export type LibraryKindSlug =
   | "skills"
   | "agent-definitions"
   | "workflows"
-  | "model-profiles";
+  | "model-profiles"
+  | "hooks";
 
 export interface LibraryKindMeta {
   kind: LibraryKind;
@@ -42,6 +43,7 @@ export const LIBRARY_KINDS: readonly LibraryKindMeta[] = [
   { kind: "agent_definition", slug: "agent-definitions", singular: "Agent Definition", plural: "Agent Definitions" },
   { kind: "workflow", slug: "workflows", singular: "Workflow", plural: "Workflows" },
   { kind: "model_profile", slug: "model-profiles", singular: "Model Profile", plural: "Model Profiles" },
+  { kind: "hook", slug: "hooks", singular: "Hook", plural: "Hooks" },
 ];
 
 export const LIBRARY_SLUGS: readonly LibraryKindSlug[] = LIBRARY_KINDS.map((meta) => meta.slug);
@@ -123,6 +125,7 @@ const RELATION_LABELS: Record<BindingRelation, string> = {
   composes_agent: "composes agent",
   references_workflow: "references workflow",
   refines_skill_rule: "refines skill rule",
+  uses_hook: "uses hook",
 };
 
 export function relationLabel(relation: BindingRelation): string {

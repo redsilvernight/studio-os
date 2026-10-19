@@ -728,6 +728,69 @@
   min-width: 0;
 }
 
+/* Panneau « Lancer un lot » : une carte de plus dans la colonne de lecture. */
+.admission-panel {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+  padding: var(--ds-space-4);
+  margin-top: var(--ds-space-4);
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.admission-toolbar,
+.admission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.admission-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.admission-launchable-list,
+.admission-reasons,
+.admission-confirmation-tasks {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admission-launchable-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-2) 0;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.admission-reasons {
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-1);
+}
+
+.admission-confirmation-tasks > li {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.admission-excluded summary {
+  cursor: pointer;
+  color: var(--ds-text-muted);
+}
+
 @media (min-width: 2000px) {
   .roadmap-view {
     max-width: 1616px;

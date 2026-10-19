@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.common import Page
+from studio_contracts.execution_snapshot import ExecutionSnapshot
 from studio_contracts.task_launch import (
     TaskLaunch,
     TaskLaunchCancel,
@@ -12,7 +13,10 @@ from studio_contracts.task_launch import (
     TaskLaunchCredential,
     TaskLaunchMachineReport,
     TaskLaunchPull,
+    TaskLaunchRetry,
+    TaskLaunchView,
 )
+from studio_contracts.task_launch_replay import TaskLaunchReplayPreview
 
 from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
@@ -20,12 +24,21 @@ from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
+    RESP_409_BUDGET_REFUSED,
     RESP_409_IDEMPOTENCY,
     RESP_409_LAUNCH_TRANSITION,
+    RESP_409_PROFILE_UNSUPPORTED,
+    RESP_409_REPLAY,
+    RESP_409_SNAPSHOT_IMMUTABLE,
     RESP_409_VERSION_CONFLICT,
+    RESP_422_LAUNCH_PROFILE,
+    RESP_422_SNAPSHOT_REFUSED,
+    merge_conflict,
 )
+from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import launch_credentials as credentials_service
+from studio_api.services import task_launch_replay as replay_service
 from studio_api.services import task_launches as launches_service
 from studio_api.services import tasks as tasks_service
 from studio_api.settings import get_settings
@@ -41,14 +54,26 @@ router = APIRouter(tags=["task-launches"])
         "Request a typed task launch on a target machine (AIB R2). Data "
         "only, never a command: ids and stable keys. Requires a writer "
         "role; the target machine's owner (or an admin) may request. "
+        "Optional `profile_key`: the work profile the agent runs "
+        "under, named against the reference profiles. It needs "
+        "`agent_stable_key`, and the server pins it (`profile`: stable key, "
+        "contract version, content digest) after resolving that agent — a "
+        "profiled launch only targets a machine whose latest capabilities "
+        "report `launch_profiles: true`, and an unprofiled launch simply "
+        "omits `profile`. "
         "Accepts `Idempotency-Key`: the same key with the identical body "
         "returns the original launch instead of a duplicate."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
-        **RESP_409_IDEMPOTENCY,
-        **RESP_409_LAUNCH_TRANSITION,
+        **RESP_422_LAUNCH_PROFILE,
+        **merge_conflict(
+            RESP_409_LAUNCH_TRANSITION,
+            RESP_409_IDEMPOTENCY,
+            RESP_409_BUDGET_REFUSED,
+            RESP_409_PROFILE_UNSUPPORTED,
+        ),
     },
 )
 async def create_task_launch(
@@ -104,8 +129,13 @@ async def get_task_launch(
 
 @router.get(
     "/api/v1/projects/{project_id}/task-launches",
-    response_model=Page[TaskLaunch],
-    description="List task launches of a project, oldest first.",
+    response_model=Page[TaskLaunchView],
+    description=(
+        "List task launches of a project, oldest first, each with its "
+        "protocol proof (`not_applicable`, `awaiting`, `unverified` or "
+        "`handed_off`) derived from the linked work session. The other "
+        "launch routes keep the bare `TaskLaunch`."
+    ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_task_launches(
@@ -114,12 +144,12 @@ async def list_task_launches(
     principal: CurrentPrincipal,
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0),
-) -> Page[TaskLaunch]:
+) -> Page[TaskLaunchView]:
     launches = await launches_service.list_launches(
         session, principal, project_id, limit=limit, offset=offset
     )
-    return Page[TaskLaunch](
-        items=[TaskLaunch.model_validate(launch) for launch in launches],
+    return Page[TaskLaunchView](
+        items=await launches_service.protocol_views(session, launches),
         limit=limit,
         offset=offset,
     )
@@ -152,6 +182,69 @@ async def cancel_task_launch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
     launch = await launches_service.cancel_launch(session, principal, launch, cancel)
     return TaskLaunch.model_validate(launch)
+
+
+@router.post(
+    "/api/v1/task-launches/{launch_id}/retry",
+    response_model=TaskLaunchView,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Explicit recovery (P02): retry a terminal launch as a new attempt "
+        "(`attempt` + 1, `retry_of_launch_id` = this launch) on the same "
+        "task, machine, harness and agent; the previous attempt is never "
+        "rewritten. A non-terminal launch is `409 launch_not_terminal`. One "
+        "retry per attempt: a second or concurrent retry returns the attempt "
+        "the first one created. Only the requester (or an admin), with the "
+        "target machine's aptitude re-checked like a creation — a profiled "
+        "attempt therefore inherits its `profile_key` and recomputes its "
+        "`profile` pin from the Library as it stands now. Accepts "
+        "`Idempotency-Key`. Optional `replay` (P04): confirms a replay "
+        "preview; the server recomputes it and refuses a stale or refused "
+        "one, then records the accepted basis as `replay_basis`."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **merge_conflict(
+            RESP_409_LAUNCH_TRANSITION,
+            RESP_409_IDEMPOTENCY,
+            RESP_409_BUDGET_REFUSED,
+            RESP_409_REPLAY,
+            RESP_409_PROFILE_UNSUPPORTED,
+        ),
+    },
+)
+async def retry_task_launch(
+    launch_id: UUID,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    retry: TaskLaunchRetry | None = None,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
+) -> TaskLaunchView:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    retry_in = retry or TaskLaunchRetry()
+
+    async def _retry() -> TaskLaunchView:
+        attempt = await launches_service.retry_launch(
+            session, principal, launch, retry_in, get_settings()
+        )
+        return (await launches_service.protocol_views(session, [attempt]))[0]
+
+    return await idempotency_service.run_idempotent(
+        session,
+        request,
+        idempotency_key,
+        f"POST /task-launches/{launch_id}/retry",
+        TaskLaunchView,
+        _retry,
+        status.HTTP_201_CREATED,
+    )
 
 
 @router.get(
@@ -198,6 +291,101 @@ async def report_task_launch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
     launch = await launches_service.report_launch(session, principal, launch, report)
     return TaskLaunch.model_validate(launch)
+
+
+@router.post(
+    "/api/v1/task-launches/{launch_id}/snapshot",
+    response_model=ExecutionSnapshot,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "The target machine records the immutable execution snapshot of this "
+        "launch attempt: references and digests only, never a "
+        "prompt, a file content, an absolute path or a secret. A refused body "
+        "is `422 execution_snapshot_refused` with `details: [{path, pattern}]`, "
+        "never echoing the value; nothing is stored. `Idempotency-Key` is not "
+        "used: the route is idempotent by content — replaying the same payload "
+        "returns the recorded snapshot; a different payload for the same "
+        "launch is `409 execution_snapshot_immutable`. Only the launch's "
+        "target machine, with its durable credential."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_SNAPSHOT_IMMUTABLE,
+        **RESP_422_SNAPSHOT_REFUSED,
+    },
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ExecutionSnapshotPayload"}
+                }
+            },
+        }
+    },
+)
+async def submit_task_launch_snapshot(
+    launch_id: UUID,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> ExecutionSnapshot:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    payload = snapshots_service.parse_snapshot_body(body)
+    return await snapshots_service.submit_launch_snapshot(session, principal, launch, payload)
+
+
+@router.get(
+    "/api/v1/task-launches/{launch_id}/snapshot",
+    response_model=ExecutionSnapshot,
+    description=(
+        "Read the execution snapshot of one launch attempt: what was "
+        "previewed (`resolution`) beside what the machine really applied "
+        "(`applied`: git commit and branch observed in the worktree, "
+        "harness version, projection digests, enforced profile and mode). "
+        "`404` while the machine has not recorded it."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def get_task_launch_snapshot(
+    launch_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> ExecutionSnapshot:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    snapshot = await snapshots_service.get_snapshot_for_launch(session, launch.id)
+    if snapshot is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "execution snapshot not found")
+    return snapshot
+
+
+@router.get(
+    "/api/v1/task-launches/{launch_id}/replay-preview",
+    response_model=TaskLaunchReplayPreview,
+    description=(
+        "Read-only replay preview (P04): compares the attempt's execution "
+        "snapshot with what a retry would use now (harness, Library versions, "
+        "runtime), re-checks the caller's rights and the target machine, and "
+        "lists closed refusal/limitation codes. Creates nothing. Confirm it "
+        "through `POST /task-launches/{id}/retry` with `replay`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def get_task_launch_replay_preview(
+    launch_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> TaskLaunchReplayPreview:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    return await replay_service.compute_preview(session, principal, launch, get_settings())
 
 
 @router.post(

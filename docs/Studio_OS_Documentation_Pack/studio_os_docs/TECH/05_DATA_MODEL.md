@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
+Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -38,6 +38,8 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 - Transfer relie sender, recipient, project/task optionnels et object_key MinIO.
 - Project 1-1 GitHubIntegration (au plus une integration GitHub par projet en v1).
 - Project 1-N Build / ProducerJob. Build 1-N Transfer (artefacts via `Transfer.build_id`).
+- Project 1-N UsageLedgerEntry ; une entree se rattache optionnellement a une
+  Task, une WorkSession, un TaskLaunch et un AIWorkLog (DEC-0197).
 
 ## Champs communs (mutables)
 Tout objet mutable porte `id` (UUID), `created_at`, `updated_at` et `version`
@@ -97,7 +99,10 @@ opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),
 `POST /heartbeats`), `capabilities` (JSONB nullable, rapport
 `MachineCapabilities` rafraichi par chaque heartbeat qui en envoie un —
 harnesses par `harness_id` (`CapabilityToken`), `project_ids` UUID seuls,
-opt-in et occupation ; jamais un chemin ni un secret),
+opt-in et occupation ; `launch_profiles` (nullable, DEC-0198 : la machine
+sait-elle appliquer un pin de profil de travail — `true` seul autorise un
+lancement profile, `false`/`absent` le refuse) ; jamais un chemin ni un
+secret),
 `capabilities_reported_at` (nullable, heure de reception du dernier
 rapport — un rapport stale n'est jamais presente comme courant ;
 l'eligibilite e1963627 s'en sert), + champs communs mutables (contrat
@@ -325,6 +330,16 @@ rejected|expired`, miroir des transitions `ALLOWED_TRANSITIONS`),
 lie par la machine), `output_excerpt` (borne, expurge par la machine),
 `expires_at`, `finished_at` (nullable), + `created_at`/`updated_at`/
 `version` (concurrence optimiste, `409` + version serveur si perime).
+`replay_basis` (JSONB nullable, migration `0034`, DEC-0214) : base de rejeu acceptee
+(`TaskLaunchReplayBasis`) sur la tentative creee par un retry confirme, ecrite une fois.
+`profile_key` (nullable), `profile_contract_version` (nullable) et `profile_digest`
+(nullable, `sha256:` + 64 hex) forment le pin de profil de travail (P04, DEC-0198,
+migration `0035`, additive et reversible) : trois colonnesrequisables cote requetes,
+assemblees en `LaunchProfilePin` par la propriete `TaskLaunchModel.profile`, seule forme que
+`TaskLaunch.profile` lit. Les trois sont nulles ensemble ou renseignees ensemble : un
+lancement sans profil ne les porte pas et la reponse omet alors la cle `profile`. Le pin est
+fige a la creation et jamais reecrit ; un retry herite `profile_key` et recalcule son digest
+depuis la Library du moment.
 
 ## LaunchCredential (AIB P9, migration Alembic `0027`, table `launch_credentials`)
 
@@ -335,6 +350,84 @@ TECH/02 n'expose que `token` et `expires_at`). Credential ephemere du harnais d'
 `expires_at` (au plus `TaskLaunch.expires_at`), `revoked_at` (nullable, pose par la
 reemission), `created_at`. Valide seulement si non revoque, non expire et lancement
 non terminal.
+
+## UsageLedgerEntry (Mission Control P03, DEC-0197, migration Alembic `0031`, table `usage_ledger_entries`)
+
+Contrat `studio_contracts.usage`, ingestion HTTP et corrections decrites dans
+`TECH/02_API_CONTRACT.md` (P03-ingest). Une mesure de ce
+qu'un run a consomme, jamais une estimation presentee comme un fait ; AIWorkLog
+et TaskLaunch restent inchanges. `id`, `project_id` (FK Project, isolation : toute
+lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnels
+`task_id` (FK Task), `session_id` (FK WorkSession, `SET NULL`), `task_launch_id`
+(FK TaskLaunch), `ai_work_id` (FK AIWorkLog).
+
+- Provenance : `collector` (requis), `collector_version`, `harness`,
+  `harness_version`, `provider`, `model` (jetons bornes, jamais une entree
+  d'autorisation).
+- Periode : `period_start <= period_end`, horodatages avec fuseau.
+- Mesures : `tokens_in`, `tokens_out`, `tokens_cached` (BigInteger),
+  `cost` (Numeric 18,8 + `cost_currency` ISO 4217), `duration_seconds`
+  (Numeric 14,3). Chacune a sa colonne `*_coverage` ∈ `measured|estimated|
+  unknown` : `unknown` ⇔ valeur NULL, jamais 0 fabrique (contrainte CHECK).
+- Cache : `cached_tokens_scope` ∈ `included_in_input` (deja compte dans
+  `tokens_in`, donc `tokens_cached <= tokens_in`) | `additional_to_input`
+  (disjoint) ; le total n'ajoute le cache que dans le second cas.
+- Tarification datee : `price_list_id` + `price_effective_from` (ensemble ou
+  absents) ; requis pour un cout `estimated`, optionnel pour un cout `measured`
+  (montant facture), interdit sans cout.
+- Ingestion dedupliquee : unique `(machine_id, source_event_id)` ; un evenement
+  rejoue ou en retard renvoie l'entree existante. Une correction
+  (`UsageLedgerCorrection`) remplace le bloc de mesures en entier avec
+  `expected_version` (`409` si perimee) et ne peut deplacer l'entree (projet,
+  machine, liens, collecteur fixes).
+- `created_at`/`updated_at`/`version`. Index `(project_id, period_start)`,
+  `session_id`, `task_launch_id`.
+
+## ExecutionSnapshot (Mission Control P04, DEC-0199, migration Alembic `0032`, table `execution_snapshots`)
+
+Contrat `studio_contracts.execution_snapshot` ; detail dans
+`docs/mission-control/snapshot-contract.md`. Routes POST/GET
+`/task-launches/{id}/snapshot` ; capture par le daemon (P04-snapshot-capture).
+`id`, `project_id` (FK Project), `task_launch_id` (FK TaskLaunch, unique : un
+snapshot par lancement), `content_hash` (`sha256:<hex>` du JSON canonique),
+`schema_version`, `capture_status` ∈ `ok|partial|failed` (`capture_reason`
+requise ⇔ statut different de `ok`), `payload` (JSONB : references, versions et
+empreintes seulement, ni prompt ni secret ni chemin absolu), `created_at`,
+`retention_until`.
+
+- Immuable cote service : meme empreinte → snapshot existant ; empreinte
+  differente pour le meme lancement → `409`.
+- Aucune FK vers Library ni RuntimeBinding : supprimer une ressource courante
+  n'efface pas la provenance archivee.
+- Retention : `execution_snapshot_retention_days` (defaut 90) ; la purge
+  supprime les snapshots expires. Index `content_hash`, `retention_until`,
+  `(project_id, created_at)`.
+
+## BudgetPolicy / BudgetReservation (Mission Control P03-budgets, migration Alembic `0033`, tables `budget_policies`, `budget_reservations`)
+
+Contrat `studio_contracts.budgets`. Additif : aucune table existante modifiee.
+
+- `budget_policies` : une ligne par projet (unique `project_id`), versionnee.
+  `mode` ∈ `alert_only|enforce` (defaut `alert_only`), `period` ∈
+  `day|month|lifetime` (fenetre UTC), `currency`, `cost_limit`, `token_limit`,
+  `max_active_launches`, montant reserve par lancement (`reservation_cost`,
+  `reservation_tokens`), `unknown_cost` ∈ `charge_reservation|ignore`,
+  `late_usage` ∈ `hold_reservation|release`, `settle_after_seconds`,
+  `alert_thresholds` (JSONB), `proposed_by_user_id`, `approved_by_user_id`,
+  `approved_at` (les deux nuls ensemble). `enforce` n'est effectif qu'approuve
+  par un admin ; toute ecriture efface l'approbation. La ligne sert de verrou
+  d'admission (`SELECT ... FOR UPDATE`).
+- `budget_reservations` : une ligne par lancement admis (unique
+  `task_launch_id`), `status` ∈ `held|settled|released` (`settled_at` nul ⇔
+  `held`), `settle_basis` ∈ `measured|reservation|none`, montants reserves,
+  `alerts` (JSONB), `version`. Index `(project_id, created_at)`,
+  `(project_id, status)`, `(policy_id)`.
+- `version` a `server_default 1` dans les deux tables, `mode` a
+  `server_default 'alert_only'`.
+- Consommation recalculee a la lecture depuis `usage_ledger_entries` : l'usage
+  mesure remplace toujours la reservation, meme tardif. Garantie affichee
+  `admission_only` en `enforce` effectif, `none` sinon : jamais de plafond de
+  depense, l'usage n'arrivant qu'apres le run (DEC-0197).
 
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 

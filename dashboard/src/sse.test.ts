@@ -224,6 +224,40 @@ describe("openLiveProjectStream", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("reports live on open, lost on drop, live again on reconnect — only on change", async () => {
+    installFetch(2);
+    const changes: boolean[] = [];
+    const handle = openLiveProjectStream(
+      "",
+      "tok",
+      "proj-1",
+      { onMessage: () => {}, onLiveChange: (live) => changes.push(live) },
+      { backoffInitialMs: 1000 },
+    );
+
+    await vi.waitFor(() => expect(changes).toEqual([true]));
+    controlled[0]?.error("network down");
+    await vi.waitFor(() => expect(changes).toEqual([true, false]));
+    await vi.advanceTimersByTimeAsync(2500);
+    await vi.waitFor(() => expect(changes).toEqual([true, false, true]));
+
+    handle.close();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(changes).toEqual([true, false, true]);
+  });
+
+  it("reports lost when the first attempt fails before ever opening", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("", { status: 503 }))));
+    const changes: boolean[] = [];
+    const handle = openLiveProjectStream("", "tok", "proj-1", {
+      onMessage: () => {},
+      onLiveChange: (live) => changes.push(live),
+    });
+
+    await vi.waitFor(() => expect(changes).toEqual([false]));
+    handle.close();
+  });
+
   it("keeps retrying a transient HTTP failure (503)", async () => {
     const fetchMock = vi.fn(() => Promise.resolve(new Response("", { status: 503 })));
     vi.stubGlobal("fetch", fetchMock);

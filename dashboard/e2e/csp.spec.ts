@@ -1,10 +1,7 @@
 /**
- * Browser CSP test (DEC-0061): boot the built dashboard under the Report-Only
+ * Browser CSP test (DEC-0061): boot the built dashboard under the enforced
  * policy, stub the API (no backend in this job), walk the main hash routes
  * and fail on any CSP violation or page error.
- *
- * Enforcement stays OFF until this spec is green on the authenticated main
- * flows — that green run is the documented exit condition from Report-Only.
  */
 import { expect, test } from "@playwright/test";
 
@@ -68,7 +65,7 @@ test("main flows run with zero CSP violations and zero page errors", async ({ pa
   });
 
   const response = await page.goto("/");
-  expect(response?.headers()["content-security-policy-report-only"]).toContain(
+  expect(response?.headers()["content-security-policy"]).toContain(
     "default-src 'self'",
   );
 

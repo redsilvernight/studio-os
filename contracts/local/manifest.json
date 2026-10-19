@@ -318,6 +318,7 @@
     "SharedStatusSummary",
     "SkillCheckEntry",
     "SkillPreviewEntry",
+    "SkillResolution",
     "SkillTargetState",
     "SkillsApplyRequest",
     "SkillsApplyResult",

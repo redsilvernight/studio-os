@@ -21,9 +21,19 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    get_launch_scope,
     project_visibility_clause,
 )
 from studio_api.settings import Settings
+
+
+def _scoped_launch_id(principal: Principal) -> uuid.UUID | None:
+    """The attempt a launch credential is bound to (DEC-0182), if the caller
+    authenticated with one: its session then links to that exact attempt,
+    so a reconnecting harness never lands on another attempt (P02)."""
+    scope = get_launch_scope(principal.machine)
+    return scope.launch_id if scope is not None else None
+
 
 _SESSION_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os/session-events")
 
@@ -175,7 +185,9 @@ async def resume_or_start_session(
         existing.last_activity_at = now
         await session.commit()
         await session.refresh(existing)
-        await task_launches_service.link_session_to_launch(session, existing)
+        await task_launches_service.link_session_to_launch(
+            session, existing, _scoped_launch_id(principal)
+        )
         return existing, True
     if existing is not None:
         existing.ended_at = now
@@ -199,7 +211,9 @@ async def resume_or_start_session(
     session.add(work_session)
     await session.commit()
     await session.refresh(work_session)
-    await task_launches_service.link_session_to_launch(session, work_session)
+    await task_launches_service.link_session_to_launch(
+        session, work_session, _scoped_launch_id(principal)
+    )
     await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
     return work_session, False
 
@@ -225,7 +239,9 @@ async def start_session(
     session.add(work_session)
     await session.commit()
     await session.refresh(work_session)
-    await task_launches_service.link_session_to_launch(session, work_session)
+    await task_launches_service.link_session_to_launch(
+        session, work_session, _scoped_launch_id(principal)
+    )
     await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
     return work_session
 

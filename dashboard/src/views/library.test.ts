@@ -64,13 +64,13 @@ const version = (content: Record<string, unknown>, overrides: Partial<LibraryVer
 
 const blank: LibraryListState = { query: "", scope: "all", status: "all" };
 
-/* ---------------- Racine : 5 kinds réels, français, calme ---------------- */
+/* ---------------- Racine : catégories réelles, français, calme ---------------- */
 
 describe("libraryRootHtml (page #/library)", () => {
   const html = libraryRootHtml();
 
-  it("présente les cinq catégories réelles en français", () => {
-    expect(LIBRARY_KIND_FR).toHaveLength(5);
+  it("présente les six catégories réelles en français", () => {
+    expect(LIBRARY_KIND_FR).toHaveLength(6);
     for (const entry of LIBRARY_KIND_FR) {
       expect(html).toContain(entry.plural);
       expect(html).toContain(entry.description);
@@ -80,6 +80,7 @@ describe("libraryRootHtml (page #/library)", () => {
     expect(html).toContain("Définitions d'agents");
     expect(html).toContain("Flux de travail");
     expect(html).toContain("Profils de modèles");
+    expect(html).toContain("Hooks");
   });
 
   it("chaque catégorie ouvre sa liste via une route stable", () => {
@@ -88,6 +89,7 @@ describe("libraryRootHtml (page #/library)", () => {
     expect(html).toContain('href="#/library/agent-definitions"');
     expect(html).toContain('href="#/library/workflows"');
     expect(html).toContain('href="#/library/model-profiles"');
+    expect(html).toContain('href="#/library/hooks"');
   });
 
   it("ne montre aucune information technique au premier plan", () => {

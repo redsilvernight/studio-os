@@ -17,7 +17,12 @@ import tomllib
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from studio_client.harness.base import STUDIO_MCP_SERVER_NAME, AdapterRefusal, HarnessContext
+from studio_client.harness.base import (
+    STUDIO_MCP_SERVER_NAME,
+    AccessMode,
+    AdapterRefusal,
+    HarnessContext,
+)
 from studio_client.harness.fsafe import (
     Document,
     FsError,
@@ -217,5 +222,11 @@ class CodexAdapter(JsonMcpAdapter):
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         return {"url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
-        return ("-a", "never", "exec", "--sandbox", "workspace-write", prompt)
+    access_modes = frozenset({AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE})
+
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
+        sandbox = "read-only" if mode is AccessMode.READ_ONLY else "workspace-write"
+        return ("-a", "never", "exec", "--sandbox", sandbox, prompt)

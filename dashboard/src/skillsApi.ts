@@ -13,6 +13,7 @@ import type {
   SkillsCheckResult,
   SkillsPreviewResult,
   SkillsSyncStatus,
+  SkillResolution,
 } from "./platform/generated/local-contracts.generated";
 import { call, type HarnessOutcome } from "./harnessApi";
 
@@ -41,7 +42,7 @@ export const SKILL_TARGET_LABELS: Record<SkillHarnessTarget, string> = {
   assistant: "Dossier de l'assistant",
 };
 
-export type { SkillsApplyResult, SkillsPreviewResult, SkillsSyncStatus, SkillSyncStatusState };
+export type { SkillsApplyResult, SkillsPreviewResult, SkillsSyncStatus, SkillSyncStatusState, SkillResolution };
 
 export function getSkillsSyncStatus(platform: Platform): Promise<HarnessOutcome<SkillsSyncStatus>> {
   return call(platform, "skills.status", {});
@@ -51,8 +52,11 @@ export function previewSkills(platform: Platform): Promise<HarnessOutcome<Skills
   return call(platform, "skills.preview", {});
 }
 
-export function applySkills(platform: Platform, overwrite = false): Promise<HarnessOutcome<SkillsApplyResult>> {
-  return call(platform, "skills.apply", overwrite ? { confirm: true, overwrite: true } : { confirm: true });
+export function applySkills(platform: Platform, selection: boolean | readonly SkillResolution[] = false): Promise<HarnessOutcome<SkillsApplyResult>> {
+  const payload = typeof selection === "boolean"
+    ? selection ? { confirm: true, overwrite: true } : { confirm: true }
+    : { confirm: true, resolutions: [...selection] };
+  return call(platform, "skills.apply", payload);
 }
 
 export function configureSkillsSync(platform: Platform, autoSync: boolean): Promise<HarnessOutcome<SkillsSyncStatus>> {

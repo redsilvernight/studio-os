@@ -83,6 +83,57 @@ const RESOLVED = {
 
 type Launch = Record<string, unknown>;
 
+const SNAPSHOT = {
+  id: "99999999-2222-4333-8444-555555555555",
+  project_id: P1,
+  task_launch_id: "l-existing",
+  content_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  schema_version: 1,
+  capture_status: "ok",
+  capture_reason: null,
+  created_at: "2026-10-01T09:59:00Z",
+  retention_until: "2026-12-30T09:59:00Z",
+  payload: {
+    schema_version: 1,
+    capture_status: "ok",
+    capture_errors: [],
+    resolution: {
+      agent_stable_key: "review-helper",
+      profile: { stable_key: "fast", contract_version: 3, digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222" },
+      resources: [
+        {
+          role: "rule",
+          resource_id: "r1",
+          kind: "rule",
+          stable_key: "python-conventions",
+          scope: "studio",
+          version: 2,
+          version_origin: "active",
+          content_digest: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        },
+      ],
+      runtime: {
+        level: "project_default",
+        matched_kind: "agent_definition",
+        matched_stable_key: "opencode",
+        harness_ref: "claude-code",
+        model_ref: "claude-opus",
+        capabilities_digest: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      },
+    },
+    applied: {
+      harness_id: "claude-code",
+      harness_version: "2.1.0",
+      projections: [{ target: ".claude/settings.json", digest: "sha256:5555555555555555555555555555555555555555555555555555555555555555" }],
+      git_sha: "0f1e2d3",
+      git_dirty: true,
+      worktree_branch: "feat/provenance",
+      profile: { stable_key: "fast", contract_version: 3, digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222" },
+      access_mode: "read_only",
+    },
+  },
+};
+
 interface Captured {
   idempotencyKeys: (string | null)[];
   bodies: unknown[];
@@ -91,6 +142,9 @@ interface Captured {
   launch: Launch | null;
   cancelConflict: boolean;
   sessionEnded: boolean;
+  /** Snapshot renvoyé par la machine cible ; null = 404, aucun snapshot. */
+  snapshot: Record<string, unknown> | null;
+  snapshotReads: string[];
 }
 
 function launchFixture(overrides: Launch = {}): Launch {
@@ -115,8 +169,8 @@ function launchFixture(overrides: Launch = {}): Launch {
   };
 }
 
-function newCaptured(launch: Launch | null = null): Captured {
-  return { idempotencyKeys: [], bodies: [], cancelCalls: [], launch, cancelConflict: false, sessionEnded: false };
+function newCaptured(launch: Launch | null = null, snapshot: Record<string, unknown> | null = null): Captured {
+  return { idempotencyKeys: [], bodies: [], cancelCalls: [], launch, cancelConflict: false, sessionEnded: false, snapshot, snapshotReads: [] };
 }
 
 function apiStub(captured: Captured) {
@@ -165,6 +219,17 @@ function apiStub(captured: Captured) {
       return json(201, captured.launch);
     }
 
+    // Snapshot d'exécution (DEC-0199) : trace figée du run, 404 = rien
+    // d'enregistré par la machine cible pour ce lancement.
+    if (method === "GET" && /\/task-launches\/[^/]+\/snapshot$/.test(url)) {
+      const launchId = url.split("/").slice(-2)[0] ?? "";
+      captured.snapshotReads.push(launchId);
+      if (captured.launch === null || captured.snapshot === null) {
+        return json(404, { detail: { error_code: "not_found" } });
+      }
+      return json(200, { ...captured.snapshot, task_launch_id: String(captured.launch.id) });
+    }
+
     // Lecture d'un lancement : GET /task-launches/{id}.
     if (method === "GET" && /\/task-launches\/[^/]+$/.test(url) && !url.includes("/projects/")) {
       if (captured.launch === null) return json(404, { detail: { error_code: "not_found" } });
@@ -199,7 +264,11 @@ function apiStub(captured: Captured) {
           : [],
       );
     }
-    if (url.includes("/api/v1/ai-work")) return json(200, []);
+    if (url.includes("/api/v1/ai-work")) return json(200, captured.sessionEnded ? [{
+      id: "work-handoff", task_id: TASK_ID, session_id: captured.launch?.session_id,
+      status: "completed", summary: "Handoff réel actualisé", changed_files: [], tests_run: [],
+      started_at: "2026-10-01T10:00:00Z", ended_at: "2026-10-01T10:05:00Z",
+    }] : []);
     if (url.includes("/api/v1/claims")) return json(200, []);
     if (/\/api\/v1\/tasks\/[^/]+$/.test(url)) return json(200, TASK);
     if (url.includes("/api/v1/tasks")) return json(200, [TASK]);
@@ -293,7 +362,7 @@ test("suivi : l'actualisation relit l'état rapporté par le poste", async ({ pa
   await expect(page.locator('[data-testid="launch-latest"]')).toContainText("En cours");
   captured.launch = launchFixture({ status: "succeeded", version: 4, finished_at: "2026-10-01T10:05:00Z" });
   await page.locator('[data-action="launch-refresh"]').click();
-  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Terminé (succès)");
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Processus terminé (code 0)");
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
@@ -346,10 +415,18 @@ test("session liée : lien vers la session puis vers le handoff une fois termin�
     version: 4,
     session_id: "sess-0000-4111-8111-000000000001",
     finished_at: "2026-10-01T10:05:00Z",
+    protocol: { status: "handed_off", session_id: "sess-0000-4111-8111-000000000001", ai_work_id: "work-handoff", task_status: "completed", criteria_checked: [] },
   });
   await page.locator('[data-action="launch-refresh"]').click();
   await expect(page.locator('[data-testid="launch-session-link"]')).toContainText("terminée");
   await expect(page.locator('[data-testid="launch-handoff-link"]')).toHaveAttribute("href", "#task-ai-work");
+  await expect(page.locator("#task-mecanique")).toHaveAttribute("open", "");
+  await expect(page.locator("#task-sessions")).toContainText("Terminée");
+  await expect(page.locator("#task-ai-work")).toContainText("Handoff réel actualisé");
+  await expect(page.locator('[data-testid="launch-latest"]')).not.toContainText("Protocole non vérifié");
+  await expect(page.locator('[data-action="launch-refresh"]')).toBeFocused();
+  await page.locator('[data-action="launch-refresh"]').click();
+  await expect(page.locator("#task-ai-work")).toContainText("Handoff réel actualisé");
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
@@ -385,6 +462,65 @@ test("divulgation progressive : repli fermé par défaut, ancre interne qui l'ou
   await expect(page.locator("#task-sessions")).toBeVisible();
   await expect(page.locator("h1")).toHaveText(TASK.title);
   await expect(page).toHaveURL(new RegExp(`#/tasks/${TASK_ID}$`));
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("provenance : neuf questions lues dans le snapshot figé du lancement", async ({ page }) => {
+  const captured = newCaptured(
+    launchFixture({
+      status: "succeeded",
+      agent_stable_key: "review-helper",
+      finished_at: "2026-10-01T10:05:00Z",
+    }),
+    SNAPSHOT,
+  );
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  const provenance = page.locator('[data-testid="launch-provenance"]');
+  await expect(provenance).toBeVisible();
+  await expect(provenance.locator('[data-testid^="provenance-"]')).toHaveCount(9);
+  expect(captured.snapshotReads).toContain("l-existing");
+
+  for (const question of [
+    "Qui",
+    "Où",
+    "Quelle configuration",
+    "Quel contexte",
+    "Quel code",
+    "Quand",
+    "Combien",
+    "Quel résultat",
+    "Quelles erreurs de capture",
+  ]) {
+    await expect(provenance).toContainText(question);
+  }
+
+  // Ce qui est réellement appliqué, pas la configuration affichée ailleurs.
+  await expect(page.locator('[data-testid="provenance-where"]')).toContainText("feat/provenance");
+  await expect(page.locator('[data-testid="provenance-config"]')).toContainText("fast v3");
+  await expect(page.locator('[data-testid="provenance-config"]')).toContainText("read_only");
+  await expect(page.locator('[data-testid="provenance-context"]')).toContainText("python-conventions");
+  await expect(page.locator('[data-testid="provenance-code"]')).toContainText("0f1e2d3");
+  await expect(page.locator('[data-testid="provenance-code"]')).toContainText("worktree modifié");
+  // Aucun coût inventé : le contrat ne le porte pas.
+  await expect(page.locator('[data-testid="provenance-how-much"]')).toContainText("inconnu");
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("provenance : 404 du snapshot affiché comme une absence, pas comme une valeur", async ({ page }) => {
+  const captured = newCaptured(launchFixture({ status: "running" }), null);
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  await expect(page.locator('[data-testid="launch-provenance-notice"]')).toContainText("aucun snapshot");
+  await expect(page.locator('[data-testid="provenance-code"]')).toContainText("inconnu");
+  await expect(page.locator('[data-testid="launch-panel"]')).not.toContainText("undefined");
+  expect(captured.snapshotReads.length).toBeGreaterThan(0);
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);

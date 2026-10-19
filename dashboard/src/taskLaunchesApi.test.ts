@@ -5,7 +5,9 @@ import {
   createTaskLaunch,
   getEligibleMachines,
   getTaskLaunch,
+  getTaskLaunchSnapshot,
   listTaskLaunches,
+  type TaskLaunch,
 } from "./taskLaunchesApi";
 
 type Fake = { GET: ReturnType<typeof vi.fn>; POST: ReturnType<typeof vi.fn> };
@@ -49,6 +51,28 @@ describe("listTaskLaunches", () => {
     });
     expect(launches).toEqual([{ id: "l1" }]);
   });
+
+  it("transmets la preuve de protocole portée par la vue projet", async () => {
+    const GET = vi.fn().mockResolvedValue(
+      ok({
+        items: [
+          { id: "l1", status: "succeeded", protocol: { status: "unverified", session_id: null, task_status: null } },
+          { id: "l2", status: "failed", protocol: { status: "handed_off", session_id: "s2", task_status: "blocked" } },
+        ],
+        limit: 100,
+        offset: 0,
+      }),
+    );
+    const launches = await listTaskLaunches(fakeClient({ GET }), "p1");
+    expect(launches[0]?.protocol?.status).toBe("unverified");
+    expect(launches[1]?.protocol?.task_status).toBe("blocked");
+  });
+
+  it("tolère un serveur qui n'envoie pas encore `protocol`", async () => {
+    const GET = vi.fn().mockResolvedValue(ok({ items: [{ id: "l1", status: "succeeded" }], limit: 100, offset: 0 }));
+    const launches = await listTaskLaunches(fakeClient({ GET }), "p1");
+    expect(launches[0]?.protocol).toBeUndefined();
+  });
 });
 
 describe("createTaskLaunch", () => {
@@ -88,12 +112,37 @@ describe("getTaskLaunch / cancelTaskLaunch", () => {
     expect(launch.status).toBe("running");
   });
 
+  it("la lecture par id reste sans `protocol`", async () => {
+    const GET = vi.fn().mockResolvedValue(ok({ id: "l1", status: "succeeded" }));
+    const launch = (await getTaskLaunch(fakeClient({ GET }), "l1")) as TaskLaunch & { protocol?: unknown };
+    expect(launch.protocol).toBeUndefined();
+  });
+
   it("POST cancel with the current version", async () => {
     const POST = vi.fn().mockResolvedValue(ok({ id: "l1", status: "cancelled" }));
     await cancelTaskLaunch(fakeClient({ POST }), "l1", 3);
     expect(POST).toHaveBeenCalledWith("/api/v1/task-launches/{launch_id}/cancel", {
       params: { path: { launch_id: "l1" } },
       body: { expected_version: 3 },
+    });
+  });
+});
+
+describe("getTaskLaunchSnapshot", () => {
+  it("GETs the immutable snapshot of one launch attempt", async () => {
+    const GET = vi.fn().mockResolvedValue(ok({ id: "s1", task_launch_id: "l1", capture_status: "ok" }));
+    const snapshot = await getTaskLaunchSnapshot(fakeClient({ GET }), "l1");
+    expect(GET).toHaveBeenCalledWith("/api/v1/task-launches/{launch_id}/snapshot", {
+      params: { path: { launch_id: "l1" } },
+    });
+    expect(snapshot.task_launch_id).toBe("l1");
+  });
+
+  it("maps a 404 to a structured ApiError: nothing recorded yet", async () => {
+    const GET = vi.fn().mockResolvedValue(fail(404, { detail: { error_code: "not_found" } }));
+    await expect(getTaskLaunchSnapshot(fakeClient({ GET }), "l1")).rejects.toMatchObject({
+      status: 404,
+      errorCode: "not_found",
     });
   });
 });

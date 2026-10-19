@@ -15,6 +15,7 @@ from typing import Any
 from studio_client.harness import jsonc
 from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
+    AccessMode,
     AdapterRefusal,
     HarnessContext,
     entry_with_credential,
@@ -161,7 +162,10 @@ class OpenCodeAdapter(JsonMcpAdapter):
             "headers": {"Authorization": f"Bearer {token}"},
         }
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
         return ("run", "--auto", prompt)
 
     def headless_environment(
@@ -171,7 +175,10 @@ class OpenCodeAdapter(JsonMcpAdapter):
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
         inline: dict[str, Any] = {
-            "mcp": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}
+            "mcp": {
+                STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential, url=ctx.mcp_url)
+            },
+            "permission": {"external_directory": "deny"},
         }
         if model:
             inline["model"] = model

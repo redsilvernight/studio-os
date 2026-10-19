@@ -2,16 +2,16 @@
  * UI-7 — Bibliothèque : trouver, comprendre, lire, gérer.
  *
  * Refonte de la Bibliothèque CRUD (P12) en bibliothèque de connaissances
- * lisible : page racine calme (5 catégories françaises), listes
+ * lisible : page racine calme (6 catégories françaises), listes
  * documentaires aérées avec recherche locale dominante, page détail
  * d'abord LECTURE (contenu prioritaire, technique replié), versions en
  * divulgation progressive, création en modale DS.
  *
- * Capacités préservées (0 perte) : 5 kinds, index, liste par kind,
+ * Capacités préservées (0 perte) : 6 kinds, index, liste par kind,
  * création (+ Idempotency-Key), détail, versions, nouvelle version, locks,
  * Activate / Deprecate (avec révision optimiste), shadowing (signalé, non
- * décidé), deep link Inspector (agent-definitions). Aucun nouveau kind,
- * aucun endpoint, aucun contrat modifié.
+ * décidé), deep link Inspector (agent-definitions). Aucun endpoint,
+ * aucun contrat modifié.
  *
  * Données honnêtes : GET /library ne retourne que des LibraryResource
  * (id, kind, stable_key, scope, status, active_version, …) — ni titre ni
@@ -24,6 +24,8 @@
  */
 import type { StudioClient } from "../api";
 import type { components } from "../openapi-schema";
+import { loadHookListContent, loadIncomingHookDependencies, type HookListContent, type IncomingHookDependency } from "../libraryHooks";
+import { bindHookScriptFields } from "./hookForms";
 import {
   LIBRARY_KINDS,
   contentSchema,
@@ -146,6 +148,13 @@ export const LIBRARY_KIND_FR: readonly LibraryKindFr[] = [
     plural: "Profils de modèles",
     description: "Besoins en capacités pour choisir un modèle : raisonnement, outils, contexte.",
   },
+  {
+    slug: "hooks",
+    kind: "hook",
+    singular: "Hook",
+    plural: "Hooks",
+    description: "Scripts déclenchés par les outils, avec consentement d'exécution propre à chaque machine.",
+  },
 ];
 
 export function kindFrFromSlug(slug: LibraryKindSlug): LibraryKindFr {
@@ -253,7 +262,7 @@ export function filterLibraryResources(resources: LibraryResource[], state: Libr
 /* premier plan : stable_key, badges portée/état, version active).     */
 /* ------------------------------------------------------------------ */
 
-function resourceItemHtml(resource: LibraryResource): string {
+function resourceItemHtml(resource: LibraryResource, hookContent?: HookListContent): string {
   const active =
     resource.active_version === 0
       ? `<span class="ds-list-sub">Aucune version activée</span>`
@@ -262,13 +271,23 @@ function resourceItemHtml(resource: LibraryResource): string {
     `<li class="ds-card library-item"><div class="library-item-top">` +
     `<h3 class="library-item-title"><a href="${esc(libraryKindHref(resource.kind, resource.id))}"><code class="mono">${esc(resource.stable_key)}</code></a></h3>` +
     `<span class="library-item-badges">${scopeBadge(resource.scope)}${statusBadge(resource.status)}</span></div>` +
-    `${active}<p class="ds-list-sub">Mis à jour le ${fmtTime(resource.updated_at)}</p></li>`
+    `${active}${resource.kind === "hook" ? hookListMetadataHtml(hookContent, resource.active_version) : ""}<p class="ds-list-sub">Mis à jour le ${fmtTime(resource.updated_at)}</p></li>`
   );
 }
 
-export function resourcesTableHtml(resources: LibraryResource[]): string {
+export function resourcesTableHtml(resources: LibraryResource[], hookContents?: Map<string, HookListContent>): string {
   if (resources.length === 0) return dsEmptyState("Aucune ressource", "Aucune ressource de cette catégorie pour le moment.");
-  return `<ul class="library-list">${resources.map(resourceItemHtml).join("")}</ul>`;
+  return `<ul class="library-list">${resources.map((resource) => resourceItemHtml(resource, hookContents?.get(resource.id))).join("")}</ul>`;
+}
+
+function hookListMetadataHtml(content: HookListContent | undefined, activeVersion: number): string {
+  if (content?.error !== undefined) return `<p class="ds-field-error">Contenu du hook indisponible : ${esc(content.error)}</p>`;
+  if (content?.summary == null) return `<p class="ds-list-sub">Aucun contenu de hook disponible.</p>`;
+  const summary = content.summary;
+  return `<dl class="library-kv"><div><dt>Événement</dt><dd><code class="mono">${esc(summary.event)}</code></dd></div>` +
+    `<div><dt>Matcher</dt><dd>${summary.matcher === null ? "Aucun filtre" : `<code class="mono">${esc(summary.matcher)}</code>`}</dd></div>` +
+    `<div><dt>Mode</dt><dd>${esc(summary.mode)}</dd></div></dl>` +
+    (activeVersion === 0 ? `<p class="ds-list-sub">Contenu de la dernière version : v${summary.version}, non activée</p>` : "");
 }
 
 export function versionsTableHtml(versions: LibraryVersion[], activeVersion: number): string {
@@ -333,8 +352,45 @@ function ioTableHtml(declarations: WorkflowIODeclaration[], caption: string): st
   return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">${esc(caption)}</caption><thead><tr><th scope="col">Nom</th><th scope="col">Description</th><th scope="col">Requise</th><th scope="col">Type</th><th scope="col">Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function hookContentHtml(content: LibraryVersion["content"]): string {
+  const mode = content["mode"] ?? "advisory";
+  const timeout = content["timeout_seconds"] ?? 30;
+  if (content["content_schema"] !== "studio.library.hook/v1" || typeof content["event"] !== "string" || typeof mode !== "string" || !Array.isArray(content["scripts"])) {
+    return dsEmptyState("Contenu non canonique", "Cette version ne suit pas la forme canonique studio.library.hook/v1.");
+  }
+  const scripts = content["scripts"].map((script: unknown) => {
+    if (typeof script !== "object" || script === null) return "";
+    const value = script as Record<string, unknown>;
+    const os = value["os"] ?? "any";
+    if (typeof value["body"] !== "string" || typeof os !== "string" || typeof value["shell"] !== "string") return "";
+    return `<h3>Script ${esc(os)} · ${esc(value["shell"])}</h3><pre class="library-prose mono">${esc(value["body"])}</pre>`;
+  }).join("");
+  const description = typeof content["description"] === "string" ? `<p class="library-prose">${esc(content["description"])}</p>` : "";
+  const matcher = typeof content["matcher"] === "string" ? `<code class="mono">${esc(content["matcher"])}</code>` : "Aucun filtre";
+  return description + `<dl class="library-kv"><div><dt>Événement</dt><dd><code class="mono">${esc(content["event"])}</code></dd></div>` +
+    `<div><dt>Matcher</dt><dd>${matcher}</dd></div><div><dt>Mode</dt><dd>${esc(mode)}</dd></div>` +
+    `<div><dt>Délai maximal</dt><dd>${typeof timeout === "number" ? timeout : "—"} secondes</dd></div></dl>` + scripts +
+    `<p class="ds-notice ds-notice--info">L'exécution locale exige un consentement explicite sur chaque machine. Activer cette version ne donne pas ce consentement.</p>`;
+}
+
+export function incomingHookDependenciesHtml(dependencies: IncomingHookDependency[]): string {
+  if (dependencies.length === 0) return dsEmptyState("Aucune dépendance entrante déclarée", "Aucune référence uses_hook à cette clé dans les versions consultées.");
+  return `<ul class="library-list">${dependencies.map((dependency) =>
+    `<li class="ds-card library-item"><a href="${esc(libraryKindHref(dependency.resource.kind, dependency.resource.id))}">${esc(dependency.resource.stable_key)} — v${dependency.sourceVersion}</a>` +
+    `<p>${scopeBadge(dependency.resource.scope)} Référence <code class="mono">uses_hook</code> vers la version v${dependency.hookVersion} du hook.</p></li>`,
+  ).join("")}</ul>`;
+}
+
+function hookIncomingSectionHtml(): string {
+  return `<section class="ds-panel" aria-label="Dépendances entrantes"><header><h2>Dépendances entrantes</h2></header><div class="body">` +
+    `<p>Références déclarées <code class="mono">uses_hook</code> à cette clé stable, dans les définitions d'agents et les flux de travail. Les portées sont affichées ; la cible effective relève de la résolution serveur.</p>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-hook-incoming>Voir les dépendances entrantes</button>` +
+    `<div data-hook-incoming-output aria-live="polite"></div></div></section>`;
+}
+
 /** Rendu de lecture d'un contenu versionné, par kind (cohérence sans uniformisation abusive). */
 export function versionContentHtml(kind: LibraryKind, version: LibraryVersion): string {
+  if (kind === "hook") return hookContentHtml(version.content);
   if (kind === "rule" || kind === "skill") {
     const text = contentText(version.content);
     return text === null
@@ -470,6 +526,7 @@ function appendRow(root: HTMLElement, rowKind: string): void {
 }
 
 function bindRepeatable(root: HTMLElement): void {
+  bindHookScriptFields(root);
   // Assignation de propriété (pas addEventListener) pour que les re-rendus
   // remplacent le gestionnaire au lieu de l'empiler sur le nœud #view.
   root.onclick = (event) => {
@@ -568,7 +625,7 @@ export function libraryLoadingHtml(title: string): string {
 }
 
 /** Corps de la page liste d'un kind en HTML pur (DOM-free, testable). */
-export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState): string {
+export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState, hookContents?: Map<string, HookListContent>): string {
   const fr = kindFr(kind);
   const visible = filterLibraryResources(resources, state);
   const header =
@@ -586,7 +643,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
       "Modifiez ou réinitialisez la recherche et les filtres pour retrouver vos éléments déjà chargés.",
     );
   } else {
-    body = resourcesTableHtml(visible);
+    body = resourcesTableHtml(visible, hookContents);
   }
   return (
     `${libraryTabsHtml(fr.slug)}` +
@@ -630,11 +687,12 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
     return;
   }
 
+  const hookContents = meta.kind === "hook" ? await loadHookListContent(ctx.client, resources) : undefined;
   const state: LibraryListState = { query: "", scope: "all", status: "all" };
 
   const paint = (): void => {
     root.innerHTML =
-      `<div class="library">${libraryKindPageHtml(meta.kind, resources, state)}` +
+      `<div class="library">${libraryKindPageHtml(meta.kind, resources, state, hookContents)}` +
       dsModalHtml({
         id: "library-create-dialog",
         title: `Nouvelle ${fr.singular.toLowerCase()}`,
@@ -867,6 +925,7 @@ export function libraryDetailHtml(
       : dsEmptyState("Aucune version activée", "Créez une version puis activez-la pour donner un contenu lisible à cette ressource.")) +
     `</div></section>` +
     `${inspectorLinkHtml(resource)}` +
+    (resource.kind === "hook" ? hookIncomingSectionHtml() : "") +
     `<section class="ds-panel" aria-label="Cycle de vie"><header><h2>Cycle de vie</h2></header><div class="body">` +
     `${lifecycleFormsHtml(resource)}` +
     `<p><button class="ds-btn" type="button" id="library-version-new">+ Nouvelle version</button></p>` +
@@ -955,6 +1014,19 @@ export async function renderLibraryDetail(
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
+  const incomingButton = root.querySelector<HTMLButtonElement>("[data-hook-incoming]");
+  incomingButton?.addEventListener("click", () => {
+    const output = root.querySelector<HTMLElement>("[data-hook-incoming-output]");
+    if (output === null) return;
+    incomingButton.disabled = true;
+    output.textContent = "Chargement des dépendances…";
+    loadIncomingHookDependencies(ctx.client, resource).then((loaded) => {
+      output.innerHTML = incomingHookDependenciesHtml(loaded.dependencies) +
+        (loaded.errors.length === 0 ? "" : `<p class="ds-field-error" role="alert">Lecture partielle : ${loaded.errors.length} ressource(s) indisponible(s).</p>`);
+    }).catch((error: unknown) => {
+      output.innerHTML = `<p class="ds-field-error" role="alert">Dépendances indisponibles : ${esc(describeError(error))}</p>`;
+    }).finally(() => { incomingButton.disabled = false; });
+  });
 }
 
 function bindDetail(

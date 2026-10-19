@@ -8,6 +8,7 @@
  */
 import { esc } from "../ui";
 import { LIBRARY_KINDS, type LibraryKind, type LibraryKindSlug } from "../libraryFormat";
+import { buildHookContent, hookFieldsHtml } from "./hookForms";
 
 export interface FormReader {
   text(name: string): string;
@@ -57,10 +58,15 @@ export function contentFieldsHtml(kind: LibraryKind): string {
       );
     case "workflow":
       return `<label class="stack">Résumé <input name="summary" placeholder="facultatif" /></label>`;
+    case "hook":
+      return hookFieldsHtml();
+    default:
+      return "";
   }
 }
 
 export function buildContent(kind: LibraryKind, read: FormReader): BuildResult<Record<string, unknown>> {
+  if (kind === "hook") return buildHookContent(read);
   const schema = contentSchemaFor(kind);
   if (kind === "rule" || kind === "skill") {
     const text = read.text("text").trim();

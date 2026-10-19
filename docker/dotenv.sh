@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Safe .env loader for the docker/*.sh scripts.
 # Reads KEY=VALUE lines literally (no execution, no expansion), like
-# Read-DotEnv in docker/deploy-local.ps1 and `docker compose --env-file`.
+# `docker compose --env-file`.
 # Values with spaces must be quoted in .env (see docker/.env.example).
 #
 # Usage: source "${SCRIPT_DIR}/dotenv.sh" && load_dotenv "${SCRIPT_DIR}/.env"

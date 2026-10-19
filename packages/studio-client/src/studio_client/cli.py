@@ -18,7 +18,7 @@ from studio_contracts.auth import AgentCreate
 from studio_contracts.bootstrap import BootstrapFileState, OnModified
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
-from studio_contracts.sessions import WorkSessionCreate
+from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_client.api_client import StudioApiClient
@@ -1075,6 +1075,126 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
         print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
 
 
+def _optional_config() -> ClientConfig | None:
+    """This machine's configuration when it has one, without failing the
+    command: a prune must stay runnable on a machine that never enrolled, with
+    the missing session check reported rather than fatal."""
+    try:
+        return ClientConfig()  # type: ignore[call-arg]
+    except ValidationError:
+        return None
+
+
+async def _active_session_task_ids(config: ClientConfig) -> list[UUID]:
+    """Task ids whose work session is still active — the server decides what
+    "active" means, so a forgotten session is not decided by the client."""
+    async with StudioApiClient(config, KeyringTokenStore()) as client:
+        sessions = await client.list_sessions()
+    return [session.task_id for session in sessions if session.status == SessionStatus.ACTIVE]
+
+
+def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Preview (default) or remove the task worktrees a launch left behind.
+    Dry-run is the default: `--confirm` must carry the digest the preview
+    printed, and that digest is bound to the state it read, so a worktree that
+    changed since is kept rather than removed.
+
+    A work session the operator forgot to name is still live work, so the
+    active ones are read from the API; `--confirm` refuses to delete anything
+    without that check unless `--offline` says to accept the blind spot."""
+    from studio_client.daemon.worktree_retention import (
+        RetentionError,
+        apply_cleanup,
+        plan_cleanup,
+    )
+
+    active = [_parse_uuid(value, field="--active-task") for value in args.active_task or []]
+    settings = None if args.offline else (config or _optional_config())
+    verified = False
+    if settings is None:
+        unverified = "--offline" if args.offline else "no Studio API configuration"
+    else:
+        unverified = ""
+        try:
+            live = asyncio.run(_active_session_task_ids(settings))
+        except (StudioApiError, MissingMachineToken) as exc:
+            unverified = f"the Studio API is unreachable ({exc})"
+        else:
+            active.extend(live)
+            verified = True
+    if args.confirm and not verified and not args.offline:
+        print(
+            "error: --confirm needs the live sessions from the Studio API and "
+            f"{unverified}; rerun with --offline to prune without that check",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    if not verified:
+        print(
+            f"warning: sessions actives non vérifiées — {unverified}; a running session's "
+            "worktree can be reported removable (pass --active-task to protect one)",
+            file=sys.stderr,
+        )
+
+    try:
+        plan = plan_cleanup(args.repo_root, active_task_ids=active)
+        result = (
+            apply_cleanup(args.repo_root, plan, confirm_digest=args.confirm)
+            if args.confirm
+            else None
+        )
+    except RetentionError as exc:
+        print(f"error: {exc} ({exc.reason})", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    def rows(entries: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "path": str(entry.path),
+                "branch": entry.branch,
+                "task_id_prefix": entry.task_id_prefix,
+                "reasons": list(entry.reasons),
+            }
+            for entry in entries
+        ]
+
+    payload: dict[str, Any] = {
+        "repo_root": str(plan.repo_root),
+        "digest": plan.digest,
+        "active_task_ids": [str(task_id) for task_id in sorted(active)],
+        "sessions_verified": verified,
+        "candidates": rows(plan.candidates),
+        "excluded": rows([entry for entry in plan.entries if not entry.removable]),
+        "applied": None
+        if result is None
+        else {
+            "removed": [str(path) for path in result.removed],
+            "deleted_branches": list(result.deleted_branches),
+            "refused": list(result.refused),
+        },
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+        return
+    for entry in plan.candidates:
+        print(f"candidate\t{entry.path}\t{entry.branch or ''}")
+    for entry in plan.entries:
+        if not entry.removable:
+            print(f"excluded\t{entry.path}\t{', '.join(entry.reasons)}")
+    print(f"digest: {plan.digest}")
+    if result is None:
+        print(f"{len(plan.candidates)} candidate(s); rerun with --confirm {plan.digest} to remove")
+        return
+    for path in result.removed:
+        print(f"removed {path}")
+    for branch in result.deleted_branches:
+        print(f"deleted branch {branch}")
+    for refusal in result.refused:
+        print(f"refused: {refusal}", file=sys.stderr)
+    if result.refused:
+        raise SystemExit(1)
+
+
 def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
     """Publish canonical `.agents/` rules, skills and agent definitions to the
     Library (P4). Reads are always allowed; nothing is written with
@@ -1527,6 +1647,36 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(workspaces_register)
     workspaces_register.set_defaults(func=_workspaces_register)
 
+    worktrees_parser = subparsers.add_parser(
+        "worktrees",
+        help="Task worktrees created for a launch (`studio-client worktrees prune --help`).",
+    )
+    worktrees_sub = worktrees_parser.add_subparsers(dest="worktrees_command", required=True)
+
+    worktrees_prune = worktrees_sub.add_parser(
+        "prune",
+        help="Preview (default) or remove the task worktrees nothing else claims.",
+    )
+    worktrees_prune.add_argument("--repo-root", default=".", help="Repository root.")
+    worktrees_prune.add_argument(
+        "--active-task",
+        action="append",
+        metavar="TASK_ID",
+        help="Task with a live session; its worktree is never removed (repeatable).",
+    )
+    worktrees_prune.add_argument(
+        "--confirm",
+        metavar="DIGEST",
+        help="Digest printed by the previous preview; required to actually remove.",
+    )
+    worktrees_prune.add_argument(
+        "--offline",
+        action="store_true",
+        help="Never contact the Studio API; active sessions are then unverified.",
+    )
+    _add_json_flag(worktrees_prune)
+    worktrees_prune.set_defaults(func=_worktrees_prune)
+
     timeline_parser = subparsers.add_parser("timeline", help="Day-grouped project activity.")
     timeline_sub = timeline_parser.add_subparsers(dest="timeline_command", required=True)
 
@@ -1916,6 +2066,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             and getattr(args, "from_canonical", False)
         )
         or getattr(args, "rules_command", None) in ("sync",)
+        or getattr(args, "worktrees_command", None) in ("prune",)
         or getattr(args, "bootstrap_command", None)
         in ("init", "check", "diff", "sync", "rollback", "scan")
     ):

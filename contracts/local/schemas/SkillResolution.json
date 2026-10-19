@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "choice": {
+      "enum": [
+        "local",
+        "library"
+      ],
+      "title": "Choice",
+      "type": "string"
+    },
+    "preview_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Preview Hash",
+      "type": "string"
+    },
+    "stable_key": {
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,199}$",
+      "title": "Stable Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stable_key",
+    "choice",
+    "preview_hash"
+  ],
+  "title": "SkillResolution",
+  "type": "object"
+}

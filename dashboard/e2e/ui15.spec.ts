@@ -681,9 +681,8 @@ test.describe("UI-15 onglets Bibliothèque à 375 (dette UI-7)", () => {
     const nav = page.locator('nav.tabs[aria-label="Catégories de la bibliothèque"]');
     await expect(nav).toBeVisible();
     const tabs = nav.locator("a.tab");
-    await expect(tabs).toHaveCount(5);
-    // Les 5 onglets restent des liens profonds stables, pas un faux select.
-    for (const slug of ["rules", "skills", "agent-definitions", "workflows", "model-profiles"]) {
+    await expect(tabs).toHaveCount(6);
+    for (const slug of ["rules", "skills", "agent-definitions", "workflows", "model-profiles", "hooks"]) {
       await expect(nav.locator(`a.tab[href="#/library/${slug}"]`)).toHaveCount(1);
     }
     // Adaptation étroite : plusieurs lignes OU scroll local, jamais d'overflow global.
@@ -698,11 +697,12 @@ test.describe("UI-15 onglets Bibliothèque à 375 (dette UI-7)", () => {
     expect(layout.wrapped || layout.scrollable, "onglets adaptés à 375 (wrap ou scroll local)").toBe(true);
     await expectNoGlobalOverflow(page, "library tabs @375");
     // Clavier : les onglets sont atteignables et activent le deep link.
-    await tabs.nth(1).focus();
-    await expect(tabs.nth(1)).toBeFocused();
+    const hookTab = nav.locator('a.tab[href="#/library/hooks"]');
+    await hookTab.focus();
+    await expect(hookTab).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
-    expect(page.url()).toContain("#/library/");
+    expect(page.url()).toContain("#/library/hooks");
     // aria-current sur l'onglet actif.
     await expect(nav.locator('a.tab[aria-current="page"]')).toHaveCount(1);
     expectClean(watch);
@@ -786,27 +786,27 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
     expectClean(watch);
   });
 
-  test("Workspace tabs à 375 : 6 onglets + Plus, ARIA, flèches, deep links", async ({ page }) => {
+  test("Workspace tabs à 375 : 7 onglets + Plus, ARIA, flèches, deep links", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, `#/projects/${P1}`, false);
     const tablist = page.locator('[data-ws-tabs][role="tablist"]');
     await expect(tablist).toBeVisible();
     const tabs = tablist.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(6);
+    await expect(tabs).toHaveCount(7);
     await expectNoGlobalOverflow(page, "workspace tabs @375");
     // Roving tabindex + flèches (invariant UI-14).
     await tabs.nth(0).focus();
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(5)).toBeFocused();
+    await expect(tabs.nth(6)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
     // Activation = deep link réel.
-    await tabs.nth(3).focus();
+    await tabs.nth(4).focus();
     await page.keyboard.press("Enter");
-    expect(page.url()).toContain(`/projects/${P1}/claims`);
+    await expect(page).toHaveURL(new RegExp(`/projects/${P1}/claims`));
     await expect(page.locator("#view h1").first()).toContainText("Jeu Phare", { timeout: 10_000 });
     expectClean(watch);
   });

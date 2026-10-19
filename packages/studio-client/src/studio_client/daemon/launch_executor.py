@@ -13,6 +13,8 @@ process tree is killed and no further report is sent.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import tempfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -20,6 +22,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from uuid import UUID
 
+from studio_contracts.auth import AgentCreate
+from studio_contracts.profiles import MachinePolicy
 from studio_contracts.task_launch import (
     LAUNCH_MAX_OUTPUT_CHARS,
     TaskLaunch,
@@ -28,10 +32,13 @@ from studio_contracts.task_launch import (
 )
 
 from studio_client.api_client import StudioApiClient
+from studio_client.daemon.launch_policy import LaunchProfile, enforce_profile, run_diagnostics
 from studio_client.daemon.launch_prepare import (
     LaunchPreparer,
     PreparationError,
     PreparationRequest,
+    Worktree,
+    projection_digests,
 )
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import (
@@ -42,10 +49,13 @@ from studio_client.daemon.launch_runner import (
     RunningLaunch,
     build_instruction,
 )
+from studio_client.daemon.launch_snapshot import SnapshotInputs, build_snapshot_payload
 from studio_client.errors import StudioApiError
-from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
+from studio_client.usage.collectors import RunObservation
+from studio_client.usage.recorder import LaunchUsageRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +74,7 @@ class ResolvedLaunch:
     task_title: str | None
     adapter: HarnessAdapter
     ctx: HarnessContext
+    profile: LaunchProfile | None = None
 
 
 Resolver = Callable[[TaskLaunch], Awaitable[ResolvedLaunch | None]]
@@ -83,7 +94,13 @@ class LaunchExecutor:
         secrets: Sequence[str] = (),
         max_output_chars: int = LAUNCH_MAX_OUTPUT_CHARS,
         models: Mapping[str, str] | None = None,
+        usage: LaunchUsageRecorder | None = None,
+        machine_policy: Callable[[], MachinePolicy] | None = None,
+        capture_snapshots: bool = False,
     ) -> None:
+        self._capture_snapshots = capture_snapshots
+        self._usage = usage
+        self._machine_policy = machine_policy
         self._models: Mapping[str, str] = models or {}
         self._client = client
         self._reporter = reporter
@@ -102,6 +119,10 @@ class LaunchExecutor:
     @property
     def running(self) -> int:
         return len(self._tasks)
+
+    def owns(self, launch_id: UUID) -> bool:
+        """Whether this executor runs the launch (P02 restart reconciliation)."""
+        return launch_id in self._tasks or launch_id in self._processes
 
     def start(self) -> None:
         if self._watch_task is None:
@@ -164,6 +185,7 @@ class LaunchExecutor:
         return False
 
     async def _run(self, launch: TaskLaunch) -> None:
+        resolved: ResolvedLaunch | None = None
         try:
             resolved = await self._resolve(launch)
             if resolved is None:
@@ -175,6 +197,25 @@ class LaunchExecutor:
                 return
             if await self._is_terminal(launch.id):
                 return
+            enforcement = enforce_profile(
+                resolved.profile,
+                supported_modes=resolved.adapter.access_modes,
+                policy=self._policy(),
+            )
+            if enforcement.mode is None:
+                logger.warning("launch refused by local profile policy: %s", enforcement.refusal)
+                await self._capture_snapshot(launch, resolved, not_prepared="profile_refused")
+                self._reporter.report(
+                    launch,
+                    TaskLaunchStatus.FAILED,
+                    reason_code=TaskLaunchReasonCode.PREPARATION_FAILED,
+                    output_excerpt=(
+                        f"[studio:profile_refused] reason={enforcement.refusal} "
+                        f"{enforcement.diagnostic}"
+                    )[: self._max_chars],
+                )
+                return
+            mode = enforcement.mode
             self._reporter.report(launch, TaskLaunchStatus.PREPARING)
             prepared = await asyncio.to_thread(
                 self._preparer.prepare,
@@ -190,13 +231,18 @@ class LaunchExecutor:
                 return
             worktree = prepared.worktree.path
             ctx = replace(resolved.ctx, workspace_root=worktree, probe_cwd=worktree)
+            await self._capture_snapshot(
+                launch, resolved, mode=mode, ctx=ctx, worktree=prepared.worktree
+            )
             executable = resolved.adapter.resolve_executable(ctx)
+            model = self._models.get(launch.harness_id)
+            agent_id = await self._ensure_launch_agent(launch.harness_id, model)
             prompt = build_instruction(
                 project_id=launch.project_id,
                 task_id=launch.task_id,
+                agent_id=agent_id,
                 agent_stable_key=launch.agent_stable_key,
             )
-            model = self._models.get(launch.harness_id)
             credential = await self._client.issue_launch_credential(launch.id)
             with tempfile.TemporaryDirectory(
                 prefix="studio-launch-", ignore_cleanup_errors=True
@@ -212,22 +258,34 @@ class LaunchExecutor:
                     ),
                 }
                 argv = (
-                    *resolved.adapter.headless_argv(prompt),
+                    *resolved.adapter.headless_argv(prompt, mode=mode),
                     *resolved.adapter.headless_extra_argv(
-                        ctx, model=model, isolation_dir=isolation_dir
+                        ctx, model=model, isolation_dir=isolation_dir, mode=mode
                     ),
                 )
                 self._reporter.report(launch, TaskLaunchStatus.RUNNING)
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running
                 result = await asyncio.to_thread(running.wait, self._timeout)
-            self._report_terminal(launch, result, extra_secrets=(credential.token,))
+            display = self._record_usage(launch, result)
+            self._report_terminal(
+                launch, result, mode=mode, extra_secrets=(credential.token,), display=display
+            )
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)
+            if resolved is not None:
+                await self._capture_snapshot(
+                    launch, resolved, not_prepared=f"preparation_failed:{error.step}"
+                )
             self._reporter.report(
                 launch,
                 TaskLaunchStatus.FAILED,
                 reason_code=TaskLaunchReasonCode.PREPARATION_FAILED,
+                output_excerpt=(
+                    "[studio:agent_identity_unavailable]"
+                    if error.step == "agent_identity"
+                    else None
+                ),
             )
         except LaunchError as error:
             logger.warning("launch could not start: %s", error.reason)
@@ -249,12 +307,152 @@ class LaunchExecutor:
             self._processes.pop(launch.id, None)
             self._tasks.pop(launch.id, None)
 
+    async def _ensure_launch_agent(self, harness_id: str, model: str | None) -> UUID:
+        identity = json.dumps(
+            {"harness": harness_id, "model": model}, sort_keys=True, separators=(",", ":")
+        )
+        stable_key = f"launch-agent-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+        try:
+            agent, _ = await self._client.ensure_agent(
+                AgentCreate(
+                    display_name=f"studio-{harness_id}",
+                    agent_kind="worker",
+                    harness=harness_id,
+                    model=model,
+                    stable_key=stable_key,
+                )
+            )
+        except StudioApiError:
+            raise PreparationError("agent_identity", "agent_identity_unavailable") from None
+        return agent.id
+
+    async def _capture_snapshot(
+        self,
+        launch: TaskLaunch,
+        resolved: ResolvedLaunch,
+        *,
+        mode: AccessMode | None = None,
+        ctx: HarnessContext | None = None,
+        worktree: Worktree | None = None,
+        not_prepared: str | None = None,
+    ) -> None:
+        if not self._capture_snapshots:
+            return
+        try:
+            inputs = await self._snapshot_inputs(
+                launch, resolved, mode=mode, ctx=ctx, worktree=worktree, not_prepared=not_prepared
+            )
+            payload = build_snapshot_payload(inputs)
+            self._reporter.snapshot(launch, payload)
+            logger.info(
+                "launch snapshot captured: status=%s reason=%s",
+                payload.capture_status.value,
+                not_prepared or "prepared",
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            logger.warning("launch snapshot capture failed: reason=%s", not_prepared or "prepared")
+
+    async def _snapshot_inputs(
+        self,
+        launch: TaskLaunch,
+        resolved: ResolvedLaunch,
+        *,
+        mode: AccessMode | None,
+        ctx: HarnessContext | None,
+        worktree: Worktree | None,
+        not_prepared: str | None,
+    ) -> SnapshotInputs:
+        definition = None
+        definition_error = None
+        if launch.agent_stable_key:
+            try:
+                definition = await self._client.resolve_agent(
+                    launch.agent_stable_key, project_id=launch.project_id
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                definition_error = "resolver_unreachable"
+        observed = projections = None
+        if worktree is not None:
+            observed = await asyncio.to_thread(self._preparer.observe, worktree)
+            projections = await asyncio.to_thread(projection_digests, worktree.path)
+        profile = resolved.profile
+        try:
+            policy: MachinePolicy | None = self._policy()
+        except Exception:  # noqa: BLE001
+            policy = None
+        return SnapshotInputs(
+            harness_id=launch.harness_id,
+            agent_stable_key=launch.agent_stable_key,
+            definition=definition,
+            definition_error=definition_error,
+            preview_profile=None if profile is None else profile.expected,
+            applied_profile=None if profile is None else profile.resolved,
+            access_mode=None if mode is None else mode.value,
+            harness_version=await self._harness_version(resolved, ctx),
+            worktree=observed,
+            not_prepared=not_prepared,
+            projections=projections if worktree is not None else (),
+            local_policy=policy,
+        )
+
+    async def _harness_version(
+        self, resolved: ResolvedLaunch, ctx: HarnessContext | None
+    ) -> str | None:
+        try:
+            detection = await asyncio.to_thread(resolved.adapter.detect, ctx or resolved.ctx)
+        except Exception:  # noqa: BLE001
+            return None
+        return detection.version
+
+    def _record_usage(self, launch: TaskLaunch, result: LaunchResult) -> str | None:
+        if self._usage is None:
+            return None
+        recorded = self._usage.record(
+            launch,
+            RunObservation(
+                harness_id=launch.harness_id,
+                output=result.output,
+                truncated=result.truncated,
+                exit_code=result.exit_code,
+                timed_out=result.timed_out,
+                cancelled=result.cancelled,
+                started_at=result.started_at,
+                finished_at=result.finished_at,
+                duration_seconds=result.duration_seconds,
+            ),
+        )
+        return None if recorded is None else recorded.collected.result_text
+
+    def _policy(self) -> MachinePolicy:
+        if self._machine_policy is None:
+            return MachinePolicy(opt_in=False, max_concurrent=1)
+        return self._machine_policy()
+
     def _report_terminal(
-        self, launch: TaskLaunch, result: LaunchResult, *, extra_secrets: tuple[str, ...] = ()
+        self,
+        launch: TaskLaunch,
+        result: LaunchResult,
+        *,
+        mode: AccessMode = AccessMode.WORKSPACE_WRITE,
+        extra_secrets: tuple[str, ...] = (),
+        display: str | None = None,
     ) -> None:
         if launch.id in self._stopped:
             return
-        excerpt = self._excerpt(result.output, extra_secrets)
+        # Diagnostics read the raw harness output (JSON included); the excerpt
+        # shows the collector's readable result when there is one.
+        diagnostics = run_diagnostics(result.output)
+        header = (
+            f"[studio:launch_diagnostics] mode={mode.value} {' '.join(diagnostics)}\n"
+            if diagnostics
+            else ""
+        )
+        body = self._excerpt(result.output if display is None else display, extra_secrets)
+        excerpt = (header + body)[: self._max_chars]
         if result.timed_out:
             self._reporter.report(
                 launch,
@@ -264,7 +462,7 @@ class LaunchExecutor:
             )
         elif result.cancelled:
             return
-        elif result.exit_code == 0:
+        elif result.exit_code == 0 and "forbidden_operation" not in diagnostics:
             self._reporter.report(launch, TaskLaunchStatus.SUCCEEDED, output_excerpt=excerpt)
         else:
             self._reporter.report(

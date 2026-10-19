@@ -40,15 +40,27 @@ def machine_token_env(credential: str) -> dict[str, str]:
     return {"STUDIO_CLIENT_MACHINE_TOKEN": credential}
 
 
-def entry_with_credential(entry: Mapping[str, object], credential: str) -> dict[str, object]:
+def entry_with_credential(
+    entry: Mapping[str, object], credential: str, *, url: str
+) -> dict[str, object]:
     """Copy of the user's MCP entry whose Bearer header carries the launch's
-    ephemeral credential instead of the durable token."""
+    ephemeral credential instead of the durable token, pointed at the server
+    that issued it rather than whatever server the user entry names."""
     replaced = dict(entry)
+    replaced["url"] = url
     headers = replaced.get("headers")
     updated = dict(headers) if isinstance(headers, Mapping) else {}
     updated["Authorization"] = f"Bearer {credential}"
     replaced["headers"] = updated
     return replaced
+
+
+class AccessMode(StrEnum):
+    """Workspace access a launched run is bounded to. An adapter lists only the
+    modes it can *guarantee* through the harness's own flags or sandbox."""
+
+    READ_ONLY = "read_only"
+    WORKSPACE_WRITE = "workspace_write"
 
 
 class DetectionState(StrEnum):
@@ -158,6 +170,14 @@ class HarnessAdapter(ABC):
     display_name: str
     capabilities: tuple[str, ...] = ("mcp.config",)
     executable_names: tuple[str, ...] = ()
+    access_modes: frozenset[AccessMode] = frozenset({AccessMode.WORKSPACE_WRITE})
+
+    def require_mode(self, mode: AccessMode) -> None:
+        """Refuse a mode this adapter cannot guarantee, never widen it."""
+        if mode not in self.access_modes:
+            raise AdapterRefusal(
+                "read_only_unsupported" if mode is AccessMode.READ_ONLY else "mode_unsupported"
+            )
 
     @abstractmethod
     def detect(self, ctx: HarnessContext) -> Detection:
@@ -199,15 +219,23 @@ class HarnessAdapter(ABC):
             raise AdapterRefusal("executable_not_found")
         return executable
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
         """The arguments (after the executable) that run `prompt` once and exit
         without a human, bounded to the least autonomy the harness can still
-        work with. The default refuses: a harness with no non-interactive mode
-        is never launched blind (`AdapterRefusal('headless_unsupported')`)."""
+        work with and to `mode`. The default refuses: a harness with no
+        non-interactive mode is never launched blind
+        (`AdapterRefusal('headless_unsupported')`)."""
         raise AdapterRefusal("headless_unsupported")
 
     def headless_extra_argv(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self,
+        ctx: HarnessContext,
+        *,
+        model: str | None,
+        isolation_dir: Path,
+        mode: AccessMode = AccessMode.WORKSPACE_WRITE,
     ) -> tuple[str, ...]:
         """Extra arguments appended after `headless_argv` once the launch
         isolation directory exists: typically a forced `--model` and the flags

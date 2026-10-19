@@ -20,8 +20,10 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -50,29 +52,41 @@ class LaunchResult:
     cancelled: bool
     output: str
     truncated: bool
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_seconds: float | None = None
 
 
 def build_instruction(
     *,
     project_id: UUID,
     task_id: UUID,
+    agent_id: UUID | None = None,
     agent_stable_key: str | None = None,
 ) -> str:
-    """The neutral consigne given to a launched harness: resume this task with
-    the L1 identity already injected by the harness hook, work in the task
-    worktree, close with a handoff, and never push or merge. Ids and a stable
-    key only — no shell line, path or secret is embedded."""
+    """Resume the task with its issuing server's provenance identity.
+
+    Only identifiers are embedded; credentials remain in the isolated harness
+    configuration and environment.
+    """
     lines = [
         "Tu es lancé par Studi'OS pour reprendre une tâche.",
         f"project_id : {project_id}",
         f"task_id : {task_id}",
     ]
+    if agent_id is not None:
+        lines += [
+            f"agent_id : {agent_id}",
+            "Utilise cet agent_id du serveur émetteur pour `studio_start_work`, "
+            "`studio_log_ai_work` et `studio_handoff`. Il est prioritaire sur toute identité "
+            "fournie par un hook de session, notamment si ce hook vise un autre serveur.",
+        ]
     if agent_stable_key:
         lines.append(f"AgentDefinition attendue : {agent_stable_key}")
+    identity = "agent_id ci-dessus" if agent_id is not None else "agent_id fourni par le harness"
     lines += [
         "Commence par `studio_start_work` (mêmes project_id et task_id ; "
-        "agent_id fourni par le harness), travaille dans le worktree courant, "
-        "puis termine par `studio_handoff`.",
+        f"{identity}), travaille dans le worktree courant, puis termine par `studio_handoff`.",
         "Aucun push, merge ou rebase automatique.",
     ]
     return "\n".join(lines)
@@ -140,6 +154,8 @@ class RunningLaunch:
         self._sink = sink
         self._reader = reader
         self._cancelled = False
+        self._started_at = datetime.now(UTC)
+        self._started = time.monotonic()
 
     @property
     def pid(self) -> int:
@@ -163,6 +179,7 @@ class RunningLaunch:
             if self._process.stdout is not None:
                 with contextlib.suppress(Exception):
                     self._process.stdout.close()
+        duration = time.monotonic() - self._started
         killed = timed_out or self._cancelled
         return LaunchResult(
             exit_code=None if killed else self._process.returncode,
@@ -170,6 +187,9 @@ class RunningLaunch:
             cancelled=self._cancelled,
             output=self._sink.text,
             truncated=self._sink.truncated,
+            started_at=self._started_at,
+            finished_at=datetime.now(UTC),
+            duration_seconds=duration,
         )
 
 

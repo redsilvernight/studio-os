@@ -7,13 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.services import task_launches as launches_service
 from studio_api.services.authz import Principal
-from studio_contracts.task_launch import LAUNCH_POLL_MAX
+from studio_contracts.task_launch import LAUNCH_POLL_MAX, TaskLaunchView
 
 from studio_mcp.errors import run_tool
 from studio_mcp.util import parse_uuid
 
 
-def _launch_response(launch: TaskLaunchModel) -> dict[str, Any]:
+def _launch_response(launch: TaskLaunchModel | TaskLaunchView) -> dict[str, Any]:
     return {
         "id": str(launch.id),
         "project_id": str(launch.project_id),
@@ -28,6 +28,17 @@ def _launch_response(launch: TaskLaunchModel) -> dict[str, Any]:
         "version": launch.version,
         "expires_at": launch.expires_at.isoformat(),
         "finished_at": launch.finished_at.isoformat() if launch.finished_at else None,
+    }
+
+
+def _view_response(view: TaskLaunchView) -> dict[str, Any]:
+    return {
+        **_launch_response(view),
+        "protocol": {
+            "status": view.protocol.status.value,
+            "session_id": str(view.protocol.session_id) if view.protocol.session_id else None,
+            "task_status": view.protocol.task_status.value if view.protocol.task_status else None,
+        },
     }
 
 
@@ -52,7 +63,11 @@ async def studio_list_task_launches(
     limit: int | None = None,
     offset: int = 0,
 ) -> dict[str, Any]:
-    """List task launches of a project, oldest first — read-only."""
+    """List task launches of a project, oldest first — read-only. Each item
+    carries its `protocol` proof (`not_applicable`, `awaiting`, `unverified`
+    or `handed_off`) derived from the linked work session: `handed_off`
+    means the agent followed the protocol and the session closed, never that
+    the task is done."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
@@ -66,7 +81,8 @@ async def studio_list_task_launches(
         launches = await launches_service.list_launches(
             session, principal, parsed, limit=limit or 100, offset=offset
         )
-        return {"launches": [_launch_response(launch) for launch in launches]}
+        views = await launches_service.protocol_views(session, launches)
+        return {"launches": [_view_response(view) for view in views]}
 
     return await run_tool(ctx, _handler)
 

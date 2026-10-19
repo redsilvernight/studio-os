@@ -228,8 +228,134 @@ RESP_409_LAUNCH_TRANSITION: ErrorResponses = {
         "target machine not able to launch right now "
         "(`machine_capabilities_missing`, `machine_capabilities_stale`, "
         "`machine_offline`, `machine_not_opted_in`, "
-        "`project_not_registered`).",
+        "`project_not_registered`), or a retry of a launch that is not "
+        "terminal yet (`launch_not_terminal`).",
         {"detail": {"error_code": "invalid_launch_transition"}},
+    )
+}
+
+RESP_409_REPLAY: ErrorResponses = {
+    409: _json_response(
+        "Replay refused, nothing created: the confirmed preview no longer "
+        "matches what the server computes now (`replay_preview_stale`, with "
+        "the current `preview_digest`), or the current preview is a refusal "
+        "(`replay_refused`, with its `codes`). Read the preview again.",
+        {
+            "detail": {
+                "error_code": "replay_preview_stale",
+                "preview_digest": "sha256:" + "0" * 64,
+            }
+        },
+    )
+}
+
+RESP_409_SNAPSHOT_IMMUTABLE: ErrorResponses = {
+    409: _json_response(
+        "This launch already has an execution snapshot with a different "
+        "content (`execution_snapshot_immutable`, with the recorded "
+        "`snapshot_id` and `content_hash`). A snapshot is never rewritten: "
+        "replaying the same payload is not an error.",
+        {
+            "detail": {
+                "error_code": "execution_snapshot_immutable",
+                "snapshot_id": "00000000-0000-0000-0000-000000000000",
+                "content_hash": "sha256:" + "0" * 64,
+            }
+        },
+    )
+}
+
+RESP_409_BUDGET_REFUSED: ErrorResponses = {
+    409: _json_response(
+        "Admission refused by the project's approved `enforce` budget, "
+        "nothing stored: the launch's reservation does not fit "
+        "(`budget_refused`, `reason` in `budget_cost_exhausted`, "
+        "`budget_tokens_exhausted`, `budget_slots_exhausted`). The guarantee "
+        "is `admission_only`: actual usage is reported after the run.",
+        {
+            "detail": {
+                "error_code": "budget_refused",
+                "reason": "budget_slots_exhausted",
+                "metric": "slots",
+                "limit": "2",
+                "consumed": "2",
+                "held": "0",
+                "requested": "1",
+                "period_start": None,
+                "ceiling_guarantee": "admission_only",
+            }
+        },
+    )
+}
+
+RESP_409_ADMISSION: ErrorResponses = {
+    409: _json_response(
+        "Roadmap admission batch refused, nothing stored: the recomputed plan "
+        "moved since the confirmed dry-run (`admission_plan_changed`, with the "
+        "fresh `plan`) or at least one item is refused (`admission_refused`, "
+        "with every `refusals` entry: `duplicate_item`, `not_launchable` with "
+        "its `exclusion_reasons`, `machine_not_eligible`, or `budget_refused` "
+        "with its `budget`). Re-read the dry-run and retry.",
+        {
+            "detail": {
+                "error_code": "admission_plan_changed",
+                "plan": {"plan_digest": "0" * 64},
+                "refusals": [],
+            }
+        },
+    )
+}
+
+RESP_422_SNAPSHOT_REFUSED: ErrorResponses = {
+    422: _json_response(
+        "The snapshot body is refused (`execution_snapshot_refused`): a value "
+        "looks like credential material or an absolute local path, a field "
+        "name looks secret, or the body does not match the contract. Each "
+        "entry names the JSON path and a closed pattern, never the value; "
+        "nothing is stored.",
+        {
+            "detail": {
+                "error_code": "execution_snapshot_refused",
+                "details": [
+                    {"path": "$.applied.harness_version", "pattern": "credential_material"}
+                ],
+            }
+        },
+    )
+}
+
+RESP_409_BUDGET_APPROVAL: ErrorResponses = {
+    409: _json_response(
+        "Nothing to approve: the policy is not in `enforce` mode or is "
+        "already approved (`budget_approval_not_pending`).",
+        {"detail": {"error_code": "budget_approval_not_pending"}},
+    )
+}
+
+RESP_409_PROFILE_UNSUPPORTED: ErrorResponses = {
+    409: _json_response(
+        "Target machine not able to run a work profile, nothing stored: its "
+        "latest capabilities report does not carry `launch_profiles: true` "
+        "(`profile_unsupported_by_machine`) — only a machine whose daemon "
+        "enforces profiles can admit a profiled launch. Drop `profile_key` "
+        "to launch unprofiled on this machine.",
+        {"detail": {"error_code": "profile_unsupported_by_machine"}},
+    )
+}
+
+RESP_422_LAUNCH_PROFILE: ErrorResponses = {
+    422: _json_response(
+        "Work profile request rejected, nothing stored: "
+        "`profile_key` profiles one agent, so it needs `agent_stable_key` "
+        "(`profile_requires_agent`), and it must name a reference profile "
+        "the server can materialize (`unknown_profile`, echoing the refused "
+        "`profile_key`). Both refusals describe the caller's own payload.",
+        {
+            "detail": {
+                "error_code": "unknown_profile",
+                "profile_key": "coding",
+            }
+        },
     )
 }
 
@@ -476,6 +602,13 @@ RESP_507_QUOTA_EXCEEDED: ErrorResponses = {
                 "quota_bytes": 1000,
             }
         },
+    )
+}
+
+RESP_422_MISSION_CURSOR: ErrorResponses = {
+    422: _json_response(
+        "Mission `cursor` rejected: not a cursor returned by a previous page (`invalid_cursor`).",
+        {"detail": {"error_code": "invalid_cursor"}},
     )
 }
 
