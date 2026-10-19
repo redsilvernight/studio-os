@@ -32,6 +32,7 @@ from studio_contracts.auth import MachineStatus
 from studio_contracts.decisions import DecisionStatus
 from studio_contracts.mission import (
     MISSION_DEFAULT_LIMIT,
+    MISSION_HANDOFF_SUMMARY_MAX,
     MissionCounts,
     MissionDataGap,
     MissionHandoffRef,
@@ -187,6 +188,10 @@ def evaluate_run(facts: RunFacts) -> MissionEvaluation:
         reasons=[reason for _verdict, row in matched for reason in row],
         protocol_state=protocol,
     )
+
+
+def _preview(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _invalid_cursor() -> HTTPException:
@@ -483,7 +488,7 @@ def _build_run(
             MissionHandoffRef(
                 ai_work_id=handoff.id,
                 status=AIWorkStatus(handoff.status),
-                summary=handoff.summary,
+                summary=_preview(handoff.summary, MISSION_HANDOFF_SUMMARY_MAX),
                 completed_at=handoff.ended_at,
             )
             if handoff is not None

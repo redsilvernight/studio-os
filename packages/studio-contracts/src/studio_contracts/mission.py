@@ -55,6 +55,7 @@ from studio_contracts.task_launch import TaskLaunchReasonCode, TaskLaunchStatus
 
 MISSION_DEFAULT_LIMIT = 20
 MISSION_MAX_LIMIT = 50
+MISSION_HANDOFF_SUMMARY_MAX = 280
 
 
 class MissionVerdict(StrEnum):
@@ -134,7 +135,7 @@ class MissionSessionRef(ContractModel):
 class MissionHandoffRef(ContractModel):
     ai_work_id: UUID
     status: AIWorkStatus
-    summary: str = Field(max_length=280)
+    summary: str = Field(max_length=MISSION_HANDOFF_SUMMARY_MAX)
     completed_at: datetime | None = None
 
 
