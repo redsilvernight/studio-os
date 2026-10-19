@@ -507,7 +507,8 @@ class ConfigurationHistory(ContractModel):
     """Configuration history of a project over `[since, until)` of the launch's
     `created_at`. Population is TaskLaunch; groups are ordered by key (stable,
     `None` last), never by a rate: `ranking` is always `"none"`. `caveats`
-    always contains `tests_not_quality`, `not_ranked` and `no_minimum_sample`."""
+    always contains `tests_not_quality`, `not_ranked`, `no_minimum_sample` and
+    `ledger_derived_fields`."""
 
     project_id: UUID
     since: AwareDatetime
