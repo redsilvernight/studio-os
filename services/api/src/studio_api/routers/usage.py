@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Request, status
 from pydantic import AwareDatetime
 from studio_contracts.usage import (
+    ConfigurationHistory,
     UsageGroupBy,
     UsageLedgerCorrection,
     UsageLedgerEntry,
@@ -22,6 +23,7 @@ from studio_api.openapi_meta import (
     ErrorResponses,
     merge_conflict,
 )
+from studio_api.services import configuration_history as configuration_history_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import usage as usage_service
 
@@ -129,6 +131,34 @@ async def summarize_usage(
         group_by=group_by,
         since=since,
         until=until,
+    )
+
+
+@router.get(
+    "/configuration-history",
+    response_model=ConfigurationHistory,
+    description=(
+        "Describe a project's launch configurations over TaskLaunch.created_at in [since, until). "
+        "Each group pins the harness and work profile of the launch and derives harness_version, "
+        "provider and model from the ledger entries linked by task_launch_id (null when no entry "
+        "reports them, 'mixed' when they disagree). Rates are descriptive, never a ranking, and "
+        "always carry numerator, denominator, coverage and definition; value is null when the "
+        "denominator is zero. Groups are ordered by key (null last), capped at 100 (truncated). "
+        "Ledger entries without task_launch_id and AI work outside any launch of the period are "
+        "reported as unattributed, never folded into a group. until before since fails with 422 "
+        "invalid_usage_period; defaults are until=now and since=until-30 days."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **_RESP_422_USAGE_PERIOD},
+)
+async def configuration_history(
+    session: DbSession,
+    principal: CurrentPrincipal,
+    project_id: UUID = Query(),
+    since: AwareDatetime | None = Query(default=None),
+    until: AwareDatetime | None = Query(default=None),
+) -> ConfigurationHistory:
+    return await configuration_history_service.configuration_history(
+        session, principal, project_id=project_id, since=since, until=until
     )
 
 

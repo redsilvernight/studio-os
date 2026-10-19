@@ -7520,6 +7520,115 @@
     }
    }
   },
+  "/api/v1/usage/configuration-history": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Configuration History",
+    "description": "Describe a project's launch configurations over TaskLaunch.created_at in [since, until). Each group pins the harness and work profile of the launch and derives harness_version, provider and model from the ledger entries linked by task_launch_id (null when no entry reports them, 'mixed' when they disagree). Rates are descriptive, never a ranking, and always carry numerator, denominator, coverage and definition; value is null when the denominator is zero. Groups are ordered by key (null last), capped at 100 (truncated). Ledger entries without task_launch_id and AI work outside any launch of the period are reported as unattributed, never folded into a group. until before since fails with 422 invalid_usage_period; defaults are until=now and since=until-30 days.",
+    "operationId": "configuration_history_api_v1_usage_configuration_history_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ConfigurationHistory"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid period: until is before since (invalid_usage_period). Malformed or missing query parameters keep the standard validation error body.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_usage_period"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/usage/corrections": {
    "post": {
     "tags": [
@@ -18579,6 +18688,318 @@
     ],
     "title": "ClaimStatus",
     "description": "A claim past `expires_at` is not active regardless of stored status.\nA claim is a soft lock: it warns, it never blocks a Git operation or a\nfile write."
+   },
+   "ConfigurationHistory": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "since": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Since"
+     },
+     "until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Until"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "population": {
+      "type": "string",
+      "const": "task_launch",
+      "title": "Population",
+      "default": "task_launch"
+     },
+     "ranking": {
+      "type": "string",
+      "const": "none",
+      "title": "Ranking",
+      "default": "none"
+     },
+     "launches": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Launches"
+     },
+     "groups": {
+      "items": {
+       "$ref": "#/components/schemas/ConfigurationHistoryGroup"
+      },
+      "type": "array",
+      "title": "Groups"
+     },
+     "unattributed": {
+      "$ref": "#/components/schemas/ConfigurationHistoryUnattributed"
+     },
+     "caveats": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Caveats"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "since",
+     "until",
+     "generated_at",
+     "launches"
+    ],
+    "title": "ConfigurationHistory",
+    "description": "Configuration history of a project over `[since, until)` of the launch's\n`created_at`. Population is TaskLaunch; groups are ordered by key (stable,\n`None` last), never by a rate: `ranking` is always `\"none\"`. `caveats`\nalways contains `tests_not_quality`, `not_ranked`, `no_minimum_sample` and\n`ledger_derived_fields`."
+   },
+   "ConfigurationHistoryGroup": {
+    "properties": {
+     "key": {
+      "$ref": "#/components/schemas/ConfigurationKey"
+     },
+     "launches": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Launches"
+     },
+     "first_requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Requested At"
+     },
+     "last_requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Requested At"
+     },
+     "status_counts": {
+      "additionalProperties": {
+       "type": "integer",
+       "minimum": 0.0
+      },
+      "type": "object",
+      "title": "Status Counts"
+     },
+     "rates": {
+      "items": {
+       "$ref": "#/components/schemas/ConfigurationRate"
+      },
+      "type": "array",
+      "title": "Rates"
+     },
+     "ledger_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Ledger Entries",
+      "default": 0
+     },
+     "ai_work_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Ai Work Entries",
+      "default": 0
+     },
+     "total_tokens": {
+      "$ref": "#/components/schemas/UsageTokenTotal"
+     },
+     "cost": {
+      "$ref": "#/components/schemas/UsageCostTotal"
+     },
+     "comparable": {
+      "type": "boolean",
+      "const": false,
+      "title": "Comparable",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "launches",
+     "first_requested_at",
+     "last_requested_at",
+     "total_tokens",
+     "cost"
+    ],
+    "title": "ConfigurationHistoryGroup",
+    "description": "Launches of one configuration over the period. Groups are descriptive and\nnever comparable to each other (`comparable` is always `False`)."
+   },
+   "ConfigurationHistoryUnattributed": {
+    "properties": {
+     "ledger_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Ledger Entries",
+      "default": 0
+     },
+     "ai_work_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Ai Work Entries",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "ConfigurationHistoryUnattributed",
+    "description": "What happened in the period but cannot be tied to a launch: ledger\nentries without `task_launch_id`, AIWork entries whose session belongs to\nno launch of the period. Shown, never folded into a group."
+   },
+   "ConfigurationKey": {
+    "properties": {
+     "harness": {
+      "type": "string",
+      "title": "Harness"
+     },
+     "profile_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Key"
+     },
+     "profile_contract_version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Contract Version"
+     },
+     "profile_digest": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Digest"
+     },
+     "harness_version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Version"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "harness"
+    ],
+    "title": "ConfigurationKey",
+    "description": "Configuration a launch ran with. `harness`, `profile_*` are pinned on the\nTaskLaunch; `harness_version`, `provider`, `model` come from the ledger\nentries linked by `task_launch_id` and are `None` when no entry reported\nthem, `\"mixed\"` when entries disagree."
+   },
+   "ConfigurationRate": {
+    "properties": {
+     "key": {
+      "$ref": "#/components/schemas/ConfigurationRateKey"
+     },
+     "definition": {
+      "type": "string",
+      "title": "Definition"
+     },
+     "numerator": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Numerator"
+     },
+     "denominator": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Denominator"
+     },
+     "covered": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Covered"
+     },
+     "launches": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Launches"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "definition",
+     "numerator",
+     "denominator",
+     "covered",
+     "launches"
+    ],
+    "title": "ConfigurationRate",
+    "description": "A rate is never shown without its `n` (`denominator`), its definition and\nits coverage: `covered` launches out of `launches` could be judged at all.\n`value` is `None` when `denominator` is 0, never 0."
+   },
+   "ConfigurationRateKey": {
+    "type": "string",
+    "enum": [
+     "succeeded",
+     "session_linked",
+     "usage_measured"
+    ],
+    "title": "ConfigurationRateKey",
+    "description": "Descriptive rates, each with a fixed definition. `succeeded`: succeeded\nlaunches over terminal launches. `session_linked`: launches with a session\nover all launches. `usage_measured`: launches with at least one ledger\nentry whose `total` tokens are measured or estimated, over all launches."
    },
    "ContextLimits": {
     "additionalProperties": true,

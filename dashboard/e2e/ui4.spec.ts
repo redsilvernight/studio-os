@@ -243,14 +243,14 @@ test.describe("UI-4 projets et workspace", () => {
     expect(fatal).toEqual([]);
   });
 
-  test("workspace : header stable, 9 onglets, deep links, back/forward", async ({ page }) => {
+  test("workspace : header stable, 10 onglets, deep links, back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Jeu Phare");
 
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(9);
+    await expect(tabs).toHaveCount(10);
     await expect(view.locator('[data-ws-tab="overview"]')).toHaveAttribute("aria-selected", "true");
 
     // Overview résumée : pas de tableau complet.
@@ -402,7 +402,7 @@ test.describe("UI-4 mobile 375", () => {
 
     await page.goto(`/#/projects/${P1}`);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
-    await expect(view.locator('[role="tab"]')).toHaveCount(9);
+    await expect(view.locator('[role="tab"]')).toHaveCount(10);
     await page.screenshot({ path: `${SHOTS}/workspace-overview-mobile.png` });
 
     await page.goto(`/#/projects/${P1}/activity`);

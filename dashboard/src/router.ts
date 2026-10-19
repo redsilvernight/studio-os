@@ -58,6 +58,7 @@ export function parseRoute(hash: string): Route {
       parts[2] === "tasks" ||
       parts[2] === "claims" ||
       parts[2] === "activity" ||
+      parts[2] === "history" ||
       parts[2] === "decisions" ||
       parts[2] === "members" ||
       parts[2] === "ai-integration"

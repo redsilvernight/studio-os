@@ -26,6 +26,7 @@ import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
 import { ACTION_LABEL } from "../language";
 import { renderActivityInto } from "./activity";
+import { renderConfigurationHistoryInto } from "./configurationHistory";
 import { renderAiIntegrationInto } from "./aiIntegration";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
@@ -47,6 +48,7 @@ export type ProjectTab =
   | "tasks"
   | "claims"
   | "activity"
+  | "history"
   | "decisions"
   | "members"
   | "ai-integration";
@@ -65,6 +67,7 @@ export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
   { id: "claims", label: "Réservations", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
+  { id: "history", label: "Historique", suffix: "/history" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
   { id: "members", label: "Membres", suffix: "/members" },
   { id: "ai-integration", label: "Intégration IA", suffix: "/ai-integration" },
@@ -87,7 +90,7 @@ function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
 }
 
 /** Onglets quotidiens ; les surfaces expertes (Membres, Intégration IA) vivent sous « Plus ». */
-export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["members", "ai-integration"];
+export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["history", "members", "ai-integration"];
 
 function projectTabLink(projectId: string, entry: (typeof PROJECT_TABS)[number], tab: ProjectTab): string {
   const active = entry.id === tab;
@@ -426,6 +429,10 @@ export async function renderProjectDetail(
   }
   if (tab === "activity") {
     await renderActivityInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed });
+    return;
+  }
+  if (tab === "history") {
+    await renderConfigurationHistoryInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed });
     return;
   }
   if (tab === "members") {

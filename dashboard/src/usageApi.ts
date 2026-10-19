@@ -14,6 +14,49 @@ export type UsageSummary = components["schemas"]["UsageSummary"];
 export type UsageAggregate = components["schemas"]["UsageAggregate"];
 export type UsageGroupBy = components["schemas"]["UsageGroupBy"];
 export type UsageTotalStatus = components["schemas"]["UsageTotalStatus"];
+export type UsageTokenTotal = components["schemas"]["UsageTokenTotal"];
+export type UsageCostTotal = components["schemas"]["UsageCostTotal"];
+
+/* Historique des configurations (P06-history-option, DEC-0221). */
+export type ConfigurationRateKey = components["schemas"]["ConfigurationRateKey"];
+export type ConfigurationKey = components["schemas"]["ConfigurationKey"];
+/** `value` est une fraction 0..1, `null` quand le dénominateur vaut 0. */
+export type ConfigurationRate = components["schemas"]["ConfigurationRate"];
+export type ConfigurationHistoryGroup = components["schemas"]["ConfigurationHistoryGroup"];
+export type ConfigurationHistoryUnattributed = components["schemas"]["ConfigurationHistoryUnattributed"];
+export type ConfigurationHistory = components["schemas"]["ConfigurationHistory"];
+
+export interface ConfigurationHistoryQuery {
+  since: string;
+  until: string;
+}
+
+function isConfigurationHistory(value: unknown): value is ConfigurationHistory {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const candidate = value as { groups?: unknown; unattributed?: unknown };
+  return (
+    Array.isArray(candidate.groups) &&
+    typeof candidate.unattributed === "object" &&
+    candidate.unattributed !== null &&
+    !Array.isArray(candidate.unattributed)
+  );
+}
+
+/** GET /api/v1/usage/configuration-history?project_id&since&until (lecture seule). */
+export async function fetchConfigurationHistory(
+  client: StudioClient,
+  projectId: string,
+  query: ConfigurationHistoryQuery,
+): Promise<ConfigurationHistory> {
+  const result = await client.GET("/api/v1/usage/configuration-history", {
+    params: { query: { project_id: projectId, since: query.since, until: query.until } },
+  });
+  if (result.response.ok && result.data !== undefined) {
+    if (!isConfigurationHistory(result.data)) throw new Error("Réponse d'historique des configurations inattendue.");
+    return result.data;
+  }
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
 
 export interface UsageSummaryQuery {
   projectId: string;

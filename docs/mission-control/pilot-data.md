@@ -2,7 +2,7 @@
 
 Tâche `db685418-bfd4-4d2e-85d2-2a0867b2e1e7`. Relevé descriptif du
 16 octobre 2026, branche issue de `dev` `71da001a`.
-**No-go provisoire sur l'historique validé humainement le 16 octobre 2026 (DEC-0219).**
+**No-go provisoire du 16 octobre 2026 (DEC-0219) levé le 19 octobre 2026 (DEC-0221).**
 
 ## Périmètre et dénominateurs
 
@@ -80,6 +80,18 @@ et le pilote deux machines avant de conclure sur ces deux dimensions.
 Le minimum par configuration reste à fixer humainement : aucun minimum arbitraire
 n'est présenté comme une gate approuvée. Si les effectifs restent insuffisants,
 prolonger la fenêtre avec accord humain et publier les nouvelles bornes.
+
+## Levée du no-go (DEC-0221)
+
+Le 19 octobre 2026, l'utilisateur a levé le no-go. L'historique est livré comme vue descriptive :
+`GET /api/v1/usage/configuration-history` et l'onglet « Historique » du projet.
+La population est TaskLaunch. Chaque taux affiche n, période, définition et couverture.
+Les groupes ne sont ni classés ni comparables.
+Les valeurs inconnues ou mixtes sont affichées telles quelles.
+La vue rappelle aussi que des tests réussis ne garantissent pas la qualité.
+Le rapprochement avec le ledger et AIWork sur un échantillon de production reste à relever.
+Tant qu'il n'est pas fait, le critère correspondant de l'étape n'est pas coché.
+Aucun minimum d'effectif n'est fixé.
 
 ## Reproduction et audit
 

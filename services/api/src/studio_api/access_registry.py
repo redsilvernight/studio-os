@@ -153,6 +153,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("PATCH", "/api/v1/ai-work/{work_id}"): _P,
     ("GET", "/api/v1/usage"): _P,
     ("GET", "/api/v1/usage/summary"): _P,
+    ("GET", "/api/v1/usage/configuration-history"): _P,
     ("POST", "/api/v1/usage"): _P,
     ("POST", "/api/v1/usage/corrections"): "own",
     ("GET", "/api/v1/review-queue"): _P,

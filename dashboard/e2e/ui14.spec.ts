@@ -531,11 +531,11 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(9);
+    await expect(tabs).toHaveCount(10);
     const panel = view.locator("#workspace-panel");
     await expect(panel).toHaveAttribute("role", "tabpanel");
     await expect(panel).toHaveAttribute("aria-labelledby", "ws-tab-overview");
-    for (const [index, id] of ["overview", "mission", "roadmap", "tasks", "claims", "activity", "decisions", "members", "ai-integration"].entries()) {
+    for (const [index, id] of ["overview", "mission", "roadmap", "tasks", "claims", "activity", "decisions", "history", "members", "ai-integration"].entries()) {
       await expect(tabs.nth(index)).toHaveAttribute("id", `ws-tab-${id}`);
       await expect(tabs.nth(index)).toHaveAttribute("aria-controls", "workspace-panel");
     }
