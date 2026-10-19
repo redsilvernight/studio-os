@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Backup cron installer tests
+        run: bash docker/install-backup-cron.test.sh
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true

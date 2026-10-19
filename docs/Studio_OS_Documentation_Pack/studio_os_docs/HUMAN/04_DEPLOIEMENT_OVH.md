@@ -101,7 +101,14 @@ Distinction a retenir :
   les sessions actives ; les utilisateurs doivent se reconnecter.
 
 ## Sauvegardes
-- dump PostgreSQL quotidien via `./backup.sh <backup_root>` ou `./install-backup-cron.sh <backup_root>`.
+- dump PostgreSQL quotidien via `bash ./backup.sh <backup_root>` ou
+  `bash ./install-backup-cron.sh <backup_root> [heure] [retention]`.
+  L'installateur utilise 02:00 et sept sauvegardes par defaut ; l'heure va de
+  0 a 23 et la retention est un entier decimal strictement positif (18 chiffres
+  maximum). Les chemins sont convertis en chemins absolus et proteges pour le
+  shell ; `%` et les retours a la ligne sont refuses pour respecter le format
+  cron. La reinstallation remplace l'entree de ce script en conservant les
+  autres entrees. Une erreur de lecture de crontab interrompt l'installation.
   Un `<backup_root>` place sous `docker/backups/` est ignore par Git : ces dumps contiennent des hashes de credentials et ne doivent jamais etre commites.
 - sauvegarde des secrets hors du VPS.
 - copie/replication des objets importants selon budget.
