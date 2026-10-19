@@ -138,7 +138,9 @@ def test_claude_read_only_argv_denies_every_writing_tool(tmp_path: Path) -> None
     argv = adapter.headless_argv("p", mode=AccessMode.READ_ONLY)
     assert "acceptEdits" not in argv
     disallowed = argv[argv.index("--disallowedTools") + 1].split(",")
-    assert {"Edit", "Write", "Bash", "PowerShell"} <= set(disallowed)
+    assert {"Edit", "Write", "Bash", "PowerShell", "SendMessage"} <= set(disallowed)
+    available = argv[argv.index("--tools") + 1].split(",")
+    assert set(available) == {"Read", "Grep", "Glob"}
     extra = adapter.headless_extra_argv(
         ctx, model=None, isolation_dir=tmp_path, mode=AccessMode.READ_ONLY
     )
