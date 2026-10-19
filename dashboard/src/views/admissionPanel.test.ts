@@ -356,4 +356,57 @@ it("propose de reprendre un envoi en attente sans envoi automatique", async () =
     expect(sentOptions.params.header["Idempotency-Key"]).toBe(key);
     expect(sentOptions.body).toEqual(body);
   });
+
+  it("conserve le harnais choisi après un nouveau dry-run même s'il n'est plus annoncé", async () => {
+    const announced = dryRun([candidate("t1", "S1", "Première", ["m1"])]);
+    const later = dryRun([candidate("t1", "S1", "Première", ["m1"])], {
+      machines: [machine("m2", "mathieu-desktop", ["opencode"])],
+    });
+    const GET = vi.fn().mockImplementation((_path: string, options: { params?: { query?: Record<string, string> } }) =>
+      Promise.resolve(ok(options?.params?.query?.harness_id === "claude-code" ? later : announced)),
+    );
+    const { root } = await render(fakeClient({ GET }));
+    await preview(root);
+    await chooseHarness(root, "claude-code");
+
+    const harness = root.querySelector<HTMLSelectElement>("[data-admission-harness]") as HTMLSelectElement;
+    expect(harness.value).toBe("claude-code");
+    expect(harness.querySelector("option[value='claude-code']")).not.toBeNull();
+
+    click(root, "[data-admission-preview]");
+    await vi.waitFor(() =>
+      expect((GET.mock.calls.at(-1)?.[1] as { params: { query: Record<string, string> } }).params.query).toEqual({
+        harness_id: "claude-code",
+      }),
+    );
+
+    const after = root.querySelector<HTMLSelectElement>("[data-admission-harness]") as HTMLSelectElement;
+    expect(after.value).toBe("claude-code");
+    expect(after.querySelector("option[value='claude-code']")).not.toBeNull();
+  });
+
+  it("ne propose que les harnais configurés, jamais ceux seulement détectés", async () => {
+    const plan = dryRun([candidate("t1", "S1", "Première", ["m1"])], {
+      machines: [
+        {
+          machine_id: "m1",
+          display_name: "flo-laptop",
+          status: "online",
+          eligible: true,
+          free_slots: 1,
+          reasons: [],
+          harnesses: [
+            { harness_id: "claude-code", detected: true, configured: true },
+            { harness_id: "opencode", detected: true, configured: false },
+          ],
+        } as MachineEligibility,
+      ],
+    });
+    const GET = vi.fn().mockResolvedValue(ok(plan));
+    const { root } = await render(fakeClient({ GET }));
+    await preview(root);
+
+    const values = [...root.querySelectorAll<HTMLOptionElement>("[data-admission-harness] option")].map((o) => o.value);
+    expect(values).toEqual(["", "claude-code"]);
+  });
 });

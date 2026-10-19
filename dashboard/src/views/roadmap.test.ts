@@ -510,7 +510,7 @@ describe("Roadmap — panneau « Lancer un lot »", () => {
           harness_id: null,
           launchable: [],
           excluded: [],
-          machines: [{ machine_id: "m1", display_name: "poste-1", harnesses: [{ harness_id: "claude-code", detected: true }] }],
+          machines: [{ machine_id: "m1", display_name: "poste-1", harnesses: [{ harness_id: "claude-code", detected: true, configured: true }] }],
           plan_digest: "digest-admission",
           evaluated_at: new Date().toISOString(),
         },

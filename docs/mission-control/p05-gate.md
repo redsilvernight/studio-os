@@ -102,6 +102,23 @@ Constats et limites :
 - Dashboard : le sélecteur de harness du batch se vide après un dry-run ; la
   session expire en cours de démonstration.
 
+## Suites des constats
+
+- Double admission sur un slot : corrigée par `aed07f4e` (les lancements admis
+  non encore rapportés sont déduits de `free_slots`).
+- Harness non configuré : corrigé par `e3d162ee` ; l'éligibilité n'accepte que
+  les harness annoncés `detected` et `configured` (raison
+  `harness_incompatible` sinon), test `test_machine_eligibility.py`.
+- Sélecteur de harness du batch : corrigé (`349913e8`) ; le harness choisi
+  reste proposé et sélectionné après un nouveau dry-run, et seuls les harness
+  `configured` sont listés (`admissionPanel.test.ts`).
+- Expiration de session : dans un navigateur, le JWT vit 15 min sans
+  renouvellement ; le renouvellement persistant n'existe qu'avec le coffre du
+  Desktop. Limite connue, non corrigée.
+
+Ces correctifs ne sont pas redémontrés sur deux machines réelles.
+
 ## Non démontré
 
 - Revue humaine.
+- Redémonstration deux machines après les correctifs.
