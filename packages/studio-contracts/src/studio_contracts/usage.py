@@ -422,3 +422,103 @@ class UsageSummary(ContractModel):
     total: UsageAggregate
     groups: list[UsageAggregate] = Field(default_factory=list)
     truncated: bool = False
+
+
+# --- Configuration history (P06-history-option, DEC-0221) -------------------
+
+CONFIGURATION_HISTORY_MAX_GROUPS = 100
+CONFIGURATION_MIXED = "mixed"
+"""Value of a ledger-derived key field when the launches of one configuration
+reported several distinct values. `None` keeps meaning "never reported"."""
+
+TESTS_NOT_QUALITY_CAVEAT = "tests_not_quality"
+NOT_RANKED_CAVEAT = "not_ranked"
+NO_MINIMUM_CAVEAT = "no_minimum_sample"
+LEDGER_DERIVED_CAVEAT = "ledger_derived_fields"
+
+
+class ConfigurationKey(ContractModel):
+    """Configuration a launch ran with. `harness`, `profile_*` are pinned on the
+    TaskLaunch; `harness_version`, `provider`, `model` come from the ledger
+    entries linked by `task_launch_id` and are `None` when no entry reported
+    them, `"mixed"` when entries disagree."""
+
+    harness: str
+    profile_key: str | None = None
+    profile_contract_version: int | None = None
+    profile_digest: str | None = None
+    harness_version: str | None = None
+    provider: str | None = None
+    model: str | None = None
+
+
+class ConfigurationRateKey(StrEnum):
+    """Descriptive rates, each with a fixed definition. `succeeded`: succeeded
+    launches over terminal launches. `session_linked`: launches with a session
+    over all launches. `usage_measured`: launches with at least one ledger
+    entry whose `total` tokens are measured or estimated, over all launches."""
+
+    SUCCEEDED = "succeeded"
+    SESSION_LINKED = "session_linked"
+    USAGE_MEASURED = "usage_measured"
+
+
+class ConfigurationRate(ContractModel):
+    """A rate is never shown without its `n` (`denominator`), its definition and
+    its coverage: `covered` launches out of `launches` could be judged at all.
+    `value` is `None` when `denominator` is 0, never 0."""
+
+    key: ConfigurationRateKey
+    definition: str
+    numerator: NonNegativeInt
+    denominator: NonNegativeInt
+    covered: NonNegativeInt
+    launches: NonNegativeInt
+    value: float | None = None
+
+
+class ConfigurationHistoryGroup(ContractModel):
+    """Launches of one configuration over the period. Groups are descriptive and
+    never comparable to each other (`comparable` is always `False`)."""
+
+    key: ConfigurationKey
+    launches: NonNegativeInt
+    first_requested_at: AwareDatetime
+    last_requested_at: AwareDatetime
+    status_counts: dict[str, NonNegativeInt] = Field(default_factory=dict)
+    rates: list[ConfigurationRate] = Field(default_factory=list)
+    ledger_entries: NonNegativeInt = 0
+    ai_work_entries: NonNegativeInt = 0
+    total_tokens: UsageTokenTotal
+    cost: UsageCostTotal
+    comparable: Literal[False] = False
+
+
+class ConfigurationHistoryUnattributed(ContractModel):
+    """What happened in the period but cannot be tied to a launch: ledger
+    entries without `task_launch_id`, AIWork entries whose session belongs to
+    no launch of the period. Shown, never folded into a group."""
+
+    ledger_entries: NonNegativeInt = 0
+    ai_work_entries: NonNegativeInt = 0
+
+
+class ConfigurationHistory(ContractModel):
+    """Configuration history of a project over `[since, until)` of the launch's
+    `created_at`. Population is TaskLaunch; groups are ordered by key (stable,
+    `None` last), never by a rate: `ranking` is always `"none"`. `caveats`
+    always contains `tests_not_quality`, `not_ranked` and `no_minimum_sample`."""
+
+    project_id: UUID
+    since: AwareDatetime
+    until: AwareDatetime
+    generated_at: AwareDatetime
+    population: Literal["task_launch"] = "task_launch"
+    ranking: Literal["none"] = "none"
+    launches: NonNegativeInt
+    groups: list[ConfigurationHistoryGroup] = Field(default_factory=list)
+    unattributed: ConfigurationHistoryUnattributed = Field(
+        default_factory=ConfigurationHistoryUnattributed
+    )
+    caveats: list[str] = Field(default_factory=list)
+    truncated: bool = False
