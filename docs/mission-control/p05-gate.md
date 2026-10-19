@@ -116,9 +116,36 @@ Constats et limites :
   renouvellement ; le renouvellement persistant n'existe qu'avec le coffre du
   Desktop. Limite connue, non corrigée.
 
-Ces correctifs ne sont pas redémontrés sur deux machines réelles.
+## Redémonstration (19 octobre 2026)
+
+Même cadre, pile recréée, code `dev` à `c80ce25f`. Heures UTC. Tâches D et E
+ajoutées à S3 pour la coupure et le refus.
+
+| Scénario | Observé |
+|---|---|
+| Admission batch A + C | 15:33:50 : `ecfa3a6e` A sur `Demo-Flo`, `6217abf0` C sur `Demo-Flo-laptop`, en parallèle, `succeeded` (15:35:10, 15:34:53), `studio_start_work` puis handoff `completed`. Second batch au digest périmé : `409 admission_plan_changed` |
+| Handoff A, B admise une fois | Dry-run : seule S2 lançable. `89114a32` B sur le laptop, TTL 60 s : `running` 15:38:01, `expired_timeout` 15:38:36 (DEC-0173 : `expires_at` borne tout le lancement) ; claim conservé, B admissible sur le laptop seulement. Réadmission par deux requêtes simultanées : une `201` (`7b0a2780`), une `409` (`launch_active`, `task_claimed_elsewhere`) ; `succeeded` 15:44:47, même session reprise |
+| Coupure du daemon | Jouée sur `Flo` (daemon du laptop non coupé). À vide : non éligible 29 s après l'arrêt, hors ligne à 75 s. Pendant `0611fdfb` D : arrêt 15:51:07, hors ligne 15:52:30, D exclue, un seul actif. Relance 15:52:47 : orphelin `failed`/`harness_exited` à 15:53:02. Réadmission simultanée : `6f5effdf` seul admis, `succeeded` 15:54:31 |
+| Refus local (`-Refuse`) | `da6ed25f` E sur `Flo` : `requested` 15:48:34, `rejected`/`harness_not_allowed` 15:48:54, sans relance ; E reste admissible |
+
+Constats :
+
+- Double admission sur un slot (`aed07f4e`) : deux fois, deux requêtes
+  simultanées donnent un seul lancement.
+- Harness `configured` (`e3d162ee`) : sans en-tête Bearer dans l'entrée MCP
+  d'opencode, le poste n'était pas éligible ; éligible une fois corrigé.
+- La politique locale n'est pas publiée : sous `-Refuse`, le serveur annonce
+  toujours `Flo` éligible ; le refus n'arrive qu'au lancement.
+- Handoff de D sans `task_status` : lancement `succeeded`, session terminée,
+  tâche restée `in_progress` (choix de l'agent `opencode/big-pickle`).
+- Défauts du script de démonstration, corrigés avant les scénarios :
+  `allowed_harnesses` écrit en chaîne, git watch, branche `dev` et
+  `opencode.json` absents, cwd dans le dépôt Studi'os (`project_entry_migration`).
 
 ## Non démontré
 
 - Revue humaine.
-- Redémonstration deux machines après les correctifs.
+- Coupure du daemon sur `Flo-laptop` lui-même.
+- Correctif du sélecteur de harness dans le dashboard.
+
+Preuves : `output/gate-demo-p05/` (`p05-redemo-*.json`), ignoré par Git.
