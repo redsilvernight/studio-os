@@ -90,7 +90,7 @@ function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
 }
 
 /** Onglets quotidiens ; les surfaces expertes (Membres, Intégration IA) vivent sous « Plus ». */
-export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["members", "ai-integration"];
+export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["history", "members", "ai-integration"];
 
 function projectTabLink(projectId: string, entry: (typeof PROJECT_TABS)[number], tab: ProjectTab): string {
   const active = entry.id === tab;

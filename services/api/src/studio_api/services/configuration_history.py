@@ -125,17 +125,13 @@ def _usage_totals(
         )
         _add_cost(accumulator.metrics["cost"], entry)
         if entry.cost_currency is not None:
-            accumulator.cost_by_currency.setdefault(
-                entry.cost_currency, _MetricAccumulator()
-            )
+            accumulator.cost_by_currency.setdefault(entry.cost_currency, _MetricAccumulator())
             _add_cost(accumulator.cost_by_currency[entry.cost_currency], entry)
     aggregate = accumulator.finalize()
     return aggregate.total_tokens, aggregate.cost
 
 
-def _ledger_derived(
-    entries: list[UsageLedgerEntryModel], attribute: str
-) -> str | None:
+def _ledger_derived(entries: list[UsageLedgerEntryModel], attribute: str) -> str | None:
     """Distinct value of a ledger-derived field across a launch's linked
     entries: `None` when no entry reported it, `"mixed"` when they disagree."""
     values = {value for entry in entries if (value := getattr(entry, attribute)) is not None}
@@ -203,9 +199,7 @@ def _rate(
     )
 
 
-def _rates(
-    launches: list[TaskLaunchModel], usage_measured: int
-) -> list[ConfigurationRate]:
+def _rates(launches: list[TaskLaunchModel], usage_measured: int) -> list[ConfigurationRate]:
     count = len(launches)
     terminal = sum(1 for launch in launches if launch.status in _TERMINAL_STATUSES)
     succeeded = sum(1 for launch in launches if launch.status == _SUCCEEDED)
@@ -302,9 +296,7 @@ async def configuration_history(
             and_(AIWorkLogModel.started_at >= since, AIWorkLogModel.started_at < until),
         )
     else:
-        ai_work_clause = and_(
-            AIWorkLogModel.started_at >= since, AIWorkLogModel.started_at < until
-        )
+        ai_work_clause = and_(AIWorkLogModel.started_at >= since, AIWorkLogModel.started_at < until)
     ai_works = list(
         (
             await session.scalars(
@@ -329,8 +321,10 @@ async def configuration_history(
                     matched = True
             if matched:
                 continue
-        if work.started_at >= since and work.started_at < until and (
-            work.session_id is None or work.session_id not in launch_sessions
+        if (
+            work.started_at >= since
+            and work.started_at < until
+            and (work.session_id is None or work.session_id not in launch_sessions)
         ):
             unattributed_ai_work += 1
 
