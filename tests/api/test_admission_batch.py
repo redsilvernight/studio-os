@@ -113,7 +113,14 @@ async def _heartbeat(
             "machine_id": str(machine_id),
             "client_timestamp": datetime.now(UTC).isoformat(),
             "capabilities": {
-                "harnesses": [{"harness_id": "claude-code", "version": "2.1.0"}],
+                "harnesses": [
+                    {
+                        "harness_id": "claude-code",
+                        "version": "2.1.0",
+                        "detected": True,
+                        "configured": True,
+                    }
+                ],
                 "project_ids": [project_id],
                 "accepts_launches": True,
                 "running_launches": 0,

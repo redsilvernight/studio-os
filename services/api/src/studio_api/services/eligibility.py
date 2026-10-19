@@ -66,9 +66,10 @@ def evaluate(
             reasons.append(IneligibilityReason.PROJECT_NOT_REGISTERED)
         if not capabilities.accepts_launches:
             reasons.append(IneligibilityReason.LAUNCHES_NOT_ACCEPTED)
-        if harness_id is not None and all(h.harness_id != harness_id for h in harnesses):
+        usable = [h for h in harnesses if h.detected and h.configured]
+        if harness_id is not None and all(h.harness_id != harness_id for h in usable):
             reasons.append(IneligibilityReason.HARNESS_INCOMPATIBLE)
-        elif harness_id is None and not harnesses:
+        elif harness_id is None and not usable:
             reasons.append(IneligibilityReason.HARNESS_INCOMPATIBLE)
         if free_slots == 0:
             reasons.append(IneligibilityReason.AT_CAPACITY)

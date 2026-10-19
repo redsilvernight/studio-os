@@ -28,7 +28,9 @@ async def _project_task(client: AsyncClient, headers: dict[str, str]) -> tuple[s
 
 def _caps(project_id: str, **overrides: Any) -> dict[str, Any]:
     caps: dict[str, Any] = {
-        "harnesses": [{"harness_id": "claude-code", "version": "2.1.0"}],
+        "harnesses": [
+            {"harness_id": "claude-code", "version": "2.1.0", "detected": True, "configured": True}
+        ],
         "project_ids": [project_id],
         "accepts_launches": True,
         "running_launches": 0,
