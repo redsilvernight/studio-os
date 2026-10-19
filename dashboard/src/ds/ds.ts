@@ -372,8 +372,12 @@ function wireDsDialog(root: ParentNode, dialogId: string): void {
       first.focus();
     }
   });
-  overlay.querySelectorAll("[data-ds-close]").forEach((button) => {
-    button.addEventListener("click", () => closeDsDialog(root, dialogId));
+  // Délégation : les boutons [data-ds-close] re-rendus après le câblage
+  // (corps de dialogue remplacé par innerHTML) ferment aussi.
+  overlay.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("[data-ds-close]") !== null) {
+      closeDsDialog(root, dialogId);
+    }
   });
 }
 
