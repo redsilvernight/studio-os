@@ -17,6 +17,12 @@ class SkillSyncState(StrEnum):
     LOCALLY_MODIFIED = "locally_modified"
 
 
+class SkillLibraryKind(StrEnum):
+    SKILL = "skill"
+    RULE = "rule"
+    AGENT = "agent"
+
+
 class SkillHarnessTarget(StrEnum):
     AGENTS = "agents"
     ASSISTANT = "assistant"
@@ -95,6 +101,7 @@ class SkillsPreviewRequest(LocalContractModel):
 
 
 class SkillPreviewEntry(LocalContractModel):
+    kind: SkillLibraryKind = SkillLibraryKind.SKILL
     stable_key: SkillStableKey
     version: int = Field(ge=1)
     targets: list[SkillTargetState] = Field(min_length=1, max_length=len(SkillHarnessTarget))
@@ -115,6 +122,7 @@ class SkillsPreviewResult(LocalContractModel):
 
 
 class SkillResolution(LocalContractModel):
+    kind: SkillLibraryKind = SkillLibraryKind.SKILL
     stable_key: SkillStableKey
     choice: Literal["local", "library"]
     preview_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
@@ -132,7 +140,7 @@ class SkillsApplyRequest(LocalContractModel):
         if self.resolutions is not None:
             if self.overwrite:
                 raise ValueError("resolutions cannot be combined with overwrite")
-            keys = [resolution.stable_key for resolution in self.resolutions]
+            keys = [(resolution.kind, resolution.stable_key) for resolution in self.resolutions]
             if len(keys) != len(set(keys)):
                 raise ValueError("a skill can be resolved only once")
         return self

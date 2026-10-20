@@ -8,12 +8,25 @@
       "title": "SkillHarnessTarget",
       "type": "string"
     },
+    "SkillLibraryKind": {
+      "enum": [
+        "skill",
+        "rule",
+        "agent"
+      ],
+      "title": "SkillLibraryKind",
+      "type": "string"
+    },
     "SkillPreviewEntry": {
       "additionalProperties": false,
       "properties": {
         "diff": {
           "title": "Diff",
           "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SkillLibraryKind",
+          "default": "skill"
         },
         "preview_hash": {
           "anyOf": [

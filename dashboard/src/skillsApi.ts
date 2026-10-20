@@ -87,7 +87,7 @@ export const SYNC_STATE_MESSAGES: Record<SkillSyncStatusState, string> = {
   up_to_date: "Tous les skills de la Library sont à jour sur ce poste.",
   updated: "Des skills de la Library ont été ajoutés ou mis à jour sur ce poste.",
   conflicts:
-    "Des skills modifiés à la main n'ont pas été écrasés. Rétablissez-les ou supprimez la copie locale, puis réessayez.",
+    "Des skills, rules ou agents modifiés à la main n'ont pas été écrasés. Comparez les versions et choisissez celle à garder pour chaque fichier.",
   not_synced:
     "La synchronisation n'a pas pu aboutir (hors ligne, non connecté ou erreur). Elle sera retentée au prochain démarrage.",
   disabled: "La synchronisation automatique est désactivée sur ce poste.",

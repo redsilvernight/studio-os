@@ -209,6 +209,7 @@ DESKTOP_CAPABILITIES = [
     "setup.apply",
     "setup.plan",
     "skills.apply",
+    "skills.definitions",
     "skills.read",
     "skills.resolve",
     "workspace.config",
