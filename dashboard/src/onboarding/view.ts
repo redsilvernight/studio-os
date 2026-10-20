@@ -10,6 +10,7 @@
 import { ApiError, apiBaseUrl, createApiClient, type StudioClient } from "../api";
 import { getToken, hasToken } from "../auth";
 import { joinUrl } from "../config";
+import { isDashboardIdentity } from "../machinesApi";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
 import { dsBadge, dsPageHeader, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
@@ -662,7 +663,7 @@ async function readAdoptableMachines(client: StudioClient): Promise<AdoptableMac
     const result = await client.GET("/api/v1/machines");
     if (result?.response?.ok !== true || !Array.isArray(result.data)) return [];
     return result.data
-      .filter((machine) => typeof machine.id === "string" && machine.id !== "")
+      .filter((machine) => typeof machine.id === "string" && machine.id !== "" && !isDashboardIdentity(machine.display_name))
       .map((machine) => ({
         id: machine.id,
         name: machine.display_name.trim() === "" ? "Machine sans nom" : machine.display_name,
