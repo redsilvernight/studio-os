@@ -149,3 +149,23 @@ async def studio_request_transfer_download(transfer_id: str, ctx: Context) -> di
         }
 
     return await run_tool(ctx, _handler)
+
+
+async def studio_delete_transfer(transfer_id: str, ctx: Context) -> dict[str, Any]:
+    """Delete stored bytes after explicit user confirmation. Sender or admin only;
+    keep metadata, preserve deletion time on replay, return storage errors explicitly."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(transfer_id, "transfer_id")
+        if isinstance(parsed, dict):
+            return parsed
+        transfer = await transfers_service.get_transfer(session, principal, parsed)
+        already_deleted = transfer.status == "deleted"
+        await transfers_service.delete_transfer(session, principal, get_storage(), transfer)
+        return {
+            **_compact_transfer(transfer),
+            "deleted_at": transfer.deleted_at.isoformat() if transfer.deleted_at else None,
+            "already_deleted": already_deleted,
+        }
+
+    return await run_tool(ctx, _handler)

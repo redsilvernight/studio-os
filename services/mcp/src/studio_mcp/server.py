@@ -69,6 +69,7 @@ from studio_mcp.tools.teammates import studio_get_teammate_activity
 from studio_mcp.tools.timeline import studio_get_timeline
 from studio_mcp.tools.transfers import (
     studio_create_transfer_metadata,
+    studio_delete_transfer,
     studio_get_transfer,
     studio_get_transfers,
     studio_request_transfer_download,
@@ -726,6 +727,19 @@ def create_server() -> MCPServer:
             "outsiders fail with forbidden. Download with HTTP Range to resume a partial fetch."
         ),
         annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_delete_transfer,
+        name="studio_delete_transfer",
+        description=(
+            "Delete a transfer's stored file by transfer_id (UUID string) after explicit user "
+            "confirmation identifying the filename. Sender or admin with project write access "
+            "only; readonly and recipients fail with forbidden. Metadata stays visible with "
+            "status deleted. Repeats return already_deleted=true with the original deleted_at; "
+            "storage failures return "
+            "storage_unavailable without marking the transfer deleted."
+        ),
+        annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True),
     )
     server.add_tool(
         studio_resolve_agent,

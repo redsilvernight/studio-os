@@ -49,7 +49,7 @@ for (const { width, rail } of WIDTHS) {
     await expect(page.locator('.app-sidebar a[href="#/decisions"]')).toHaveAccessibleName("À valider");
 
     // Administration sits below the daily group, separated at the foot.
-    const admin = page.locator("details.app-navgroup--secondary").first();
+    const admin = page.locator("details.app-navgroup--admin");
     const dailyBox = await page.locator(".app-navgroup").first().boundingBox();
     const adminBox = await admin.boundingBox();
     expect((adminBox?.y ?? 0) - ((dailyBox?.y ?? 0) + (dailyBox?.height ?? 0))).toBeGreaterThan(16);

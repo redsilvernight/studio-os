@@ -9,7 +9,9 @@
  * abonnement, ni clé de fournisseur : aucun champ de ce type n'existe ici.
  */
 import { getPlatform, type Platform } from "../platform";
-import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsPageHeader, dsStateHtml } from "../ds/ds";
+import type { WorkspaceStatus, IdentityView } from "../platform/generated/local-contracts.generated";
+import { getWorkspaceConfig, listWorkspaces, workspaceErrorMessage } from "../workspaces/api";
 import {
   CHANGE_LABELS,
   STATE_LABELS,
@@ -57,6 +59,8 @@ import "./configuration.css";
 const DESCRIPTION = "Connecter Claude Code, OpenCode et les autres harnais IA de ce poste au MCP Studi'OS.";
 
 export interface IntegrationsView {
+  selectedWorkspaceId?: string;
+  workspaceContext?: string;
   notice?: string;
   error?: string;
   /** The preview shown for one harness; nothing is written until it is applied. */
@@ -98,17 +102,26 @@ export function integrationsWebHtml(): string {
  * configuration transporte déjà le dossier associé. Aucun copier/coller
  * d'UUID dans le parcours normal.
  */
-export function integrationsWorkspaceHtml(): string {
+export function integrationsWorkspaceHtml(workspaces: WorkspaceStatus[] = [], selectedId?: string, workstation = "Ce poste", error?: string, detected: HarnessStatus[] = []): string {
   const remembered = loadOnboardingState();
-  if (remembered.workspaceId) {
+  const available = workspaces.filter((workspace) => workspace.health === "valid" && workspace.config !== null && workspace.config !== undefined);
+  const selected = available.find((workspace) => workspace.workspace_id === (selectedId ?? remembered.workspaceId)) ?? available[0];
+  if (selected !== undefined) {
+    const choices = available.map((workspace) => `<option value="${esc(workspace.workspace_id)}"${workspace.workspace_id === selected.workspace_id ? " selected" : ""}>${esc(workspace.config?.project_slug ?? "Projet associé")} · ${esc(workspaceFolderName(workspace))}</option>`).join("");
+    const tools = detected.filter((status) => status.state !== "not_detected").map((status) => esc(status.display_name)).join(", ");
     return (
       header() +
       `<section class="settings-domain" data-testid="integrations-workspace">` +
-      `<h2>Dossier local</h2>` +
-      `<p class="settings-intro">Configurer les assistants IA pour « ${esc(remembered.folderName ?? remembered.projectName ?? "le dossier associé")} ».</p>` +
+      `<h2>1. Choisir le projet et son dossier</h2>` +
+      `<p>Poste : <strong>${esc(workstation)}</strong>. Les outils seront configurés pour le dossier associé sur ce poste.</p>` +
+      `<label class="settings-field">Projet et dossier local<select data-integration-workspace>${choices}</select></label>` +
+      `<p class="settings-intro">Le dossier contient les fichiers du projet. Les associations proviennent de l’assistant local et restent sur ce PC.</p>` +
+      `<p data-integration-tools>Outils détectés : ${tools || "Aucun outil IA détecté pour ce dossier."}</p>` +
+      (error ? `<p class="ds-field-error" role="alert">${esc(error)}</p>` : "") +
       `<div class="settings-actions">` +
-      `<a class="ds-btn ds-btn--primary" data-testid="workspace-continue" href="#/configuration/integrations/${esc(remembered.workspaceId)}">Continuer</a> ` +
-      `<a class="ds-btn" href="#/bienvenue">Choisir un autre dossier</a></div>` +
+      `<a class="ds-btn ds-btn--primary" data-testid="workspace-continue" href="#/configuration/integrations/${esc(selected.workspace_id)}">Continuer</a> ` +
+      `<a class="ds-btn" href="#/workspaces">Associer ou déplacer un dossier</a></div>` +
+      `<p>À l’étape suivante, préparez l’aperçu des changements puis confirmez leur application.</p>` +
       `</section>`
     );
   }
@@ -116,13 +129,18 @@ export function integrationsWorkspaceHtml(): string {
     header() +
     `<section class="settings-domain" data-testid="integrations-workspace">` +
     `<h2>Dossier local</h2>` +
+    (error ? `<p class="ds-field-error" role="alert">${esc(error)}</p>` : "") +
     dsEmptyState(
       "Aucun dossier associé",
       "Lancez l'assistant de configuration pour associer un dossier : les assistants IA se configurent par projet, sans identifiant à saisir.",
     ) +
-    `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/bienvenue">Lancer l'assistant</a></div>` +
+    `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/workspaces">Associer un dossier au projet</a> <a class="ds-btn" href="#/bienvenue">Lancer l'assistant</a></div>` +
     `</section>`
   );
+}
+
+function workspaceFolderName(workspace: WorkspaceStatus): string {
+  return workspace.config?.roots.workspace_root.split(/[\\/]/).filter(Boolean).at(-1) ?? "Dossier associé";
 }
 
 function planHtml(status: HarnessStatus, plan: HarnessPlan): string {
@@ -267,6 +285,7 @@ export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsV
   return (
     header() +
     `<section class="settings-domain" data-testid="integrations">` +
+    (view.workspaceContext ?? "") +
     `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Chaque outil reçoit son propre identifiant Studi'OS, rangé dans sa seule configuration utilisateur et jamais affiché ; les fichiers du projet n'en contiennent aucun.</p>` +
     notice +
     error +
@@ -288,12 +307,35 @@ export async function renderIntegrations(
     return;
   }
   if (workspaceId === undefined) {
-    root.innerHTML = integrationsWorkspaceHtml();
+    root.innerHTML = header() + dsStateHtml("loading", { title: "Préparation", message: "Chargement des espaces de travail de ce poste." });
+    const [workspaces, identity] = await Promise.all([
+      listWorkspaces(platform),
+      platform.request("identity.get_view", {}).catch(() => null),
+    ]);
+    const identityView = identity?.ok ? identity.response.payload as unknown as IdentityView : null;
+    const workstation = identityView?.machine?.machine_name ?? identityView?.workstation_name ?? "Ce poste";
+    const items = workspaces.ok ? workspaces.value : [];
+    const available = items.filter((workspace) => workspace.health === "valid" && workspace.config);
+    const selected = available.find((workspace) => workspace.workspace_id === (view.selectedWorkspaceId ?? loadOnboardingState().workspaceId)) ?? available[0];
+    const tools = selected ? await detectHarnesses(platform, selected.workspace_id) : null;
+    const error = !workspaces.ok ? workspaceErrorMessage(workspaces.error) : tools !== null && !tools.ok ? harnessErrorMessage(tools.error) : undefined;
+    root.innerHTML = integrationsWorkspaceHtml(items, selected?.workspace_id, workstation, error, tools?.ok ? tools.value.harnesses : []);
+    root.querySelector<HTMLSelectElement>("[data-integration-workspace]")?.addEventListener("change", (event) => {
+      void renderIntegrations(root, undefined, platform, { selectedWorkspaceId: (event.target as HTMLSelectElement).value });
+    });
     return;
   }
+  const [workspace, identity] = await Promise.all([
+    getWorkspaceConfig(platform, workspaceId),
+    platform.request("identity.get_view", {}).catch(() => null),
+  ]);
+  const localIdentity = identity?.ok ? identity.response.payload as unknown as IdentityView : null;
+  const contextHtml = workspace.ok
+    ? `<section class="ds-card" data-testid="integration-context"><h2>2. Préparer les outils IA</h2><dl class="settings-rows"><div class="settings-row"><dt>Projet</dt><dd>${esc(workspace.value.project_slug ?? "Projet associé")}</dd></div><div class="settings-row"><dt>Dossier local</dt><dd>${esc(workspaceFolderName({ workspace_id: workspaceId, health: "valid", action: "none", config: workspace.value }))}</dd></div><div class="settings-row"><dt>Poste</dt><dd>${esc(localIdentity?.machine?.machine_name ?? localIdentity?.workstation_name ?? "Ce poste")}</dd></div></dl><p>Préparez un aperçu, vérifiez les conflits puis confirmez chaque changement. Les fichiers propres aux outils sont configurés sur ce poste.</p><a class="ds-btn ds-btn--sm" href="#/configuration/integrations">Changer de projet ou dossier</a></section>`
+    : `<p class="ds-field-error" role="status">Le contexte du dossier ne peut pas être affiché : ${esc(workspaceErrorMessage(workspace.error))}. <a href="#/workspaces">Vérifier l’association locale</a></p>`;
   const detected = await detectHarnesses(platform, workspaceId);
   if (!detected.ok) {
-    root.innerHTML = integrationsHtml([], { ...view, error: harnessErrorMessage(detected.error) });
+    root.innerHTML = integrationsHtml([], { ...view, workspaceContext: contextHtml, error: harnessErrorMessage(detected.error) });
     return;
   }
   // Best effort: an unavailable check never hides the harness list.
@@ -301,6 +343,7 @@ export async function renderIntegrations(
   const launch = await getLaunchSettings(platform).catch(() => null);
   const withSkills = {
     ...view,
+    workspaceContext: contextHtml,
     ...(skills?.ok ? { skills: skills.value } : {}),
     ...(launch?.ok ? { launch: launch.value } : {}),
   };

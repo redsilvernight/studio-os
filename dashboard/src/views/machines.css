@@ -84,6 +84,34 @@
   flex-shrink: 0;
 }
 
+.machine-group {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.machine-children {
+  margin: 0;
+  padding: 0 0 0 var(--ds-space-5);
+  list-style: none;
+  display: grid;
+  gap: var(--ds-space-2);
+  border-left: 2px solid var(--ds-border);
+}
+
+.machine-duplicate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  align-items: baseline;
+}
+
+.machine-workstation {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
+  justify-items: start;
+}
+
 .machine-status {
   display: inline-flex;
   flex-wrap: wrap;

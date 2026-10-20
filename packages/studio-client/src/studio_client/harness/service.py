@@ -477,10 +477,11 @@ class HarnessService:
         new: ToolCredential | None = None
         written: list[int] = []
         user_touched = False
+        reused = False
         try:
             token: str | None = None
             if user_edit is not None:
-                machine_id, token = self._create_machine(adapter, origin)
+                machine_id, token, reused = self._provision_machine(adapter, origin, old)
                 new = ToolCredential(
                     adapter_id=adapter.adapter_id,
                     origin=origin,
@@ -513,7 +514,17 @@ class HarnessService:
         except (_ApplyFailure, AdapterRefusal, ProvisionError, FsError, jsonc.JsoncError) as error:
             reason = _failure_reason(error)
             restored = self._undo(
-                adapter, ctx, record, paths, written, user_touched, previous, old, new, origin
+                adapter,
+                ctx,
+                record,
+                paths,
+                written,
+                user_touched,
+                previous,
+                old,
+                new,
+                origin,
+                reused,
             )
             if not restored:
                 self._backups.mark_applied(record)
@@ -537,10 +548,16 @@ class HarnessService:
             state=state,
         )
 
-    def _create_machine(self, adapter: HarnessAdapter, origin: str) -> tuple[str, str]:
-        machine_id, token = self._provisioner.create(
-            origin, self._display_name(adapter.display_name)
+    def _provision_machine(
+        self, adapter: HarnessAdapter, origin: str, old: ToolCredential | None
+    ) -> tuple[str, str, bool]:
+        display_name = self._display_name(adapter.display_name)
+        taken = self._provisioner.reuse(
+            origin, display_name, old.machine_id if old is not None else None
         )
+        if taken is not None:
+            return taken[0], taken[1], True
+        machine_id, token = self._provisioner.create(origin, display_name)
         try:
             # Remembered before the credential is written anywhere: a crash
             # from here on leaves a revocation to retry, not an orphan machine.
@@ -549,7 +566,7 @@ class HarnessService:
             with contextlib.suppress(ProvisionError):
                 self._provisioner.revoke(origin, machine_id)
             raise
-        return machine_id, token
+        return machine_id, token, False
 
     def _undo(
         self,
@@ -563,6 +580,7 @@ class HarnessService:
         old: ToolCredential | None,
         new: ToolCredential | None,
         origin: str,
+        reused: bool = False,
     ) -> bool:
         restored = True
         if user_touched:
@@ -585,11 +603,12 @@ class HarnessService:
                 restored = False
         if new is not None:
             with contextlib.suppress(ProvisionError):
-                if old is not None:
+                if old is not None and not (reused and old.machine_id == new.machine_id):
                     self._credentials.set(old)
                 else:
                     self._credentials.forget(new.adapter_id, origin, new.machine_id)
-            revoke_or_defer(self._provisioner, self._credentials, origin, new.machine_id)
+            if not reused:
+                revoke_or_defer(self._provisioner, self._credentials, origin, new.machine_id)
         return restored
 
     def rollback(self, request: HarnessRollbackRequest) -> HarnessRollbackResult:

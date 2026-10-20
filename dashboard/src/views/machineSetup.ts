@@ -130,14 +130,20 @@ function resultHtml(plan: SetupPlan | undefined, result: SetupApplyResult): stri
     )
     .join("");
   const skills = result.skills;
+  const failed = (result.hooks ?? []).filter((item) => item.outcome === "failed").length + (skills.outcome === "failed" ? 1 : 0);
+  const unfinished = (result.hooks ?? []).some((item) => item.outcome === "skipped") || skills.outcome === "unavailable" || (skills.left_modified ?? 0) > 0;
+  const succeeded = (result.hooks ?? []).some((item) => item.outcome === "written" || item.outcome === "unchanged") || skills.outcome === "synced" || skills.outcome === "unchanged";
+  const outcome = failed > 0 ? (succeeded ? "partial" : "error") : unfinished ? "partial" : "success";
+  const summary = outcome === "success" ? "Préparation réussie" : outcome === "partial" ? "Préparation partielle" : "Préparation en erreur";
   const skillsTone = skills.outcome === "failed" ? "danger" : skills.outcome === "synced" ? "success" : "neutral";
   const skillsLine =
     dsBadge(SKILLS_OUTCOME_LABELS[skills.outcome], skillsTone) +
     (skills.written ? ` ${skills.written} fichier(s) écrit(s).` : "") +
     (skills.left_modified ? ` ${skills.left_modified} modifiée(s) localement, laissée(s) telle(s) quelle(s).` : "");
   return (
-    `<div class="integration-plan" data-testid="setup-result">` +
-    `<h3>Rapport</h3>` +
+    `<div class="integration-plan" data-testid="setup-result" data-result-state="${outcome}" role="status">` +
+    `<h3>${summary}</h3>` +
+    (outcome === "success" ? `<p>Les opérations demandées ont été vérifiées. Terminez le raccordement de chaque outil dans sa carte ci-dessous.</p>` : `<p>Certains éléments demandent encore une action. Consultez les éléments conservés ou en erreur, puis préparez un nouvel aperçu.</p>`) +
     (rows === "" ? "" : `<ul>${rows}</ul>`) +
     `<p class="settings-intro" data-testid="setup-result-skills">Skills : ${skillsLine}</p>` +
     (result.backups_created ? `<p class="settings-intro">Les fichiers remplacés ont été sauvegardés sur ce poste.</p>` : "") +
@@ -166,14 +172,20 @@ export function bindSetup(root: HTMLElement, platform: Platform, view: SetupView
   const section = root.querySelector("[data-testid=machine-setup]");
   if (!section) return;
   const plan = view?.plan;
+  let pending = false;
   section.querySelector("[data-action=preview-setup]")?.addEventListener("click", () => {
+    if (pending) return;
+    pending = true;
+    section.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = true; });
     void previewSetup(platform).then((outcome) =>
       outcome.ok ? again({ setup: { plan: outcome.value } }) : again({ setup: { error: setupErrorMessage(outcome.error) } }),
     );
   });
   section.querySelector("[data-action=cancel-setup]")?.addEventListener("click", () => void again({ setup: {} }));
   section.querySelector("[data-action=confirm-setup]")?.addEventListener("click", () => {
-    if (!plan) return;
+    if (!plan || pending) return;
+    pending = true;
+    section.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = true; });
     const overwrite = [...section.querySelectorAll<HTMLInputElement>("[data-setup-overwrite]")]
       .filter((box) => box.checked)
       .map((box) => box.dataset["setupOverwrite"] ?? "");

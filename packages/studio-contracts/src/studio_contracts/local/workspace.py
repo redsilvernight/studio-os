@@ -227,6 +227,10 @@ class WorkspaceScope(LocalContractModel):
     workspace_id: UUID
 
 
+class WorkspaceListResult(LocalContractModel):
+    items: list[WorkspaceStatus] = Field(default_factory=list)
+
+
 class WorkspaceValidateRequest(LocalContractModel):
     workspace_id: UUID
 

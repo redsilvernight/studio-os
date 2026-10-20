@@ -18,6 +18,7 @@ from studio_contracts.auth import (
     MachineCapabilities,
     MachineCreate,
     MachineCreated,
+    MachineWorkstationUpdate,
 )
 from studio_contracts.builds import (
     Build,
@@ -207,6 +208,27 @@ class StudioApiClient:
             "POST", "/api/v1/machines", json=machine_in.model_dump(mode="json")
         )
         return MachineCreated.model_validate(response.json())
+
+    async def list_machines(self) -> list[Machine]:
+        response = await self._request("GET", "/api/v1/machines")
+        return [Machine.model_validate(item) for item in response.json()]
+
+    async def adopt_machine(self, machine_id: UUID) -> MachineCreated:
+        """Never retried: each call rotates the credential (DEC-0190)."""
+        response = await self._request("POST", f"/api/v1/machines/{machine_id}/adopt")
+        return MachineCreated.model_validate(response.json())
+
+    async def set_machine_workstation(
+        self, machine_id: UUID, workstation_id: UUID | None, version: int
+    ) -> Machine:
+        response = await self._request(
+            "PUT",
+            f"/api/v1/machines/{machine_id}/workstation",
+            json=MachineWorkstationUpdate(workstation_id=workstation_id).model_dump(mode="json"),
+            extra_headers={"If-Match-Version": str(version)},
+            idempotent=True,
+        )
+        return Machine.model_validate(response.json())
 
     async def revoke_machine(self, machine_id: UUID) -> Machine:
         response = await self._request(

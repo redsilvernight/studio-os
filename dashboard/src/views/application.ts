@@ -16,7 +16,6 @@ import {
   type OutboxLegacyStatus,
   type Platform,
   type ServerOriginState,
-  type UpdateErrorCode,
   type UpdateStatus,
 } from "../platform";
 import {
@@ -38,6 +37,7 @@ import { originRefusalMessage } from "../originRefusal";
 import { loadOnboardingState, saveOnboardingState } from "../onboarding/state";
 import { stepById } from "../onboarding/steps";
 import { allNotes, openWhatsNew, whatsNewSectionHtml } from "../releaseNotes";
+import { installUpdateOnce, updateErrorMessage } from "../updateInstaller";
 import "./configuration.css";
 
 const DESCRIPTION = "Identité, serveur et état de l'application qui exécute ce tableau de bord.";
@@ -289,18 +289,7 @@ function heroHtml(info: DesktopInfo | null, failure: string | undefined, form: A
   );
 }
 
-const UPDATE_ERRORS: Record<UpdateErrorCode, string> = {
-  not_configured: "Les mises à jour ne sont pas activées dans cette version de l'application.",
-  network: "Le serveur de mises à jour est injoignable. Vérifiez votre connexion puis réessayez.",
-  invalid_metadata: "La réponse du serveur de mises à jour n'est pas exploitable. Rien n'a été modifié.",
-  invalid_signature: "La signature de la mise à jour est invalide : elle a été refusée. Rien n'a été modifié.",
-  install_failed: "L'installation de la mise à jour a échoué. La version actuelle reste en place.",
-  failed: "La mise à jour a échoué. La version actuelle reste en place.",
-};
-
-export function updateErrorMessage(code: UpdateErrorCode): string {
-  return UPDATE_ERRORS[code];
-}
+export { updateErrorMessage } from "../updateInstaller";
 
 function componentsHtml(diag: DesktopDiagnostics | null): string {
   if (!diag) return "";
@@ -532,7 +521,7 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell,
       "beforeend",
       `<p class="settings-intro" role="status" data-testid="update-progress">La mise à jour est vérifiée avant d'être installée ; l'application redémarrera d'elle-même.</p>`,
     );
-    void platform.installUpdate().then((result) => {
+    void installUpdateOnce(platform).then((result) => {
       if (!result.ok) {
         // Only an interrupted download leaves the release pending for a retry.
         const update = result.code === "network" ? form.update : undefined;

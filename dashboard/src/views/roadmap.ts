@@ -116,17 +116,21 @@ function roadmapPhaseHtml(phase: RoadmapPhase, index: number, selectedKey: strin
     `</div></section>`;
 }
 
-/** Collapsed wrapper for finished phases: one element keeps the focus on the present. */
 export function roadmapDonePhasesHtml(roadmap: Roadmap, selectedKey: string | null): string {
   const phases = roadmap.phases ?? [];
   const done = phases
     .map((phase, index) => ({ phase, index }))
     .filter(({ phase }) => isRoadmapPhaseDone(phase));
   if (done.length === 0) return "";
-  const firstTitle = done[0]?.phase.title ?? "";
-  return `<details class="roadmap-done-phases"><summary><span class="roadmap-done-ok" aria-hidden="true">✓</span>` +
-    `<span><strong>${done.length} phase${done.length > 1 ? "s" : ""} terminée${done.length > 1 ? "s" : ""}</strong>` +
-    `<span class="ds-list-sub">${esc(firstTitle)}${done.length > 1 ? " et autres" : ""} — masquée${done.length > 1 ? "s" : ""} pour garder le focus</span></span></details>`;
+  const contents = done.map(({ phase, index }) => {
+    const steps = phase.steps ?? [];
+    return `<details class="roadmap-done-phase" data-done-phase="${esc(phase.key)}"><summary>` +
+      `<span class="roadmap-done-ok" aria-hidden="true">✓</span><span><span class="roadmap-eyebrow">Phase ${index + 1} · Terminée</span>` +
+      `<strong>${esc(phase.title)}</strong><span class="ds-list-sub">${steps.length} étape${steps.length > 1 ? "s" : ""} · ${phaseProgress(phase)} %</span></span></summary>` +
+      `<div class="roadmap-done-content">${phase.objective ? `<p>${esc(phase.objective)}</p>` : ""}` +
+      `<div class="roadmap-step-list">${steps.map((step) => stepButtonHtml(step, step.key === selectedKey)).join("")}</div></div></details>`;
+  }).join("");
+  return `<section class="roadmap-done-phases" aria-label="Phases terminées"><h3>${done.length} phase${done.length > 1 ? "s" : ""} terminée${done.length > 1 ? "s" : ""}</h3>${contents}</section>`;
 }
 
 export function roadmapPlanHtml(roadmap: Roadmap, selectedKey: string | null): string {
@@ -137,11 +141,8 @@ export function roadmapPlanHtml(roadmap: Roadmap, selectedKey: string | null): s
   const open = phases
     .map((phase, index) => ({ phase, index }))
     .filter(({ phase }) => !isRoadmapPhaseDone(phase));
-  // When every phase is done the plan still lists them; otherwise done phases collapse into one element.
-  const visible = open.length === 0
-    ? phases.map((phase, index) => roadmapPhaseHtml(phase, index, selectedKey)).join("")
-    : open.map(({ phase, index }) => roadmapPhaseHtml(phase, index, selectedKey)).join("");
-  const collapsed = open.length === 0 ? "" : roadmapDonePhasesHtml(roadmap, selectedKey);
+  const visible = open.map(({ phase, index }) => roadmapPhaseHtml(phase, index, selectedKey)).join("");
+  const collapsed = roadmapDonePhasesHtml(roadmap, selectedKey);
   return `<div class="roadmap-timeline" aria-label="Plan par phases" data-major>${visible}${collapsed}</div>`;
 }
 
@@ -432,13 +433,16 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
 
 export function roadmapSwitcherHtml(roadmap: Roadmap, roadmaps: RoadmapListItem[]): string {
   if (roadmaps.length < 2) return "";
-  const links = roadmaps
+  const options = roadmaps
     .map((item) => {
-      const current = item.id === roadmap.id ? ` aria-current="page"` : "";
-      return `<li><a class="roadmap-switch-link" href="#/projects/${esc(roadmap.project_id)}/roadmap/${esc(item.id)}"${current}>${esc(item.title)}</a> ${dsBadge(STATUS_LABELS[item.status], statusTone(item.status))}</li>`;
+      const current = item.id === roadmap.id ? " selected" : "";
+      const progress = item.progress ?? (item.id === roadmap.id ? roadmap.progress : undefined);
+      const label = `${item.title} — ${STATUS_LABELS[item.status]} — ${progress === undefined ? "progression non renseignée" : `${percent(progress.ratio)} %`}`;
+      return `<option value="${esc(item.id)}"${current}>${esc(label)}</option>`;
     })
     .join("");
-  return `<nav class="roadmap-switcher roadmap-no-print" aria-label="Roadmaps du projet"><p class="roadmap-eyebrow">Roadmaps du projet</p><ul class="roadmap-switch-list">${links}</ul></nav>`;
+  return `<nav class="roadmap-switcher roadmap-no-print" aria-label="Roadmaps du projet"><label for="roadmap-select">Roadmap à consulter</label>` +
+    `<select id="roadmap-select" data-roadmap-select>${options}</select></nav>`;
 }
 
 export function roadmapShellHtml(
@@ -565,6 +569,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   let lifecycleErrorHtml: string | null = null;
   let reviewErrorHtml: string | null = null;
   let admissionSlot: { id: string; node: HTMLElement } | null = null;
+  const expandedPhases = new Set<string>();
   const refreshRoadmaps = async (): Promise<void> => {
     try {
       roadmaps = (await ctx.dataSource.listRoadmaps?.(ctx.projectId)) ?? roadmaps;
@@ -607,6 +612,11 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   };
 
   const paint = (): void => {
+    root.querySelectorAll<HTMLDetailsElement>("[data-done-phase]").forEach((details) => {
+      const key = details.dataset.donePhase!;
+      if (details.open) expandedPhases.add(key);
+      else expandedPhases.delete(key);
+    });
     if (roadmap === null) {
       root.innerHTML = `<div class="roadmap-optional">${dsEmptyState("Ce projet fonctionne sans roadmap", "Ajoutez-en une uniquement si un plan par étapes vous aide.")}` +
         `<button class="ds-btn ds-btn--primary" type="button" data-create-roadmap>Créer une roadmap</button></div>`;
@@ -623,6 +633,9 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       { allowed: canManage, pending: pendingLifecycle, errorHtml: lifecycleErrorHtml },
       reviewErrorHtml,
     );
+    root.querySelectorAll<HTMLDetailsElement>("[data-done-phase]").forEach((details) => {
+      details.open = expandedPhases.has(details.dataset.donePhase!);
+    });
     bind();
     mountAdmission(roadmap);
   };
@@ -680,6 +693,10 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   const bind = (): void => {
     root.querySelector<HTMLButtonElement>("[data-create-roadmap]")?.addEventListener("click", () => openEditor(emptyDocument(ctx.projectName)));
     if (roadmap === null) return;
+    root.querySelector<HTMLSelectElement>("[data-roadmap-select]")?.addEventListener("change", (event) => {
+      const id = (event.currentTarget as HTMLSelectElement).value;
+      if (roadmaps.some((item) => item.id === id)) window.location.hash = `#/projects/${ctx.projectId}/roadmap/${id}`;
+    });
     root.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => button.addEventListener("click", () => {
       mode = button.dataset.mode === "execution" ? "execution" : "plan";
       paint();
@@ -687,6 +704,8 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
     root.querySelectorAll<HTMLButtonElement>("[data-step-key]").forEach((button) => button.addEventListener("click", () => {
       selectedKey = button.dataset.stepKey ?? null;
       paint();
+      const selected = [...root.querySelectorAll<HTMLButtonElement>("[data-step-key]")].find((item) => item.dataset.stepKey === selectedKey);
+      selected?.focus();
     }));
     root.querySelector<HTMLButtonElement>("[data-edit-roadmap]")?.addEventListener("click", () => { if (roadmap !== null) openEditor(roadmapToDocument(roadmap)); });
     const fileInput = root.querySelector<HTMLInputElement>("[data-import-file]");

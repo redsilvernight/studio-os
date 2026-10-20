@@ -262,6 +262,34 @@ def test_renew_replaces_the_credential_and_revokes_the_old_machine(rig: Rig) -> 
     assert rig.credentials.get(CLAUDE, ORIGIN).machine_id == rig.provisioner.active[0]
 
 
+def test_renew_takes_the_existing_machine_back(rig: Rig) -> None:
+    _configure(rig)
+    [(_, name, machine_id)] = rig.provisioner.created
+    rig.provisioner.reusable[machine_id] = name
+    old_token = _token(rig)
+    _apply(rig, _preview(rig, renew=True))
+    assert _token(rig) != old_token
+    assert rig.provisioner.adopted == [machine_id]
+    assert len(rig.provisioner.created) == 1
+    assert rig.provisioner.revoked == []
+    assert rig.credentials.get(CLAUDE, ORIGIN).machine_id == machine_id
+    assert rig.credentials.pending() == []
+
+
+def test_a_failed_apply_never_revokes_a_machine_taken_back(rig: Rig) -> None:
+    _configure(rig)
+    [(_, name, machine_id)] = rig.provisioner.created
+    rig.provisioner.reusable[machine_id] = name
+    rig.cli.fail = True
+    with pytest.raises(HarnessServiceError):
+        _apply(rig, _preview(rig, renew=True))
+    assert rig.provisioner.adopted == [machine_id]
+    assert rig.provisioner.revoked == []
+    assert rig.credentials.get(CLAUDE, ORIGIN) is None
+    status = rig.service.status(HarnessStatusRequest(workspace_id=WORKSPACE_ID, adapter_id=CLAUDE))
+    assert status.state is not HarnessState.CONFIGURED
+
+
 def test_a_hand_written_credential_is_replaced_by_a_dedicated_one(rig: Rig) -> None:
     rig.claude_config.write_text(
         json.dumps(

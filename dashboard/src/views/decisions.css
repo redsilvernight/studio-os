@@ -52,6 +52,19 @@
 /* Héros : la prochaine action, une seule action primaire (C1) */
 .review-hero {
   margin-bottom: var(--ds-space-6);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-hero .decision-item-body {
+  white-space: pre-wrap;
+  max-width: 85ch;
+  max-height: none;
+  overflow: visible;
+}
+
+.review-hero .ds-hero-actions {
+  flex-wrap: wrap;
 }
 
 /* Carte d'inbox : structure unique pour les six types */

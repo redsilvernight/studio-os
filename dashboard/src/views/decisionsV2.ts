@@ -166,7 +166,7 @@ export const REVIEW_IMPACT: Record<ReviewQueueItem["kind"], string> = {
 /** Où l'objet se résout réellement : honnête, jamais un bouton générique. */
 export const REVIEW_RESOLUTION: Record<ReviewQueueItem["kind"], string> = {
   ai_work_review: "relecture du travail IA lié",
-  decision_proposal: "transition admin (accepter / remplacer)",
+  decision_proposal: "transition admin (accepter / écarter la proposition)",
   roadmap_proposal: "surface Roadmap, file en lecture seule",
   resource_conflict: "signal de 24 h, sans état persistant",
   build_failure: "aucune transition de build, signal seulement",
@@ -277,7 +277,7 @@ export function reviewCardActions(card: ReviewCard, authed: boolean, isAdmin: bo
       const allowed = authed && isAdmin;
       return [
         { label: "Accepter", element: "button", attribute: `data-decision-accept="${esc(item.id)}"`, variant: "primary", disabled: !allowed },
-        { label: "Remplacer", element: "button", attribute: `data-decision-supersede="${esc(item.id)}"`, variant: "secondary", disabled: !allowed },
+        { label: "Écarter la proposition", element: "button", attribute: `data-decision-supersede="${esc(item.id)}"`, variant: "secondary", disabled: !allowed },
       ];
     }
     case "roadmap_proposal": {
@@ -411,7 +411,7 @@ export function reviewHeroTitle(card: ReviewCard): string {
     case "ai_work_review":
       return `Relire « ${item.title} »`;
     case "decision_proposal":
-      return `Trancher ${item.readable_id}`;
+      return item.title;
     case "roadmap_proposal": {
       const revision = item.revision_no ?? null;
       if (item.scope === "revision" && revision !== null) return `Approuver la révision ${revision} du plan`;
@@ -428,8 +428,8 @@ export function reviewHeroTitle(card: ReviewCard): string {
  * alors que la résolution d'un travail IA ou d'une décision est un bouton.
  * L'objet promu est retiré de la file : un objet n'apparaît qu'une fois.
  */
-export function reviewHeroHtml(card: ReviewCard, authed: boolean, isAdmin: boolean): string {
-  const primary = reviewCardActions(card, authed, isAdmin)[0];
+export function reviewHeroHtml(card: ReviewCard, authed: boolean, isAdmin: boolean, decision?: Decision): string {
+  const actions = reviewCardActions(card, authed, isAdmin);
   const revision = card.item.kind === "roadmap_proposal" ? (card.item.revision_no ?? null) : null;
   const eyebrow = revision === null
     ? REVIEW_KIND_LABEL[card.kind]
@@ -437,8 +437,12 @@ export function reviewHeroHtml(card: ReviewCard, authed: boolean, isAdmin: boole
   return `<section class="ds-hero review-hero" aria-labelledby="review-hero-title">` +
     `<p class="ds-hero-eyebrow">${esc(eyebrow)}</p>` +
     `<h2 id="review-hero-title">${esc(reviewHeroTitle(card))}</h2>` +
+    `<p class="review-card-context">${reviewCardContextHtml(card)}</p>` +
+    (card.kind === "decision_proposal" ? `<div class="decision-item-body">${decision === undefined ? "Contenu indisponible. Actualisez la page pour recharger la décision." : esc(decision.body)}</div>` : "") +
     `<p class="ds-hero-body">${esc(REVIEW_IMPACT[card.kind])}</p>` +
-    (primary === undefined ? "" : `<div class="ds-hero-actions">${reviewActionsHtml([primary], false)}</div>`) +
+    `<div class="ds-hero-actions">${reviewActionsHtml(actions, false)}</div>` +
+    reviewCardNoteHtml(card, isAdmin) +
+    dsTechDetails(reviewCardTechRows(card), "Détails techniques") +
     `</section>`;
 }
 
@@ -510,9 +514,10 @@ async function acceptDecision(client: StudioClient, decisionId: string): Promise
 }
 
 /** Supersede une décision (transition, admin uniquement — DEC-0098). */
-async function supersedeDecision(client: StudioClient, decisionId: string): Promise<Decision> {
+async function supersedeDecision(client: StudioClient, decisionId: string, replacementId?: string): Promise<Decision> {
   const result = await client.POST("/api/v1/decisions/{decision_id}/supersede", {
     params: { path: { decision_id: decisionId } },
+    ...(replacementId === undefined ? {} : { body: { superseded_by: replacementId } }),
   });
   if (result.response.ok && result.data !== undefined) return result.data;
   throw new ApiError(parseErrorBody(result.response.status, result.error));
@@ -536,7 +541,7 @@ function decisionActionsHtml(decision: Decision, isAdmin: boolean): string {
       ? `<button class="ds-btn ds-btn--sm ds-btn--primary" type="button" data-decision-accept="${esc(decision.id)}"${disabled}>Accepter</button>`
       : "") +
     (canSupersede
-      ? `<button class="ds-btn ds-btn--sm" type="button" data-decision-supersede="${esc(decision.id)}"${disabled}>Remplacer</button>`
+      ? `<button class="ds-btn ds-btn--sm" type="button" data-decision-supersede="${esc(decision.id)}" data-decision-current="${esc(decision.status)}"${disabled}>${decision.status === "proposed" ? "Écarter la proposition" : "Remplacer"}</button>`
       : "") +
     hint +
     `</div>`
@@ -556,6 +561,7 @@ export interface ReviewInboxOptions {
   projectId?: string;
   error?: string;
   filter?: ReviewFilter;
+  decisions?: Decision[];
 }
 
 /** Message d'un filtre sans résultat : honnête sur ce qui manque. */
@@ -594,7 +600,7 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
   const visible = cards.filter((card) => filter === "all" || card.channel === filter);
   // Le héros promeut le premier objet à décider ; il est retiré de la file
   // pour qu'un objet n'apparaisse qu'une fois.
-  const hero = visible.find((card) => card.channel === "decide") ?? null;
+  const hero = visible.find((card) => card.kind === "decision_proposal") ?? visible.find((card) => card.channel === "decide") ?? null;
   const listed = hero === null ? visible : visible.filter((card) => card.key !== hero.key);
   const filters = reviewFiltersHtml(cards, filter, seeAll);
 
@@ -605,7 +611,7 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
 
   const rows = listed.map((card) => reviewCardHtml(card, authed, isAdmin)).join("");
   return `${open}${filters}` +
-    (hero === null ? "" : reviewHeroHtml(hero, authed, isAdmin)) +
+    (hero === null ? "" : reviewHeroHtml(hero, authed, isAdmin, options.decisions?.find((decision) => decision.id === hero.item.id))) +
     `<ul class="ds-list review-list" role="list">${rows}</ul></section>`;
 }
 
@@ -848,7 +854,7 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
 
   // Rendu de la boîte de réception « À valider »
   if (reviewPanel !== null) {
-    renderReviewInbox(root, reviewPanel, ctx, isAdmin, reviewQueue, reviewError);
+    renderReviewInbox(root, reviewPanel, ctx, isAdmin, reviewQueue, reviewError, decisions);
   }
 
   // Rendu Decisions
@@ -884,6 +890,7 @@ function renderReviewInbox(
   isAdmin: boolean,
   queue: ReviewQueue | null,
   error: string | undefined,
+  decisions: Decision[] = [],
 ): void {
   const filter = readReviewFilter(panel);
   panel.dataset["reviewFilter"] = filter;
@@ -893,8 +900,9 @@ function renderReviewInbox(
     projectId: ctx.projectId,
     error,
     filter,
+    decisions,
   });
-  bindReviewFilter(root, panel, ctx, isAdmin, queue, error);
+  bindReviewFilter(root, panel, ctx, isAdmin, queue, error, decisions);
   bindReviewActions(root, panel, ctx, isAdmin);
 }
 
@@ -906,13 +914,14 @@ function bindReviewFilter(
   isAdmin: boolean,
   queue: ReviewQueue | null,
   error: string | undefined,
+  decisions: Decision[],
 ): void {
   const buttons = panel.querySelectorAll<HTMLButtonElement>("[data-review-filter]");
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
       panel.dataset["reviewFilter"] = button.dataset["reviewFilter"] ?? "all";
       const active = readReviewFilter(panel);
-      renderReviewInbox(root, panel, ctx, isAdmin, queue, error);
+      renderReviewInbox(root, panel, ctx, isAdmin, queue, error, decisions);
       // Le panneau est repeint : le filtre actif reprend le focus.
       panel.querySelector<HTMLButtonElement>(`[data-review-filter="${CSS.escape(active)}"]`)?.focus();
     });
@@ -935,11 +944,7 @@ function bindReviewActions(root: HTMLElement, panel: HTMLElement, ctx: Decisions
         await resolveReview(ctx.client, id, resolution);
         dsNotify(`Travail IA ${resolution === "approved" ? "approuvé" : "refusé (modifications demandées)"}.`, "success");
         // Re-rendre la file « À valider » (le filtre courant est conservé)
-        const reviewQueue = await fetchReviewQueue(ctx.client, ctx.projectId);
-        const newPanel = root.querySelector<HTMLElement>("#review-panel");
-        if (newPanel !== null) {
-          renderReviewInbox(root, newPanel, ctx, isAdmin, reviewQueue, undefined);
-        }
+        await refreshDecisionsAndReview(root, ctx, isAdmin);
       } catch (error) {
         dsNotify(describeError(error), "danger");
         button.textContent = label;
@@ -970,14 +975,18 @@ function bindDecisionTransitionButtons(
     button.addEventListener("click", async () => {
       const id = button.dataset.decisionAccept ?? button.dataset.decisionSupersede ?? "";
       const isAccept = button.dataset.decisionAccept !== undefined;
-      const label = isAccept ? "Accepter" : "Remplacer";
+      if (!isAccept && button.dataset.decisionCurrent === "accepted") {
+        openReplacementDialog(root, ctx, isAdmin, id, button);
+        return;
+      }
+      const label = isAccept ? "Accepter" : "Écarter la proposition";
 
       buttons.forEach((b) => (b.disabled = true));
       button.textContent = `${label}…`;
 
       try {
         await (isAccept ? acceptDecision(ctx.client, id) : supersedeDecision(ctx.client, id));
-        dsNotify(`Décision ${isAccept ? "acceptée" : "remplacée"}.`, "success");
+        dsNotify(`Décision ${isAccept ? "acceptée" : "écartée"}.`, "success");
         await refreshDecisionsAndReview(root, ctx, isAdmin);
       } catch (error) {
         dsNotify(describeError(error), "danger");
@@ -985,6 +994,49 @@ function bindDecisionTransitionButtons(
         buttons.forEach((b) => (b.disabled = false));
       }
     });
+  });
+}
+
+function openReplacementDialog(root: HTMLElement, ctx: DecisionsContext, isAdmin: boolean, decisionId: string, opener: HTMLElement): void {
+  const history = root.querySelector<HTMLElement>("#decisions-panel");
+  const decisions = history === null ? [] : decisionCache.get(history)?.decisions ?? [];
+  const candidates = decisions.filter((decision) => decision.id !== decisionId && decision.status === "accepted");
+  const host = root.querySelector<HTMLElement>("#decision-modal-host");
+  if (host === null) return;
+  host.querySelector("#replace-decision-modal")?.remove();
+  host.insertAdjacentHTML("beforeend", dsModalHtml({
+    id: "replace-decision-modal",
+    title: "Remplacer une décision acceptée",
+    body: `<form id="replace-decision-form">` +
+      `<p class="ds-list-sub">Choisissez la décision acceptée qui la remplace. Le lien entre les deux décisions sera enregistré dans l'historique.</p>` +
+      (candidates.length === 0 ? `<p>Aucune autre décision acceptée n'est disponible. Acceptez d'abord la décision de remplacement.</p>` :
+        dsField("decision-replacement", "Décision de remplacement", `<select class="ds-select" id="FIELD" name="replacement" required><option value="">Choisir une décision…</option>${candidates.map((decision) => `<option value="${esc(decision.id)}">${esc(decision.readable_id)} · ${esc(decision.title)}</option>`).join("")}</select>`)) +
+      `<p class="ds-field-error" data-replacement-error role="alert" hidden></p>` +
+      `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button><button class="ds-btn ds-btn--primary" type="submit"${candidates.length === 0 ? " disabled" : ""}>Confirmer le remplacement</button></div></form>`,
+  }));
+  openDsDialog(root, "replace-decision-modal", opener);
+  const form = host.querySelector<HTMLFormElement>("#replace-decision-form");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const replacementId = String(new FormData(form).get("replacement") ?? "");
+    if (!candidates.some((decision) => decision.id === replacementId)) return;
+    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (submit === null || submit.disabled) return;
+    submit.disabled = true;
+    try {
+      await supersedeDecision(ctx.client, decisionId, replacementId);
+      closeDsDialog(root, "replace-decision-modal");
+      dsNotify("Décision remplacée ; lien de remplacement enregistré.", "success");
+      await refreshDecisionsAndReview(root, ctx, isAdmin);
+    } catch (error) {
+      const notice = form.querySelector<HTMLElement>("[data-replacement-error]");
+      if (notice !== null) {
+        notice.hidden = false;
+        notice.textContent = describeError(error);
+        focusDsErrorBox(notice);
+      }
+      submit.disabled = false;
+    }
   });
 }
 
@@ -999,7 +1051,7 @@ async function refreshDecisionsAndReview(
   ]);
   const reviewPanel = root.querySelector<HTMLElement>("#review-panel");
   if (reviewPanel !== null) {
-    renderReviewInbox(root, reviewPanel, ctx, isAdmin, reviewQueue, undefined);
+    renderReviewInbox(root, reviewPanel, ctx, isAdmin, reviewQueue, undefined, decisions);
   }
   const decisionsPanel = root.querySelector<HTMLElement>("#decisions-panel");
   if (decisionsPanel !== null) {

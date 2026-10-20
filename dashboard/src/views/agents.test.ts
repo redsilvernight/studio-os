@@ -12,6 +12,8 @@ import {
   agentAvailabilityGroup,
   agentDisplayName,
   agentHeroHtml,
+  agentIdentityNote,
+  isLegacyAgentIdentity,
   agentHeroTarget,
   agentNotFoundHtml,
   agentPrimaryProject,
@@ -394,5 +396,58 @@ describe("agents.css (liste compacte, pas de remplissage artificiel)", () => {
   it("aucun tableau technique, aucun remplissage viewport", () => {
     expect(css).not.toContain("<table");
     expect(css).not.toMatch(/100vh|100vw/);
+  });
+});
+
+describe("identité par modèle et par poste (DEC-0225)", () => {
+  const M2 = "bbbbbbbb-0000-4111-8111-000000000002";
+  const canonical = agentOf({
+    id: "a-canon",
+    display_name: "claude-opus-5-5",
+    harness: null,
+    model: "claude-opus-5-5",
+    stable_key: "agent-model:anthropic/claude-opus-5-5",
+  });
+  const legacy = agentOf({
+    id: "a-legacy",
+    display_name: "studio-claude-code",
+    harness: "claude-code",
+    model: "claude-opus-5-5",
+    stable_key: "agents-ensure-claude-code:anthropic/claude-opus-5-5",
+  });
+  const otherPc = agentOf({
+    id: "a-pc2",
+    machine_id: M2,
+    display_name: "claude-opus-5-5",
+    harness: null,
+    model: "claude-opus-5-5",
+    stable_key: "agent-model:anthropic/claude-opus-5-5",
+  });
+
+  it("marque l'ancienne identité et compte les fiches du même modèle sur le même poste", () => {
+    expect(isLegacyAgentIdentity(legacy)).toBe(true);
+    expect(isLegacyAgentIdentity(canonical)).toBe(false);
+    const all = [canonical, legacy, otherPc];
+    expect(agentIdentityNote(legacy, all)).toBe("Ancienne identité · 1 autre(s) fiche(s) de ce modèle sur ce poste");
+    expect(agentIdentityNote(canonical, all)).toBe("1 autre(s) fiche(s) de ce modèle sur ce poste");
+    expect(agentIdentityNote(otherPc, all)).toBeNull();
+  });
+
+  it("signale explicitement le modèle inconnu", () => {
+    const harnessOnly = agentOf({ id: "a-h", model: null, harness: "codex", stable_key: "agents-ensure-codex" });
+    expect(agentIdentityNote(harnessOnly, [harnessOnly])).toBe("Modèle inconnu");
+  });
+
+  it("affiche la mention dans la ligne sans exposer le modèle technique en plus du nom", () => {
+    const html = agentsListHtml(
+      [canonical, legacy],
+      new Map(),
+      { sessions: [], aiWork: [], tasks: [] },
+      buildAgentNames([], []),
+      "",
+      true,
+    );
+    expect(html).toContain("Ancienne identité");
+    expect(html).toContain("studio-claude-code");
   });
 });

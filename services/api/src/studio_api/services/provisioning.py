@@ -129,17 +129,61 @@ async def create_user(session: AsyncSession, display_name: str, email: str, role
     return user
 
 
+async def check_workstation(
+    session: AsyncSession,
+    owner_user_id: uuid.UUID,
+    workstation_id: uuid.UUID,
+    machine_id: uuid.UUID | None = None,
+) -> MachineModel:
+    """A workstation another User owns answers 404 exactly like a missing
+    one; a revoked, attached or self workstation is `409 workstation_invalid`."""
+    workstation = await session.get(MachineModel, workstation_id)
+    if workstation is None or workstation.owner_user_id != owner_user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workstation not found")
+    if (
+        workstation.credential_revoked_at is not None
+        or workstation.workstation_id is not None
+        or workstation.id == machine_id
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "workstation_invalid",
+                "message": "the workstation must be an active, unattached machine",
+            },
+        )
+    if machine_id is not None:
+        attached = await session.scalar(
+            select(MachineModel.id).where(MachineModel.workstation_id == machine_id).limit(1)
+        )
+        if attached is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "workstation_invalid",
+                    "message": "a workstation with attached machines cannot be attached",
+                },
+            )
+    return workstation
+
+
 async def create_machine(
-    session: AsyncSession, owner_user_id: uuid.UUID, display_name: str
+    session: AsyncSession,
+    owner_user_id: uuid.UUID,
+    display_name: str,
+    workstation_id: uuid.UUID | None = None,
 ) -> tuple[MachineModel, str]:
     owner = await session.get(UserModel, owner_user_id)
     if owner is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "owner user not found")
+    if workstation_id is not None:
+        await check_workstation(session, owner_user_id, workstation_id)
     token = generate_machine_token()
     machine = MachineModel(
         owner_user_id=owner_user_id,
         display_name=display_name,
         credential_hash=hash_token(token),
+        workstation_id=workstation_id,
     )
     session.add(machine)
     await session.commit()
@@ -191,6 +235,25 @@ async def update_machine(
         await session.refresh(machine)
         security_event(
             "machine.renamed",
+            outcome="success",
+            machine_id=machine.id,
+            owner_user_id=machine.owner_user_id,
+        )
+    return machine
+
+
+async def set_machine_workstation(
+    session: AsyncSession, machine: MachineModel, workstation_id: uuid.UUID | None
+) -> MachineModel:
+    if workstation_id is not None:
+        await check_workstation(session, machine.owner_user_id, workstation_id, machine.id)
+    if machine.workstation_id != workstation_id:
+        machine.workstation_id = workstation_id
+        machine.version += 1
+        await session.commit()
+        await session.refresh(machine)
+        security_event(
+            "machine.workstation_changed",
             outcome="success",
             machine_id=machine.id,
             owner_user_id=machine.owner_user_id,

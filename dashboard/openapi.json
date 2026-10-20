@@ -2985,6 +2985,86 @@
        "default": false,
        "title": "Open"
       }
+     },
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 500,
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Limit"
+      }
      }
     ],
     "responses": {
@@ -8374,9 +8454,42 @@
       "schema": {
        "type": "integer",
        "maximum": 500,
+       "minimum": 0,
        "default": 200,
        "title": "Limit"
       }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Exclusive upper timestamp bound.",
+       "title": "Until"
+      },
+      "description": "Exclusive upper timestamp bound."
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "Rows to skip in timestamp/sequence descending order.",
+       "default": 0,
+       "title": "Offset"
+      },
+      "description": "Rows to skip in timestamp/sequence descending order."
      }
     ],
     "responses": {
@@ -8386,6 +8499,84 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/Timeline"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/timeline/dates": {
+   "get": {
+    "tags": [
+     "timeline"
+    ],
+    "summary": "Get Timeline Dates",
+    "description": "Complete UTC dates of project events and recorded session starts/ends, newest first. Independent of timeline page limits. Restricted to an accessible project.",
+    "operationId": "get_timeline_dates_api_v1_timeline_dates_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "string",
+          "format": "date"
+         },
+         "title": "Response Get Timeline Dates Api V1 Timeline Dates Get"
         }
        }
       }
@@ -10077,7 +10268,7 @@
      "transfers"
     ],
     "summary": "Delete Transfer",
-    "description": "Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically.",
+    "description": "Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically. Repeating an authorized deletion preserves the original deletion timestamp. Storage failures return 503 storage_unavailable.",
     "operationId": "delete_transfer_api_v1_transfers__transfer_id__delete",
     "security": [
      {
@@ -10133,6 +10324,9 @@
         }
        }
       }
+     },
+     "503": {
+      "description": "Storage unavailable (storage_unavailable); transfer is not marked deleted."
      },
      "422": {
       "description": "Validation Error",
@@ -10591,7 +10785,7 @@
      "machines"
     ],
     "summary": "Create Machine",
-    "description": "Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once \u2014 store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.",
+    "description": "Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once \u2014 store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint. Optional `workstation_id` attaches the new machine to an active, unattached machine of the same owner: another User's machine answers 404 like a missing one, a revoked or attached one `409 workstation_invalid`.",
     "operationId": "create_machine_api_v1_machines_post",
     "requestBody": {
      "content": {
@@ -10924,6 +11118,123 @@
       "application/json": {
        "schema": {
         "$ref": "#/components/schemas/MachineUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Machine"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/machines/{machine_id}/workstation": {
+   "put": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Set Machine Workstation",
+    "description": "Attach a machine to its physical workstation, or detach it with `workstation_id: null`. Owner or admin; `agent` gets 403; another User's machine or workstation answers 404 like a missing one. The workstation must be an active machine of the same owner, not itself attached, and the machine must not have attached machines, otherwise `409 workstation_invalid`. Uses optimistic concurrency via `If-Match-Version` (required). Never changes a credential.",
+    "operationId": "set_machine_workstation_api_v1_machines__machine_id__workstation_put",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "machine_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Machine Id"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MachineWorkstationUpdate"
        }
       }
      }
@@ -22043,6 +22354,18 @@
      "status": {
       "$ref": "#/components/schemas/MachineStatus",
       "default": "offline"
+     },
+     "workstation_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workstation Id"
      }
     },
     "additionalProperties": false,
@@ -22056,7 +22379,7 @@
      "display_name"
     ],
     "title": "Machine",
-    "description": "A machine owns its own revocable credential: an opaque token whose\nhash alone is stored server-side, so a leaked database never leaks\naccess."
+    "description": "A machine owns its own revocable credential: an opaque token whose\nhash alone is stored server-side, so a leaked database never leaks\naccess. `workstation_id` (additive) is the physical\nworkstation this machine belongs to: the Desktop's own machine for a\ntool machine, `None` for a workstation itself and for a legacy machine\nnever attached. One level only, same owner, never an authorization\ninput."
    },
    "MachineCapabilities": {
     "properties": {
@@ -22145,6 +22468,18 @@
       "maxLength": 100,
       "minLength": 1,
       "title": "Display Name"
+     },
+     "workstation_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workstation Id"
      }
     },
     "additionalProperties": false,
@@ -22153,7 +22488,7 @@
      "display_name"
     ],
     "title": "MachineCreate",
-    "description": "`owner_user_id` is optional (A5): absent, the machine belongs to the\ncaller's own User. A non-admin may only name itself \u2014 the server never\nlets it choose another owner, and never looks that other User up. Only\n`admin` provisions a machine for someone else. `display_name` is the\nworkstation name shown in \u00ab Postes \u00bb (default: the enrollment station's\nown hostname, editable): stripped, never blank, at most 100 characters."
+    "description": "`owner_user_id` is optional (A5): absent, the machine belongs to the\ncaller's own User. A non-admin may only name itself \u2014 the server never\nlets it choose another owner, and never looks that other User up. Only\n`admin` provisions a machine for someone else. `display_name` is the\nworkstation name shown in \u00ab Postes \u00bb (default: the enrollment station's\nown hostname, editable): stripped, never blank, at most 100 characters.\n`workstation_id` (optional) attaches the new machine to an\nactive workstation machine of the same owner that is not itself\nattached."
    },
    "MachineCreated": {
     "properties": {
@@ -22200,6 +22535,18 @@
      "status": {
       "$ref": "#/components/schemas/MachineStatus",
       "default": "offline"
+     },
+     "workstation_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workstation Id"
      },
      "credential": {
       "type": "string",
@@ -22395,6 +22742,26 @@
     ],
     "title": "MachineUpdate",
     "description": "Update a machine's display name. Only the owner or an admin."
+   },
+   "MachineWorkstationUpdate": {
+    "properties": {
+     "workstation_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workstation Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "MachineWorkstationUpdate",
+    "description": "Attach a machine to a workstation, or detach it with `None`\nOnly the owner or an admin."
    },
    "MeasurementCoverage": {
     "type": "string",

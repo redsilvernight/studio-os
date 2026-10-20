@@ -6,6 +6,7 @@ import type { VaultNoteSummary, VaultNoteType } from "../vaultApi";
 import {
   ATLAS_CLUSTER_THRESHOLD,
   type AtlasCluster,
+  type AtlasCommunity,
   type AtlasEdge,
   type AtlasFilters,
   type AtlasGraph,
@@ -24,6 +25,9 @@ export const ATLAS_TYPE_ORDER: VaultNoteType[] = ["decision", "rule", "conventio
 export const NOTE_TYPE_TOKEN: Record<VaultNoteType, string> = Object.fromEntries(
   ATLAS_TYPE_ORDER.map((type) => [type, `--atlas-type-${type}`]),
 ) as Record<VaultNoteType, string>;
+
+export const ATLAS_ZONE_COLORS = ["#5b9dff", "#3ddc97", "#ffc23d", "#b58cff", "#2fd4e6"];
+export const ATLAS_COMMUNITY_COLORS = ["#f472b6", "#38bdf8", "#facc15", "#a3e635", "#fb923c", "#c084fc"];
 
 const TYPE_SHORT: Record<VaultNoteType, string> = {
   decision: "Décisions",
@@ -124,6 +128,12 @@ function hash01(value: string, salt = 0): number {
 
 export function clusterKey(node: AtlasNoteNode): string {
   return node.scope === "project" ? `cluster:project:${node.projectId ?? "?"}:${node.noteType}` : `cluster:studio:${node.noteType}`;
+}
+
+export function zoneColorIndex(scope: AtlasNoteNode["scope"], projectId: string | null): number {
+  if (scope === "studio") return 0;
+  const span = Math.max(1, ATLAS_ZONE_COLORS.length - 1);
+  return 1 + Math.floor(hash01(projectId ?? "?", 11) * span) % span;
 }
 
 /** Écart monde entre deux notes voisines d'un même disque. */
@@ -254,7 +264,68 @@ export function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<s
     const center = { x: sum.x / members.length, y: sum.y / members.length, z: sum.z / members.length };
     const radius = members.reduce((max, n) => Math.max(max, Math.hypot(n.position.x - center.x, n.position.y - center.y) + n.radius), 4);
     const owner = first.scope === "studio" ? "Studio" : projectNames?.get(first.projectId ?? "") ?? "Projet";
-    return { id, noteType: first.noteType, label: `${owner} · ${TYPE_SHORT[first.noteType]} (${members.length})`, count: members.length, center, radius };
+    return {
+      id,
+      noteType: first.noteType,
+      label: `${owner} · ${TYPE_SHORT[first.noteType]} (${members.length})`,
+      count: members.length,
+      center,
+      radius,
+      colorIndex: zoneColorIndex(first.scope, first.projectId),
+    };
+  });
+}
+
+export function atlasCommunities(notes: AtlasNoteNode[], edges: AtlasEdge[]): AtlasCommunity[] {
+  const byId = new Map(notes.map((note) => [note.id, note]));
+  const adjacency = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    if (edge.kind === "anchor") continue;
+    if (!byId.has(edge.source) || !byId.has(edge.target)) continue;
+    for (const [a, b] of [[edge.source, edge.target], [edge.target, edge.source]] as const) {
+      let set = adjacency.get(a);
+      if (set === undefined) adjacency.set(a, (set = new Set()));
+      set.add(b);
+    }
+  }
+
+  const seen = new Set<string>();
+  const components: string[][] = [];
+  for (const note of notes) {
+    if (seen.has(note.id) || !adjacency.has(note.id)) continue;
+    const stack = [note.id];
+    const members: string[] = [];
+    seen.add(note.id);
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      members.push(id);
+      for (const next of adjacency.get(id) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        stack.push(next);
+      }
+    }
+    if (members.length >= 2) components.push(members.sort());
+  }
+
+  components.sort((a, b) => b.length - a.length || a[0]!.localeCompare(b[0]!));
+  return components.map((members, index) => {
+    const nodes = members.map((id) => byId.get(id)!).filter((node) => node !== undefined);
+    const counts = new Map<VaultNoteType, number>();
+    for (const node of nodes) counts.set(node.noteType, (counts.get(node.noteType) ?? 0) + 1);
+    const dominant = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "note";
+    const sum = nodes.reduce((acc, n) => ({ x: acc.x + n.position.x, y: acc.y + n.position.y, z: acc.z + n.position.z }), ORIGIN());
+    const center = { x: sum.x / nodes.length, y: sum.y / nodes.length, z: sum.z / nodes.length };
+    const radius = nodes.reduce((max, n) => Math.max(max, Math.hypot(n.position.x - center.x, n.position.y - center.y, n.position.z - center.z) + n.radius), 6);
+    return {
+      id: `community:${members[0]}`,
+      label: `Communauté ${index + 1} · ${TYPE_SHORT[dominant]} (${members.length})`,
+      count: members.length,
+      members,
+      position: center,
+      radius: radius + 10,
+      colorIndex: index % ATLAS_COMMUNITY_COLORS.length,
+    };
   });
 }
 
@@ -291,7 +362,7 @@ export function applyFilters(graph: AtlasGraph, filters: AtlasFilters, projectNa
     });
     // Repli : seules les correspondances restent dessinées individuellement.
     const nodes = visibleNotes.filter((n) => matches.has(n.id));
-    return { nodes, edges: [], clusters, matches, groups: [] };
+    return { nodes, edges: [], clusters, matches, groups: [], communities: [] };
   }
 
   const visible = new Set<string>(visibleNotes.map((n) => n.id));
@@ -306,5 +377,12 @@ export function applyFilters(graph: AtlasGraph, filters: AtlasFilters, projectNa
     }
   }
   const edges = graph.edges.filter((e) => visible.has(e.source) && visible.has(e.target));
-  return { nodes, edges, clusters: [], matches, groups: atlasGroups(visibleNotes, projectNames) };
+  return {
+    nodes,
+    edges,
+    clusters: [],
+    matches,
+    groups: atlasGroups(visibleNotes, projectNames),
+    communities: atlasCommunities(visibleNotes, edges),
+  };
 }

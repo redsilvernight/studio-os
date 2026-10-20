@@ -108,6 +108,17 @@ studio_create_transfer_metadata
 studio_get_transfers
 studio_get_transfer
 studio_request_transfer_download
+studio_delete_transfer
+
+`studio_delete_transfer(transfer_id)` est decouvert dans le profil `admin` uniquement.
+Confirmation explicite de l'utilisateur, identifiant le fichier, requise avant appel.
+Le service commun exige l'expediteur ou un administrateur avec acces projet en
+ecriture ; `readonly` et destinataire seul recoivent `forbidden`.
+Etats pris en charge : `created`, `uploading`, `ready`, `downloaded`, `expired`,
+et `deleted` en rejeu. Les octets S3 et multipart pendants sont supprimes,
+les metadonnees historiques restent lisibles (`status=deleted`, `deleted_at`).
+La reponse inclut `already_deleted` ; un rejeu preserve la date initiale.
+Une erreur stockage renvoie `storage_unavailable` sans faux succes ni marquage `deleted`.
 
 Un agent ne doit normalement pas envoyer lui-meme plusieurs Go via MCP. Le MCP fournit metadata/authorization; le client local effectue le transfert S3.
 

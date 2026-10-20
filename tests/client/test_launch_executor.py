@@ -232,17 +232,18 @@ async def test_launch_agent_identity_reuses_harness_and_model_metadata(tmp_path:
 
     first, repeated, changed, unknown = client.ensure_inputs
     assert first == repeated
-    assert first.stable_key is not None and first.stable_key.startswith("launch-agent-")
-    assert first.stable_key != "architect"
-    assert first.stable_key != changed.stable_key != unknown.stable_key
+    assert first.stable_key == "agent-model:provider/model-a"
+    assert changed.stable_key == "agent-model:provider/model-b"
+    assert unknown.stable_key == "agents-ensure-fake"
     assert len(client.agents) == 3
-    assert first.display_name == "studio-fake"
-    assert first.agent_kind == "worker"
-    assert first.harness == "fake"
-    assert first.model == "provider/model-a"
-    assert changed.model == "provider/model-b"
+    assert first.display_name == "model-a"
+    assert first.harness is None
+    assert first.provider == "provider"
+    assert first.model == "model-a"
+    assert changed.model == "model-b"
     assert unknown.model is None
-    assert all(agent.provider is None for agent in client.ensure_inputs)
+    assert unknown.harness == "fake"
+    assert unknown.display_name == "studio-fake"
     identities = [
         next(line for line in prompt.splitlines() if line.startswith("agent_id :"))
         for prompt in prompts

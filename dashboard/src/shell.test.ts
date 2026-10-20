@@ -11,7 +11,7 @@ function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
 describe("shellNavGroups (UI-2)", () => {
   it("covers the target navigation with existing routes only", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups.map((group) => group.title)).toEqual(["Principal", "Administration", "Outils experts"]);
+    expect(groups.map((group) => group.title)).toEqual(["Principal", "Outils experts", "Administration"]);
     expect(groups[0]?.items.map((item) => [item.label, item.href])).toEqual([
       ["Accueil", "#/"],
       ["Projets", "#/projects"],
@@ -20,7 +20,7 @@ describe("shellNavGroups (UI-2)", () => {
       ["Agents", "#/agents"],
     ]);
     expect(groups[1]?.collapsible).toBe(true);
-    expect(groups[1]?.items.map((item) => item.href)).toEqual([
+    expect(groups[2]?.items.map((item) => item.href)).toEqual([
       "#/administration",
       "#/machines",
       "#/accounts",
@@ -30,12 +30,12 @@ describe("shellNavGroups (UI-2)", () => {
       "#/configuration/runtimes",
       "#/workspaces",
     ]);
-    expect(groups[2]?.items.map((item) => item.href)).toEqual(["#/inspector"]);
+    expect(groups[1]?.items.map((item) => item.href)).toEqual(["#/inspector"]);
   });
 
   it("keeps Administration collapsed unless the active page belongs to it", () => {
     expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>');
-    expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary" open>');
+    expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary app-navgroup--admin" open>');
     expect(shellHtml({ name: "admin" }, true)).toContain('href="#/administration" aria-current="page"');
   });
 
@@ -43,7 +43,7 @@ describe("shellNavGroups (UI-2)", () => {
     for (const desktop of [false, true]) {
       const groups = shellNavGroups({ name: "dashboard" }, desktop);
       expect(groups[0]?.items).toHaveLength(5);
-      expect(groups[1]?.items.map((item) => item.label)).toEqual([
+      expect(groups[2]?.items.map((item) => item.label)).toEqual([
         "Vue d'ensemble",
         "Postes",
         "Comptes",
@@ -58,9 +58,9 @@ describe("shellNavGroups (UI-2)", () => {
 
   it("keeps expert tools out of the Administration entry", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/vault/atlas");
-    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/inspector");
-    expect(groups[2]?.title).toBe("Outils experts");
+    expect(groups[2]?.items.map((item) => item.href)).not.toContain("#/vault/atlas");
+    expect(groups[2]?.items.map((item) => item.href)).not.toContain("#/inspector");
+    expect(groups[1]?.title).toBe("Outils experts");
   });
 
   it("marks exactly one active item per route", () => {
@@ -190,8 +190,9 @@ describe("shellHtml (P03-shell)", () => {
     expect(groups).toHaveLength(3);
     expect(groups[1]?.tagName).toBe("DETAILS");
     expect(groups[0]?.querySelectorAll("a")).toHaveLength(5);
-    expect(groups[1]?.textContent).toContain("Configuration");
-    expect(groups[2]?.textContent).toContain("Inspecteur");
+    expect(groups[1]?.textContent).toContain("Inspecteur");
+    expect(groups[2]?.textContent).toContain("Configuration");
+    expect(groups[2]?.classList.contains("app-navgroup--admin")).toBe(true);
   });
 
   it("offers sign-out from the avatar block only when signed in", () => {
@@ -264,7 +265,7 @@ describe("mountAdminFlyout (P03-shell)", () => {
     document.body.innerHTML = shellHtml(parseRoute("#/inspector"), true);
     const groups = [...document.querySelectorAll("details.app-navgroup--secondary")] as HTMLDetailsElement[];
     expect(groups).toHaveLength(2);
-    const admin = groups[1] as HTMLDetailsElement;
+    const admin = groups[0] as HTMLDetailsElement;
     expect(admin.open).toBe(true);
     mountAdminFlyout();
     expect(admin.open).toBe(false);

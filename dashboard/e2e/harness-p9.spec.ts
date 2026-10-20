@@ -32,9 +32,9 @@ async function login(page: Page, hash: string): Promise<void> {
 }
 
 /** A local bridge in the page: the harness commands only, with a small state machine. */
-async function installDesktop(page: Page, options: { rollbackConflict?: boolean } = {}): Promise<void> {
+async function installDesktop(page: Page, options: { rollbackConflict?: boolean; folder?: string } = {}): Promise<void> {
   await page.addInitScript(
-    ({ ws, rollbackConflict }) => {
+    ({ ws, rollbackConflict, folder }) => {
       // P11: past the first run, so the setup assistant never intercepts the
       // tested page. The onboarding state itself is covered by onboarding-p11.
       window.localStorage.setItem(
@@ -80,6 +80,11 @@ async function installDesktop(page: Page, options: { rollbackConflict?: boolean 
           command: req.command,
           payload,
         });
+        if (req.command === "workspace.list") {
+          const at = "2026-09-22T10:00:00Z";
+          const config = { workspace_id: ws, profile: { profile_id: "default", server_origin: location.origin }, project_id: "22222222-2222-4222-8222-222222222222", project_slug: "mon-jeu", roots: { workspace_root: `C:/Projects/${folder}` }, created_at: at, updated_at: at };
+          return answer({ items: folder === null ? [] : [{ workspace_id: ws, health: "valid", action: "none", config }] });
+        }
         if (req.command === "harness.detect") return answer({ harnesses: Object.keys(states).map(status) });
         if (req.command === "harness.preview") {
           return answer({
@@ -106,7 +111,7 @@ async function installDesktop(page: Page, options: { rollbackConflict?: boolean 
       };
       (window as unknown as { __TAURI__: unknown }).__TAURI__ = { core: { invoke } };
     },
-    { ws: WS, rollbackConflict: options.rollbackConflict ?? false },
+    { ws: WS, rollbackConflict: options.rollbackConflict ?? false, folder: options.folder ?? null },
   );
 }
 
@@ -171,7 +176,7 @@ test.describe("integrations (Desktop)", () => {
   });
 
   test("carries the remembered folder instead of asking for a workspace id", async ({ page }) => {
-    await installDesktop(page);
+    await installDesktop(page, { folder: "Mon jeu" });
     await page.addInitScript(() => {
       window.localStorage.setItem(
         "studio-os.onboarding.v1",
