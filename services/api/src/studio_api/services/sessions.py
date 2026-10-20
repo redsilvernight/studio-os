@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
@@ -134,7 +134,7 @@ async def list_sessions(
     if since is not None or until is not None:
         ranges = []
         for column in (WorkSessionModel.started_at, WorkSessionModel.ended_at):
-            bounds = [column.is_not(None)]
+            bounds: list[ColumnElement[bool]] = [column.is_not(None)]
             if since is not None:
                 bounds.append(column >= since)
             if until is not None:

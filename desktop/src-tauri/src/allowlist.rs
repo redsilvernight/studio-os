@@ -115,8 +115,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            46,
-            "studio.local/v1 exports 46 commands"
+            47,
+            "studio.local/v1 exports 47 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());
