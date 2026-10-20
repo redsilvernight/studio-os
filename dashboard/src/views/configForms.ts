@@ -12,6 +12,7 @@ import type { CapabilityRequirement, RuntimeCapabilities, RuntimeLevel, LibraryK
 import { STORED_RUNTIME_LEVELS } from "../bindingsApi";
 import type { FormReader } from "./libraryForms";
 import { esc } from "../ui";
+import { isDashboardIdentity } from "../machinesApi";
 
 export type RuntimeRegistrationCreate = components["schemas"]["RuntimeRegistrationCreate"];
 export type RuntimeRegistrationUpdate = components["schemas"]["RuntimeRegistrationUpdate"];
@@ -54,7 +55,7 @@ function machineName(machine: MachineListItem): string {
 export function machineOptionsFrom(machines: readonly MachineListItem[]): MachineOption[] {
   const byId = new Map(machines.map((machine) => [machine.id, machine]));
   return machines
-    .filter((machine) => typeof machine.id === "string" && machine.id !== "")
+    .filter((machine) => typeof machine.id === "string" && machine.id !== "" && !isDashboardIdentity(machine.display_name))
     .map((machine) => {
       const parentId = machine.workstation_id;
       const parent = parentId !== null && parentId !== undefined && parentId !== machine.id ? byId.get(parentId) : undefined;
