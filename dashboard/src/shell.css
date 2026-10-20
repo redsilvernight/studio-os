@@ -122,7 +122,11 @@
 }
 .app-navgroup--secondary {
   position: relative;
+}
+.app-navgroup--admin {
   margin-top: auto;
+  padding-top: var(--ds-space-2);
+  border-top: 1px solid rgb(255 255 255 / 0.18);
 }
 .app-navlink,
 .app-navgroup--secondary summary {
@@ -175,6 +179,8 @@
   bottom: 0;
   z-index: 70;
   min-width: 220px;
+  max-height: calc(100vh - 2 * var(--ds-space-4));
+  overflow-y: auto;
   padding: var(--ds-space-2);
   border-radius: var(--ds-radius-md);
   background: var(--ds-navy);

@@ -215,8 +215,15 @@ async def list_events(
     since: datetime | None = None,
     limit: int = 100,
     event_type: EventType | None = None,
+    until: datetime | None = None,
+    offset: int = 0,
 ) -> list[EventModel]:
-    stmt = select(EventModel).order_by(EventModel.server_timestamp.desc()).limit(limit)
+    stmt = (
+        select(EventModel)
+        .order_by(EventModel.server_timestamp.desc(), EventModel.seq.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
         stmt = stmt.where(EventModel.project_id == project_id)
@@ -229,6 +236,8 @@ async def list_events(
         stmt = stmt.where(EventModel.task_id == task_id)
     if since is not None:
         stmt = stmt.where(EventModel.server_timestamp >= since)
+    if until is not None:
+        stmt = stmt.where(EventModel.server_timestamp < until)
     if event_type is not None:
         stmt = stmt.where(EventModel.event_type == event_type.value)
     result = await session.execute(stmt)

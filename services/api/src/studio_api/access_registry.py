@@ -64,6 +64,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     # agents and user-private runtimes.
     ("POST", "/api/v1/machines"): "own",
     ("POST", "/api/v1/machines/{machine_id}/adopt"): "own",
+    ("PUT", "/api/v1/machines/{machine_id}/workstation"): "own",
     ("POST", "/api/v1/machines/{machine_id}/revoke"): "own",
     ("PATCH", "/api/v1/machines/{machine_id}"): "own",
     ("GET", "/api/v1/machines"): "own",
@@ -163,6 +164,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/projects/{project_id}/budget-policy/approve"): _P,
     ("POST", "/api/v1/projects/{project_id}/budget/reconcile"): _P,
     ("GET", "/api/v1/timeline"): _P,
+    ("GET", "/api/v1/timeline/dates"): _P,
     ("POST", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("GET", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("PATCH", "/api/v1/projects/{project_id}/github-integration"): _P,

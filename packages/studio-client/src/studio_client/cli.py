@@ -21,6 +21,7 @@ from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
+from studio_client.agent_identity import model_agent_create
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.context import (
@@ -312,7 +313,8 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     `studio_log_ai_work`. The default stable key is stable per harness so
     a retried hook never registers a duplicate; changing the metadata with
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
-    agent_in = AgentCreate(
+    model_agent = model_agent_create(args.model, args.provider) if args.model_identity else None
+    agent_in = model_agent or AgentCreate(
         display_name=args.display_name or f"studio-{args.harness}",
         agent_kind=args.agent_kind,
         agent_profile=args.agent_profile,
@@ -570,6 +572,38 @@ def _builds_show(args: argparse.Namespace, config: ClientConfig) -> None:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
     _print_model(build, as_json=args.json)
+
+
+def _transfers_delete(args: argparse.Namespace, config: ClientConfig) -> None:
+    transfer_id = _parse_uuid(args.transfer_id, field="transfer_id")
+    transfer = _run(config, lambda client: client.get_transfer(transfer_id))
+    already_deleted = transfer.status == "deleted"
+    if not already_deleted and not args.yes:
+        if args.json or not sys.stdin.isatty():
+            print(
+                f"error: confirm deletion of {transfer.filename!r} with --yes; "
+                "metadata is preserved",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        answer = input(
+            f"Delete stored file {transfer.filename!r}? Metadata will be preserved. [y/N] "
+        )
+        if answer.strip().lower() not in {"y", "yes"}:
+            print("Deletion cancelled.")
+            return
+    _run(config, lambda client: client.delete_transfer(transfer_id))
+    result = {
+        "id": str(transfer.id),
+        "filename": transfer.filename,
+        "status": "deleted",
+        "already_deleted": already_deleted,
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        state = "already deleted" if already_deleted else "deleted"
+        print(f"File {transfer.filename!r}: {state}. Transfer metadata preserved.")
 
 
 def _producer_run(args: argparse.Namespace, config: ClientConfig) -> None:
@@ -1481,6 +1515,18 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(projects_list)
     projects_list.set_defaults(func=_projects_list)
 
+    transfers_parser = subparsers.add_parser("transfers", help="Transfers.")
+    transfers_sub = transfers_parser.add_subparsers(dest="transfers_command", required=True)
+    transfers_delete = transfers_sub.add_parser(
+        "delete", help="Delete stored bytes; keep transfer metadata."
+    )
+    transfers_delete.add_argument("transfer_id")
+    transfers_delete.add_argument(
+        "--yes", "-y", action="store_true", help="Confirm permanent deletion of this file."
+    )
+    _add_json_flag(transfers_delete)
+    transfers_delete.set_defaults(func=_transfers_delete)
+
     tasks_parser = subparsers.add_parser("tasks", help="Tasks.")
     tasks_sub = tasks_parser.add_subparsers(dest="tasks_command", required=True)
 
@@ -1559,6 +1605,12 @@ def _build_parser() -> argparse.ArgumentParser:
     agents_ensure.add_argument("--model")
     agents_ensure.add_argument(
         "--stable-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
+    )
+    agents_ensure.add_argument(
+        "--model-identity",
+        action="store_true",
+        help="One agent per machine and model, whatever the harness (DEC-0225); "
+        "falls back to the harness agent when the model is unknown.",
     )
     _add_json_flag(agents_ensure)
     agents_ensure.set_defaults(func=_agents_ensure)

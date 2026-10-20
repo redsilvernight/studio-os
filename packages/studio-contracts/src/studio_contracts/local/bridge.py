@@ -105,6 +105,7 @@ from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsResult,
     WorkspaceGetConfigRequest,
     WorkspaceGitStatus,
+    WorkspaceListResult,
     WorkspaceSaveConfigRequest,
     WorkspaceScope,
     WorkspaceStatus,
@@ -152,6 +153,7 @@ class BridgeCommand(StrEnum):
     IDENTITY_ENROLL = "identity.enroll"
     IDENTITY_FORGET = "identity.forget"
     WORKSPACE_VALIDATE = "workspace.validate"
+    WORKSPACE_LIST = "workspace.list"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
     WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
     WORKSPACE_GIT_STATUS = "workspace.git_status"
@@ -273,6 +275,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             IdentityForgetResult,
             "identity.enroll",
             mutating=True,
+        ),
+        _spec(
+            BridgeCommand.WORKSPACE_LIST,
+            EmptyPayload,
+            WorkspaceListResult,
+            "workspace.config",
         ),
         _spec(
             BridgeCommand.WORKSPACE_VALIDATE,

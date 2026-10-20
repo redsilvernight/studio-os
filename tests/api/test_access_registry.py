@@ -358,6 +358,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/projects/{pid}/budget/reconcile", {}),
     ),
     ("GET", "/api/v1/timeline"): (Probe("/api/v1/timeline?project_id={pid}"),),
+    ("GET", "/api/v1/timeline/dates"): (Probe("/api/v1/timeline/dates?project_id={pid}"),),
     ("POST", "/api/v1/projects/{project_id}/github-integration"): (
         Probe(
             "/api/v1/projects/{pid}/github-integration",

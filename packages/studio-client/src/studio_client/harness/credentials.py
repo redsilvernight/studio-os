@@ -1,8 +1,11 @@
 """Dedicated credentials for AI tools (DEC-0104 §2).
 
 Each (workstation, tool) pair gets its own Studi'OS machine, created by the
-Desktop on behalf of its owner and revoked when the tool is disconnected or
-renewed. The Desktop's own credential never leaves its keyring.
+Desktop on behalf of its owner, attached to the Desktop's own machine as its
+workstation (DEC-0226) and revoked when the tool is disconnected. Reconnecting
+or reinstalling a tool takes the existing machine back (`adopt`: rotated
+credential, same id and history) instead of creating another one. The
+Desktop's own credential never leaves its keyring.
 
 `CredentialStore` keeps a small non-secret ledger next to the daemon data:
 which machine each tool uses (id, name, fingerprint) and the revocations that
@@ -23,6 +26,8 @@ from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
 
+from studio_contracts.auth import Machine
+
 from studio_client.harness.fsafe import FsError, atomic_write
 
 _LEDGER_VERSION = 1
@@ -40,6 +45,13 @@ class ProvisionError(Exception):
 class CredentialProvisioner(Protocol):
     def create(self, origin: str, display_name: str) -> tuple[str, str]:
         """A new machine owned by the Desktop's owner: (machine_id, credential)."""
+
+    def reuse(
+        self, origin: str, display_name: str, known_machine_id: str | None
+    ) -> tuple[str, str] | None:
+        """Take back this workstation's existing machine for the tool with a
+        rotated credential: (machine_id, credential), or `None` when there is
+        none to take back."""
 
     def revoke(self, origin: str, machine_id: str) -> None:
         """Idempotent: a machine that is already revoked or gone is a success."""
@@ -153,6 +165,31 @@ def retry_pending(provisioner: CredentialProvisioner, store: CredentialStore) ->
         revoke_or_defer(provisioner, store, item.origin, item.machine_id)
 
 
+def pick_reusable(
+    machines: list[Machine],
+    own_id: UUID,
+    workstation_id: UUID,
+    display_name: str,
+    known_machine_id: str | None,
+) -> Machine | None:
+    """The ledger's machine when it is still active, otherwise the oldest
+    active machine of this workstation with the tool's name. Never the
+    Desktop's own machine, never a machine of another workstation."""
+    candidates = [m for m in machines if m.id != own_id]
+    if known_machine_id is not None:
+        for machine in candidates:
+            if str(machine.id) == known_machine_id and machine.workstation_id in (
+                None,
+                workstation_id,
+            ):
+                return machine
+    name = display_name.casefold()
+    for machine in candidates:
+        if machine.workstation_id == workstation_id and machine.display_name.casefold() == name:
+            return machine
+    return None
+
+
 def workstation_name(host: Callable[[], str] = socket.gethostname) -> str:
     """This workstation's own name, upper-cased and bounded: the `<POSTE>`
     half of every harness machine name and the enrollment default."""
@@ -193,10 +230,56 @@ class ApiCredentialProvisioner:
         async def run() -> tuple[str, str]:
             async with self._client(origin) as client:
                 own = await client.get_own_machine()
-                created = await client.create_machine(
-                    MachineCreate(owner_user_id=own.owner_user_id, display_name=display_name)
+                body = MachineCreate(
+                    owner_user_id=own.owner_user_id,
+                    display_name=display_name,
+                    workstation_id=own.workstation_id or own.id,
                 )
+                try:
+                    created = await client.create_machine(body)
+                except Exception as error:
+                    # A server older than DEC-0226 rejects the unknown field
+                    # before creating anything: nothing to revoke.
+                    if getattr(error, "status_code", None) != 422:
+                        raise
+                    created = await client.create_machine(
+                        body.model_copy(update={"workstation_id": None})
+                    )
                 return str(created.id), created.credential
+
+        try:
+            return _run(run())
+        except Exception as error:  # noqa: BLE001 — mapped to a fixed token, no text kept
+            raise ProvisionError(_reason(error)) from None
+
+    def reuse(
+        self, origin: str, display_name: str, known_machine_id: str | None
+    ) -> tuple[str, str] | None:
+        async def run() -> tuple[str, str] | None:
+            async with self._client(origin) as client:
+                own = await client.get_own_machine()
+                workstation_id = own.workstation_id or own.id
+                machine = pick_reusable(
+                    await client.list_machines(),
+                    own.id,
+                    workstation_id,
+                    display_name,
+                    known_machine_id,
+                )
+                if machine is None:
+                    return None
+                try:
+                    adopted = await client.adopt_machine(machine.id)
+                except Exception as error:
+                    if getattr(error, "status_code", None) in (404, 409):
+                        return None
+                    raise
+                if adopted.workstation_id is None:
+                    with contextlib.suppress(Exception):
+                        await client.set_machine_workstation(
+                            adopted.id, workstation_id, adopted.version
+                        )
+                return str(adopted.id), adopted.credential
 
         try:
             return _run(run())

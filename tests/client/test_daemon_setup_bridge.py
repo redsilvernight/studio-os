@@ -48,6 +48,32 @@ def _projection(key: str = "studio-git-flow", version: int = 3) -> LibraryContex
     )
 
 
+def _rule_projection(key: str = "coding-standard") -> LibraryContextItem:
+    return LibraryContextItem(
+        library_kind="rule",
+        stable_key=key,
+        version=1,
+        version_origin="active",
+        scope="studio",
+        title="Coding standard",
+        text="Rule body",
+        content_schema="studio.library.rule/v1",
+    )
+
+
+def _agent_projection(key: str = "studio-tester") -> LibraryContextItem:
+    return LibraryContextItem(
+        library_kind="agent_definition",
+        stable_key=key,
+        version=1,
+        version_origin="active",
+        scope="studio",
+        title="Studio tester",
+        text="Agent body",
+        content_schema="studio.library.agent_definition/v1",
+    )
+
+
 def _patch_fetch(monkeypatch: pytest.MonkeyPatch, result) -> None:
     async def fake(config, token_store):
         if isinstance(result, Exception):
@@ -102,6 +128,17 @@ def test_plan_is_read_only_and_reports_every_step(tmp_path: Path, monkeypatch) -
     assert plan.adapters.state is SetupAdaptersState.NOT_APPLICABLE
     hook = next(item for item in plan.hooks if item.item_id == "hook:claude-code")
     assert hook.needs_registration is True
+
+
+def test_plan_ignores_rules_and_agent_definitions(tmp_path: Path, monkeypatch) -> None:
+    home = _home(tmp_path, "claude-code")
+    _patch_fetch(monkeypatch, [_projection(), _rule_projection(), _agent_projection()])
+
+    plan = _bridge(home).plan()
+
+    assert plan.skills.state is SetupSkillsState.CHECKED
+    assert plan.skills.missing == 2
+    assert not (home / ".claude" / "rules").exists()
 
 
 def test_apply_writes_then_second_run_writes_nothing(tmp_path: Path, monkeypatch) -> None:

@@ -193,8 +193,9 @@ describe("transferDrawerBodyHtml", () => {
     expect(html).not.toContain("token");
   });
 
-  it("rappelle que les actions destructives ne sont pas proposées", () => {
-    expect(html).toContain("Suppression, annulation, prolongation et renvoi ne sont pas proposés");
+  it("rappelle les droits de suppression et les actions non disponibles", () => {
+    expect(html).toContain("La suppression est réservée à l'expéditeur et aux administrateurs");
+    expect(html).toContain("Annulation, prolongation et renvoi ne sont pas proposés");
   });
 
   it("n'expose le téléchargement que pour un objet disponible", () => {

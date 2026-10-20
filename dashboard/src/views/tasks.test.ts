@@ -99,12 +99,15 @@ describe("tasksScopeRequests (filtres serveur DEC-0185)", () => {
 
   it("Mon travail : tâches prises par mes postes, non terminées, paginées", () => {
     expect(tasksScopeRequests("mine", 200)).toEqual([
-      { mine: true, status: ["in_progress", "blocked", "created"], limit: 200 },
+      { mine: true, status: ["in_progress", "blocked", "created"], limit: 100 },
     ]);
   });
 
-  it("Toutes : liste complète paginée, sans filtre", () => {
-    expect(tasksScopeRequests("all", 100)).toEqual([{ limit: 100 }]);
+  it("Toutes : priorise les actives, garde À faire, terminées sur demande", () => {
+    expect(tasksScopeRequests("all", 100)).toEqual([
+      { status: ["in_progress", "blocked"], limit: 100 },
+      { status: ["created"], limit: 100 },
+    ]);
   });
 });
 

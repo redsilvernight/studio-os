@@ -3,12 +3,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from botocore.exceptions import ClientError
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.transfer import TransferModel
+from studio_api.storage.provider import StorageProvider
 
 pytestmark = pytest.mark.infra("minio")
 
@@ -320,6 +323,14 @@ async def test_delete_transfer_removes_object_from_minio(
 
     delete_response = await client.delete(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
     assert delete_response.status_code == 204
+    first = await client.get(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert first.status_code == 200
+    assert first.json()["status"] == "deleted"
+    assert first.json()["deleted_at"] is not None
+    replay = await client.delete(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert replay.status_code == 204
+    after = await client.get(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert after.json()["deleted_at"] == first.json()["deleted_at"]
 
     # Object is gone from MinIO: a fresh download URL now points at nothing.
     download = await client.post(
@@ -329,6 +340,55 @@ async def test_delete_transfer_removes_object_from_minio(
     async with httpx.AsyncClient() as raw:
         get_response = await raw.get(download_url)
     assert get_response.status_code == 404
+
+
+@pytest.mark.parametrize("status", ["created", "uploading", "ready", "downloaded", "expired"])
+async def test_delete_transfer_accepts_existing_states(
+    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession, status: str
+) -> None:
+    transfer_id = await _create_transfer(client, auth_headers, 8)
+    transfer = await db_session.get(TransferModel, uuid.UUID(transfer_id))
+    assert transfer is not None
+    transfer.status = status
+    await db_session.commit()
+    response = await client.delete(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert response.status_code == 204
+    detail = await client.get(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert detail.json()["status"] == "deleted"
+
+
+async def test_delete_storage_failure_preserves_metadata(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    transfer_id = await _create_transfer(client, auth_headers, 8)
+    failure = ClientError(
+        {"Error": {"Code": "ServiceUnavailable", "Message": "storage down"}}, "DeleteObject"
+    )
+    with patch.object(StorageProvider, "delete_object", AsyncMock(side_effect=failure)):
+        response = await client.delete(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert response.status_code == 503
+    assert response.json()["detail"]["error_code"] == "storage_unavailable"
+    detail = await client.get(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    assert detail.json()["status"] == "created"
+    assert detail.json()["deleted_at"] is None
+
+
+async def test_delete_rejects_recipient_and_readonly_including_replay(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    other_auth_headers: dict[str, str],
+    readonly_auth_headers: dict[str, str],
+) -> None:
+    transfer_id = await _create_transfer(client, auth_headers, 8)
+    for headers in [other_auth_headers, readonly_auth_headers]:
+        response = await client.delete(f"/api/v1/transfers/{transfer_id}", headers=headers)
+        assert response.status_code == 403
+    assert (
+        await client.delete(f"/api/v1/transfers/{transfer_id}", headers=auth_headers)
+    ).status_code == 204
+    for headers in [other_auth_headers, readonly_auth_headers]:
+        response = await client.delete(f"/api/v1/transfers/{transfer_id}", headers=headers)
+        assert response.status_code == 403
 
 
 async def test_multipart_upload_resumes_across_independently_uploaded_parts(

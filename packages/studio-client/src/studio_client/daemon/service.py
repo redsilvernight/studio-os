@@ -111,7 +111,9 @@ from studio_contracts.local.workspace import (
     WorkspaceScope,
     WorkspaceValidateRequest,
 )
+from studio_workspaces.root_confirmation import RootConfirmationService
 from studio_workspaces.store import WorkspaceStoreError
+from studio_workspaces.watch_source import registry_watch_source
 from studio_workspaces.workspace_bridge import WorkspaceBridge
 
 from studio_client.config import ClientConfig, default_config_path, reload_git_watches
@@ -146,10 +148,11 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.7.0"
+DAEMON_VERSION = "0.8.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
+        BridgeCommand.WORKSPACE_LIST,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -186,6 +189,7 @@ SERVED = frozenset(
         BridgeCommand.DAEMON_HEALTH,
         BridgeCommand.IDENTITY_GET_VIEW,
         BridgeCommand.IDENTITY_ENROLL,
+        BridgeCommand.WORKSPACE_LIST,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -979,6 +983,8 @@ class BridgeService:
         assert bridge is not None
         payload = request.payload
         profile = self.controller._profile()
+        if request.command is BridgeCommand.WORKSPACE_LIST:
+            return bridge.list(profile)
         if request.command is BridgeCommand.WORKSPACE_VALIDATE:
             return bridge.validate(
                 WorkspaceValidateRequest.model_validate(payload).workspace_id, profile
@@ -1234,6 +1240,10 @@ def main(
         _LOGGER.error("refusing to start: the desktop server origin is invalid")
         return 2
     config = desktop_config or ClientConfig()  # type: ignore[call-arg]
+    if workspace_bridge is None:
+        workspace_bridge = WorkspaceBridge(data_root, RootConfirmationService())
+    if workspace_source is None:
+        workspace_source = registry_watch_source(data_root)
     controller = DaemonController(
         config,
         data_root=data_root,

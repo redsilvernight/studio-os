@@ -26,6 +26,9 @@ class MachineModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     capabilities: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=None)
+    workstation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("machines.id"), default=None, index=True
+    )
     capabilities_reported_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )

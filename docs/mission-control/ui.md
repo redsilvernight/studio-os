@@ -19,9 +19,9 @@ action de mutation (lancer, annuler, valider) n'est proposée ici.
   état de protocole ou lacune inconnus : libellé « inconnu » + code brut, ton
   neutre.
 - Raison affichée : `reasons[0]` ; les autres raisons dans le détail.
-- Un run = un `<details>` : résumé (verdict, titre de tâche, raison,
-  mise à jour) ; ouvert : lancement → session → résultat (résumé du handoff
-  ou « Aucun résultat transmis »), lien `#/tasks/<task_id>`. Lancement →
+- Un run = un `<details>` : résumé (verdict, titre de tâche, poste/agent,
+  raison, résultat et mise à jour) ; ouvert : lancement → session → résultat
+  (résumé du handoff ou « Aucun résultat transmis »), lien `#/tasks/<task_id>`. Lancement →
   session → résultat ≤ 2 clics depuis l'onglet.
 - Aucun UUID visible hors `dsTechDetails` repliés.
 - `data_gaps` : mention explicite « donnée manquante », jamais de valeur

@@ -211,6 +211,16 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   machine revoquee = `409` ; pas de `Idempotency-Key`. Cote client,
   `IdentityEnrollRequest.adopt_machine_id` (optionnel) l'emploie a la place de
   `POST /machines`.
+- PUT /machines/{machine_id}/workstation (additif, DEC-0226) — rattache une
+  machine a son poste physique (`{"workstation_id": "<uuid>"}`) ou l'en
+  detache (`null`). Proprietaire ou `admin` ; `agent` recoit `403` ; une
+  machine ou un poste d'un autre User repond `404`, a l'identique d'une machine
+  inexistante. Le poste doit etre une machine active du meme proprietaire, non
+  rattachee elle-meme, et la machine ne doit pas avoir de machines rattachees :
+  sinon `409 {"detail": {"error_code": "workstation_invalid"}}`. Concurrence
+  optimiste via `If-Match-Version` (obligatoire). Ne touche jamais au
+  credential. `POST /machines` accepte le meme `workstation_id` optionnel, avec
+  les memes regles ; `Machine.workstation_id` (nullable) est expose partout.
 - PATCH /machines/{machine_id} (additif) — renomme la machine (`display_name`).
   Proprietaire ou `admin` ; `agent` recoit `403`. Pour un non-admin, la machine
   d'un autre User repond `404`. Concurrence optimiste obligatoire via header
@@ -296,6 +306,12 @@ public de bootstrap, pas de secret d'environnement dedie.
 - GET /sessions — filtres optionnels `agent_id` (UUID) et `open=true`
   (seulement les sessions jamais terminees, les vivantes), additif
   (L2/AIB-H, DEC-0161).
+  Ajout compatible du 20/10/2026 (retour 11) : filtres `project_id` (UUID),
+  `since` inclusif et `until` exclusif (ISO-8601). Une session correspond si
+  son debut OU sa fin tombe dans la fenetre ; tous les filtres se cumulent.
+  Pagination optionnelle `offset` (>= 0, defaut 0), `limit` (1..500,
+  sans plafond si omis pour conserver les appels existants). Tri stable
+  `started_at` puis `id` decroissants. L'acces au projet reste obligatoire.
 - Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
   expose `last_activity_at` (derniere activite authentifiee rattachee a la
   session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
@@ -849,11 +865,20 @@ les evenements sont inchanges.
   `HUMAN/02_FONCTIONNALITES_FINALES.md` sont `GET /review-queue`, il
   n'existe pas d'endpoint notifications separe). Query params : `project_id`
   (UUID, requis), `since` (ISO-8601, optionnel), `limit` (defaut 200, max
-  500). Reponse `Timeline{project_id, days: [{date, events: [EventEnvelope]}]}`.
+  500 ; `0` conserve une page vide), `until` (ISO-8601, borne superieure exclusive, optionnel),
+  `offset` (entier >= 0, defaut 0). La pagination porte sur les evenements
+  ordonnes par `server_timestamp` decroissant puis `seq` decroissant avant
+  regroupement ; le tri historique dans chaque jour reste croissant.
+  Reponse `Timeline{project_id, days: [{date, events: [EventEnvelope]}]}`.
   Herite directement l'honnetete "not claimed exhaustive" de `GET /events`
   (meme requete sous-jacente) : plusieurs types d'evenements n'ont aucune
   emission serveur a ce jour (question ouverte n°9,
   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
+- GET /timeline/dates — index exhaustif des dates UTC des evenements et
+  des debuts/fins de sessions enregistrees du projet, sans limite de lot
+  recent. `project_id` (UUID, requis), reponse tableau de dates ISO-8601
+  distinctes, decroissantes. Les deux routes exigent l'acces au projet
+  (`403 forbidden` sinon). Ajout compatible du 20/10/2026 (retour 11).
 
 ### Mission Control (read model, additif, DEC-0196/DEC-0201)
 Revision de verdict v2 (2026-10-14, DEC-0213) : un lancement `cancelled`
@@ -1287,6 +1312,16 @@ cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun 
   l'appelant n'a aucun des 4 acces de la regle Transfer sur ce transfert
   precis (voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 - DELETE /transfers/{id}
+  - Suppression explicite par l'expediteur ou un administrateur disposant de l'acces
+    projet en ecriture ; destinataire seul et role `readonly` refusés (`403 forbidden`).
+  - Accepte `created`, `uploading`, `ready`, `downloaded`, `expired` : abandonne
+    les multipart pendants puis supprime les octets S3 avant de persister
+    `status=deleted` et `deleted_at`. Les metadonnees restent consultables.
+  - `204` aussi au rejeu autorise d'un transfert `deleted`, sans nouvel acces
+    stockage ni modification du `deleted_at` initial. L'autorisation est toujours verifiee.
+  - `503 storage_unavailable` si le stockage refuse ou ne peut executer l'operation :
+    le statut et `deleted_at` ne sont pas marques supprimes. L'absence de succes
+    ne garantit pas que les sous-operations S3 n'ont eu aucun effet ; le rejeu est sur.
 
 ## Realtime
 `GET /api/v1/events/stream?project={id}` (Server-Sent Events, DEC-0018) pousse

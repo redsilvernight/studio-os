@@ -392,7 +392,7 @@ describe("reviewCardActions — au plus deux actions par carte", () => {
 
   it("décision : Accepter / Remplacer, réservé au rôle admin (DEC-0098)", () => {
     const card = firstCard(decisionProposalItem());
-    expect(reviewCardActions(card, true, true).map((action) => action.label)).toEqual(["Accepter", "Remplacer"]);
+    expect(reviewCardActions(card, true, true).map((action) => action.label)).toEqual(["Accepter", "Écarter la proposition"]);
     expect(reviewCardActions(card, true, true)[0]!.attribute).toBe('data-decision-accept="rw2"');
     expect(reviewCardActions(card, true, false).every((action) => action.disabled === true)).toBe(true);
     expect(reviewCardHtml(card, true, false)).toContain("Réservé au rôle admin");
@@ -477,9 +477,22 @@ describe("reviewCardHtml — une structure pour les six types", () => {
 });
 
 describe("héros de la file", () => {
+  it("décision mise en avant : contenu complet échappé, contexte et deux transitions", () => {
+    const body = `${"Contexte détaillé ".repeat(150)}<script>interdit</script>\nFin du contenu.`;
+    const full = { ...decision("rw2"), body };
+    const html = reviewQueueHtml(decisionProposalItem(), { authed: true, isAdmin: true, decisions: [full] });
+    expect(html).toContain("Fin du contenu.");
+    expect(html).toContain("&lt;script&gt;interdit&lt;/script&gt;");
+    expect(html).toContain('data-decision-accept="rw2"');
+    expect(html).toContain('data-decision-supersede="rw2"');
+    expect(html).toContain("Écarter la proposition");
+    expect(html).toContain(`href="#/projects/${P1}"`);
+    expect(html).not.toContain("Contenu indisponible");
+  });
+
   it("titre d'action par type, jamais le type technique", () => {
     expect(reviewHeroTitle(firstCard(aiWorkItem()))).toBe("Relire « Relire la sortie agent »");
-    expect(reviewHeroTitle(firstCard(decisionProposalItem()))).toBe("Trancher DEC-0049");
+    expect(reviewHeroTitle(firstCard(decisionProposalItem()))).toBe("Choisir le moteur de rendu");
     expect(reviewHeroTitle(firstCard(roadmapItem({ scope: "revision", revisionNo: 2 })))).toBe(
       "Approuver la révision 2 du plan",
     );
@@ -488,8 +501,8 @@ describe("héros de la file", () => {
   it("une seule action primaire : décider sans changer de page (C1)", () => {
     const html = reviewHeroHtml(firstCard(aiWorkItem()), true, true);
     expect(html).toContain("ds-hero");
-    expect(renderedActionCount(html, "ds-hero-actions")).toBe(1);
-    expect(html.match(/<button/g) ?? []).toHaveLength(1);
+    expect(renderedActionCount(html, "ds-hero-actions")).toBe(2);
+    expect(html.match(/ds-btn--primary/g) ?? []).toHaveLength(1);
   });
 });
 
@@ -515,10 +528,9 @@ describe("reviewQueueHtml — boîte de réception", () => {
   it("filtre À décider : seuls les objets résolubles ici", () => {
     const html = reviewQueueHtml(inboxQueue(), { authed: true, isAdmin: true, filter: "decide" });
     const kinds = (html.match(/data-kind="[^"]+"/g) ?? []).map((match) => match.slice(11, -1));
-    expect(new Set(kinds)).toEqual(new Set(["ai_work_review", "decision_proposal"]));
-    // Le plan le plus récent est promu en héros, jamais dupliqué dans la liste.
-    expect(html).toContain("Approuver la révision 2 du plan");
-    expect(kinds).not.toContain("roadmap_proposal");
+    expect(new Set(kinds)).toEqual(new Set(["ai_work_review", "roadmap_proposal"]));
+    expect(html).toContain("Choisir le moteur de rendu");
+    expect(kinds).not.toContain("decision_proposal");
     expect(html).toContain('data-review-filter="decide"');
   });
 
@@ -569,7 +581,7 @@ describe("decisionHtml", () => {
     const html = decisionHtml(decision("d1", "proposed"), true, true);
     expect(html).toContain("Proposée");
     expect(html).toContain("ds-badge--info");
-    expect(html).not.toContain("proposed");
+    expect(visibleText(html)).not.toContain("proposed");
   });
 
   it("accepted : tonalité success", () => {
@@ -641,7 +653,7 @@ describe("decisionHtml", () => {
     expect(html).toContain('data-decision-accept="d1"');
     expect(html).toContain("Accepter");
     expect(html).toContain('data-decision-supersede="d1"');
-    expect(html).toContain("Remplacer");
+    expect(html).toContain("Écarter la proposition");
     expect(html).not.toContain("disabled");
   });
 

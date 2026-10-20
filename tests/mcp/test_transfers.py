@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from unittest.mock import AsyncMock
 
+import pytest
+from botocore.exceptions import ClientError
 from studio_api.db.models.project import ProjectModel
+from studio_api.storage.provider import StorageProvider
 from studio_mcp.tools.transfers import (
     studio_create_transfer_metadata,
+    studio_delete_transfer,
     studio_get_transfer,
     studio_get_transfers,
     studio_request_transfer_download,
@@ -107,3 +112,62 @@ async def test_request_transfer_download_returns_presigned_url(
     result = await studio_request_transfer_download(created["id"], auth_ctx)
     assert result["download_url"]
     assert result["transfer_id"] == created["id"]
+
+
+@pytest.mark.infra("minio")
+async def test_delete_transfer_preserves_history_and_permissions(
+    auth_ctx: FakeContext,
+    other_auth_ctx: FakeContext,
+    readonly_auth_ctx: FakeContext,
+    admin_ctx: FakeContext,
+) -> None:
+    created = await studio_create_transfer_metadata(
+        "report.bin",
+        "application/octet-stream",
+        13,
+        "temporary",
+        auth_ctx,
+        content_md5=_DUMMY_CONTENT_MD5,
+    )
+    for caller in [other_auth_ctx, readonly_auth_ctx]:
+        refused = await studio_delete_transfer(created["id"], caller)
+        assert refused["error_code"] == "forbidden"
+    deleted = await studio_delete_transfer(created["id"], auth_ctx)
+    assert deleted.get("status") == "deleted", deleted
+    assert deleted["already_deleted"] is False
+    assert deleted["deleted_at"] is not None
+    replay = await studio_delete_transfer(created["id"], admin_ctx)
+    assert replay["already_deleted"] is True
+    assert replay["deleted_at"] == deleted["deleted_at"]
+    for caller in [other_auth_ctx, readonly_auth_ctx]:
+        refused = await studio_delete_transfer(created["id"], caller)
+        assert refused["error_code"] == "forbidden"
+
+
+@pytest.mark.infra("minio")
+async def test_delete_transfer_reports_storage_failure(
+    auth_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created = await studio_create_transfer_metadata(
+        "report.bin",
+        "application/octet-stream",
+        13,
+        "temporary",
+        auth_ctx,
+        content_md5=_DUMMY_CONTENT_MD5,
+    )
+    monkeypatch.setattr(
+        StorageProvider,
+        "delete_object",
+        AsyncMock(
+            side_effect=ClientError({"Error": {"Code": "ServiceUnavailable"}}, "DeleteObject")
+        ),
+    )
+    result = await studio_delete_transfer(created["id"], auth_ctx)
+    assert result["error_code"] == "storage_unavailable"
+    detail = await studio_get_transfer(created["id"], auth_ctx)
+    assert detail["status"] == "created"
+
+
+async def test_delete_transfer_validates_id(auth_ctx: FakeContext) -> None:
+    assert (await studio_delete_transfer("invalid", auth_ctx))["error_code"] == "invalid_argument"

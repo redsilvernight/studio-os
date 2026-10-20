@@ -252,10 +252,11 @@ test.describe("UI-12 Configuration — Runtimes", () => {
     await expect(view).toContainText("Coding = yes");
     await expect(view).not.toContainText(/puissance|\/100/i);
     // Distinction Runtime ≠ Machine + lien Machines réel.
-    await expect(view).toContainText("Sans machine (cible distante)");
+    await expect(view).toContainText("Aucun poste (cible distante)");
     await expect(view.locator('.settings-list a[href="#/machines"]')).toHaveCount(1);
     // Lien Inspecteur.
-    await expect(view.locator('a[href="#/inspector"]')).toHaveCount(1);
+    await expect(view.locator('.settings-howto a[href="#/inspector"]')).toHaveCount(1);
+    await expect(view.locator('a[href="#/inspector"]')).toHaveCount(2);
     // Pas de table SQL, aucun secret dans le rendu.
     await expect(view.locator(".settings-list table")).toHaveCount(0);
     await expect(view).not.toContainText("api_key");
@@ -307,7 +308,7 @@ test.describe("UI-12 Configuration — Runtimes", () => {
     await expect(view).toContainText("Configuration du runtime");
     await expect(view).toContainText("Capacités déclarées");
     await expect(view.locator('.settings-domain a[href="#/machines"]')).toHaveCount(1);
-    await expect(view.locator('a[href="#/inspector"]')).toHaveCount(1);
+    await expect(view.locator('.settings-origin a[href="#/inspector"]')).toHaveCount(1);
     // Technique replié par défaut.
     const technical = view.locator(".settings-technical");
     await expect(technical.locator("summary")).toContainText("Informations techniques");
@@ -402,7 +403,7 @@ test.describe("UI-12 Configuration — Liaisons", () => {
     const captured = newCaptured();
     await login(page, "#/configuration/bindings", captured);
     const view = page.locator("#view");
-    await view.locator("details.settings-editor").filter({ hasText: "Nouveau binding" }).locator("> summary").click();
+    await view.locator("details.settings-editor").filter({ hasText: "Nouvelle liaison" }).locator("> summary").click();
     const form = view.locator("[data-binding-create]");
     await form.locator('select[name="runtime_id"]').selectOption(RT1);
     await form.locator('input[name="target_stable_key"]').fill("review-helper");

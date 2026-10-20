@@ -133,7 +133,7 @@ export function toWorkspaceViewModel(payload: unknown): WorkspaceViewModel | nul
     candidateFolder: typeof candidate === "string" ? candidate : null,
     repoCount,
     features,
-    watchSummary: watchers ? "La surveillance des dépôts est activée pour ce dossier." : null,
+    watchSummary: health !== "valid" ? "Le suivi est suspendu : vérifiez le dossier avant de continuer." : watchers ? "Le suivi Git est configuré pour ce dossier ; il observe les dépôts existants lorsque l'assistant local est démarré." : "Le suivi Git est désactivé pour ce dossier.",
   };
 }
 
@@ -186,10 +186,10 @@ export function workspaceListHtml(items: ReadonlyArray<WorkspaceViewModel>): str
   const rows = items
     .map(
       (item) =>
-        `<li class="ws-row"><a href="${esc(P5_WORKSPACE_ROUTE)}/${esc(item.workspaceId)}">` +
+        `<li class="ws-row"><span>` +
         `<span class="ws-name">${esc(item.projectName)}</span>` +
         `<span class="ws-folder">${esc(item.folderName)}</span>` +
-        `${healthChip(item.health)}</a></li>`,
+        `${healthChip(item.health)}</span></li>`,
     )
     .join("");
   return `<section class="ws-list"><ul>${rows}</ul></section>`;

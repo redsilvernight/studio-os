@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
+from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
@@ -336,6 +337,17 @@ async def _merge_machines(source_ref: str, target_ref: str, apply: bool) -> None
                 print("dry-run: no change written (pass --apply to execute)")
                 return
 
+            await session.refresh(source)
+            await session.refresh(target)
+            has_attached = await session.scalar(
+                select(MachineModel.id)
+                .where(MachineModel.workstation_id == target.id, MachineModel.id != target.id)
+                .limit(1)
+            )
+            if has_attached is not None or target.workstation_id == target.id:
+                target.workstation_id = None
+            elif target.workstation_id is None and source.workstation_id not in (None, target.id):
+                target.workstation_id = source.workstation_id
             target.credential_hash = source.credential_hash
             target.version += 1
             await session.delete(source)

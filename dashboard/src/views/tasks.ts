@@ -102,6 +102,17 @@ export interface TasksScopeRequest {
   limit: number;
 }
 
+export interface TasksPageCursor extends TasksScopeRequest {
+  offset: number;
+  exhausted: boolean;
+}
+
+export function tasksScopeCursors(scope: TasksScope, includeCompleted = false): TasksPageCursor[] {
+  const requests = tasksScopeRequests(scope);
+  if (scope === "all" && includeCompleted) requests.push({ status: ["completed"], limit: TASK_PAGE_LIMIT });
+  return requests.map((request) => ({ ...request, offset: 0, exhausted: false }));
+}
+
 /**
  * Requêtes serveur d'une vue (DEC-0185). « Maintenant » est bornée et sans
  * pagination ; « Mon travail » et « Toutes » se paginent par `limit`.
@@ -113,8 +124,12 @@ export function tasksScopeRequests(scope: TasksScope, limit: number = TASK_PAGE_
       { status: ["created"], limit: NOW_UPCOMING_LIMIT },
     ];
   }
-  if (scope === "mine") return [{ mine: true, status: OPEN_STATUSES, limit }];
-  return [{ limit }];
+  const pageLimit = Math.min(limit, TASK_PAGE_LIMIT);
+  if (scope === "mine") return [{ mine: true, status: OPEN_STATUSES, limit: pageLimit }];
+  return [
+    { status: ["in_progress", "blocked"], limit: pageLimit },
+    { status: ["created"], limit: pageLimit },
+  ];
 }
 
 /** Statuts qu'une vue peut montrer (garde-fou si le serveur ignore le filtre). */
@@ -163,12 +178,9 @@ export function tasksLoadingHtml(scopeLabel: string, headingLevel: 1 | 2 = 1): s
  */
 export function tasksHeaderHtml(scopeLabel: string, authed: boolean, headingLevel: 1 | 2 = 1): string {
   if (headingLevel === 1) {
-    return dsPageHeader("Travail", scopeLabel, authed ? [{ label: "+ Nouvelle tâche", id: "task-new", variant: "primary" }] : []);
+    return dsPageHeader("Travail", scopeLabel);
   }
-  const action = authed
-    ? `<p><button class="ds-btn ds-btn--primary" type="button" id="task-new">+ Nouvelle tâche</button></p>`
-    : "";
-  return action;
+  return "";
 }
 
 function viewToggleHtml(view: TasksView): string {
@@ -233,6 +245,12 @@ export interface TasksRenderOptions {
   authed: boolean;
   showProject: boolean;
   projectNames?: Record<string, string>;
+  partialStatuses?: TaskStatus[];
+  completedVisible?: boolean;
+}
+
+function taskCountLabel(count: number, status: TaskStatus, options: TasksRenderOptions): string {
+  return `${count}${options.partialStatuses?.includes(status) ? "+" : ""}`;
 }
 
 function taskContextLine(task: Task, options: TasksRenderOptions): string {
@@ -275,7 +293,7 @@ export function tasksListHtml(tasks: Task[], options: TasksRenderOptions): strin
     if (rows.length === 0) return "";
     const id = `tasks-group-${group.status}`;
     return `<section class="tasks-group" aria-labelledby="${id}">` +
-      `<h3 class="tasks-group-title" id="${id}">${esc(group.label)} <span class="ds-list-sub">(${rows.length})</span></h3>` +
+      `<h3 class="tasks-group-title" id="${id}">${esc(group.label)} <span class="ds-list-sub">(${taskCountLabel(rows.length, group.status, options)})</span></h3>` +
       `<ul class="ds-list ds-list--card tasks-list">${rows.map((task) => taskListRowHtml(task, options)).join("")}</ul>` +
       `</section>`;
   }).join("");
@@ -290,7 +308,12 @@ export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): stri
   return `<div class="kanban tasks-board">` +
     TASK_COLUMNS.map((column) => {
       const cards = groups[column] ?? [];
-      const label = taskStatusLabel(columnToStatus(column));
+      const status = columnToStatus(column);
+      const label = taskStatusLabel(status);
+      if (status === "completed" && options.completedVisible === false) {
+        return `<section class="task-col" data-column="${column}" aria-label="Terminées, non chargées"><h3 class="task-col-title">Terminées</h3><p class="ds-list-sub">Chargées à la demande.</p><button class="ds-btn ds-btn--sm" type="button" data-completed>Afficher les tâches terminées</button></section>`;
+      }
+      const count = taskCountLabel(cards.length, status, options);
       const items = cards
         .map(
           (task) =>
@@ -300,8 +323,8 @@ export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): stri
             `${taskMoveControlHtml(task, options.authed)}</li>`,
         )
         .join("");
-      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${cards.length} tâche(s)">` +
-        `<h3 class="task-col-title">${esc(label)} <span class="ds-list-sub">(${cards.length})</span></h3>` +
+      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${count} tâche(s) chargée(s)">` +
+        `<h3 class="task-col-title">${esc(label)} <span class="ds-list-sub">(${count})</span></h3>` +
         (items === "" ? `<p class="ds-list-sub">Aucune tâche ici.</p>` : `<ul class="task-col-list">${items}</ul>`) +
         `</section>`;
     }).join("") +
@@ -347,6 +370,9 @@ export interface TasksPageData {
   msg: TasksPageMessage;
   /** Vue en cours de chargement (changement de vue) : squelette, pas de vide trompeur. */
   loading?: boolean;
+  partialStatuses?: TaskStatus[];
+  completedVisible?: boolean;
+  moreLoading?: boolean;
 }
 
 function scopeEmptyState(data: TasksPageData): string {
@@ -358,25 +384,27 @@ function scopeEmptyState(data: TasksPageData): string {
     return dsEmptyState("Aucune tâche prise par vos postes", "Reprenez une tâche depuis sa fiche pour la retrouver ici.") + toAll;
   }
   return dsEmptyState(
-    "Aucune tâche",
+    data.completedVisible === false ? "Aucune tâche active" : "Aucune tâche",
     data.projectId === undefined
-      ? "Créez votre première tâche pour commencer à travailler."
-      : "Ce projet ne contient aucune tâche pour le moment.",
+      ? "Créez une tâche pour commencer à travailler."
+      : data.completedVisible === false ? "Les tâches terminées restent accessibles à la demande." : "Ce projet ne contient aucune tâche pour le moment.",
   );
 }
 
 export function tasksPageHtml(data: TasksPageData): string {
   const visible = filterTasks(data.tasks, data.state, data.projectNames);
   const showProject = data.projectId === undefined;
-  const options: TasksRenderOptions = { authed: data.authed, showProject, projectNames: data.projectNames };
+  const options: TasksRenderOptions = { authed: data.authed, showProject, projectNames: data.projectNames, partialStatuses: data.partialStatuses, completedVisible: data.completedVisible };
   const header = tasksHeaderHtml(data.scopeLabel, data.authed, data.headingLevel ?? 1);
   const inScope = filterTasks(data.tasks, { ...data.state, query: "" }, data.projectNames);
-  const tabs = tasksScopeTabsHtml(data.state.scope, data.loading || !data.exhausted ? undefined : inScope.length);
+  const tabs = tasksScopeTabsHtml(data.state.scope, data.loading || !data.exhausted || (data.partialStatuses?.length ?? 0) > 0 || (data.state.scope === "all" && data.completedVisible === false) ? undefined : inScope.length);
   const toolbar = tasksToolbarHtml(data.state, visible.length, inScope.length);
   const board = data.state.scope === "all" && data.state.view === "board";
   let body: string;
   if (data.loading) {
     body = dsSkeleton(3);
+  } else if (board && data.state.query.trim() === "") {
+    body = tasksBoardHtml(visible, options);
   } else if (inScope.length === 0) {
     body = scopeEmptyState(data);
   } else if (visible.length === 0) {
@@ -394,7 +422,9 @@ export function tasksPageHtml(data: TasksPageData): string {
       ? `<div class="tasks-footer">${reloadButton}<button class="ds-btn" type="button" data-scope="all">Voir toutes les tâches</button>` +
         `</div>`
       : `<div class="tasks-footer">${reloadButton}` +
-        (data.exhausted ? "" : `<button class="ds-btn" type="button" data-more>Afficher plus de tâches</button>`) +
+        (data.exhausted ? "" : `<button class="ds-btn" type="button" data-more${data.moreLoading ? " disabled" : ""}>${data.moreLoading ? "Chargement…" : "Afficher plus de tâches"}</button>`) +
+        (data.state.scope === "all" && data.completedVisible === false && (!board || (visible.length === 0 && data.state.query.trim() !== "")) ? `<button class="ds-btn" type="button" data-completed>Afficher les tâches terminées</button>` : "") +
+        (data.state.scope === "all" ? `<p class="ds-list-sub" role="status">${inScope.length} tâche(s) chargée(s)${data.exhausted ? "" : " · D'autres tâches sont disponibles (+)."}${data.completedVisible === false ? " · Les terminées ne sont pas encore chargées." : ""}</p>` : "") +
         `</div>`;
   const msg =
     data.msg.human === ""
@@ -410,14 +440,18 @@ export function tasksPageHtml(data: TasksPageData): string {
     board && data.authed
       ? `<p class="ds-list-sub">Glissez une carte vers une colonne pour changer son statut — ou utilisez « Déplacer vers… » au clavier.</p>`
       : "";
-  return `<div class="tasks">${header}${tabs}${toolbar}${readonlyNote}${boardHint}${body}${footer}${msg}${modal}</div>`;
+  const create = data.authed ? `<button class="ds-btn ds-btn--primary" type="button" id="task-new">+ Nouvelle tâche</button>` : "";
+  return `<div class="tasks" aria-busy="${data.loading || data.moreLoading ? "true" : "false"}">${header}<div class="tasks-actions">${tabs}${create}</div>${toolbar}${readonlyNote}${boardHint}${body}${footer}${msg}${modal}</div>`;
 }
 
 export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Promise<void> {
   const headingLevel = ctx.headingLevel ?? 1;
   root.innerHTML = tasksLoadingHtml(ctx.scopeLabel, headingLevel);
   const state = initialTasksState();
-  let limit = TASK_PAGE_LIMIT;
+  const limit = TASK_PAGE_LIMIT;
+  let cursors = tasksScopeCursors(state.scope);
+  let completedVisible = false;
+  let moreLoading = false;
   let tasks: Task[] = [];
   let exhausted = false;
   let projects: Project[] = [];
@@ -429,35 +463,53 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
   let loading = false;
   let generation = 0;
 
-  const reload = async (keepMsg?: TasksPageMessage): Promise<void> => {
+  const reload = async (keepMsg?: TasksPageMessage, append = false): Promise<void> => {
+    const current = ++generation;
+    if (!append) {
+      cursors = tasksScopeCursors(state.scope, completedVisible);
+      loading = true;
+    } else {
+      moreLoading = true;
+    }
     if (painted) paint(keepMsg ?? { human: "" });
     if (ctx.projectId === undefined) {
       projects = await loadProjects(ctx);
+      if (current !== generation) return;
       projectNames = Object.fromEntries(projects.map((project) => [project.id, project.name]));
     }
-    const current = ++generation;
-    const requests = tasksScopeRequests(state.scope, limit);
+    const requests = cursors.filter((cursor) => !cursor.exhausted);
     try {
-      const pages = await Promise.all(
-        requests.map((request) => listTasks(ctx.client, { projectId: ctx.projectId, ...request, offset: 0 })),
-      );
+      const pages: Task[][] = [];
+      for (const request of requests) {
+        pages.push(await listTasks(ctx.client, { projectId: ctx.projectId, ...request }));
+        if (current !== generation) return;
+      }
       // Une vue plus récente a été demandée entre-temps : sa réponse prime.
       if (current !== generation) return;
       // Une tâche peut changer de statut entre deux requêtes parallèles : une seule ligne par id.
-      tasks = [...new Map(pages.flat().map((task) => [task.id, task])).values()];
-      exhausted =
-        state.scope === "now" || pages.every((page, index) => page.length < (requests[index]?.limit ?? limit));
+      tasks = [...new Map([...(append ? tasks : []), ...pages.flat()].map((task) => [task.id, task])).values()];
+      requests.forEach((request, index) => {
+        const count = pages[index]?.length ?? 0;
+        request.offset += count;
+        request.exhausted = count < request.limit;
+      });
+      exhausted = state.scope === "now" || cursors.every((cursor) => cursor.exhausted);
       loading = false;
+      moreLoading = false;
       msg = keepMsg ?? { human: "" };
       paint();
     } catch (error) {
       if (current !== generation) return;
       loading = false;
+      moreLoading = false;
+      if (append) {
+        paint({ human: "Chargement impossible. Les tâches déjà chargées sont conservées.", technical: describeError(error) });
+        return;
+      }
       root.innerHTML =
         `${tasksHeaderHtml(ctx.scopeLabel, false, headingLevel)}` +
         `<div class="ds-notice ds-notice--danger" role="alert"><strong>Tâches indisponibles.</strong> ${esc(describeError(error))} <button class="ds-btn ds-btn--sm" type="button" data-reload>Réessayer</button></div>`;
       root.querySelector("[data-reload]")?.addEventListener("click", () => {
-        limit = TASK_PAGE_LIMIT;
         void reload();
       });
     }
@@ -481,6 +533,9 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       projectNames,
       msg,
       loading,
+      moreLoading,
+      completedVisible,
+      partialStatuses: cursors.filter((cursor) => !cursor.exhausted).flatMap((cursor) => cursor.status ?? []),
     });
     if (existingDialog !== null) {
       root.querySelector("#task-create-dialog")?.remove();
@@ -556,7 +611,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
         if (scope === state.scope) return;
         state.scope = scope;
         if (scope !== "all") state.view = "list";
-        limit = TASK_PAGE_LIMIT;
+        completedVisible = false;
         tasks = [];
         loading = true;
         paint({ human: "" }, `.tasks-scope-tabs [data-scope="${scope}"]`);
@@ -581,13 +636,18 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       });
     });
     root.querySelector("[data-reload]")?.addEventListener("click", () => {
-      limit = TASK_PAGE_LIMIT;
       void reload();
     });
     root.querySelector("[data-more]")?.addEventListener("click", () => {
-      limit += TASK_PAGE_LIMIT;
-      void reload();
+      if (!moreLoading) void reload(undefined, true);
     });
+    root.querySelectorAll("[data-completed]").forEach((button) => button.addEventListener("click", () => {
+      if (moreLoading) return;
+      completedVisible = true;
+      exhausted = false;
+      cursors.push({ status: ["completed"], limit: TASK_PAGE_LIMIT, offset: 0, exhausted: false });
+      void reload(undefined, true);
+    }));
     root.querySelectorAll("[data-move]").forEach((button) => {
       button.addEventListener("click", () => {
         const element = button as HTMLElement;

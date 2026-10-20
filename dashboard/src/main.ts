@@ -147,7 +147,7 @@ async function renderRoute(
       await (await load(() => import("./views/accounts"))).renderAccounts(staging, { client, authed });
       break;
     case "admin":
-      await (await load(() => import("./views/admin"))).renderAdmin(staging);
+      await (await load(() => import("./views/admin"))).renderAdmin(staging, { client, authed });
       break;
     case "decisions":
       await (await load(() => import("./views/decisionsV2"))).renderDecisionsV2(staging, { client, authed });
@@ -188,7 +188,7 @@ async function renderRoute(
       await (await load(() => import("./views/integrations"))).renderIntegrations(staging, route.workspaceId);
       break;
     case "workspaces":
-      await (await load(() => import("./views/workspacesPage"))).renderWorkspaces(staging);
+      await (await load(() => import("./views/workspacesPage"))).renderWorkspaces(staging, getPlatform(), { client, authed });
       break;
     case "onboarding":
       await (await load(() => import("./onboarding/view"))).renderOnboarding(staging, getPlatform());
