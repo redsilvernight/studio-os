@@ -148,7 +148,7 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.8.1"
+DAEMON_VERSION = "0.8.2"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
@@ -812,6 +812,20 @@ class BridgeService:
                 LocalErrorCode.CAPABILITY_MISSING,
                 "Targeted skill resolutions require the skills.resolve capability.",
             )
+        if (
+            request.command is BridgeCommand.SKILLS_APPLY
+            and any(
+                isinstance(resolution, dict) and resolution.get("kind", "skill") != "skill"
+                for resolution in request.payload.get("resolutions") or []
+            )
+            and "skills.definitions" not in self._granted_capabilities
+        ):
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.CAPABILITY_MISSING,
+                "Rule and agent resolutions require the skills.definitions capability.",
+            )
         if request.command in _LOCAL_FEATURE_COMMANDS and self.controller.local_features is None:
             return self._error(
                 request,
@@ -865,6 +879,15 @@ class BridgeService:
         ):
             for entry in payload_data["skills"]:
                 entry.pop("preview_hash", None)
+        if (
+            request.command is BridgeCommand.SKILLS_PREVIEW
+            and "skills.definitions" not in self._granted_capabilities
+        ):
+            payload_data["skills"] = [
+                entry for entry in payload_data["skills"] if entry.get("kind") == "skill"
+            ]
+            for entry in payload_data["skills"]:
+                entry.pop("kind", None)
         response = BridgeResponse(
             message_id=_message_id(),
             correlation_id=request.correlation_id,
@@ -906,6 +929,7 @@ class BridgeService:
                             "skills.read",
                             "skills.apply",
                             "skills.resolve",
+                            "skills.definitions",
                             "setup.plan",
                             "setup.apply",
                             "launch.settings",

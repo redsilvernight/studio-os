@@ -196,6 +196,7 @@ def _patch_fetch(monkeypatch: pytest.MonkeyPatch, result) -> None:
         return result
 
     monkeypatch.setattr(skills_bridge, "_fetch_skills_only", fake)
+    monkeypatch.setattr(skills_bridge, "_fetch", fake)
 
 
 def _snapshot(root: Path) -> dict[str, bytes]:
@@ -317,7 +318,7 @@ def test_upstream_errors_are_mapped(tmp_path: Path, monkeypatch, exc, code, retr
     assert str(tmp_path) not in err.value.error.message
 
 
-def test_skills_commands_do_not_use_definition_endpoint(tmp_path: Path, monkeypatch) -> None:
+def test_skills_check_does_not_use_definition_endpoint(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
 
@@ -329,13 +330,124 @@ def test_skills_commands_do_not_use_definition_endpoint(tmp_path: Path, monkeypa
 
     monkeypatch.setattr(skills_bridge, "fetch_skill_projections", skills_only)
     monkeypatch.setattr(skills_bridge, "fetch_library_projections", definitions_fail)
-    controller = _controller(tmp_path, home)
-
-    checked = controller.skills_check()
-    preview = controller.skills_preview()
+    checked = _controller(tmp_path, home).skills_check()
 
     assert [entry.stable_key for entry in checked.skills] == ["studio-git-flow"]
-    assert [entry.stable_key for entry in preview.skills] == ["studio-git-flow"]
+
+
+def _definition(
+    key: str = "studio-protocol", kind: str = "rule", text: str = "# Rule\n\nLibrary body\n"
+) -> LibraryContextItem:
+    return LibraryContextItem(
+        library_kind=kind,
+        stable_key=key,
+        version=2,
+        version_origin="active",
+        scope="studio",
+        title=key,
+        text=text,
+        content_schema=f"studio.library.{kind}/v1",
+    )
+
+
+def _definitions_home(tmp_path: Path) -> tuple[Path, list[LibraryContextItem]]:
+    home = tmp_path / "home"
+    projections = [_projection(), _definition(), _definition("reviewer", "agent_definition")]
+    skill_plan, definition_plan = skills_bridge.plan_library_sync(home, projections)
+    apply_skill_sync(skill_plan)
+    skills_bridge.apply_definition_sync(definition_plan)
+    for relative in (".agents/rules/studio-protocol.md", ".claude/agents/reviewer.md"):
+        (home / relative).write_text("Local edit\n", encoding="utf-8")
+    return home, projections
+
+
+def test_preview_lists_rule_and_agent_conflicts_with_diff(tmp_path: Path, monkeypatch) -> None:
+    home, projections = _definitions_home(tmp_path)
+    _patch_fetch(monkeypatch, projections)
+    preview = _controller(tmp_path / "data", home).skills_preview()
+
+    by_kind = {(entry.kind.value, entry.stable_key): entry for entry in preview.skills}
+    assert set(by_kind) == {
+        ("skill", "studio-git-flow"),
+        ("rule", "studio-protocol"),
+        ("agent", "reviewer"),
+    }
+    rule = by_kind[("rule", "studio-protocol")]
+    assert "locally_modified" in {target.state for target in rule.targets}
+    assert "-Local edit" in rule.diff and ".agents/rules/studio-protocol.md" in rule.diff
+    assert preview.locally_modified == 0
+
+
+def test_targeted_rule_choice_backs_up_and_keeps_other_definitions(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home, projections = _definitions_home(tmp_path)
+    _patch_fetch(monkeypatch, projections)
+    controller = _controller(tmp_path / "data", home)
+    preview = controller.skills_preview()
+    tokens = {(entry.kind.value, entry.stable_key): entry.preview_hash for entry in preview.skills}
+    manifest_path = home / ".studio-os" / "library-definitions-manifest.json"
+    manifest_before = json.loads(manifest_path.read_text())
+
+    result = controller.skills_apply(
+        SkillsApplyRequest(
+            confirm=True,
+            resolutions=[
+                SkillResolution(
+                    kind="rule",
+                    stable_key="studio-protocol",
+                    choice="library",
+                    preview_hash=tokens[("rule", "studio-protocol")],
+                ),
+            ],
+        )
+    )
+
+    rule_path = home / ".agents" / "rules" / "studio-protocol.md"
+    assert "Library body" in rule_path.read_text(encoding="utf-8")
+    assert [Path(p).read_text() for p in result.backups] == ["Local edit\n"]
+    assert (home / ".claude" / "agents" / "reviewer.md").read_text() == "Local edit\n"
+    assert result.conflicts == [".claude/agents/reviewer.md"]
+    manifest_after = json.loads(manifest_path.read_text())
+    assert [row for row in manifest_after["items"] if row["kind"] == "agent"] == [
+        row for row in manifest_before["items"] if row["kind"] == "agent"
+    ]
+    assert controller.skills_status().state == "conflicts"
+
+
+def test_definition_resolutions_require_capability(tmp_path: Path, monkeypatch) -> None:
+    home, projections = _definitions_home(tmp_path)
+    _patch_fetch(monkeypatch, projections)
+    controller = _controller(tmp_path / "data", home)
+    controller.skills_configure(SkillsConfigureRequest(auto_sync=False))
+    service = BridgeService(controller)
+    base = ["daemon.control", "skills.read", "skills.apply", "skills.resolve"]
+    _negotiate(service, base)
+    legacy = service.handle_line(_line("skills.preview", {}))["payload"]["skills"]
+    assert [entry["stable_key"] for entry in legacy] == ["studio-git-flow"]
+    assert all("kind" not in entry for entry in legacy)
+    token = next(
+        entry.preview_hash
+        for entry in controller.skills_preview().skills
+        if entry.stable_key == "studio-protocol"
+    )
+    request = {
+        "confirm": True,
+        "resolutions": [
+            {
+                "kind": "rule",
+                "stable_key": "studio-protocol",
+                "choice": "library",
+                "preview_hash": token,
+            }
+        ],
+    }
+    denied = service.handle_line(_line("skills.apply", request))
+    assert denied["error"]["code"] == "capability_missing"
+    _negotiate(service, [*base, "skills.definitions"])
+    modern = service.handle_line(_line("skills.preview", {}))["payload"]["skills"]
+    assert {entry["kind"] for entry in modern} == {"skill", "rule", "agent"}
+    assert service.handle_line(_line("skills.apply", request))["kind"] == "response"
 
 
 def _modified_home(tmp_path: Path) -> tuple[Path, Path]:

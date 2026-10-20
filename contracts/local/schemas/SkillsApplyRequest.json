@@ -1,5 +1,14 @@
 {
   "$defs": {
+    "SkillLibraryKind": {
+      "enum": [
+        "skill",
+        "rule",
+        "agent"
+      ],
+      "title": "SkillLibraryKind",
+      "type": "string"
+    },
     "SkillResolution": {
       "additionalProperties": false,
       "properties": {
@@ -10,6 +19,10 @@
           ],
           "title": "Choice",
           "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SkillLibraryKind",
+          "default": "skill"
         },
         "preview_hash": {
           "pattern": "^[a-f0-9]{64}$",

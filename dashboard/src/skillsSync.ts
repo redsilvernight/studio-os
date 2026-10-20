@@ -39,6 +39,26 @@ let previewGeneration = 0;
 const choices = new Map<string, "local" | "library">();
 
 type PreviewEntry = NonNullable<SkillsPreviewResult["skills"]>[number];
+type EntryKind = NonNullable<PreviewEntry["kind"]>;
+
+const KIND_LABELS: Record<EntryKind, string> = { skill: "Skill", rule: "Rule", agent: "Agent" };
+
+function entryKind(entry: PreviewEntry): EntryKind {
+  return entry.kind ?? "skill";
+}
+
+function entryId(entry: PreviewEntry): string {
+  return `${entryKind(entry)}:${entry.stable_key}`;
+}
+
+function targetPath(entry: PreviewEntry, harness: string): string {
+  const key = entry.stable_key;
+  const root = harness === "agents" ? ".agents" : ".claude";
+  const kind = entryKind(entry);
+  if (kind === "rule") return `${root}/rules/${key}.md`;
+  if (kind === "agent") return harness === "agents" ? `.agents/definitions/${key}.md` : `.claude/agents/${key}.md`;
+  return `${root}/skills/${key}/SKILL.md`;
+}
 
 function pendingSkills(plan: SkillsPreviewResult | null): PreviewEntry[] {
   return (plan?.skills ?? []).filter((skill) => skill.targets.some((target) => target.state !== "current"));
@@ -54,14 +74,16 @@ function diffHtml(diff: string): string {
 
 function skillRowHtml(skill: PreviewEntry): string {
   const key = skill.stable_key;
-  const selected = choices.get(key) ?? "";
+  const id = entryId(skill);
+  const kind = KIND_LABELS[entryKind(skill)];
+  const selected = choices.get(id) ?? "";
   const missing = skill.targets.every((target) => target.state === "missing");
   const local = skill.targets.some((target) => target.state === "locally_modified");
   const state = local ? "Modifié localement" : missing ? "Absent" : "Mise à jour disponible";
-  return `<li class="skills-sync-row" data-skill="${esc(key)}">` +
-    `<div class="skills-sync-identity"><strong>${esc(key)}</strong><span class="ds-badge ds-badge--${local ? "warning" : "neutral"}">${state}</span>` +
-    `<code>.agents/skills/${esc(key)}/SKILL.md</code><small>Copies partagées et Claude Code</small></div>` +
-    `<select class="ds-input" data-skills-choice="${esc(key)}" aria-label="Version à utiliser pour ${esc(key)}"${busy || !skill.preview_hash ? " disabled" : ""}>` +
+  return `<li class="skills-sync-row" data-skill="${esc(id)}">` +
+    `<div class="skills-sync-identity"><strong>${esc(key)}</strong><span class="ds-badge ds-badge--neutral">${kind}</span><span class="ds-badge ds-badge--${local ? "warning" : "neutral"}">${state}</span>` +
+    `<code>${esc(targetPath(skill, "agents"))}</code><small>Copies partagées et Claude Code</small></div>` +
+    `<select class="ds-input" data-skills-choice="${esc(id)}" aria-label="Version à utiliser pour ${kind} ${esc(key)}"${busy || !skill.preview_hash ? " disabled" : ""}>` +
     `<option value=""${selected === "" ? " selected" : ""}>Choisir une version…</option>` +
     `<option value="local"${selected === "local" ? " selected" : ""}${missing ? " disabled" : ""}>Garder ma version</option>` +
     `<option value="library"${selected === "library" ? " selected" : ""}>Utiliser la Library</option></select>` +
@@ -99,21 +121,21 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
 export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolean): string {
   const pending = pendingSkills(preview);
   const count = choices.size;
-  const replacements = pending.filter((skill) => choices.get(skill.stable_key) === "library");
+  const replacements = pending.filter((skill) => choices.get(entryId(skill)) === "library");
   const compatible = pending.every((skill) => Boolean(skill.preview_hash));
   const message = status === null || failed ? SYNC_STATE_MESSAGES.not_synced : SYNC_STATE_MESSAGES[status.state];
-  const subtitle = pending.length ? `${pending.length} skill${pending.length > 1 ? "s" : ""} à vérifier avant la mise à jour` : message;
+  const subtitle = pending.length ? `${pending.length} élément${pending.length > 1 ? "s" : ""} à vérifier avant la mise à jour` : message;
   const confirmation = confirming
     ? `<section class="skills-sync-confirmation" aria-labelledby="skills-sync-confirm-title"><h3 id="skills-sync-confirm-title">Vérifier les choix</h3>` +
-      `<p>${replacements.length ? "Les copies de ces skills seront remplacées par la Library, après sauvegarde :" : "Vos versions locales seront conservées pour cette synchronisation."}</p>` +
-      (replacements.length ? `<ul>${replacements.map((skill) => `<li><strong>${esc(skill.stable_key)}</strong><code>${skill.targets.filter((target) => target.state !== "current").map((target) => `${target.harness === "agents" ? ".agents" : ".claude"}/skills/${esc(skill.stable_key)}/SKILL.md`).join("<br>")}</code></li>`).join("")}</ul>` : "") +
-      `<p class="skills-sync-help">Les copies modifiées sont sauvegardées dans ~/.studio-os/backups/skills. Les skills sans choix restent en attente.</p></section>` : "";
+      `<p>${replacements.length ? "Ces copies seront remplacées par la Library, après sauvegarde :" : "Vos versions locales seront conservées pour cette synchronisation."}</p>` +
+      (replacements.length ? `<ul>${replacements.map((skill) => `<li><strong>${KIND_LABELS[entryKind(skill)]} ${esc(skill.stable_key)}</strong><code>${skill.targets.filter((target) => target.state !== "current").map((target) => esc(targetPath(skill, target.harness))).join("<br>")}</code></li>`).join("")}</ul>` : "") +
+      `<p class="skills-sync-help">Les copies modifiées sont sauvegardées dans ~/.studio-os/backups. Les éléments sans choix restent en attente.</p></section>` : "";
   return `<div class="skills-sync-content"><p class="skills-sync-subtitle">${esc(subtitle)}</p>` +
     (pending.some((skill) => skill.targets.some((target) => target.state === "locally_modified")) || status?.state === "conflicts"
       ? `<p class="skills-sync-notice">Vos modifications locales ont été conservées.</p>` : "") +
     (previewLoading ? `<p role="status">Chargement des versions à comparer…</p>` : "") +
     (previewIssue ? `<p class="ds-error" role="alert">${esc(previewIssue)}</p>` : "") +
-    (!compatible ? `<p class="ds-error" role="alert">Mettez à jour l'assistant local pour choisir une version par skill.</p>` : "") +
+    (!compatible ? `<p class="ds-error" role="alert">Mettez à jour l'assistant local pour choisir une version par fichier.</p>` : "") +
     (!confirming && pending.length ? `<h3 class="skills-sync-section-title">Choisissez la version à utiliser</h3><ul class="skills-sync-list">${pending.map(skillRowHtml).join("")}</ul>` : "") +
     confirmation +
     (operationNote ? `<p class="skills-sync-help" role="status">${esc(operationNote)}</p>` : "") +
@@ -123,7 +145,7 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
     (status?.updated?.length ? `<h3>Mis à jour</h3>${nameList(status.updated)}` : "") +
     (status ? `<button class="ds-btn ds-btn--ghost" type="button" data-skills-action="toggle"${busy ? " disabled" : ""}>${status.auto_sync_enabled ? "Désactiver" : "Activer"} la synchronisation automatique</button>` : "") +
     `<button class="ds-btn ds-btn--ghost" type="button" data-skills-action="refresh"${busy || previewLoading ? " disabled" : ""}>Vérifier de nouveau</button></details></div>` +
-    `<footer class="skills-sync-footer"><span class="skills-sync-progress" aria-live="polite">${count ? `${count} choix prêt${count > 1 ? "s" : ""} · ${pending.length - count} en attente` : "Les skills sans choix restent en attente."}</span>` +
+    `<footer class="skills-sync-footer"><span class="skills-sync-progress" aria-live="polite">${count ? `${count} choix prêt${count > 1 ? "s" : ""} · ${pending.length - count} en attente` : "Les éléments sans choix restent en attente."}</span>` +
     `<div class="skills-sync-actions">` +
     (confirming ? `<button class="ds-btn" type="button" data-skills-action="back"${busy ? " disabled" : ""}>Revenir aux choix</button>` : `<button class="ds-btn" type="button" data-ds-close>${pending.length ? "Plus tard" : "Fermer"}</button>`) +
     (pending.length && compatible ? `<button class="ds-btn ds-btn--${confirming && replacements.length ? "danger" : "primary"}" type="button" data-skills-action="${confirming ? "confirm" : "apply"}"${busy || count === 0 || previewLoading ? " disabled" : ""}>${busy ? "Application…" : confirming ? replacements.length ? "Confirmer le remplacement" : "Confirmer les choix" : `Appliquer ${count || "les"} choix`}</button>` : "") +
@@ -184,10 +206,10 @@ async function loadPreview(platform: Platform): Promise<void> {
   if (generation !== previewGeneration) return;
   previewLoading = false;
   if (outcome?.ok) {
-    const previous = new Map((preview?.skills ?? []).map((skill) => [skill.stable_key, skill.preview_hash]));
+    const previous = new Map((preview?.skills ?? []).map((skill) => [entryId(skill), skill.preview_hash]));
     preview = outcome.value;
     for (const key of choices.keys()) {
-      const skill = pendingSkills(preview).find((entry) => entry.stable_key === key);
+      const skill = pendingSkills(preview).find((entry) => entryId(entry) === key);
       if (!skill || previous.get(key) !== skill.preview_hash) choices.delete(key);
     }
   } else {
@@ -245,8 +267,10 @@ function bindActions(platform: Platform): void {
   root.querySelector('[data-skills-action="confirm"]')?.addEventListener("click", () => {
     if (busy) return;
     const selection: SkillResolution[] = pendingSkills(preview).flatMap((skill) => {
-      const choice = choices.get(skill.stable_key);
-      return choice && skill.preview_hash ? [{ stable_key: skill.stable_key, choice, preview_hash: skill.preview_hash }] : [];
+      const choice = choices.get(entryId(skill));
+      if (!choice || !skill.preview_hash) return [];
+      const kind = entryKind(skill);
+      return [{ ...(kind === "skill" ? {} : { kind }), stable_key: skill.stable_key, choice, preview_hash: skill.preview_hash }];
     });
     if (!confirming || selection.length === 0) return;
     busy = true;
@@ -258,7 +282,7 @@ function bindActions(platform: Platform): void {
         if (!outcome.ok) operationNote = harnessErrorMessage(outcome.error);
         else {
           const kept = selection.filter((item) => item.choice === "local").length;
-          operationNote = kept ? "Choix appliqués. Les versions locales conservées restent personnalisées et seront signalées aux prochaines vérifications." : "Choix appliqués. Les autres skills restent en attente.";
+          operationNote = kept ? "Choix appliqués. Les versions locales conservées restent personnalisées et seront signalées aux prochaines vérifications." : "Choix appliqués. Les autres éléments restent en attente.";
           if (document.getElementById(DIALOG_ID)?.hidden) {
             dsNotify("Vos choix de synchronisation ont été appliqués.", "success");
           }
