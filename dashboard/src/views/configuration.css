@@ -188,6 +188,61 @@
   margin-top: var(--ds-space-3);
 }
 
+/* --- Vocabulaire, écarts déclarés, champs invalides ---------------------- */
+
+.settings-howto {
+  max-width: 72ch;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-soft, var(--ds-surface));
+  padding: var(--ds-space-3) var(--ds-space-4);
+}
+
+.settings-howto > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.settings-howto > summary:hover {
+  color: var(--ds-action);
+}
+
+.settings-howto-list {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: var(--ds-space-3) 0 0;
+  font-size: var(--ds-text-sm);
+}
+
+.settings-howto-list dt {
+  font-weight: 600;
+}
+
+.settings-howto-list dd {
+  margin: 0;
+  color: var(--ds-text-muted);
+}
+
+.settings-gaps ul {
+  margin: var(--ds-space-2) 0;
+  padding-left: var(--ds-space-4);
+}
+
+.settings-gaps .meta {
+  margin: 0;
+}
+
+.settings-origin {
+  margin: 0;
+}
+
+.settings-editor [aria-invalid="true"] {
+  border-color: var(--ds-danger, currentColor);
+  outline: 2px solid var(--ds-danger, currentColor);
+  outline-offset: 1px;
+}
+
 /* --- Responsive ---------------------------------------------------------- */
 
 @media (max-width: 640px) {

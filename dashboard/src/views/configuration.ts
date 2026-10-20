@@ -26,6 +26,7 @@ import {
   libraryKindHref,
   runtimeTargetEntries,
   scopeLabel,
+  type CapabilityRequirement,
   type RuntimeCapabilities,
   type RuntimeTarget,
 } from "../libraryFormat";
@@ -50,6 +51,7 @@ import {
   createLibraryLock,
   listLibraryLocks,
   listLibraryResources,
+  listLibraryVersions,
   releaseLibraryLock,
   type LibraryProjectLock,
   type LibraryResource,
@@ -59,6 +61,16 @@ import {
   buildRuntimeCreate,
   buildRuntimeUpdate,
   capabilityFieldsHtml,
+  declaredCapabilityGaps,
+  harnessFieldHtml,
+  machineFieldHtml,
+  machineOptionsFrom,
+  metadataLinesFrom,
+  readCapabilities,
+  type CapabilityGap,
+  type ConfigBuildResult,
+  type MachineListItem,
+  type MachineOption,
 } from "./configForms";
 import { formReader } from "./libraryForms";
 import { kindFr, statusLabelFr } from "./library";
@@ -139,7 +151,82 @@ function refLine(label: string, value: string | null | undefined): string {
 export function runtimeTargetSummary(target: RuntimeTarget): string {
   const entries = runtimeTargetEntries(target);
   if (entries.length === 0) return '<span class="meta">—</span>';
-  return entries.map((entry) => `${esc(entry.label)} : <code class="mono">${esc(entry.value)}</code>`).join(" · ");
+  return entries.map((entry) => `${esc(TARGET_LABELS[entry.key] ?? entry.label)} : <code class="mono">${esc(entry.value)}</code>`).join(" · ");
+}
+
+const TARGET_LABELS: Record<string, string> = {
+  runtime_id: "Runtime enregistré",
+  harness_ref: "Outil (harness)",
+  provider_ref: "Fournisseur",
+  model_ref: "Modèle",
+  machine_id: "Poste",
+};
+
+/** Bloc « Comment ça s'articule » : le vocabulaire sans identifiant interne. */
+export function runtimeVocabularyHtml(open: boolean): string {
+  return (
+    `<details class="settings-howto"${open ? " open" : ""}><summary>Comment ça s'articule</summary><dl class="settings-howto-list">` +
+    `<div><dt>Poste</dt><dd>Le PC physique sur lequel les outils s'exécutent (voir <a href="#/machines">Postes</a>).</dd></div>` +
+    `<div><dt>Agent</dt><dd>L'identité d'un modèle sur ce poste : une par poste, fournisseur et modèle.</dd></div>` +
+    `<div><dt>Runtime</dt><dd>La configuration qui permet d'exécuter ce modèle : outil (harness) + fournisseur + modèle, éventuellement rattachée à un poste.</dd></div>` +
+    `<div><dt>Définition d'agent</dt><dd>Un rôle réutilisable de la <a href="${esc(libraryKindHref("agent_definition"))}">Bibliothèque</a>.</dd></div>` +
+    `<div><dt>Liaison</dt><dd>« Pour cette définition ou ce profil, utiliser ce runtime. » Le serveur décide du choix effectif — voir l'<a href="#/inspector">Inspecteur</a>.</dd></div>` +
+    `</dl></details>`
+  );
+}
+
+/** Postes de l'utilisateur ; `null` si la liste n'a pas pu être lue (le formulaire retombe sur un champ texte). */
+async function loadMachineOptions(client: StudioClient): Promise<MachineOption[] | null> {
+  try {
+    const result = await client.GET("/api/v1/machines");
+    if (result?.response?.ok !== true || !Array.isArray(result.data)) return null;
+    return machineOptionsFrom(result.data as MachineListItem[]);
+  } catch {
+    return null;
+  }
+}
+
+function machineNamesFrom(options: MachineOption[] | null): Map<string, string> {
+  return new Map((options ?? []).map((option) => [option.id, option.label]));
+}
+
+function posteName(machineId: string, names: Map<string, string>): string {
+  return names.get(machineId) ?? machineLabel(machineId);
+}
+
+/** Libellé d'un runtime dans une liste de choix : titre + poste. */
+export function runtimeOptionLabel(runtime: RuntimeRegistration, names: Map<string, string> = new Map()): string {
+  const poste = nonEmpty(runtime.machine_id) ? `poste ${posteName(runtime.machine_id, names)}` : "sans poste (cible distante)";
+  return `${runtimeHumanTitle(runtime)} — ${poste}`;
+}
+
+/** Marque le champ fautif (aria-invalid + focus) ; sans champ, focalise le message. */
+function reportFormError(form: HTMLFormElement, msg: Element | null, result: { error: string; field?: string }): void {
+  if (msg !== null) msg.textContent = result.error;
+  const field = result.field === undefined ? null : form.querySelector<HTMLElement>(`[name="${result.field}"]`);
+  if (field !== null) {
+    field.setAttribute("aria-invalid", "true");
+    field.closest("details")?.setAttribute("open", "");
+    field.focus();
+    return;
+  }
+  if (msg instanceof HTMLElement && result.error !== "") focusDsErrorBox(msg);
+}
+
+function clearInvalid(form: HTMLFormElement): void {
+  form.querySelectorAll("[aria-invalid]").forEach((element) => element.removeAttribute("aria-invalid"));
+}
+
+function buildOrReport<T>(form: HTMLFormElement, build: () => ConfigBuildResult<T>): T | null {
+  clearInvalid(form);
+  const msg = form.querySelector("[data-msg]");
+  const built = build();
+  if (!built.ok) {
+    reportFormError(form, msg, built);
+    return null;
+  }
+  if (msg !== null) msg.textContent = "";
+  return built.value;
 }
 
 /** Capacités déclarées d'un runtime — déclarations techniques, jamais un score. */
@@ -233,14 +320,14 @@ function runtimeOptions(values: string[], selected: string, allLabel: string, la
   return first + values.map((value) => `<option value="${esc(value)}"${selected === value ? " selected" : ""}>${esc(label(value))}</option>`).join("");
 }
 
-export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeRegistration[], shown: number): string {
+export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeRegistration[], shown: number, names: Map<string, string> = new Map()): string {
   return (
     `<div class="settings-toolbar" role="search" aria-label="Filtrer les runtimes chargés">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
     `<label class="ds-sr-only" for="settings-runtimes-search">Filtrer les runtimes déjà chargés</label>` +
-    `<input class="ds-input" type="search" id="settings-runtimes-search" value="${esc(state.query)}" placeholder="Rechercher par provider, model, harness…" autocomplete="off" /></div>` +
-    `<label class="settings-filter"><span>Provider</span><select class="ds-select" id="settings-runtimes-provider">${runtimeOptions(runtimeProviderOptions(runtimes), state.provider, "Tous les providers")}</select></label>` +
-    `<label class="settings-filter"><span>Machine</span><select class="ds-select" id="settings-runtimes-machine">${runtimeOptions(runtimeMachineOptions(runtimes), state.machine, "Toutes les machines", machineLabel)}</select></label>` +
+    `<input class="ds-input" type="search" id="settings-runtimes-search" value="${esc(state.query)}" placeholder="Rechercher par fournisseur, modèle, outil…" autocomplete="off" /></div>` +
+    `<label class="settings-filter"><span>Fournisseur</span><select class="ds-select" id="settings-runtimes-provider">${runtimeOptions(runtimeProviderOptions(runtimes), state.provider, "Tous les fournisseurs")}</select></label>` +
+    `<label class="settings-filter"><span>Poste</span><select class="ds-select" id="settings-runtimes-machine">${runtimeOptions(runtimeMachineOptions(runtimes), state.machine, "Tous les postes", (id) => posteName(id, names))}</select></label>` +
     `<label class="settings-filter"><span>Statut</span><select class="ds-select" id="settings-runtimes-status">` +
     `<option value="all"${state.status === "all" ? " selected" : ""}>Tous les statuts</option>` +
     `<option value="active"${state.status === "active" ? " selected" : ""}>Actif</option>` +
@@ -253,31 +340,33 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
   );
 }
 
-export function runtimeCardHtml(runtime: RuntimeRegistration): string {
-  const machine =
-    nonEmpty(runtime.machine_id)
-      ? `<a href="#/machines">Machine ${machineRef(runtime.machine_id)}</a>`
-      : '<span class="meta">Sans machine (cible distante)</span>';
+function posteLinkHtml(machineId: string | null | undefined, names: Map<string, string>): string {
+  return nonEmpty(machineId)
+    ? `<a href="#/machines">Poste ${names.has(machineId) ? esc(names.get(machineId)) : machineRef(machineId)}</a>`
+    : '<span class="meta">Aucun poste (cible distante)</span>';
+}
+
+export function runtimeCardHtml(runtime: RuntimeRegistration, names: Map<string, string> = new Map()): string {
   const status = dsBadge(runtimeStatusFr(runtime.status), runtimeStatusTone(runtime.status));
   return (
     `<li class="ds-list-item settings-runtime-row"><div class="grow">` +
     `<h3 class="settings-card-title">${esc(runtimeHumanTitle(runtime))}</h3>` +
-    `<div class="ds-list-sub">${machine}</div>` +
+    `<div class="ds-list-sub">${posteLinkHtml(runtime.machine_id, names)}</div>` +
     `<div class="ds-list-sub settings-caps">${capabilitySummary(runtime.capabilities)}</div>` +
-    `<div class="ds-list-sub meta">Environnement/cible d'exécution — ni un agent, ni une machine.</div>` +
+    `<div class="ds-list-sub meta">Configuration d'exécution d'un modèle — ni un agent, ni un poste.</div>` +
     `</div><div class="settings-row-side">${status}` +
     `<a class="ds-btn ds-btn--sm" href="#/configuration/runtimes/${esc(runtime.id)}">Détails</a></div></li>`
   );
 }
 
-export function runtimesListHtml(runtimes: RuntimeRegistration[]): string {
-  return `<ul class="ds-list settings-list">${runtimes.map(runtimeCardHtml).join("")}</ul>`;
+export function runtimesListHtml(runtimes: RuntimeRegistration[], names: Map<string, string> = new Map()): string {
+  return `<ul class="ds-list settings-list">${runtimes.map((runtime) => runtimeCardHtml(runtime, names)).join("")}</ul>`;
 }
 
 function runtimesEmptyHtml(): string {
   return dsEmptyState(
     "Aucun runtime enregistré",
-    "Un runtime décrit un environnement/cible d'exécution (provider, harness, model). " +
+    "Un runtime décrit comment exécuter un modèle : outil (harness), fournisseur et modèle, éventuellement sur un poste. " +
       "Aucun n'est encore déclaré pour ce jeton — utilisez « Déclarer un runtime » ci-dessous.",
   );
 }
@@ -293,14 +382,14 @@ function setFormMsg(msg: Element | null, text: string): void {
   if (text !== "" && msg instanceof HTMLElement) focusDsErrorBox(msg);
 }
 
-export function createRuntimeFormHtml(): string {
+export function createRuntimeFormHtml(machines: MachineOption[] | null = null): string {
   return (
     `<details class="editor settings-editor"><summary>Déclarer un runtime</summary><form class="stack-form" data-runtime-create>` +
-    `<p class="meta">Tous les champs de référence sont des chaînes ouvertes : aucun catalogue de fournisseurs n'est imposé. Au moins une référence ou une machine est requise. Le serveur refusera toute métadonnée ressemblant à un secret.</p>` +
-    `<label class="stack">Machine (facultatif) <input name="machine_id" placeholder="uuid d'une machine possédée" /></label>` +
-    `<label class="stack">Harness <input name="harness_ref" placeholder="chaîne ouverte (facultatif)" /></label>` +
-    `<label class="stack">Provider <input name="provider_ref" placeholder="chaîne ouverte (facultatif)" /></label>` +
-    `<label class="stack">Model <input name="model_ref" placeholder="chaîne ouverte (facultatif)" /></label>` +
+    `<p class="meta">Les références sont des chaînes ouvertes : aucun catalogue de fournisseurs n'est imposé. Renseignez au moins un poste, un outil, un fournisseur ou un modèle. Le serveur refusera toute métadonnée ressemblant à un secret.</p>` +
+    machineFieldHtml(machines, null) +
+    harnessFieldHtml("settings-harness-create", null) +
+    `<label class="stack">Fournisseur <input name="provider_ref" placeholder="chaîne ouverte (facultatif)" autocomplete="off" /></label>` +
+    `<label class="stack">Modèle <input name="model_ref" placeholder="chaîne ouverte (facultatif)" autocomplete="off" /></label>` +
     `<details class="settings-subeditor"><summary>Capacités déclarées (facultatif)</summary>${capabilityFieldsHtml()}</details>` +
     `<label class="stack">Métadonnées libres (une par ligne, <code class="mono">clé=valeur</code>) <textarea name="metadata" rows="2" placeholder="facultatif — les secrets sont refusés par le serveur"></textarea></label>` +
     `<button type="submit" class="ds-btn ds-btn--primary">Déclarer le runtime</button>` +
@@ -321,8 +410,12 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
   }
   root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
   let runtimes: RuntimeRegistration[];
+  let machines: MachineOption[] | null;
   try {
-    runtimes = await listRuntimes(ctx.client, { includeRevoked: runtimesState.includeRevoked });
+    [runtimes, machines] = await Promise.all([
+      listRuntimes(ctx.client, { includeRevoked: runtimesState.includeRevoked }),
+      loadMachineOptions(ctx.client),
+    ]);
   } catch (error) {
     root.innerHTML =
       `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtimes-reload" }])}${head}` +
@@ -332,42 +425,41 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
     });
     return;
   }
-  root.innerHTML = runtimesPageHtml(runtimes);
-  bindRuntimes(root, ctx, runtimes);
+  root.innerHTML = runtimesPageHtml(runtimes, machines);
+  bindRuntimes(root, ctx, runtimes, machineNamesFrom(machines));
 }
 
-export function runtimesPageHtml(runtimes: RuntimeRegistration[]): string {
+export function runtimesPageHtml(runtimes: RuntimeRegistration[], machines: MachineOption[] | null = null): string {
+  const names = machineNamesFrom(machines);
   const visible = filterRuntimes(runtimes, runtimesState);
-  const body = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible);
+  const body = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible, names);
   return (
     `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtimes-reload" }])}${configTabsHtml("runtimes")}` +
     `<section class="settings-domain"><h2>Runtimes enregistrés</h2>` +
-    `<p class="settings-intro">Un runtime est un environnement/cible d'exécution. Le provider, le model et le harness sont des références ouvertes ; le model n'est pas le runtime, et une machine n'est pas un runtime.</p>` +
-    `${runtimesToolbarHtml(runtimesState, runtimes, visible.length)}` +
+    `<p class="settings-intro">Un runtime est la configuration qui permet d'exécuter un modèle : outil (harness), fournisseur et modèle sont des références ouvertes. Le modèle n'est pas le runtime, et un poste n'est pas un runtime.</p>` +
+    runtimeVocabularyHtml(runtimes.length === 0) +
+    `${runtimesToolbarHtml(runtimesState, runtimes, visible.length, names)}` +
     `<div id="settings-runtimes-list" aria-live="polite">${body}</div>` +
-    `${createRuntimeFormHtml()}` +
+    `${createRuntimeFormHtml(machines)}` +
     `<p class="meta">Les runtimes sont privés à leur propriétaire. Le niveau gagnant lors d'une résolution est décidé par le serveur — voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
     `</section></div>`
   );
 }
 
-function bindRuntimes(root: HTMLElement, ctx: ConfigurationContext, runtimes: RuntimeRegistration[]): void {
+function bindRuntimes(root: HTMLElement, ctx: ConfigurationContext, runtimes: RuntimeRegistration[], names: Map<string, string>): void {
   root.querySelector("#settings-runtimes-reload")?.addEventListener("click", () => {
     void renderRuntimes(root, ctx);
   });
-  bindRuntimesToolbar(root, ctx, runtimes);
+  bindRuntimesToolbar(root, ctx, runtimes, names);
   const form = root.querySelector<HTMLFormElement>("[data-runtime-create]");
   form?.addEventListener("submit", (event) => {
     event.preventDefault();
     const msg = form.querySelector("[data-msg]");
     const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
-    const built = buildRuntimeCreate(formReader(form));
-    if (!built.ok) {
-      setFormMsg(msg, built.error);
-      return;
-    }
+    const value = buildOrReport(form, () => buildRuntimeCreate(formReader(form)));
+    if (value === null) return;
     if (submit !== null) submit.disabled = true;
-    registerRuntime(ctx.client, built.value)
+    registerRuntime(ctx.client, value)
       .then(() => {
         runtimesState = initialRuntimesState();
         void renderRuntimes(root, ctx);
@@ -379,26 +471,26 @@ function bindRuntimes(root: HTMLElement, ctx: ConfigurationContext, runtimes: Ru
   });
 }
 
-function refreshRuntimesList(root: HTMLElement, runtimes: RuntimeRegistration[]): void {
+function refreshRuntimesList(root: HTMLElement, runtimes: RuntimeRegistration[], names: Map<string, string>): void {
   const visible = filterRuntimes(runtimes, runtimesState);
   const list = root.querySelector("#settings-runtimes-list");
   if (list !== null) {
-    list.innerHTML = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible);
+    list.innerHTML = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible, names);
   }
   const toolbar = root.querySelector(".settings-toolbar");
   if (toolbar !== null) {
     const fresh = document.createElement("div");
-    fresh.innerHTML = runtimesToolbarHtml(runtimesState, runtimes, visible.length);
+    fresh.innerHTML = runtimesToolbarHtml(runtimesState, runtimes, visible.length, names);
     toolbar.replaceWith(...fresh.childNodes);
   }
 }
 
-function bindRuntimesToolbar(root: HTMLElement, ctx: ConfigurationContext, runtimes: RuntimeRegistration[]): void {
+function bindRuntimesToolbar(root: HTMLElement, ctx: ConfigurationContext, runtimes: RuntimeRegistration[], names: Map<string, string>): void {
   const search = root.querySelector<HTMLInputElement>("#settings-runtimes-search");
   search?.addEventListener("input", () => {
     runtimesState.query = search.value;
-    refreshRuntimesList(root, runtimes);
-    bindRuntimesToolbar(root, ctx, runtimes);
+    refreshRuntimesList(root, runtimes, names);
+    bindRuntimesToolbar(root, ctx, runtimes, names);
     const again = root.querySelector<HTMLInputElement>("#settings-runtimes-search");
     if (again !== null) {
       again.focus();
@@ -408,20 +500,20 @@ function bindRuntimesToolbar(root: HTMLElement, ctx: ConfigurationContext, runti
   const provider = root.querySelector<HTMLSelectElement>("#settings-runtimes-provider");
   provider?.addEventListener("change", () => {
     runtimesState.provider = provider.value;
-    refreshRuntimesList(root, runtimes);
-    bindRuntimesToolbar(root, ctx, runtimes);
+    refreshRuntimesList(root, runtimes, names);
+    bindRuntimesToolbar(root, ctx, runtimes, names);
   });
   const machine = root.querySelector<HTMLSelectElement>("#settings-runtimes-machine");
   machine?.addEventListener("change", () => {
     runtimesState.machine = machine.value;
-    refreshRuntimesList(root, runtimes);
-    bindRuntimesToolbar(root, ctx, runtimes);
+    refreshRuntimesList(root, runtimes, names);
+    bindRuntimesToolbar(root, ctx, runtimes, names);
   });
   const status = root.querySelector<HTMLSelectElement>("#settings-runtimes-status");
   status?.addEventListener("change", () => {
     runtimesState.status = status.value === "active" || status.value === "revoked" ? status.value : "all";
-    refreshRuntimesList(root, runtimes);
-    bindRuntimesToolbar(root, ctx, runtimes);
+    refreshRuntimesList(root, runtimes, names);
+    bindRuntimesToolbar(root, ctx, runtimes, names);
   });
   const revoked = root.querySelector<HTMLInputElement>("[data-include-revoked]");
   revoked?.addEventListener("change", () => {
@@ -448,7 +540,13 @@ async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
   }
 }
 
-export function runtimeDetailHtml(runtime: RuntimeRegistration, bindings: RuntimeBinding[] | null, bindingsError: string | null): string {
+export function runtimeDetailHtml(
+  runtime: RuntimeRegistration,
+  bindings: RuntimeBinding[] | null,
+  bindingsError: string | null,
+  machines: MachineOption[] | null = null,
+): string {
+  const names = machineNamesFrom(machines);
   const links = bindings === null ? "" : runtimeBindingsTableHtml(bindings);
   const bindingsBlock =
     bindings === null
@@ -462,7 +560,7 @@ export function runtimeDetailHtml(runtime: RuntimeRegistration, bindings: Runtim
   const technical =
     `<details class="settings-technical"><summary>Informations techniques</summary><dl class="settings-refs">` +
     `<div class="settings-ref"><dt>Identifiant</dt><dd><code class="mono">${esc(runtime.id)}</code></dd></div>` +
-    `<div class="settings-ref"><dt>Machine</dt><dd>${nonEmpty(runtime.machine_id) ? `<code class="mono">${esc(runtime.machine_id)}</code>` : "aucune"}</dd></div>` +
+    `<div class="settings-ref"><dt>Identifiant du poste</dt><dd>${nonEmpty(runtime.machine_id) ? `<code class="mono">${esc(runtime.machine_id)}</code>` : "aucun"}</dd></div>` +
     `<div class="settings-ref"><dt>Version</dt><dd>v${runtime.version}</dd></div>` +
     `<div class="settings-ref"><dt>Source des capacités</dt><dd><code class="mono">${esc(runtime.capability_source)}</code></dd></div>` +
     `<div class="settings-ref"><dt>Créé le</dt><dd>${fmtTime(runtime.created_at)}</dd></div>` +
@@ -470,40 +568,52 @@ export function runtimeDetailHtml(runtime: RuntimeRegistration, bindings: Runtim
     `</dl><h4>Métadonnées</h4>${metadataHtml}</details>`;
   return (
     `<section class="settings-domain"><h2>Configuration du runtime</h2>` +
-    `<p class="settings-intro">Runtime = environnement/cible d'exécution. Il n'est ni un agent, ni une machine, ni un modèle : <code class="mono">model_ref</code> est une de ses propriétés.</p>` +
+    `<p class="settings-intro">Un runtime est la configuration qui permet d'exécuter un modèle. Il n'est ni un agent, ni un poste, ni un modèle : le modèle est une de ses propriétés.</p>` +
     `<dl class="settings-refs">` +
     `<div class="settings-ref"><dt>Statut</dt><dd>${dsBadge(runtimeStatusFr(runtime.status), runtimeStatusTone(runtime.status))}</dd></div>` +
     `<div class="settings-ref"><dt>Propriétaire</dt><dd>${esc(FALLBACK_LABEL.user)}</dd></div>` +
-    `<div class="settings-ref"><dt>Machine</dt><dd>${nonEmpty(runtime.machine_id) ? `<a href="#/machines">Machine ${machineRef(runtime.machine_id)}</a>` : '<span class="meta">Sans machine (cible distante)</span>'}</dd></div>` +
-    refLine("Provider", runtime.provider_ref) +
-    refLine("Model", runtime.model_ref) +
-    refLine("Harness", runtime.harness_ref) +
+    `<div class="settings-ref"><dt>Poste</dt><dd>${posteLinkHtml(runtime.machine_id, names)}</dd></div>` +
+    refLine("Fournisseur", runtime.provider_ref) +
+    refLine("Modèle", runtime.model_ref) +
+    refLine("Outil (harness)", runtime.harness_ref) +
     `</dl>` +
     `<h3>Capacités déclarées</h3>${capabilitySummary(runtime.capabilities)}` +
     `<h3>Liaisons référençant ce runtime</h3>${bindingsBlock}` +
-    `<p class="meta"><a class="ds-btn" href="#/inspector">Inspecter la résolution</a> — pourquoi un runtime est choisi se lit dans l'Inspecteur, pas ici.</p>` +
-    updateRuntimeFormHtml(runtime) +
+    `<p class="meta settings-origin">Origine du choix effectif : voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
+    updateRuntimeFormHtml(runtime, machines) +
     revokeRuntimeFormHtml(runtime) +
     technical +
     `</section>`
   );
 }
 
-function updateRuntimeFormHtml(runtime: RuntimeRegistration): string {
-  const disabled = runtime.status === "revoked" ? "disabled" : "";
+/** Métadonnées éditables : clés non sensibles à valeur simple (les autres ne sont ni affichées ni renvoyées). */
+function editableMetadata(runtime: RuntimeRegistration): Record<string, string> {
+  const raw = runtime.runtime_metadata ?? {};
+  const safe = new Set(safeMetadataEntries(raw).map((entry) => entry.key));
+  const editable: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (safe.has(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) editable[key] = String(value);
+  }
+  return editable;
+}
+
+export function updateRuntimeFormHtml(runtime: RuntimeRegistration, machines: MachineOption[] | null = null): string {
+  const revoked = runtime.status === "revoked";
+  const disabled = revoked ? " disabled" : "";
   return (
     `<details class="editor settings-editor"><summary>Modifier ce runtime</summary><form class="stack-form" data-runtime-update>` +
-    `<p class="meta">Un champ laissé vide reste inchangé. La modification exige la version courante : si le runtime a changé entre-temps, elle est refusée plutôt que d'écraser les changements.</p>` +
-    `<label class="stack">Harness (vide = inchangé) <input name="harness_ref" placeholder="${esc(runtime.harness_ref ?? "inchangé")}" ${disabled} /></label>` +
-    `<label class="stack">Provider (vide = inchangé) <input name="provider_ref" placeholder="${esc(runtime.provider_ref ?? "inchangé")}" ${disabled} /></label>` +
-    `<label class="stack">Model (vide = inchangé) <input name="model_ref" placeholder="${esc(runtime.model_ref ?? "inchangé")}" ${disabled} /></label>` +
-    `<label class="stack">Machine (vide = inchangée) <input name="machine_id" placeholder="uuid" ${disabled} /></label>` +
-    `<label class="settings-check"><input name="detach_machine" type="checkbox" ${disabled} /> Détacher la machine</label>` +
-    `<label class="settings-check"><input name="update_capabilities" type="checkbox" ${disabled} /> Remplacer les capacités</label>` +
-    `<details class="settings-subeditor"><summary>Capacités de remplacement</summary>${capabilityFieldsHtml(runtime.status === "revoked")}</details>` +
-    `<label class="stack">Métadonnées (clé=valeur par ligne, vide = inchangées) <textarea name="metadata" rows="2" ${disabled}></textarea></label>` +
-    `<label class="stack">Version attendue <input name="expected_version" type="number" min="1" value="${runtime.version}" required ${disabled} /></label>` +
-    `<button type="submit" class="ds-btn ds-btn--primary" ${disabled}>Enregistrer</button>` +
+    `<p class="meta">Les champs affichent les valeurs actuelles ; seuls les champs modifiés sont envoyés. Si le runtime a changé entre-temps, la modification est refusée plutôt que d'écraser les changements.</p>` +
+    machineFieldHtml(machines, runtime.machine_id ?? null, revoked) +
+    harnessFieldHtml("settings-harness-update", runtime.harness_ref ?? null, revoked) +
+    `<label class="stack">Fournisseur <input name="provider_ref" value="${esc(runtime.provider_ref ?? "")}" autocomplete="off"${disabled} /></label>` +
+    `<label class="stack">Modèle <input name="model_ref" value="${esc(runtime.model_ref ?? "")}" autocomplete="off"${disabled} /></label>` +
+    `<details class="settings-subeditor"><summary>Capacités déclarées</summary>${capabilityFieldsHtml(revoked, runtime.capabilities)}</details>` +
+    `<label class="stack">Métadonnées (une par ligne, <code class="mono">clé=valeur</code>) <textarea name="metadata" rows="2"${disabled}>${esc(metadataLinesFrom(editableMetadata(runtime)))}</textarea></label>` +
+    `<details class="settings-subeditor"><summary>Avancé</summary>` +
+    `<label class="stack">Version attendue <input name="expected_version" type="number" min="1" step="1" value="${runtime.version}" required${disabled} /></label>` +
+    `<p class="meta">Garde-fou contre l'écrasement : la version lue lors de l'ouverture de la page.</p></details>` +
+    `<button type="submit" class="ds-btn ds-btn--primary"${disabled}>Enregistrer</button>` +
     `<span class="meta">En cas de conflit de version, rien n'est écrasé ni renvoyé automatiquement.</span>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div></form></details>`
   );
@@ -529,7 +639,11 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
     return;
   }
   root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
-  const [runtime, bindings] = await Promise.all([settle(getRuntime(ctx.client, runtimeId)), settle(listRuntimeBindings(ctx.client))]);
+  const [runtime, bindings, machines] = await Promise.all([
+    settle(getRuntime(ctx.client, runtimeId)),
+    settle(listRuntimeBindings(ctx.client)),
+    loadMachineOptions(ctx.client),
+  ]);
   if (!runtime.ok) {
     root.innerHTML =
       `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtime-reload" }])}${head}` +
@@ -542,11 +656,11 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   }
   const related = bindings.ok ? bindings.value.filter((binding) => binding.target.runtime_id === runtime.value.id) : null;
   root.innerHTML =
-    `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un runtime — environnement/cible d'exécution enregistré.", [
+    `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un runtime — configuration d'exécution d'un modèle.", [
       { label: "Actualiser", id: "settings-runtime-reload" },
     ])}${head}` +
     `<p class="settings-back"><a href="#/configuration/runtimes">← Retour aux runtimes</a></p>` +
-    runtimeDetailHtml(runtime.value, related, bindings.ok ? null : describeError(bindings.error)) +
+    runtimeDetailHtml(runtime.value, related, bindings.ok ? null : describeError(bindings.error), machines) +
     `</div>`;
   bindRuntimeDetail(root, ctx, runtime.value);
 }
@@ -560,13 +674,10 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
     event.preventDefault();
     const msg = updateForm.querySelector("[data-msg]");
     const submit = updateForm.querySelector<HTMLButtonElement>("button[type=submit]");
-    const built = buildRuntimeUpdate(formReader(updateForm));
-    if (!built.ok) {
-      setFormMsg(msg, built.error);
-      return;
-    }
+    const value = buildOrReport(updateForm, () => buildRuntimeUpdate(formReader(updateForm), { ...runtime, runtime_metadata: editableMetadata(runtime) }));
+    if (value === null) return;
     if (submit !== null) submit.disabled = true;
-    updateRuntime(ctx.client, runtime.id, built.value)
+    updateRuntime(ctx.client, runtime.id, value)
       .then(() => {
         void renderRuntimeDetail(root, ctx, runtime.id);
       })
@@ -732,7 +843,7 @@ export function bindingsTableHtml(bindings: RuntimeBinding[], emptyMessage: stri
 function bindingsEmptyHtml(): string {
   return dsEmptyState(
     "Aucun binding stocké",
-    "Un binding associe une clé logique (AgentDefinition ou ModelProfile) à un runtime. Utilisez « Nouveau binding » ci-dessous.",
+    "Une liaison associe une définition d'agent ou un profil de modèle à un runtime. Utilisez « Nouvelle liaison » ci-dessous.",
   );
 }
 
@@ -740,28 +851,45 @@ function bindingsNoMatchHtml(): string {
   return dsEmptyState("Aucun binding ne correspond", "Modifiez la recherche ou le filtre de niveau pour retrouver vos bindings déjà chargés.");
 }
 
-function createBindingFormHtml(runtimes: RuntimeRegistration[], stableKeys: string[]): string {
+/** Bloc « Écarts déclarés » : indicatif, jamais bloquant — le serveur tranche. */
+export function capabilityGapsNoticeHtml(gaps: CapabilityGap[]): string {
+  if (gaps.length === 0) {
+    return `<p class="meta">Aucun écart déclaré entre les exigences du profil et les capacités du runtime — indicatif, le serveur tranche (voir l'<a href="#/inspector">Inspecteur</a>).</p>`;
+  }
+  const items = gaps
+    .map((gap) => `<li><strong>${esc(gap.label)}</strong> : exigé ${esc(gap.required)}, déclaré ${esc(gap.declared)}</li>`)
+    .join("");
+  return (
+    `<div class="ds-notice ds-notice--warning settings-gaps"><strong>Écarts déclarés</strong>` +
+    `<ul>${items}</ul>` +
+    `<p class="meta">Comparaison indicative des déclarations : le serveur tranche, voir l'<a href="#/inspector">Inspecteur</a>. La liaison reste enregistrable.</p></div>`
+  );
+}
+
+function createBindingFormHtml(runtimes: RuntimeRegistration[], stableKeys: string[], machines: MachineOption[] | null): string {
+  const names = machineNamesFrom(machines);
   const runtimeOptions = runtimes
-    .map((runtime) => `<option value="${esc(runtime.id)}">${esc(runtimeHumanTitle(runtime))}</option>`)
+    .map((runtime) => `<option value="${esc(runtime.id)}">${esc(runtimeOptionLabel(runtime, names))}</option>`)
     .join("");
   const datalist = stableKeys.map((key) => `<option value="${esc(key)}"></option>`).join("");
   const defaultProject = uiState.selectedProjectId ?? "";
   return (
-    `<details class="editor settings-editor"><summary>Nouveau binding</summary><form class="stack-form" data-binding-create>` +
-    `<p class="meta">Un binding dit « pour cette clé logique, utiliser ce runtime ». Les niveaux sont des choix stockés ; le niveau gagnant est décidé par le serveur (voir Inspecteur). Le niveau « session » est éphémère et n'est jamais stocké ici.</p>` +
+    `<details class="editor settings-editor"><summary>Nouvelle liaison</summary><form class="stack-form" data-binding-create>` +
+    `<p class="meta">Une liaison dit « pour cette définition ou ce profil, utiliser ce runtime ». Les niveaux sont des choix stockés ; le niveau gagnant est décidé par le serveur (voir Inspecteur). Le niveau « session » est éphémère et n'est jamais stocké ici.</p>` +
     `<label class="stack">Niveau <select name="level">${(STORED_RUNTIME_LEVELS as readonly RuntimeLevel[]).map((level) => `<option value="${esc(level)}">${esc(bindingScopeLabel(level))}</option>`).join("")}</select></label>` +
-    `<label class="stack">Projet (niveaux projet uniquement) <input name="project_id" value="${esc(defaultProject)}" placeholder="uuid" /></label>` +
+    `<label class="stack">Projet (niveaux projet uniquement) <input name="project_id" value="${esc(defaultProject)}" placeholder="identifiant du projet" /></label>` +
     `<label class="stack">Type de cible <select name="target_kind"><option value="agent_definition">Définition d'agent</option><option value="model_profile">Profil de modèle</option></select></label>` +
-    `<label class="stack">Clé logique cible <input name="target_stable_key" list="settings-stable-keys" required placeholder="clé stable" /></label>` +
+    `<label class="stack">Clé logique cible <input name="target_stable_key" list="settings-stable-keys" required placeholder="clé stable" autocomplete="off" /></label>` +
     `<datalist id="settings-stable-keys">${datalist}</datalist>` +
-    `<label class="stack">Runtime cible (registre) <select name="runtime_id"><option value="">— sélectionner un runtime —</option>${runtimeOptions}</select></label>` +
-    `<details class="settings-subeditor"><summary>Ou ancres inline (sans runtime du registre)</summary>` +
-    `<label class="stack">Machine <input name="machine_id" placeholder="uuid" /></label>` +
-    `<label class="stack">Harness <input name="harness_ref" /></label>` +
-    `<label class="stack">Provider <input name="provider_ref" /></label>` +
-    `<label class="stack">Model <input name="model_ref" /></label>` +
+    `<label class="stack">Runtime enregistré <select name="runtime_id"><option value="">— sélectionner un runtime —</option>${runtimeOptions}</select></label>` +
+    `<div data-gaps aria-live="polite"></div>` +
+    `<details class="settings-subeditor"><summary>Ou ancres directes (sans runtime enregistré)</summary>` +
+    machineFieldHtml(machines, null) +
+    harnessFieldHtml("settings-harness-binding", null) +
+    `<label class="stack">Fournisseur <input name="provider_ref" autocomplete="off" /></label>` +
+    `<label class="stack">Modèle <input name="model_ref" autocomplete="off" /></label>` +
     `${capabilityFieldsHtml()}</details>` +
-    `<button type="submit" class="ds-btn ds-btn--primary">Créer le binding</button>` +
+    `<button type="submit" class="ds-btn ds-btn--primary">Créer la liaison</button>` +
     `<span class="meta">Un envoi répété ne crée pas de doublon.</span>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div></form></details>`
   );
@@ -778,10 +906,11 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
     return;
   }
   root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
-  const [bindings, runtimes, library] = await Promise.all([
+  const [bindings, runtimes, library, machines] = await Promise.all([
     settle(listRuntimeBindings(ctx.client)),
     settle(listRuntimes(ctx.client)),
     settle(listLibraryResources(ctx.client, { limit: 200 })),
+    loadMachineOptions(ctx.client),
   ]);
   if (!bindings.ok) {
     root.innerHTML =
@@ -807,10 +936,10 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
     (bindings.value.length === 0 ? "" : bindingsToolbarHtml(bindingsState, visible.length, bindings.value.length)) +
     degraded +
     `<div id="settings-bindings-list">${body}</div>` +
-    `${createBindingFormHtml(runtimeList, stableKeys)}` +
+    `${createBindingFormHtml(runtimeList, stableKeys, machines)}` +
     `<p class="meta"><a href="#/inspector">Ouvrir l'Inspecteur</a> pour voir quel niveau gagne réellement à la résolution.</p>` +
     `</section></div>`;
-  bindBindings(root, ctx, bindings.value, runtimesById, stableKeys);
+  bindBindings(root, ctx, bindings.value, runtimesById, library.ok ? library.value : []);
 }
 
 function bindBindings(
@@ -818,7 +947,7 @@ function bindBindings(
   ctx: ConfigurationContext,
   bindings: RuntimeBinding[],
   runtimesById: Map<string, RuntimeRegistration>,
-  _stableKeys: string[],
+  resources: LibraryResource[],
 ): void {
   root.querySelector("#settings-bindings-reload")?.addEventListener("click", () => {
     void renderBindings(root, ctx);
@@ -829,13 +958,10 @@ function bindBindings(
     event.preventDefault();
     const msg = form.querySelector("[data-msg]");
     const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
-    const built = buildBindingCreate(formReader(form));
-    if (!built.ok) {
-      setFormMsg(msg, built.error);
-      return;
-    }
+    const value = buildOrReport(form, () => buildBindingCreate(formReader(form)));
+    if (value === null) return;
     if (submit !== null) submit.disabled = true;
-    createRuntimeBinding(ctx.client, built.value)
+    createRuntimeBinding(ctx.client, value)
       .then(() => {
         bindingsState = initialBindingsState();
         void renderBindings(root, ctx);
@@ -845,7 +971,69 @@ function bindBindings(
         if (submit !== null) submit.disabled = false;
       });
   });
+  if (form !== null) bindCapabilityGaps(form, ctx, runtimesById, resources);
   bindBindingDeletes(root, ctx);
+}
+
+/** Exigence déclarée par la version active d'un ModelProfile ; `null` sans version active. */
+async function activeRequirement(ctx: ConfigurationContext, resource: LibraryResource): Promise<CapabilityRequirement | null> {
+  if (resource.active_version < 1) return null;
+  const versions = await listLibraryVersions(ctx.client, resource.id);
+  const active = versions.find((version) => version.version === resource.active_version);
+  const requirements = active?.content["requirements"];
+  return typeof requirements === "object" && requirements !== null ? (requirements as CapabilityRequirement) : null;
+}
+
+function bindCapabilityGaps(
+  form: HTMLFormElement,
+  ctx: ConfigurationContext,
+  runtimesById: Map<string, RuntimeRegistration>,
+  resources: LibraryResource[],
+): void {
+  const output = form.querySelector<HTMLElement>("[data-gaps]");
+  if (output === null) return;
+  const cache = new Map<string, Promise<CapabilityRequirement | null>>();
+  let generation = 0;
+  const update = (): void => {
+    generation += 1;
+    const current = generation;
+    const read = formReader(form);
+    const stableKey = read.text("target_stable_key").trim();
+    const profile =
+      read.text("target_kind") === "model_profile" && stableKey !== ""
+        ? resources.find((resource) => resource.kind === "model_profile" && resource.stable_key === stableKey)
+        : undefined;
+    const runtimeId = read.text("runtime_id").trim();
+    let capabilities: RuntimeCapabilities | null = null;
+    if (runtimeId !== "") {
+      capabilities = runtimesById.get(runtimeId)?.capabilities ?? null;
+    } else {
+      const inline = readCapabilities(read);
+      capabilities = inline.ok ? inline.value : null;
+    }
+    if (profile === undefined || capabilities === null) {
+      output.innerHTML = "";
+      return;
+    }
+    let pending = cache.get(profile.id);
+    if (pending === undefined) {
+      pending = activeRequirement(ctx, profile);
+      cache.set(profile.id, pending);
+    }
+    const declared = capabilities;
+    pending
+      .then((requirement) => {
+        if (current !== generation) return;
+        output.innerHTML = requirement === null ? "" : capabilityGapsNoticeHtml(declaredCapabilityGaps(requirement, declared));
+      })
+      .catch(() => {
+        cache.delete(profile.id);
+        if (current !== generation) return;
+        output.innerHTML = `<p class="meta">Exigences du profil indisponibles — la compatibilité se lit dans l'<a href="#/inspector">Inspecteur</a>.</p>`;
+      });
+  };
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
 }
 
 function bindBindingDeletes(root: HTMLElement, ctx: ConfigurationContext): void {
