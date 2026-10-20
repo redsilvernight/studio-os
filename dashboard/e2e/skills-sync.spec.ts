@@ -44,7 +44,7 @@ async function openSkills(page: Page): Promise<void> {
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
   await page.getByTestId("skills-sync").click();
-  await expect(page.locator('[data-skills-choice="delegate"]')).toBeVisible();
+  await expect(page.locator('[data-skills-choice="skill:delegate"]')).toBeVisible();
 }
 
 test("skills choices are targeted, accessible and preserve dialog focus", async ({ page }, testInfo) => {
@@ -55,7 +55,7 @@ test("skills choices are targeted, accessible and preserve dialog focus", async 
   await expect(dialog.locator("h2")).toBeFocused();
   await expect(page.locator("[data-skills-notice]")).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Appliquer les choix" })).toBeDisabled();
-  const diff = dialog.locator('[data-skill="delegate"] details');
+  const diff = dialog.locator('[data-skill="skill:delegate"] details');
   await expect(diff).not.toHaveAttribute("open");
   await diff.locator("summary").click();
   await expect(diff.locator("pre")).toContainText("Mes instructions locales");
@@ -63,15 +63,15 @@ test("skills choices are targeted, accessible and preserve dialog focus", async 
   const scan = await new AxeBuilder({ page }).include("#skills-sync-dialog").analyze();
   expect(scan.violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("skills-sync-desktop.png") });
-  await dialog.getByLabel("Version à utiliser pour delegate").selectOption("library");
+  await dialog.getByLabel("Version à utiliser pour Skill delegate").selectOption("library");
   await dialog.getByRole("button", { name: "Appliquer 1 choix" }).click();
   await expect(dialog.getByRole("button", { name: "Confirmer le remplacement" })).toBeFocused();
   await expect(dialog.locator(".skills-sync-confirmation")).toContainText(".agents/skills/delegate/SKILL.md");
   await expect(dialog.locator(".skills-sync-confirmation")).not.toContainText("graphify");
   await expect(dialog.locator(".skills-sync-confirmation")).not.toContainText(".claude/skills/delegate/SKILL.md");
   await dialog.getByRole("button", { name: "Confirmer le remplacement" }).click();
-  await expect(dialog.locator('[data-skill="delegate"]')).toHaveCount(0);
-  await expect(dialog.locator('[data-skill="graphify"]')).toBeVisible();
+  await expect(dialog.locator('[data-skill="skill:delegate"]')).toHaveCount(0);
+  await expect(dialog.locator('[data-skill="skill:graphify"]')).toBeVisible();
   const applyCalls = await page.evaluate(() => (window as unknown as { skillsCalls: { command: string; payload: unknown }[] }).skillsCalls.filter((call) => call.command === "skills.apply"));
   expect(applyCalls).toEqual([{ command: "skills.apply", payload: { confirm: true, resolutions: [{ stable_key: "delegate", choice: "library", preview_hash: "1".repeat(64) }] } }]);
   await page.keyboard.press("Escape");
@@ -84,8 +84,8 @@ test("skills dialog reflows at mobile width with visible footer actions", async 
   await openSkills(page);
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = page.getByRole("dialog", { name: "Synchronisation des skills" });
-  await expect(dialog.getByLabel("Version à utiliser pour delegate")).toBeVisible();
-  await dialog.getByLabel("Version à utiliser pour delegate").selectOption("local");
+  await expect(dialog.getByLabel("Version à utiliser pour Skill delegate")).toBeVisible();
+  await dialog.getByLabel("Version à utiliser pour Skill delegate").selectOption("local");
   const apply = dialog.getByRole("button", { name: "Appliquer 1 choix" });
   await expect(apply).toBeInViewport();
   const bounds = await dialog.boundingBox();

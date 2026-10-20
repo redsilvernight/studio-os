@@ -51,6 +51,7 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "skills.read",
     "skills.apply",
     "skills.resolve",
+    "skills.definitions",
     "setup.plan",
     "setup.apply",
     "launch.settings",
@@ -163,6 +164,7 @@ mod tests {
         assert!(offered.contains(&json!("harness.verify")));
         assert!(offered.contains(&json!("skills.read")));
         assert!(offered.contains(&json!("skills.resolve")));
+        assert!(offered.contains(&json!("skills.definitions")));
         assert!(offered.contains(&json!("setup.plan")));
         assert!(offered.contains(&json!("setup.apply")));
         assert!(offered.contains(&json!("launch.settings")));

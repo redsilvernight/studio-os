@@ -8,6 +8,15 @@
       "title": "SkillHarnessTarget",
       "type": "string"
     },
+    "SkillLibraryKind": {
+      "enum": [
+        "skill",
+        "rule",
+        "agent"
+      ],
+      "title": "SkillLibraryKind",
+      "type": "string"
+    },
     "SkillSyncState": {
       "enum": [
         "current",
@@ -42,6 +51,10 @@
     "diff": {
       "title": "Diff",
       "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/SkillLibraryKind",
+      "default": "skill"
     },
     "preview_hash": {
       "anyOf": [

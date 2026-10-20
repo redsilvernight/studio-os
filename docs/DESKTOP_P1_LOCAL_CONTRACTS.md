@@ -148,6 +148,17 @@ un test échoue si l'export diverge des builders Python.
   une personnalisation reste signalée aux vérifications suivantes. Les choix
   uniquement `local` ne modifient aucun fichier ni manifeste. Les anciennes
   requêtes sans `resolutions` gardent leur comportement global strict.
+  Extension additive aux définitions : la capacité optionnelle
+  `skills.definitions` ajoute à `skills.preview` les rules et agents globaux
+  de la Library, distingués par `kind` (`skill` par défaut, `rule`, `agent`),
+  avec leur diff et leur `preview_hash` ; les compteurs et le `diff` global
+  restent limités aux skills. Une résolution porte alors `kind` et l'unicité
+  vaut pour `(kind, stable_key)`. Sans la capacité, le daemon retire ces
+  entrées et le champ `kind`, et refuse une résolution non `skill` avec
+  `capability_missing`. Un choix `library` sur une définition sauvegarde la
+  copie dans `~/.studio-os/backups/definitions` et ne touche, dans le
+  manifeste des définitions, que la ligne choisie ; un échec restaure les
+  fichiers et manifestes d'avant l'apply.
   Les listes `added`, `updated`, `conflicts` identifient les copies par chemin
   relatif au dossier utilisateur ; `skills.check` reste sans chemin ni contenu.
   Les diffs et les résultats de `skills.apply` restent réservés à la liaison
