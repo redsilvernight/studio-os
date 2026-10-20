@@ -20,6 +20,7 @@ import {
   libraryDetailHtml,
   libraryKindPageHtml,
   libraryRootHtml,
+  librarySyncNoticeHtml,
   libraryTabsHtml,
   locksTableHtml,
   resourcesTableHtml,
@@ -30,6 +31,7 @@ import {
   type LibraryListState,
 } from "./library";
 import type { LibraryProjectLock, LibraryResource, LibraryVersion } from "../libraryApi";
+import type { SkillsSyncStatus } from "../skillsApi";
 
 const resource = (overrides: Partial<LibraryResource>): LibraryResource =>
   ({
@@ -491,6 +493,41 @@ describe("dependenciesTableHtml", () => {
     expect(html).toContain("v5");
     expect(html).toContain("uses skill");
     expect(dependenciesTableHtml([])).toContain("Aucune dépendance");
+  });
+});
+
+/* ---------------- Synchronisation locale : conflits visibles ---------------- */
+
+describe("librarySyncNoticeHtml", () => {
+  const conflict: SkillsSyncStatus = {
+    state: "conflicts",
+    auto_sync_enabled: true,
+    last_check: "2026-01-01T00:00:00Z",
+    conflicts: [".agents/rules/coding-standard.md", ".claude/agents/reviewer.md"],
+  };
+
+  it("affiche les copies modifiées à la main sans les masquer", () => {
+    const html = librarySyncNoticeHtml(conflict);
+    expect(html).toContain("Conflit local");
+    expect(html).toContain(".agents/rules/coding-standard.md");
+    expect(html).toContain(".claude/agents/reviewer.md");
+    expect(html).toContain("n'ont pas été écrasées");
+    expect(html).toContain('role="alert"');
+  });
+
+  it("nomme les trois familles synchronisées quand la mise à jour a réussi", () => {
+    const html = librarySyncNoticeHtml({ ...conflict, state: "updated", conflicts: [] });
+    expect(html).toContain("skills, règles et agents");
+  });
+
+  it("ne rend rien sans état connu", () => {
+    expect(librarySyncNoticeHtml(null)).toBe("");
+    expect(librarySyncNoticeHtml(undefined)).toBe("");
+  });
+
+  it("la page de liste porte l'avertissement de conflit", () => {
+    const html = libraryKindPageHtml("rule", [resource({})], blank, undefined, conflict);
+    expect(html).toContain("Conflit local");
   });
 });
 
