@@ -195,7 +195,7 @@ def _patch_fetch(monkeypatch: pytest.MonkeyPatch, result) -> None:
             raise result
         return result
 
-    monkeypatch.setattr(skills_bridge, "_fetch", fake)
+    monkeypatch.setattr(skills_bridge, "_fetch_skills_only", fake)
 
 
 def _snapshot(root: Path) -> dict[str, bytes]:
@@ -315,6 +315,27 @@ def test_upstream_errors_are_mapped(tmp_path: Path, monkeypatch, exc, code, retr
     assert err.value.error.code.value == code
     assert err.value.error.retryable is retryable
     assert str(tmp_path) not in err.value.error.message
+
+
+def test_skills_commands_do_not_use_definition_endpoint(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+
+    async def skills_only(_api, _project_id, limit: int = 100):
+        return (_projection(),)
+
+    async def definitions_fail(*_args, **_kwargs):
+        raise RuntimeError("agent_definition endpoint unavailable")
+
+    monkeypatch.setattr(skills_bridge, "fetch_skill_projections", skills_only)
+    monkeypatch.setattr(skills_bridge, "fetch_library_projections", definitions_fail)
+    controller = _controller(tmp_path, home)
+
+    checked = controller.skills_check()
+    preview = controller.skills_preview()
+
+    assert [entry.stable_key for entry in checked.skills] == ["studio-git-flow"]
+    assert [entry.stable_key for entry in preview.skills] == ["studio-git-flow"]
 
 
 def _modified_home(tmp_path: Path) -> tuple[Path, Path]:
