@@ -57,6 +57,35 @@ L'empreinte du dump, du script de collecte et des trois procédures est dans le 
 Les données métier sont synthétiques ; cet exercice ne mesure ni RTO/RPO de
 production, ni réplication hors site, ni récupération des secrets hors du VPS.
 
+## Sauvegarde périodique de production (20 octobre 2026)
+
+Tâche `8592d0fd`. Constat initial sur le VPS `vps-7cb819b7` : aucune crontab
+(`ubuntu` ni `root`) ; seuls existaient les dumps `predeploy-*` de `docker/backups/`,
+sans miroir MinIO.
+
+- Racine dédiée `/home/ubuntu/studio-backups` (mode 700), hors du checkout.
+- `install-backup-cron.sh /home/ubuntu/studio-backups 2 7` : tous les jours à 02:00,
+  sept sauvegardes conservées, journal `backup.log` dans la racine.
+- Sauvegardes manuelles `20261020T073617Z` et `20261020T073735Z` : dump PostgreSQL
+  3,3 Mo et miroir MinIO de 5 objets (325 Mio).
+- Défaut corrigé : le miroir MinIO était écrit en `root` par le conteneur, la rétention
+  lancée par `ubuntu` aurait échoué au huitième jour. `backup.sh` rend désormais le miroir
+  à l'utilisateur appelant ; vérifié sur le VPS (0 fichier non `ubuntu`).
+
+Restauration de la sauvegarde réelle `20261020T073735Z`, copiée hors du VPS
+(empreintes identiques des deux côtés : dump
+`9071383912664a2e12fb47b90216a573063d4c92d216008d86cee1cb65acfc32`, 5 objets,
+340 596 479 octets) puis restaurée sur un poste dans des conteneurs neufs
+(PostgreSQL 16 Alpine, images MinIO épinglées), sans ports publiés :
+
+- base initiale à 0 table publique ; `pg_restore --exit-on-error` rend 0 ;
+- **41 tables** aux comptages identiques à la production relevée au même moment ;
+  révision Alembic `0035` ;
+- **5/5 objets** MinIO restaurés au SHA-256 identique à la sauvegarde.
+
+Reste : la copie hors site automatique (destination à choisir) et la première exécution
+du cron, à constater dans `backup.log` après 02:00.
+
 ## Charge, chaos et credentials
 
 Exécution ciblée sur la base dédiée : **21 passed, 0 skipped**, base initiale
