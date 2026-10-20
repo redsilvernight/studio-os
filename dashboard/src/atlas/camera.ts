@@ -54,6 +54,19 @@ export function project(cam: AtlasCamera, p: Vec3, width: number, height: number
   return { x, y, scale, depth, visible };
 }
 
+/**
+ * Projection 2D orthographique : la distance ne change que l'échelle (pas de
+ * perspective ni de rotation), donc les disques de zones restent des disques.
+ */
+export function project2d(cam: AtlasCamera, p: Vec3, width: number, height: number): ProjectedPoint {
+  const scale = focalLength(height) / cam.distance;
+  const x = width / 2 + (p.x - cam.target.x) * scale;
+  const y = height / 2 - (p.y - cam.target.y) * scale;
+  const margin = 64;
+  const visible = x > -margin && x < width + margin && y > -margin && y < height + margin;
+  return { x, y, scale, depth: cam.distance - (p.z - cam.target.z), visible };
+}
+
 export function orbit(cam: AtlasCamera, dx: number, dy: number): AtlasCamera {
   const pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, cam.pitch + dy * 0.006));
   return { ...cam, yaw: cam.yaw + dx * 0.006, pitch };

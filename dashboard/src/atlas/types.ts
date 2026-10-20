@@ -13,6 +13,9 @@ export type AtlasLinkKind = "links_to" | "relates_to" | "derived_from" | "supers
 /** Arête « anchor » : note → satellite (tâche ou chemin ancré). */
 export type AtlasEdgeKind = AtlasLinkKind | "anchor";
 
+/** Projection de la caméra : 3D perspective (défaut) ou 2D orthographique. */
+export type AtlasProjection = "2d" | "3d";
+
 /** Plafond de notes chargées (pages de 200 via le curseur de /vault/tree). */
 export const ATLAS_MAX_NOTES = 2000;
 /** Au-delà de ce nombre de notes visibles, repli en bulles de clusters. */
@@ -79,6 +82,22 @@ export interface AtlasCluster {
   radius: number;
 }
 
+/**
+ * Communauté de liens : composante connexe (≥ 2 notes) du graphe des liens
+ * typés, dessinée comme un halo étiqueté et coloré autour de ses membres.
+ */
+export interface AtlasCommunity {
+  id: string;
+  label: string;
+  count: number;
+  /** ids des notes membres, triés. */
+  members: string[];
+  position: Vec3;
+  radius: number;
+  /** Index dans la palette de communautés. */
+  colorIndex: number;
+}
+
 export interface AtlasGraph {
   nodes: AtlasNode[];
   edges: AtlasEdge[];
@@ -113,6 +132,8 @@ export interface AtlasView {
   matches: Set<string>;
   /** Étiquettes de groupe (portée × type) des notes visibles, mode déplié. */
   groups: AtlasGroup[];
+  /** Communautés de liens (composantes ≥ 2 notes), mode déplié. */
+  communities: AtlasCommunity[];
 }
 
 /** Groupe (portée/projet × type) : étiquette flottante au-dessus de son disque. */
@@ -124,6 +145,8 @@ export interface AtlasGroup {
   center: Vec3;
   /** Rayon monde du disque (pour placer l'étiquette au-dessus). */
   radius: number;
+  /** Index dans la palette de zones (portée/projet). */
+  colorIndex: number;
 }
 
 /** Couleurs résolues depuis les variables CSS de `.vault-atlas`, injectées au moteur. */
@@ -140,6 +163,10 @@ export interface AtlasPalette {
   satellite: string;
   /** Fond des pastilles d'étiquette. */
   labelBackground: string;
+  /** Couleurs des zones (portée/projet). */
+  zones: string[];
+  /** Couleurs des communautés de liens. */
+  communities: string[];
 }
 
 export interface AtlasCamera {
@@ -166,8 +193,12 @@ export interface AtlasRendererOptions {
   palette: AtlasPalette;
   /** Respecte prefers-reduced-motion : pas d'animation de vol, saut direct. */
   reducedMotion: boolean;
+  /** Projection initiale (persistée par la vue). */
+  mode?: AtlasProjection;
   onHover?: (id: string | null) => void;
   onSelect?: (id: string | null) => void;
+  /** Durée du dernier dessin complet (ms), pour la mesure de performance. */
+  onRender?: (ms: number) => void;
 }
 
 /** Moteur Canvas 2D : rAF uniquement pendant une animation ou une interaction. */
@@ -175,6 +206,9 @@ export interface AtlasRenderer {
   setView(view: AtlasView): void;
   setSelected(id: string | null): void;
   setHovered(id: string | null): void;
+  /** Bascule 2D/3D sans recharger le graphe ni perdre la sélection. */
+  setMode(mode: AtlasProjection): void;
+  getMode(): AtlasProjection;
   /** Vol de caméra vers un nœud ou un cluster (saut direct si reducedMotion). */
   flyTo(id: string): void;
   resetCamera(): void;

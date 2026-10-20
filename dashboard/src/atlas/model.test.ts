@@ -137,6 +137,38 @@ describe("atlas model", () => {
     expect(applyFilters(graph, { ...defaultFilters(), query: "  " }).matches.size).toBe(0);
   });
 
+  it("labels link communities with their members and a stable colour", () => {
+    const graph = buildAtlasGraph(NOTES, false);
+    layoutAtlas(graph);
+    const view = applyFilters(graph, defaultFilters());
+    expect(view.communities).toHaveLength(1);
+    const community = view.communities[0]!;
+    expect(community.members).toEqual(["new", "rule"]);
+    expect(community.label).toContain("Communauté 1");
+    expect(community.count).toBe(2);
+    expect(community.radius).toBeGreaterThan(0);
+    expect(community.colorIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  it("stays within budget when loading 2000 notes", () => {
+    const many = Array.from({ length: 2000 }, (_, i) =>
+      note(`n${i}`, {
+        note_type: i % 3 === 0 ? "decision" : i % 3 === 1 ? "rule" : "note",
+        scope: i % 4 === 0 ? "project" : "studio",
+        project_id: i % 4 === 0 ? `p${i % 5}` : null,
+        links: i > 0 && i % 7 === 0 ? [{ target_note_id: `n${i - 1}`, kind: "relates_to" }] : [],
+      }),
+    );
+    const start = performance.now();
+    const graph = buildAtlasGraph(many, true);
+    layoutAtlas(graph);
+    const view = applyFilters(graph, defaultFilters());
+    const elapsed = performance.now() - start;
+    expect(graph.nodes.filter((n) => n.kind === "note")).toHaveLength(2000);
+    expect(view.clusters.reduce((sum, c) => sum + c.count, 0)).toBe(2000);
+    expect(elapsed).toBeLessThan(5000);
+  });
+
   it("folds into clusters above the threshold", () => {
     const many = Array.from({ length: ATLAS_CLUSTER_THRESHOLD + 1 }, (_, i) =>
       note(`n${i}`, { note_type: i % 2 === 0 ? "rule" : "lesson", title: i === 7 ? "Aiguille unique" : `Note ${i}` }));

@@ -7,7 +7,10 @@
  *   2. l'atlas lit `GET /vault/tree` et dessine un canevas non vide ;
  *   3. la recherche multi-mots et les filtres réduisent les notes visibles ;
  *   4. la liste clavier sélectionne une note, ses voisins et « Ouvrir » ;
- *   5. la bascule Liste ramène à `#/vault`.
+ *   5. la bascule Liste ramène à `#/vault` ;
+ *   6. la liste expose titres, zone, extrait et tri ;
+ *   7. l'atlas affiche zones/communautés, bascule 2D/3D persistée,
+ *      navigation aux flèches et mesure de rendu.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
 
@@ -142,6 +145,35 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await expect(list).toContainText("Checklist de release");
   await expect(list).not.toContainText("Cache mémoire locale");
 
+  /* Zones et communautés étiquetées/colorées, mesure de rendu exposée. */
+  await expect(page.locator("#atlas-status")).toContainText(/zone\(s\)/);
+  await expect(page.locator("#atlas-status")).toContainText(/communauté\(s\)/);
+  const regions = page.locator("#atlas-regions");
+  await expect(regions).toContainText("Studio ·");
+  await expect(regions).toContainText("Communauté 1");
+  await expect(regions.locator("[data-zone-color]").first()).toBeVisible();
+  await expect(page.locator(".vault-atlas-legend")).toContainText("Communauté de liens");
+  await expect(page.locator("#atlas-perf")).toContainText(/construction .* ms/);
+  const marks = await page.evaluate(() =>
+    performance.getEntriesByType("measure").map((entry) => entry.name),
+  );
+  expect(marks).toContain("studio:vault-atlas:draw");
+
+  /* 6. Bascule 2D/3D persistée au remontage de la vue. */
+  const projection = page.locator("#atlas-projection");
+  await expect(projection).toHaveText("Vue 3D");
+  await projection.click();
+  await expect(projection).toHaveText("Vue 2D");
+  await expect(projection).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#atlas-hint")).not.toContainText("pivoter");
+  expect(await page.evaluate(() => localStorage.getItem("studio.vault.atlas.mode"))).toBe("2d");
+  await goHash(page, "#/vault");
+  await expect(page.locator(".vault-modes a[aria-current=\"page\"]")).toHaveText("Liste");
+  await goHash(page, "#/vault/atlas");
+  await expect(page.locator("#atlas-projection")).toHaveText("Vue 2D");
+  await page.locator("#atlas-projection").click();
+  await expect(page.locator("#atlas-projection")).toHaveText("Vue 3D");
+
   /* 3. Recherche multi-mots : chaque mot doit apparaître (accents ignorés). */
   await page.fill("#atlas-query", "strategie redis");
   await expect(page.locator("#atlas-status")).toContainText("1 correspondance");
@@ -172,12 +204,48 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await page.keyboard.press("Escape");
   await expect(detail).not.toContainText("DEC-0002");
 
+  /* Flèches = navigation entre notes ; Entrée = confirmation. */
+  await page.keyboard.press("ArrowRight");
+  await expect(detail).toContainText("Cache mémoire locale");
+  await page.keyboard.press("ArrowRight");
+  await expect(detail).toContainText("DEC-0002");
+  await expect(page.locator("#atlas-status")).toContainText("voisin(s) surligné(s)");
+  await expect(page.locator("#atlas-list .is-neighbor").first()).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(detail).toContainText("DEC-0002");
+  await page.keyboard.press("Escape");
+  await expect(detail).not.toContainText("DEC-0002");
+
   /* 5. Bascule Liste. */
   await page.locator(".vault-modes").getByRole("link", { name: "Liste" }).click();
   await expect(page).toHaveURL(/#\/vault$/);
   await expect(page.locator(".vault-modes a[aria-current=\"page\"]")).toHaveText("Liste");
   await goHash(page, "#/vault/atlas");
   await expect(page.locator("#atlas-canvas")).toBeVisible();
+
+  expect(errors).toEqual([]);
+});
+
+test("vault list: titles, zone, excerpt and sort", async ({ page }) => {
+  const calls: string[] = [];
+  const errors = await login(page, "#/vault", calls);
+
+  const list = page.locator("#view .vault-list");
+  await expect(list.locator(".vault-item")).toHaveCount(4);
+  await expect(list).toContainText("Stratégie de cache Redis");
+  /* Extrait du résumé serveur, zone lisible, identifiant et version. */
+  await expect(list).toContainText("Redis avant PostgreSQL.");
+  await expect(list.locator(".vault-zone").first()).toHaveText("Studio");
+  await expect(list).toContainText("Projet · Studi'os");
+  await expect(list).toContainText("DEC-0002");
+
+  /* Tri alphabétique côté client, sans nouvelle requête serveur. */
+  const before = calls.length;
+  await page.selectOption("#vault-sort", "title_asc");
+  await expect(list.locator(".ds-list-title a").first()).toHaveText("Cache mémoire locale");
+  expect(calls.length).toBe(before);
+  await page.selectOption("#vault-sort", "title_desc");
+  await expect(list.locator(".ds-list-title a").first()).toHaveText("Stratégie de cache Redis");
 
   expect(errors).toEqual([]);
 });
