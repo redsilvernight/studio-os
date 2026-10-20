@@ -21,6 +21,7 @@ from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
+from studio_client.agent_identity import model_agent_create
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.context import (
@@ -312,7 +313,8 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     `studio_log_ai_work`. The default stable key is stable per harness so
     a retried hook never registers a duplicate; changing the metadata with
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
-    agent_in = AgentCreate(
+    model_agent = model_agent_create(args.model, args.provider) if args.model_identity else None
+    agent_in = model_agent or AgentCreate(
         display_name=args.display_name or f"studio-{args.harness}",
         agent_kind=args.agent_kind,
         agent_profile=args.agent_profile,
@@ -1603,6 +1605,12 @@ def _build_parser() -> argparse.ArgumentParser:
     agents_ensure.add_argument("--model")
     agents_ensure.add_argument(
         "--stable-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
+    )
+    agents_ensure.add_argument(
+        "--model-identity",
+        action="store_true",
+        help="One agent per machine and model, whatever the harness (DEC-0225); "
+        "falls back to the harness agent when the model is unknown.",
     )
     _add_json_flag(agents_ensure)
     agents_ensure.set_defaults(func=_agents_ensure)
