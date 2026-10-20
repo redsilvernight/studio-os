@@ -1,6 +1,6 @@
 {
   "name": "studio-desktop",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "Studi'OS Desktop - Tauri 2 shell with the supervised Studio OS daemon.",
   "type": "module",

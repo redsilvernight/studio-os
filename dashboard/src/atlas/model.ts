@@ -136,23 +136,43 @@ export function zoneColorIndex(scope: AtlasNoteNode["scope"], projectId: string 
   return 1 + Math.floor(hash01(projectId ?? "?", 11) * span) % span;
 }
 
-/** Écart monde entre deux notes voisines d'un même disque. */
+/** Écart monde visé entre deux notes voisines d'une même boule. */
 const NODE_SPACING = 13;
-/** Marge monde entre deux disques de groupe. */
-const GROUP_GAP = 42;
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+/** Marge monde entre deux boules de groupe. */
+const GROUP_GAP = 36;
+/** Suite R2 (constante plastique) : directions quasi uniformes sur la sphère. */
+const R2_A = 0.7548776662466927;
+const R2_B = 0.5698402909980532;
 
-/** Rayon monde du disque d'un groupe de `count` notes. */
-export function discRadius(count: number): number {
-  return NODE_SPACING * 0.62 * Math.sqrt(count) + 8;
+/** Rayon monde de la boule d'un groupe de `count` notes. */
+export function groupRadius(count: number): number {
+  return NODE_SPACING * 0.78 * Math.cbrt(count) + 6;
+}
+
+/** `i`-ème direction unitaire quasi uniforme (suite R2 projetée sur la sphère). */
+function sphereDirection(i: number, seed = 0): Vec3 {
+  const u = (seed + (i + 0.5) * R2_A) % 1;
+  const v = (seed * 0.5 + (i + 0.5) * R2_B) % 1;
+  const z = 1 - 2 * u;
+  const rho = Math.sqrt(Math.max(0, 1 - z * z));
+  const theta = v * Math.PI * 2;
+  return { x: rho * Math.cos(theta), y: z, z: rho * Math.sin(theta) };
+}
+
+/** `i`-ème point sur `n` d'une sphère de Fibonacci (répartition régulière). */
+function fibonacciDirection(i: number, n: number): Vec3 {
+  const y = n === 1 ? 1 : 1 - (2 * (i + 0.5)) / n;
+  const rho = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = i * Math.PI * (3 - Math.sqrt(5));
+  return { x: rho * Math.cos(theta), y, z: rho * Math.sin(theta) };
 }
 
 /**
- * Disposition « archipel » lisible : un disque plat par (portée/projet,
- * type), notes en tournesol (les plus liées au centre), disques empaquetés
- * sans chevauchement dans le plan XY avec un léger relief en Z. Les
- * satellites se placent en couronne près de leurs notes.
- * Mute `position` et `radius` en place.
+ * Disposition sphérique : une boule par (portée/projet, type), notes
+ * réparties en volume (les plus liées au centre). Le plus gros groupe
+ * occupe le cœur, les autres se répartissent sur une coquille englobante
+ * sans chevauchement. Les satellites se placent juste hors de la boule de
+ * leurs notes. Mute `position` et `radius` en place.
  */
 export function layoutAtlas(graph: AtlasGraph): void {
   const degree = (id: string): number => graph.neighbors.get(id)?.size ?? 0;
@@ -171,45 +191,46 @@ export function layoutAtlas(graph: AtlasGraph): void {
     else list.push(node);
   }
   const discs = [...groups.entries()]
-    .map(([key, members]) => ({ key, members, radius: discRadius(members.length) }))
+    .map(([key, members]) => ({ key, members, radius: groupRadius(members.length) }))
     .sort((a, b) => b.radius - a.radius || a.key.localeCompare(b.key));
 
-  // Empaquetage glouton : le plus gros au centre, les autres sur des
-  // anneaux croissants, première place libre trouvée.
-  const placed: { x: number; y: number; r: number }[] = [];
+  // Le plus gros groupe au cœur ; les autres sur une coquille de Fibonacci,
+  // agrandie jusqu'à ce qu'aucune boule n'en chevauche une autre.
   const centers = new Map<string, Vec3 & { r: number }>();
+  const [core, ...shell] = discs;
+  if (core !== undefined) centers.set(core.key, { ...ORIGIN(), r: core.radius });
+  if (shell.length > 0) {
+    const coreRadius = core?.radius ?? 0;
+    const outer = Math.max(...shell.map((d) => d.radius));
+    // Rotation propre à l'ensemble des groupes : la coquille ne commence pas toujours au pôle.
+    const spin = hash01(shell.map((d) => d.key).join("|"), 7) * Math.PI * 2;
+    const spots = shell.map((_, i) => {
+      const d = fibonacciDirection(i, shell.length);
+      return { x: d.x * Math.cos(spin) - d.z * Math.sin(spin), y: d.y, z: d.x * Math.sin(spin) + d.z * Math.cos(spin) };
+    });
+    let distance = coreRadius + outer + GROUP_GAP;
+    const fits = (): boolean => shell.every((a, i) => shell.every((b, j) =>
+      j <= i || Math.hypot(
+        (spots[i]!.x - spots[j]!.x) * distance,
+        (spots[i]!.y - spots[j]!.y) * distance,
+        (spots[i]!.z - spots[j]!.z) * distance,
+      ) >= a.radius + b.radius + GROUP_GAP));
+    while (!fits() && distance < 100_000) distance *= 1.08;
+    shell.forEach((disc, i) => {
+      const s = spots[i]!;
+      centers.set(disc.key, { x: s.x * distance, y: s.y * distance, z: s.z * distance, r: disc.radius });
+    });
+  }
+
   for (const disc of discs) {
-    let spot = { x: 0, y: 0 };
-    if (placed.length > 0) {
-      const free = (x: number, y: number): boolean =>
-        placed.every((p) => Math.hypot(p.x - x, p.y - y) >= p.r + disc.radius + GROUP_GAP);
-      search: for (let ring = 1; ring < 4000; ring += 1) {
-        const dist = ring * 10;
-        const steps = Math.max(12, Math.ceil((2 * Math.PI * dist) / 10));
-        for (let s = 0; s < steps; s += 1) {
-          const angle = (s / steps) * Math.PI * 2 + hash01(disc.key, 7) * Math.PI * 2;
-          const x = Math.cos(angle) * dist;
-          const y = Math.sin(angle) * dist * 0.8;
-          if (free(x, y)) {
-            spot = { x, y };
-            break search;
-          }
-        }
-      }
-    }
-    placed.push({ ...spot, r: disc.radius });
-    const center = { x: spot.x, y: spot.y, z: (hash01(disc.key, 6) - 0.5) * 40 };
-    centers.set(disc.key, { ...center, r: disc.radius });
+    const center = centers.get(disc.key)!;
     const members = [...disc.members].sort((a, b) => degree(b.id) - degree(a.id) || a.id.localeCompare(b.id));
-    const step = NODE_SPACING * 0.62;
+    const seed = hash01(disc.key, 3);
+    const span = disc.radius - 6;
     members.forEach((node, i) => {
-      const r = members.length === 1 ? 0 : step * Math.sqrt(i + 0.5);
-      const angle = i * GOLDEN_ANGLE;
-      node.position = {
-        x: center.x + Math.cos(angle) * r,
-        y: center.y + Math.sin(angle) * r,
-        z: center.z + (hash01(node.id, 3) - 0.5) * 8,
-      };
+      const r = members.length === 1 ? 0 : span * Math.cbrt((i + 0.5) / members.length);
+      const d = sphereDirection(i, seed);
+      node.position = { x: center.x + d.x * r, y: center.y + d.y * r, z: center.z + d.z * r };
     });
   }
 
@@ -223,18 +244,15 @@ export function layoutAtlas(graph: AtlasGraph): void {
     const c = linked.reduce((acc, n) => ({ x: acc.x + n.position.x, y: acc.y + n.position.y, z: acc.z + n.position.z }), ORIGIN());
     const mean = { x: c.x / linked.length, y: c.y / linked.length, z: c.z / linked.length };
     const home = centers.get(clusterKey(linked[0]!)) ?? { ...ORIGIN(), r: 0 };
-    let dx = mean.x - home.x;
-    let dy = mean.y - home.y;
-    let len = Math.hypot(dx, dy);
+    let dir = { x: mean.x - home.x, y: mean.y - home.y, z: mean.z - home.z };
+    let len = Math.hypot(dir.x, dir.y, dir.z);
     if (len < 1) {
-      const a = hash01(node.id, 4) * Math.PI * 2;
-      dx = Math.cos(a);
-      dy = Math.sin(a);
+      dir = sphereDirection(0, hash01(node.id, 4));
       len = 1;
     }
-    // Couronne juste à l'extérieur du disque, dans la direction des notes liées.
+    // Couronne juste à l'extérieur de la boule, dans la direction des notes liées.
     const out = home.r + 10 + hash01(node.id, 5) * 14;
-    node.position = { x: home.x + (dx / len) * out, y: home.y + (dy / len) * out, z: mean.z + 4 };
+    node.position = { x: home.x + (dir.x / len) * out, y: home.y + (dir.y / len) * out, z: home.z + (dir.z / len) * out };
   }
 }
 
@@ -262,7 +280,7 @@ export function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<s
     const first = members[0]!;
     const sum = members.reduce((acc, n) => ({ x: acc.x + n.position.x, y: acc.y + n.position.y, z: acc.z + n.position.z }), ORIGIN());
     const center = { x: sum.x / members.length, y: sum.y / members.length, z: sum.z / members.length };
-    const radius = members.reduce((max, n) => Math.max(max, Math.hypot(n.position.x - center.x, n.position.y - center.y) + n.radius), 4);
+    const radius = members.reduce((max, n) => Math.max(max, Math.hypot(n.position.x - center.x, n.position.y - center.y, n.position.z - center.z) + n.radius), 4);
     const owner = first.scope === "studio" ? "Studio" : projectNames?.get(first.projectId ?? "") ?? "Projet";
     return {
       id,
