@@ -94,6 +94,14 @@ describe("capability and machine fields", () => {
     ]);
   });
 
+  it("hides the dashboard identity from the workstation options", () => {
+    const options = machineOptionsFrom([
+      { id: "ws", display_name: "Atelier" },
+      { id: "dash", display_name: "dashboard" },
+    ]);
+    expect(options).toEqual([{ id: "ws", label: "Atelier" }]);
+  });
+
   it("renders a machine select with a remote option, or degrades to a text input", () => {
     const select = machineFieldHtml([{ id: "ws", label: "Atelier" }], "ws");
     expect(select).toContain("<select name=\"machine_id\"");
