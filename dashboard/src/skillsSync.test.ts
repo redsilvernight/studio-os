@@ -117,7 +117,7 @@ describe("skills sync indicator", () => {
     await flush();
     document.getElementById("skills-sync")?.click();
     await flush();
-    const row = document.querySelector<HTMLElement>('[data-skill="delegate"]');
+    const row = document.querySelector<HTMLElement>('[data-skill="skill:delegate"]');
     expect(row?.textContent).toContain(".agents/skills/delegate/SKILL.md");
     expect(row?.querySelector("details")?.open).toBe(false);
     row?.querySelector<HTMLElement>("summary")?.click();
@@ -133,7 +133,7 @@ describe("skills sync indicator", () => {
     await flush();
     const apply = document.querySelector<HTMLButtonElement>('[data-skills-action="apply"]');
     expect(apply?.disabled).toBe(true);
-    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="delegate"]')!;
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
     choice.value = "library";
     choice.dispatchEvent(new Event("change"));
     expect(apply?.textContent).toBe("Appliquer 1 choix");
@@ -147,13 +147,40 @@ describe("skills sync indicator", () => {
     expect(calls.filter((call) => call.startsWith("skills.apply"))).toHaveLength(1);
   });
 
+  it("offers rules and agents with their own paths and sends their kind", async () => {
+    const calls: string[] = [];
+    const plan = previewResult();
+    plan.skills = [
+      { ...plan.skills![0]!, kind: "rule", stable_key: "delegate", preview_hash: "a".repeat(64) },
+      { ...plan.skills![1]!, kind: "agent", stable_key: "reviewer", preview_hash: "b".repeat(64),
+        targets: [{ harness: "agents", state: "current" }, { harness: "assistant", state: "locally_modified" }] },
+    ];
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls, plan));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const rule = document.querySelector<HTMLElement>('[data-skill="rule:delegate"]');
+    expect(rule?.textContent).toContain("Rule");
+    expect(rule?.textContent).toContain(".agents/rules/delegate.md");
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="agent:reviewer"]')!;
+    choice.value = "library";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    const confirmation = document.querySelector(".skills-sync-confirmation")?.textContent ?? "";
+    expect(confirmation).toContain(".claude/agents/reviewer.md");
+    expect(confirmation).not.toContain(".agents/definitions/reviewer.md");
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"kind":"agent","stable_key":"reviewer","choice":"library","preview_hash":"' + "b".repeat(64) + '"}]}');
+  });
+
   it("keeps local choices without authorizing a global overwrite", async () => {
     const calls: string[] = [];
     mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
     await flush();
     document.getElementById("skills-sync")?.click();
     await flush();
-    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="delegate"]')!;
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
     choice.value = "local";
     choice.dispatchEvent(new Event("change"));
     document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
@@ -171,12 +198,12 @@ describe("skills sync indicator", () => {
     await vi.advanceTimersByTimeAsync(0);
     document.getElementById("skills-sync")?.click();
     await vi.advanceTimersByTimeAsync(0);
-    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="delegate"]')!;
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
     choice.value = "library";
     choice.dispatchEvent(new Event("change"));
     choice.focus();
     await vi.advanceTimersByTimeAsync(60000);
-    expect(document.querySelector('[data-skills-choice="delegate"]')).toBe(choice);
+    expect(document.querySelector('[data-skills-choice="skill:delegate"]')).toBe(choice);
     expect(choice.value).toBe("library");
     expect(document.activeElement).toBe(choice);
   });
