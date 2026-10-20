@@ -529,6 +529,13 @@ describe("librarySyncNoticeHtml", () => {
     const html = libraryKindPageHtml("rule", [resource({})], blank, undefined, conflict);
     expect(html).toContain("Conflit local");
   });
+
+  it("signale une lecture de statut impossible", () => {
+    expect(libraryRootHtml(null, true)).toContain('data-library-sync="unavailable"');
+    expect(
+      libraryKindPageHtml("rule", [resource({})], blank, undefined, null, true),
+    ).toContain('data-library-sync="unavailable"');
+  });
 });
 
 /* ---------------- Transverse : CSP, responsive, clavier ---------------- */

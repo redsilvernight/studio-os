@@ -1,10 +1,8 @@
-"""Bridge commands for Library synchronization.
+"""Bridge commands for skills synchronization.
 
 Provides ``skills.check`` (read-only), ``skills.preview`` (diff), ``skills.apply``
 (apply with confirmation), and ``skills.status`` (persisted sync status).
-The automatic sync started by ``daemon.runtime`` projects every applicable
-definition kind (skills, rules, agent definitions) to the local runtimes; the
-explicit ``skills.*`` commands keep their contract-limited skill scope.
+Auto-sync at daemon startup is orchestrated from ``daemon.runtime``.
 """
 
 from __future__ import annotations
@@ -12,7 +10,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -61,6 +61,7 @@ from studio_client.skill_sync import (
     _atomic_write,
     apply_skill_sync,
     diff_skill_plan,
+    fetch_skill_projections,
     plan_skill_sync,
 )
 from studio_client.tokens import TokenStore, origin_of
@@ -90,8 +91,6 @@ def _status_path(data_root: Path) -> Path:
 
 @dataclass(frozen=True)
 class DefinitionTargetPlan:
-    """Desired state of one local runtime copy of a rule or agent definition."""
-
     harness: Literal["agents", "claude"]
     path: Path
     state: SyncState
@@ -102,8 +101,6 @@ class DefinitionTargetPlan:
 
 @dataclass(frozen=True)
 class DefinitionPlanEntry:
-    """One rendered rule/agent definition and its local runtime targets."""
-
     projection: LibraryContextItem
     rendered: str
     sha256: str
@@ -116,8 +113,6 @@ class DefinitionPlanEntry:
 
 @dataclass(frozen=True)
 class DefinitionSyncPlan:
-    """Deterministic, side-effect-free plan for non-skill Library kinds."""
-
     home: Path
     entries: tuple[DefinitionPlanEntry, ...]
     manifest_path: Path
@@ -203,8 +198,6 @@ def _definition_paths(
 
 
 def render_definition(projection: LibraryContextItem) -> str:
-    """Render a Library rule or agent definition as a local markdown file."""
-
     _validate_definition_projection(projection)
     description = " ".join((projection.description or "").split())
     if not description:
@@ -256,15 +249,6 @@ async def fetch_library_projections(
     project_id: Any,
     limit: int = 100,
 ) -> tuple[LibraryContextItem, ...]:
-    """Fetch every globally applicable Library definition kind.
-
-    Skills and rules are textual and go through the same effective/visibility
-    selection as before. Agent definitions are structural, so their summary and
-    intended use are normalized into the same projection shape. Draft rows are
-    never projected; deprecated rows stay visible so their managed copies can
-    be retired.
-    """
-
     provider = LibraryContextProvider(api)
     textual = await provider.fetch(project_id, limit=limit, kinds=("rule", "skill"))
     items = [item for item in textual.items if item.scope in _GLOBAL_SCOPES]
@@ -306,8 +290,6 @@ def plan_definition_sync(
     home: Path | str,
     projections: tuple[LibraryContextItem, ...] | list[LibraryContextItem],
 ) -> DefinitionSyncPlan:
-    """Plan rules and agent definitions without touching the filesystem."""
-
     root = Path(home).expanduser().resolve()
     manifest_path = root / ".studio-os" / _DEFINITIONS_MANIFEST_NAME
     managed_hashes = load_managed_hashes(manifest_path)
@@ -338,23 +320,18 @@ def plan_definition_sync(
             )
             continue
 
-        targets = tuple(
-            _plan_definition_target(
-                root,
-                projection.library_kind,
-                projection.stable_key,
-                harness,
-                rendered,
-                managed_hash,
-            )
-            for harness in ("agents", "claude")
+        agents_target = _plan_definition_target(
+            root, projection.library_kind, projection.stable_key, "agents", rendered, managed_hash
+        )
+        claude_target = _plan_definition_target(
+            root, projection.library_kind, projection.stable_key, "claude", rendered, managed_hash
         )
         entries.append(
             DefinitionPlanEntry(
                 projection=projection,
                 rendered=rendered,
                 sha256=desired_hash,
-                targets=targets,  # type: ignore[arg-type]
+                targets=(agents_target, claude_target),
             )
         )
 
@@ -432,7 +409,12 @@ def _verify_definition_plan_is_fresh(plan: DefinitionSyncPlan) -> None:
                 raise SkillSyncConflictError(
                     f"definition target changed since planning: {target.path}"
                 )
-            current_hash = hash_text(target.path.read_text(encoding="utf-8"))
+            try:
+                current_hash = hash_text(target.path.read_text(encoding="utf-8"))
+            except UnicodeDecodeError as exc:
+                raise SkillSyncConflictError(
+                    f"definition target changed since planning: {target.path}"
+                ) from exc
         else:
             current_hash = None
         if current_hash != target.current_sha256:
@@ -440,8 +422,6 @@ def _verify_definition_plan_is_fresh(plan: DefinitionSyncPlan) -> None:
 
 
 def apply_definition_sync(plan: DefinitionSyncPlan, *, overwrite: bool = False) -> SkillSyncResult:
-    """Apply a rule/agent plan, backing up explicit overwrites."""
-
     conflicts = list(plan.locally_modified)
     if conflicts and not overwrite:
         paths = ", ".join(str(target.path) for target in conflicts)
@@ -500,8 +480,6 @@ def plan_library_sync(
     home: Path,
     projections: tuple[LibraryContextItem, ...] | list[LibraryContextItem],
 ) -> tuple[SkillSyncPlan, DefinitionSyncPlan]:
-    """Split every applicable definition into the skills plan and the rest."""
-
     skills = [
         item for item in projections if item.library_kind == "skill" and item.scope == "studio"
     ]
@@ -513,10 +491,11 @@ def plan_library_sync(
     return plan_skill_sync(home, skills), plan_definition_sync(home, definitions)
 
 
-def _fetch_projections(
-    config: ClientConfig, token_store: TokenStore
+def _run_fetch(
+    config: ClientConfig,
+    token_store: TokenStore,
+    fetcher: Callable[[ClientConfig, TokenStore], Any],
 ) -> tuple[LibraryContextItem, ...]:
-    """Fetch every applicable Library projection. Raises LocalFeatureError on failure."""
     if not token_store.get_token(origin_of(config.api_base_url)):
         raise _error(
             LocalErrorCode.SECRET_ABSENT,
@@ -526,7 +505,7 @@ def _fetch_projections(
         )
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
-            return tuple(pool.submit(asyncio.run, _fetch(config, token_store)).result())
+            return tuple(pool.submit(asyncio.run, fetcher(config, token_store)).result())
     except AuthenticationError as exc:
         raise _error(
             LocalErrorCode.SECRET_REVOKED,
@@ -552,22 +531,35 @@ def _fetch_projections(
         ) from exc
 
 
+def _fetch_projections(
+    config: ClientConfig, token_store: TokenStore
+) -> tuple[LibraryContextItem, ...]:
+    return _run_fetch(config, token_store, _fetch)
+
+
+def _fetch_skill_projections(
+    config: ClientConfig, token_store: TokenStore
+) -> tuple[LibraryContextItem, ...]:
+    return _run_fetch(config, token_store, _fetch_skills_only)
+
+
 def _fetch_and_plan(
     config: ClientConfig,
     token_store: TokenStore,
     home: Path,
 ) -> SkillSyncPlan:
-    """Fetch skill projections and build the manual ``skills.*`` plan."""
-    projections = _fetch_projections(config, token_store)
-    return plan_skill_sync(
-        home,
-        [item for item in projections if item.library_kind == "skill" and item.scope == "studio"],
-    )
+    projections = _fetch_skill_projections(config, token_store)
+    return plan_skill_sync(home, projections)
 
 
 async def _fetch(config: ClientConfig, token_store: TokenStore) -> Any:
     async with StudioApiClient(config, token_store) as client:
         return await fetch_library_projections(client, None, limit=_SKILL_LIMIT)
+
+
+async def _fetch_skills_only(config: ClientConfig, token_store: TokenStore) -> Any:
+    async with StudioApiClient(config, token_store) as client:
+        return await fetch_skill_projections(client, None, limit=_SKILL_LIMIT)
 
 
 def summarize(plan: SkillSyncPlan, *, checked_at: datetime | None = None) -> SkillsCheckResult:
@@ -619,6 +611,33 @@ def _preview_hash(entry: SkillPlanEntry) -> str:
 
 def _target_label(plan: SkillSyncPlan, target: SkillTargetPlan) -> str:
     return target.path.relative_to(plan.home).as_posix()
+
+
+def _sync_paths(
+    plans: tuple[SkillSyncPlan | DefinitionSyncPlan, ...],
+) -> dict[Path, bytes | None]:
+    snapshot: dict[Path, bytes | None] = {}
+    for plan in plans:
+        snapshot[plan.manifest_path] = (
+            plan.manifest_path.read_bytes() if plan.manifest_path.is_file() else None
+        )
+        targets = [target for entry in plan.entries for target in entry.all_targets]
+        targets.extend(plan.retired)
+        for target in targets:
+            snapshot[target.path] = target.path.read_bytes() if target.path.is_file() else None
+    return snapshot
+
+
+def _restore_paths(snapshot: dict[Path, bytes | None]) -> None:
+    for path, data in snapshot.items():
+        if data is None:
+            if path.is_file():
+                path.unlink()
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.rollback")
+        temporary.write_bytes(data)
+        os.replace(temporary, path)
 
 
 def preview_skills(
@@ -963,10 +982,18 @@ class _AutoSyncRunner:
                 return
 
             backups = 0
-            if skill_plan.missing or skill_plan.outdated or skill_plan.retired:
-                backups += len(apply_skill_sync(skill_plan, overwrite=False).backups)
-            if definition_plan.missing or definition_plan.outdated or definition_plan.retired:
-                backups += len(apply_definition_sync(definition_plan, overwrite=False).backups)
+            snapshot = _sync_paths(plans)
+            try:
+                if skill_plan.missing or skill_plan.outdated or skill_plan.retired:
+                    backups += len(apply_skill_sync(skill_plan, overwrite=False).backups)
+                if definition_plan.missing or definition_plan.outdated or definition_plan.retired:
+                    backups += len(apply_definition_sync(definition_plan, overwrite=False).backups)
+            except Exception:
+                try:
+                    _restore_paths(snapshot)
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Auto-sync rollback failed")
+                raise
             _LOGGER.info(
                 "Auto-sync completed: added %d, updated %d, backups %d",
                 len(added),

@@ -450,10 +450,6 @@ export function versionContentHtml(kind: LibraryKind, version: LibraryVersion): 
 /* Synchronisation locale : état du démon, conflits jamais masqués.    */
 /* ------------------------------------------------------------------ */
 
-/**
- * Signale les copies locales modifiées à la main. Le démon ne les écrase
- * jamais : la Bibliothèque les montre pour que la résolution reste explicite.
- */
 export function librarySyncNoticeHtml(status: SkillsSyncStatus | null | undefined, failed = false): string {
   if (failed) {
     return (
@@ -488,12 +484,19 @@ export function librarySyncNoticeHtml(status: SkillsSyncStatus | null | undefine
   return "";
 }
 
-async function loadLibrarySyncStatus(): Promise<SkillsSyncStatus | null> {
+interface LibrarySyncState {
+  status: SkillsSyncStatus | null;
+  failed: boolean;
+}
+
+async function loadLibrarySyncStatus(): Promise<LibrarySyncState> {
   try {
     const outcome = await getSkillsSyncStatus(getPlatform());
-    return outcome.ok ? outcome.value : null;
+    return outcome.ok
+      ? { status: outcome.value, failed: false }
+      : { status: null, failed: true };
   } catch {
-    return null;
+    return { status: null, failed: true };
   }
 }
 
@@ -501,7 +504,7 @@ async function loadLibrarySyncStatus(): Promise<SkillsSyncStatus | null> {
 /* Page racine : cinq catégories calmes, noms français.                */
 /* ------------------------------------------------------------------ */
 
-export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null): string {
+export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed = false): string {
   const cards = LIBRARY_KIND_FR.map(
     (entry) =>
       `<li class="ds-card library-cat"><h2>${esc(entry.plural)}</h2><p>${esc(entry.description)}</p>` +
@@ -510,7 +513,7 @@ export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null): string {
   return (
     `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
     `${dsPageHeader("Bibliothèque", "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
-    `${librarySyncNoticeHtml(syncStatus)}` +
+    `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `<ul class="library-cats">${cards}</ul>`
   );
 }
@@ -679,7 +682,7 @@ export function libraryLoadingHtml(title: string): string {
 }
 
 /** Corps de la page liste d'un kind en HTML pur (DOM-free, testable). */
-export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState, hookContents?: Map<string, HookListContent>, syncStatus?: SkillsSyncStatus | null): string {
+export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState, hookContents?: Map<string, HookListContent>, syncStatus?: SkillsSyncStatus | null, syncFailed = false): string {
   const fr = kindFr(kind);
   const visible = filterLibraryResources(resources, state);
   const header =
@@ -702,7 +705,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
   return (
     `${libraryTabsHtml(fr.slug)}` +
     `<p><a href="#/library">← Retour à la bibliothèque</a></p>${header}` +
-    `${librarySyncNoticeHtml(syncStatus)}` +
+    `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `${listToolbarHtml(fr, state, visible.length, resources.length)}` +
     `${shadowNoteHtml(resources)}${body}`
   );
@@ -716,8 +719,8 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
     return;
   }
   if (meta === null) {
-    const syncStatus = ctx.authed ? await loadLibrarySyncStatus() : null;
-    root.innerHTML = `<div class="library">${libraryTabsHtml(null)}${libraryRootHtml(syncStatus)}</div>`;
+    const sync = ctx.authed ? await loadLibrarySyncStatus() : null;
+    root.innerHTML = `<div class="library">${libraryTabsHtml(null)}${libraryRootHtml(sync?.status, sync?.failed ?? false)}</div>`;
     return;
   }
   const fr = kindFr(meta.kind);
@@ -744,12 +747,12 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
   }
 
   const hookContents = meta.kind === "hook" ? await loadHookListContent(ctx.client, resources) : undefined;
-  const syncStatus = await loadLibrarySyncStatus();
+  const sync = ctx.authed ? await loadLibrarySyncStatus() : null;
   const state: LibraryListState = { query: "", scope: "all", status: "all" };
 
   const paint = (): void => {
     root.innerHTML =
-      `<div class="library">${libraryKindPageHtml(meta.kind, resources, state, hookContents, syncStatus)}` +
+      `<div class="library">${libraryKindPageHtml(meta.kind, resources, state, hookContents, sync?.status, sync?.failed ?? false)}` +
       dsModalHtml({
         id: "library-create-dialog",
         title: `Nouvelle ${fr.singular.toLowerCase()}`,

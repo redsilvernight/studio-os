@@ -11,6 +11,7 @@ import pytest
 from studio_client.config import ClientConfig
 from studio_client.context.library import LibraryContextItem
 from studio_client.daemon import skills_bridge
+from studio_client.skill_sync import SkillSyncConflictError
 from studio_client.tokens import MemoryTokenStore
 
 ORIGIN = "https://studio.example"
@@ -221,3 +222,42 @@ def test_fetch_only_reads_the_library_never_publishes() -> None:
         for call in api.calls
         for word in ("create", "publish", "update", "activate", "post")
     )
+
+
+def test_definition_plan_conflicts_when_target_becomes_unreadable(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    projection = _projection("coding-standard", "rule", "Rule body")
+    rendered = skills_bridge.render_definition(projection)
+    target = home / ".claude" / "rules" / "coding-standard.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(rendered, encoding="utf-8")
+    plan = skills_bridge.plan_definition_sync(home, [projection])
+    target.write_bytes(bytes([0xFF, 0xFE]))
+
+    with pytest.raises(SkillSyncConflictError):
+        skills_bridge.apply_definition_sync(plan)
+
+
+def test_auto_sync_rolls_back_skills_when_definitions_fail(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    _patch_fetch(
+        monkeypatch,
+        [
+            _projection("studio-git-flow", "skill", "Skill body"),
+            _projection("coding-standard", "rule", "Rule body"),
+        ],
+    )
+
+    def fail(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(skills_bridge, "apply_definition_sync", fail)
+    _run(home, tmp_path / "data")
+
+    assert not (home / ".agents" / "skills" / "studio-git-flow" / "SKILL.md").exists()
+    assert not (home / ".claude" / "skills" / "studio-git-flow" / "SKILL.md").exists()
+    assert not (home / ".agents" / "rules" / "coding-standard.md").exists()
+    status = skills_bridge._load_status(tmp_path / "data")
+    assert status is not None
+    assert status.state.value == "not_synced"
