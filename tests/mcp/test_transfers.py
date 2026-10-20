@@ -133,7 +133,7 @@ async def test_delete_transfer_preserves_history_and_permissions(
         refused = await studio_delete_transfer(created["id"], caller)
         assert refused["error_code"] == "forbidden"
     deleted = await studio_delete_transfer(created["id"], auth_ctx)
-    assert deleted["status"] == "deleted"
+    assert deleted.get("status") == "deleted", deleted
     assert deleted["already_deleted"] is False
     assert deleted["deleted_at"] is not None
     replay = await studio_delete_transfer(created["id"], admin_ctx)
