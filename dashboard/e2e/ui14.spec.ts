@@ -615,7 +615,9 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
     await form.locator('button[type="submit"]').click();
     const msg = form.locator("[data-msg]");
     await expect(msg).toContainText("ancrage");
-    await expect(msg).toBeFocused();
+    const harness = form.locator('input[name="harness_ref"]');
+    await expect(harness).toHaveAttribute("aria-invalid", "true");
+    await expect(harness).toBeFocused();
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
