@@ -235,22 +235,23 @@ def test_hook_matches_task_worktrees() -> None:
 
 def test_opencode_render_carries_the_model_protocol() -> None:
     """AIB L1 : le template de hook OpenCode porte le bloc modele, resolu via
-    POST /agents/ensure avec une stable_key dediee par couple harness+modele."""
+    POST /agents/ensure avec l'identite par modele et par poste (DEC-0225)."""
     rendered = render_hook(_SPECS["opencode"])
-    assert "harness/modele" in rendered
-    assert "agents-ensure-opencode:" in rendered
+    assert "ce modele sur ce poste" in rendered
+    assert "'--model-identity'" in rendered
     assert "'--harness', 'opencode'" in rendered
     assert "$modelRef = $payload.model" in rendered
 
 
 def test_all_harnesses_carry_the_model_protocol() -> None:
-    """AIB L2 : l'identite agent est le couple (harness, modele) sur tous les
+    """DEC-0225 : une fiche par modele et par poste, partagee par tous les
     harnais — le bloc modele est present quelle que soit la sortie (texte ou
-    JSON), avec une stable_key dediee par couple harness+modele."""
+    JSON) et ne derive plus la cle du harnais."""
     for spec in HARNESSES:
         rendered = render_hook(spec)
-        assert "harness/modele" in rendered
-        assert f"agents-ensure-{spec.harness}:" in rendered
+        assert "'--model-identity'" in rendered
+        assert f"agents-ensure-{spec.harness}:" not in rendered
+        assert '"agent-model:${originKey}:' in rendered
         assert f"'--harness', '{spec.harness}'" in rendered
         assert "$modelRef = $payload.model" in rendered
 
@@ -388,7 +389,7 @@ def test_hook_emits_model_agent_line_from_ensured_agent(
 ) -> None:
     """AIB L1 : un poste suivi dont le `studio-client` du PATH rend un agent
     idempotent voit le hook resoudre l'agent du couple (harness, modele),
-    emettre la ligne `harness/modele` et cacher la cle scope modele dans
+    emettre la ligne `ce modele sur ce poste` et cacher la cle modele dans
     studio-agent.json (fail-open, aucun secret)."""
     repo = tmp_path / "Studi'os"
     repo.mkdir()
@@ -456,12 +457,12 @@ def test_hook_emits_model_agent_line_from_ensured_agent(
         env=env,
     )
     assert result.returncode == 0, result.stderr
-    assert "harness/modele" in result.stdout
+    assert "ce modele sur ce poste" in result.stdout
     assert "opencode-go/deepseek-v4.1-flash" in result.stdout
     assert agent_id in result.stdout
 
     store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
-    assert store["opencode:http://example.invalid:opencode-go/deepseek-v4.1-flash"] == agent_id
+    assert store["agent-model:http://example.invalid:opencode-go/deepseek-v4.1-flash"] == agent_id
     # Pas de doublon : l'agent du harnais n'est pas cree quand le modele est connu.
     assert "opencode:http://example.invalid" not in store
 
@@ -540,12 +541,12 @@ def test_claude_json_hook_emits_model_agent_in_context(
     assert result.returncode == 0, result.stderr
     envelope = json.loads(result.stdout)
     context = envelope["hookSpecificOutput"]["additionalContext"]
-    assert "harness/modele" in context
+    assert "ce modele sur ce poste" in context
     assert "anthropic/claude-opus-5-5" in context
     assert agent_id in context
 
     store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
-    assert store["claude-code:http://example.invalid:anthropic/claude-opus-5-5"] == agent_id
+    assert store["agent-model:http://example.invalid:anthropic/claude-opus-5-5"] == agent_id
     assert "claude-code:http://example.invalid" not in store
 
 

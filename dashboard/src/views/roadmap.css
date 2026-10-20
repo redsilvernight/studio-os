@@ -2,6 +2,16 @@
   display: grid;
   gap: var(--ds-space-6);
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.roadmap-view :where(header, section, aside, main, nav, fieldset, summary, dl, li, .roadmap-criteria li > span) {
+  min-width: 0;
+}
+
+.roadmap-view p,
+.roadmap-detail-list li > span {
+  white-space: pre-wrap;
 }
 
 .roadmap-fixture-note {
@@ -170,6 +180,7 @@
 
 .roadmap-step-state {
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .roadmap-available {
@@ -191,6 +202,12 @@
   justify-content: space-between;
   align-items: start;
   gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+
+.roadmap-detail > header > div {
+  min-width: 0;
+  flex: 1 1 180px;
 }
 
 .roadmap-detail section {
@@ -590,18 +607,15 @@
   margin-bottom: var(--ds-space-4, 16px);
 }
 
-.roadmap-switch-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-2, 8px) var(--ds-space-4, 16px);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.roadmap-switcher label {
+  font-weight: 600;
 }
 
-.roadmap-switch-link[aria-current="page"] {
-  font-weight: 600;
-  text-decoration: none;
+.roadmap-switcher select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 280px;
 }
 
 /* P05-roadmaps : vue recentrée sur l'étape courante (bandeau, héros, repliés). */
@@ -653,9 +667,7 @@
 .roadmap-strip-phase span:last-child {
   font-size: var(--ds-text-xs);
   color: var(--ds-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .roadmap-strip-phase.cur span:last-child {
@@ -690,9 +702,16 @@
   background: var(--ds-surface);
   padding: var(--ds-space-3) var(--ds-space-4);
   min-width: 0;
+  display: grid;
+  gap: var(--ds-space-3);
 }
 
-.roadmap-done-phases > summary {
+.roadmap-done-phases > h3 {
+  margin: 0;
+  font-size: var(--ds-text-base);
+}
+
+.roadmap-done-phase > summary {
   display: flex;
   align-items: center;
   gap: var(--ds-space-3);
@@ -700,14 +719,41 @@
   list-style: none;
 }
 
-.roadmap-done-phases > summary::-webkit-details-marker {
+.roadmap-done-phase > summary::-webkit-details-marker {
   display: none;
 }
 
-.roadmap-done-phases > summary > span:last-child {
+.roadmap-done-phase > summary > span:last-child {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.roadmap-done-phase > summary::after {
+  content: "+";
+  margin-left: auto;
+  font-size: 1.5em;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 1.5rem;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.roadmap-done-phase[open] > summary::after {
+  content: "−";
+}
+
+.roadmap-done-phase > summary:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 4px;
+  border-radius: var(--ds-radius-md);
+}
+
+.roadmap-done-content {
+  padding-top: var(--ds-space-3);
 }
 
 .roadmap-done-ok {
@@ -720,6 +766,84 @@
   background: var(--ds-success-soft, #e6f4ea);
   color: var(--ds-success);
   font-weight: 700;
+}
+
+.mission-run {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mission-run > summary {
+  display: grid;
+  gap: var(--ds-space-3);
+  cursor: pointer;
+  list-style: none;
+  padding: var(--ds-space-4);
+}
+
+.mission-run > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mission-run > summary:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
+}
+
+.mission-run-heading,
+.mission-run-context,
+.mission-run-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  min-width: 0;
+}
+
+.mission-run-heading strong {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.mission-run-context > span,
+.mission-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.mission-label {
+  font-weight: 600;
+  color: var(--ds-text-muted);
+}
+
+.mission-result {
+  display: grid;
+  gap: var(--ds-space-1);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-3);
+}
+
+.mission-result-text {
+  white-space: pre-wrap;
+}
+
+.mission-run-footer {
+  justify-content: space-between;
+  font-size: var(--ds-text-sm);
+}
+
+.mission-disclosure {
+  color: var(--ds-action);
+}
+
+.mission-disclosure::before {
+  content: "Afficher · ";
+}
+
+.mission-run[open] > summary .mission-disclosure::before {
+  content: "Masquer · ";
 }
 
 .roadmap-proposals {

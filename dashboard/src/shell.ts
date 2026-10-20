@@ -103,8 +103,8 @@ export function shellNavGroups(route: Route, desktop = false, mode: NavMode = "s
         { href: "#/agents", label: "Agents", icon: "agents", active: is("agents", "agent") },
       ],
     },
-    { title: "Administration", collapsible, items: admin },
     { title: "Outils experts", collapsible, items: experts },
+    { title: "Administration", collapsible, items: admin },
   ];
 }
 
@@ -124,15 +124,16 @@ function navItemHtml(item: ShellNavItem): string {
 
 function navGroupHtml(group: ShellNavGroup, index: number): string {
   const items = group.items.map(navItemHtml).join("");
+  const placement = group.title === "Administration" ? " app-navgroup--admin" : "";
   if (group.collapsible === true) {
     const open = group.items.some((item) => item.active) ? " open" : "";
     const summaryIcon = group.title === "Outils experts" ? "graph" : "settings";
     const short = group.title === "Outils experts" ? "Outils" : "Admin";
-    return `<details class="app-navgroup app-navgroup--secondary"${open}><summary>${icon(summaryIcon)}${labelHtml(group.title, short)}</summary><ul>${items}</ul></details>`;
+    return `<details class="app-navgroup app-navgroup--secondary${placement}"${open}><summary>${icon(summaryIcon)}${labelHtml(group.title, short)}</summary><ul>${items}</ul></details>`;
   }
   // Groupe secondaire déployé (mode complet) : titre visible ; « Principal » reste muet.
   const titleClass = group.title === "Principal" ? "ds-sr-only" : "app-navgroup-title";
-  return `<section class="app-navgroup" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="${titleClass}">${esc(group.title)}</h2><ul>${items}</ul></section>`;
+  return `<section class="app-navgroup${placement}" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="${titleClass}">${esc(group.title)}</h2><ul>${items}</ul></section>`;
 }
 
 /**
@@ -243,6 +244,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
     </header>
     <div id="conflict-banner" class="conflict-banner" role="status" hidden></div>
     <div id="client-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
+    <div id="desktop-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>

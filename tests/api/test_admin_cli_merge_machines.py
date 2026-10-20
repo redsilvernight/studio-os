@@ -236,3 +236,39 @@ def test_main_dispatches_merge_machines_apply(monkeypatch: pytest.MonkeyPatch) -
     admin_cli.main()
 
     assert calls == [(source, target, True)]
+
+
+async def test_merge_machines_keeps_workstations_one_level(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DEC-0226: merging an old workstation into the new one moves its tool
+    machines; a duplicate tool machine inherits its workstation."""
+    _bind_session(monkeypatch, db_session)
+    owner = await provisioning_service.create_user(
+        db_session, "Owner", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    old_desk, _ = await provisioning_service.create_machine(db_session, owner.id, "PC")
+    new_desk, _ = await provisioning_service.create_machine(db_session, owner.id, "PC")
+    tool, _ = await provisioning_service.create_machine(
+        db_session, owner.id, "PC · Codex", old_desk.id
+    )
+    duplicate, _ = await provisioning_service.create_machine(
+        db_session, owner.id, "PC · Codex", old_desk.id
+    )
+    legacy, _ = await provisioning_service.create_machine(db_session, owner.id, "PC · Codex")
+
+    await admin_cli._merge_machines(str(old_desk.id), str(new_desk.id), apply=True)
+    await db_session.refresh(tool)
+    await db_session.refresh(new_desk)
+    assert tool.workstation_id == new_desk.id
+    assert new_desk.workstation_id is None
+
+    await admin_cli._merge_machines(str(duplicate.id), str(legacy.id), apply=True)
+    await db_session.refresh(legacy)
+    assert legacy.workstation_id == new_desk.id
+
+    await admin_cli._merge_machines(str(new_desk.id), str(tool.id), apply=True)
+    await db_session.refresh(tool)
+    await db_session.refresh(legacy)
+    assert tool.workstation_id is None
+    assert legacy.workstation_id == tool.id

@@ -106,6 +106,12 @@ export function filterClaims(claims: ResourceClaim[], filter: ClaimFilter, now: 
   return claims.filter((c) => (claimLiveliness(c, now) === "active") === (filter === "active"));
 }
 
+export function newestClaimsFirst(claims: ResourceClaim[]): ResourceClaim[] {
+  return [...claims].sort((a, b) =>
+    Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id),
+  );
+}
+
 /** Page demandée, bornée à [1, nombre de pages] ; `pages` vaut au moins 1. */
 export function paginateClaims<T>(items: T[], page: number, size = CLAIMS_PAGE_SIZE): { items: T[]; page: number; pages: number } {
   const pages = Math.max(1, Math.ceil(items.length / size));
@@ -132,7 +138,7 @@ function listHtml(claims: ResourceClaim[], state: ViewState, authed: boolean): s
     .map((f) => `<option value="${f}"${f === state.filter ? " selected" : ""}>${FILTER_LABEL[f]} (${counts[f]})</option>`)
     .join("");
   const filterBar = `<div class="claims-filter"><label for="claim-filter">Afficher</label> <select class="ds-select" id="claim-filter" data-filter>${options}</select></div>`;
-  const visible = filterClaims(claims, state.filter, now);
+  const visible = newestClaimsFirst(filterClaims(claims, state.filter, now));
   const paged = paginateClaims(visible, state.page);
   state.page = paged.page;
   let table: string;

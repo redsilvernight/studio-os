@@ -487,6 +487,17 @@
     {
       "cancellable": false,
       "capability": "workspace.config",
+      "command": "workspace.list",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "WorkspaceListResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "workspace.config",
       "command": "workspace.save_config",
       "max_request_bytes": 65536,
       "max_response_bytes": 1048576,

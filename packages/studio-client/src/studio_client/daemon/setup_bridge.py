@@ -200,7 +200,12 @@ class SetupBridge:
     def _plan_skills(self, home: Path) -> tuple[SetupSkillsStep, SkillSyncPlan | None]:
         try:
             projections = self._load_projections()
-            plan = plan_skill_sync(home, projections)
+            skills = [
+                item
+                for item in projections
+                if item.library_kind == "skill" and item.scope == "studio"
+            ]
+            plan = plan_skill_sync(home, skills)
         except _SkillsUnavailable as exc:
             return SetupSkillsStep(state=SetupSkillsState.UNAVAILABLE, reason=exc.reason), None
         except SkillSyncError as exc:

@@ -141,9 +141,9 @@ try {
     }
     $agentId = $null
     $agentLabel = 'ce harness'
-    # Identite = (harness, provider, modele) des que le harnais expose son
-    # modele (AIB L2) ; sinon repli sur l'agent du harnais (DEC-0099). Le bloc
-    # modele est commun aux sorties texte et JSON.
+    # Identite = (poste, provider, modele), tous harnais confondus, des que le
+    # harnais expose son modele (DEC-0225) ; sinon repli sur l'agent du
+    # harnais (DEC-0099). Le bloc modele est commun aux sorties texte et JSON.
 __MODEL_BLOCK__
     if (-not $agentId) {
         $baseAgentKey = "__AGENT_KEY__:${originKey}"
@@ -199,12 +199,13 @@ __MODEL_BLOCK__
 """
 
 _MODEL_BLOCK_PS = """
-    # Bloc modele (AIB L2, toutes sorties) : un agent par couple
-    # (harness, provider, modele), jamais l'agent du harnais en plus. Cache
-    # local "__AGENT_KEY__:<origin>:<provider>/<model>" dans studio-agent.json,
-    # resolu via POST /agents/ensure (idempotent, stable_key dedie), fail-open.
+    # Bloc modele (DEC-0225, toutes sorties) : un agent par modele et par
+    # poste, partage par tous les harnais, jamais l'agent du harnais en plus.
+    # Cache local "agent-model:<origin>:<provider>/<model>" dans
+    # studio-agent.json, resolu via `agents ensure --model-identity`
+    # (POST /agents/ensure, idempotent), fail-open.
     if ($modelRef) {
-        $cacheKey = "__AGENT_KEY__:${originKey}:$modelRef"
+        $cacheKey = "agent-model:${originKey}:$($modelRef.Trim().ToLowerInvariant())"
         $modelAgentId = $null
         try {
             if (Test-Path -LiteralPath $agentPath) {
@@ -228,7 +229,7 @@ _MODEL_BLOCK_PS = """
                         'agents', 'ensure',
                         '--harness', '__HARNESS__',
                         '--model', $mid,
-                        '--stable-key', "agents-ensure-__HARNESS__:$modelRef",
+                        '--model-identity',
                         '--json'
                     )
                     if ($prov) { $ensureArgs += @('--provider', $prov) }
@@ -252,7 +253,7 @@ _MODEL_BLOCK_PS = """
         }
         if ($modelAgentId) {
             $agentId = $modelAgentId
-            $agentLabel = "ce harness/modele ($modelRef)"
+            $agentLabel = "ce modele sur ce poste ($modelRef)"
         }
     }
 """

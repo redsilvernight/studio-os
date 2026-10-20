@@ -71,6 +71,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_get_transfers": _P,
     "studio_get_transfer": _P,
     "studio_request_transfer_download": _P,
+    "studio_delete_transfer": _P,
     "studio_resolve_agent": _P,
     "studio_discover_definitions": _P,
     "studio_publish_definition": _P,

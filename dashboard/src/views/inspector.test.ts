@@ -145,10 +145,19 @@ describe("inspectorFormHtml", () => {
     expect(html).toContain("other-agent");
   });
 
-  it("renders project id input", () => {
-    const html = inspectorFormHtml(null, "p1", []);
-    expect(html).toContain('name="project_id"');
-    expect(html).toContain('value="p1"');
+  it("selects the accessible current project by name", () => {
+    const html = inspectorFormHtml(null, "p1", [], [{ id: "p1", name: "Premier <projet>" }, { id: "p2", name: "Second" }] as Parameters<typeof inspectorFormHtml>[3]);
+    expect(html).toContain('<select name="project_id">');
+    expect(html).toContain('value="p1" selected>Premier &lt;projet&gt;');
+    expect(html).toContain('value="p2">Second');
+    expect(html).not.toContain('<input name="project_id"');
+  });
+
+  it("does not submit an inaccessible current project and explains empty access", () => {
+    const html = inspectorFormHtml(null, "inaccessible", []);
+    expect(html).not.toContain('value="inaccessible"');
+    expect(html).toContain("Aucun projet accessible");
+    expect(html).toContain('value="">Sans contexte projet');
   });
 
   it("renders the ephemeral session override section collapsed, with contract fields only", () => {
@@ -164,7 +173,7 @@ describe("inspectorFormHtml", () => {
   it("uses French labels and keeps technical ids canonical", () => {
     const html = inspectorFormHtml(null, null, []);
     expect(html).toContain("Clé stable AgentDefinition");
-    expect(html).toContain("ID Projet");
+    expect(html).toContain("Projet (contexte optionnel)");
     expect(html).toContain("Résoudre");
     expect(html).toContain("POST /resolutions");
   });

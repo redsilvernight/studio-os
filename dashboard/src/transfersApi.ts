@@ -63,6 +63,15 @@ export function listTransfers(client: StudioClient, projectId?: string): Promise
   );
 }
 
+export function getTransfer(client: StudioClient, transferId: string): Promise<Transfer> {
+  return unwrap(client.GET("/api/v1/transfers/{transfer_id}", { params: { path: { transfer_id: transferId } } }));
+}
+
+export async function deleteTransfer(client: StudioClient, transferId: string): Promise<void> {
+  const result = await client.DELETE("/api/v1/transfers/{transfer_id}", { params: { path: { transfer_id: transferId } } });
+  if (!result.response.ok) throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
 export function getConsumption(client: StudioClient, projectId?: string): Promise<TransferConsumption> {
   return unwrap(
     client.GET("/api/v1/transfers/consumption", {

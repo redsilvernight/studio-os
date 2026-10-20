@@ -272,6 +272,7 @@ describe("« Configurer ce poste » — application", () => {
     expect(result.querySelector("[data-setup-result=hook\\:claude-code]")?.getAttribute("data-outcome")).toBe("failed");
     expect(result.textContent).not.toContain("Écrit et relu</span>");
     expect(result.querySelector("[data-setup-result=guard]")?.textContent).toContain("Laissé tel quel");
+    expect(result.getAttribute("data-result-state")).toBe("error");
     expect(root.querySelector("[data-action=confirm-setup]")).toBeNull();
   });
 
@@ -284,6 +285,14 @@ describe("« Configurer ce poste » — application", () => {
     expect(result.querySelector("[data-setup-result=guard]")?.textContent).toContain("sauvegarde créée");
     expect(result.querySelector("[data-testid=setup-result-skills]")?.textContent).toContain("2 fichier(s) écrit(s)");
     expect(result.textContent).toContain("1 modifiée(s) localement");
+    expect(result.getAttribute("data-result-state")).toBe("partial");
+  });
+
+  it("distinguishes a verified successful preparation from a partial result", () => {
+    const html = setupSectionHtml({ result: { plan_id: "ok", hooks: [{ item_id: "guard", outcome: "written", backed_up: false }], skills: { outcome: "unchanged", written: 0, left_modified: 0 } } });
+    expect(html).toContain('data-result-state="success"');
+    expect(html).toContain("Préparation réussie");
+    expect(html).toContain("Terminez le raccordement");
   });
 
   it("un aperçu expiré revient au bouton, avec un message", async () => {

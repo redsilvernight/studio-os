@@ -39,6 +39,7 @@ const MODELS = [
   "GraphExpandRequest",
   "WorkspaceScope",
   "WorkspaceStatus",
+  "WorkspaceListResult",
   "WorkspaceValidateRequest",
   "WorkspaceGetConfigRequest",
   "WorkspaceConfirmRootsRequest",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cameraFor, lerpCamera, MAX_DISTANCE, MIN_DISTANCE, orbit, pan, project, zoomAt } from "./camera";
+import { cameraFor, lerpCamera, MAX_DISTANCE, MIN_DISTANCE, orbit, pan, project, project2d, zoomAt } from "./camera";
 import type { AtlasCamera } from "./types";
 
 const W = 800;
@@ -42,6 +42,17 @@ describe("atlas camera", () => {
     expect(zoomed.distance).toBeCloseTo(100);
     expect(zoomAt(cam, 1e-6, 0, 0, W, H).distance).toBe(MIN_DISTANCE);
     expect(zoomAt(cam, 1e6, 0, 0, W, H).distance).toBe(MAX_DISTANCE);
+  });
+
+  it("projects flat in 2D without perspective or rotation", () => {
+    const flat = project2d({ ...cam, yaw: 1.2, pitch: 0.9 }, { x: 110, y: -5, z: 80 }, W, H);
+    const scale = project2d(cam, cam.target, W, H).scale;
+    expect(flat.x).toBeCloseTo(W / 2 + 100 * scale);
+    expect(flat.y).toBeCloseTo(H / 2);
+    expect(flat.scale).toBeCloseTo(scale);
+    expect(flat.visible).toBe(true);
+    const far = project2d(cam, { x: cam.target.x + 10_000, y: 0, z: 0 }, W, H);
+    expect(far.visible).toBe(false);
   });
 
   it("interpolates and frames a point cloud", () => {
