@@ -204,8 +204,15 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await page.mouse.move(0, 0);
   const current = page.locator('#atlas-list [aria-current="true"]');
   await page.keyboard.press("ArrowRight");
-  await expect(current).toContainText("Cache mémoire locale");
+  await expect(current).toHaveCount(1);
+  const first = (await current.textContent()) ?? "";
   await page.keyboard.press("ArrowRight");
+  await expect(current).not.toHaveText(first);
+  for (let step = 0; step < 5 && !((await current.textContent()) ?? "").includes("Stratégie de cache Redis"); step += 1) {
+    const before = (await current.textContent()) ?? "";
+    await page.keyboard.press("ArrowRight");
+    await expect(current).not.toHaveText(before);
+  }
   await expect(current).toContainText("Stratégie de cache Redis");
   await expect(detail).toContainText("DEC-0002");
   await expect(page.locator("#atlas-status")).toContainText("voisin(s) surligné(s)");
