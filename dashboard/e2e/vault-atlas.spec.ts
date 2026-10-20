@@ -145,7 +145,7 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await expect(list).toContainText("Checklist de release");
   await expect(list).not.toContainText("Cache mémoire locale");
 
-  /* Zones et communautés étiquetées/colorées, mesure de rendu exposée. */
+  /* Zones et communautés étiquetées/colorées. */
   await expect(page.locator("#atlas-status")).toContainText(/zone\(s\)/);
   await expect(page.locator("#atlas-status")).toContainText(/communauté\(s\)/);
   const regions = page.locator("#atlas-regions");
@@ -153,11 +153,7 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await expect(regions).toContainText("Communauté 1");
   await expect(regions.locator("[data-zone-color]").first()).toBeVisible();
   await expect(page.locator(".vault-atlas-legend")).toContainText("Communauté de liens");
-  await expect(page.locator("#atlas-perf")).toContainText(/construction .* ms/);
-  const marks = await page.evaluate(() =>
-    performance.getEntriesByType("measure").map((entry) => entry.name),
-  );
-  expect(marks).toContain("studio:vault-atlas:draw");
+  await expect(page.locator("#atlas-perf")).toBeHidden();
 
   /* 6. Bascule 2D/3D persistée au remontage de la vue. */
   const projection = page.locator("#atlas-projection");

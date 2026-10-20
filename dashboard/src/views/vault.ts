@@ -49,7 +49,6 @@ export interface VaultContext {
 
 export type VaultScopeFilter = "studio" | "project";
 
-/** Tri de la liste : serveur (pertinence), ordre alphabétique ou fraîcheur. */
 export type VaultSort = "relevance" | "title_asc" | "title_desc" | "recent" | "oldest";
 
 export const VAULT_SORT_LABEL: Record<VaultSort, string> = {
@@ -66,7 +65,6 @@ export interface VaultListState {
   query: string;
   noteType: VaultNoteType | "all";
   status: VaultNoteStatus | "all";
-  /** Optionnel : « relevance » (ordre serveur) par défaut. */
   sort?: VaultSort;
 }
 
@@ -138,7 +136,6 @@ function typeBadge(noteType: VaultNoteType): string {
   return dsBadge(VAULT_TYPE_LABEL[noteType] ?? String(noteType), "neutral");
 }
 
-/** Tri stable : ne mute jamais le tableau reçu. */
 export function sortVaultNotes(notes: VaultNoteSummary[], sort: VaultSort = "relevance"): VaultNoteSummary[] {
   const copy = [...notes];
   const titleOf = (note: VaultNoteSummary): string => (note.title.trim() === "" ? note.slug : note.title);
@@ -160,13 +157,11 @@ export function sortVaultNotes(notes: VaultNoteSummary[], sort: VaultSort = "rel
   }
 }
 
-/** Extrait lisible : résumé serveur borné, jamais de HTML brut. */
 export function vaultExcerpt(summary: string, max = 220): string {
   const text = summary.replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
-/** Zone lisible d'une note : « Studio » ou le nom du projet quand il est connu. */
 export function vaultZoneLabel(note: VaultNoteSummary, projectNames?: ReadonlyMap<string, string>): string {
   if (note.scope === "studio") return "Studio";
   const project = note.project_id === null || note.project_id === undefined ? undefined : projectNames?.get(note.project_id);
@@ -409,7 +404,6 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
     sort: "relevance",
   };
 
-  /** Dernière page reçue : le tri la réutilise sans nouvelle requête serveur. */
   let lastNotes: VaultNoteSummary[] | null = null;
   let lastSearching = false;
   let lastTruncated: boolean | undefined;
@@ -511,7 +505,6 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
         void paint();
         return;
       }
-      // Tri local : la page serveur est déjà chargée, on ne la redemande pas.
       root.innerHTML = vaultPageHtml(state, projects, lastNotes, {
         searching: lastSearching,
         truncated: lastTruncated,

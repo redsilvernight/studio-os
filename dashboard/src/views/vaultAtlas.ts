@@ -6,16 +6,10 @@
  *   typés et ancres `task:` / `path:` des résumés ; jamais de fixture.
  * - Rendu : moteur Canvas 2D maison (`createAtlasRenderer`), sans dépendance
  *   ni worker ; canevas sombre, couleurs lues dans les variables `--atlas-*`.
- *   Zones (portée/projet × type) colorées et étiquetées, communautés de
- *   liens en halos, sélection qui met en évidence ses voisins.
- * - 2D/3D : bascule persistée (`localStorage`), sans recharger le graphe.
  * - Détail : panneau non modal à côté du canevas (voisins cliquables) ;
  *   « Ouvrir » mène à la note dans la vue Liste (`#/vault/{id}`).
  * - Accessibilité : la liste « Notes visibles » est l'alternative clavier
- *   au canevas (flèches, Entrée, Échap) ; `prefers-reduced-motion` coupe les
- *   vols de caméra.
- * - Performance : `performance.mark`/`measure` par étape et durée du dessin
- *   affichée sous le canevas (`atlasPerfText`).
+ *   au canevas ; `prefers-reduced-motion` coupe les vols de caméra.
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
@@ -60,7 +54,6 @@ const ATLAS_STATUSES: VaultNoteStatus[] = ["draft", "proposed", "validated"];
 /** Plafond de la liste clavier : au-delà, affiner par recherche ou filtres. */
 const VISIBLE_LIST_MAX = 60;
 
-/** Clé de persistance de la bascule 2D/3D (localStorage). */
 export const ATLAS_MODE_STORAGE_KEY = "studio.vault.atlas.mode";
 export const ATLAS_MODE_LABEL: Record<AtlasProjection, string> = { "2d": "Vue 2D", "3d": "Vue 3D" };
 
@@ -71,36 +64,34 @@ export interface AtlasTimings {
   drawMs: number;
 }
 
-/**
- * Mesure une étape de l'atlas : `performance.mark`/`measure` (nom stable,
- * lisible dans le profiler) et durée renvoyée à l'appelant.
- */
 export function measureAtlasStep<T>(label: string, fn: () => T): { value: T; ms: number } {
+  const name = `studio:vault-atlas:${label}`;
+  const startMark = `${name}:start`;
+  const endMark = `${name}:end`;
   const start = typeof performance !== "undefined" ? performance.now() : 0;
   try {
-    performance.mark(`studio:vault-atlas:${label}:start`);
+    performance.mark(startMark);
   } catch {
-    /* performance.mark absent */
   }
   const value = fn();
   const ms = (typeof performance !== "undefined" ? performance.now() : 0) - start;
   try {
-    performance.mark(`studio:vault-atlas:${label}:end`);
-    performance.measure(`studio:vault-atlas:${label}`, `studio:vault-atlas:${label}:start`, `studio:vault-atlas:${label}:end`);
+    performance.mark(endMark);
+    performance.measure(name, startMark, endMark);
+    performance.clearMarks(startMark);
+    performance.clearMarks(endMark);
+    performance.clearMeasures(name);
   } catch {
-    /* idem */
   }
   return { value, ms };
 }
 
-/** Ligne de performance affichée en développement (et lisible en e2e). */
 export function atlasPerfText(notes: number, edges: number, timings: AtlasTimings): string {
   return `${notes} note(s) · ${edges} lien(s) · construction ${timings.buildMs.toFixed(1)} ms` +
     ` · disposition ${timings.layoutMs.toFixed(1)} ms · filtre ${timings.filterMs.toFixed(1)} ms` +
     ` · dessin ${timings.drawMs.toFixed(1)} ms`;
 }
 
-/** Bascule persistée : localStorage indisponible → 3D par défaut, jamais d'exception. */
 export function readAtlasMode(storage?: Storage | null): AtlasProjection {
   try {
     const store = storage ?? (typeof localStorage !== "undefined" ? localStorage : null);
@@ -115,7 +106,6 @@ export function writeAtlasMode(mode: AtlasProjection, storage?: Storage | null):
     const store = storage ?? (typeof localStorage !== "undefined" ? localStorage : null);
     store?.setItem(ATLAS_MODE_STORAGE_KEY, mode);
   } catch {
-    /* quota / mode privé : la bascule reste valable pour la session */
   }
 }
 
@@ -229,11 +219,6 @@ export function atlasVisibleListHtml(view: AtlasView, selected: string | null, g
   return `<ul class="vault-atlas-items" role="list">${items}</ul>${more}`;
 }
 
-/**
- * Régions lisibles hors canevas : zones (portée/projet × type) et
- * communautés de liens, avec leur pastille de couleur. Les communautés
- * pointent vers leur première note pour rester actionnables au clavier.
- */
 export function atlasRegionsHtml(view: AtlasView): string {
   if (view.groups.length === 0 && view.communities.length === 0) {
     return `<p class="ds-list-sub">Aucune zone avec ces filtres.</p>`;
@@ -395,6 +380,11 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
   const updatePerf = (): void => {
     const host = root.querySelector<HTMLElement>("#atlas-perf");
     if (host === null) return;
+    if (!import.meta.env.DEV) {
+      host.hidden = true;
+      host.textContent = "";
+      return;
+    }
     const noteCount = graph.nodes.filter((node) => node.kind === "note").length;
     host.textContent = atlasPerfText(noteCount, graph.edges.length, timings);
     host.hidden = false;
@@ -539,7 +529,6 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
       if (pick === null) return;
       select(pick.dataset["atlasPick"] ?? null);
     });
-    /** Notes visibles dans l'ordre de la liste clavier (correspondances d'abord). */
     const navIds = (): string[] => {
       const notes = view.nodes.filter((node) => node.kind === "note");
       const ordered = view.matches.size > 0
@@ -588,7 +577,6 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
       }
     });
 
-    // Liste clavier : flèches = focus, Entrée = sélection (bouton natif), Échap = effacer.
     root.querySelector<HTMLElement>(".vault-atlas-side")?.addEventListener("keydown", (event: KeyboardEvent) => {
       const items = [...root.querySelectorAll<HTMLButtonElement>("#atlas-list [data-atlas-pick]")];
       if (event.key === "Escape") {

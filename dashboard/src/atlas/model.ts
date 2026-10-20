@@ -26,12 +26,6 @@ export const NOTE_TYPE_TOKEN: Record<VaultNoteType, string> = Object.fromEntries
   ATLAS_TYPE_ORDER.map((type) => [type, `--atlas-type-${type}`]),
 ) as Record<VaultNoteType, string>;
 
-/**
- * Palettes des zones et des communautés. Les variables CSS `--atlas-*`
- * (`vaultAtlas.css`) les reprennent ; ces tableaux servent de repli quand la
- * feuille du chunk n'est pas encore appliquée (même raison que les couleurs
- * de type).
- */
 export const ATLAS_ZONE_COLORS = ["#5b9dff", "#3ddc97", "#ffc23d", "#b58cff", "#2fd4e6"];
 export const ATLAS_COMMUNITY_COLORS = ["#f472b6", "#38bdf8", "#facc15", "#a3e635", "#fb923c", "#c084fc"];
 
@@ -136,10 +130,6 @@ export function clusterKey(node: AtlasNoteNode): string {
   return node.scope === "project" ? `cluster:project:${node.projectId ?? "?"}:${node.noteType}` : `cluster:studio:${node.noteType}`;
 }
 
-/**
- * Couleur stable d'une zone : le Studio garde l'index 0, chaque projet reçoit
- * un index dérivé de son id (même couleur d'un rendu à l'autre).
- */
 export function zoneColorIndex(scope: AtlasNoteNode["scope"], projectId: string | null): number {
   if (scope === "studio") return 0;
   const span = Math.max(1, ATLAS_ZONE_COLORS.length - 1);
@@ -286,11 +276,6 @@ export function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<s
   });
 }
 
-/**
- * Communautés de liens : composantes connexes des arêtes typées entre notes
- * visibles. Les notes isolées ne créent pas de halo (sinon la carte serait
- * couverte de cercles inutiles). Tri stable : taille décroissante puis id.
- */
 export function atlasCommunities(notes: AtlasNoteNode[], edges: AtlasEdge[]): AtlasCommunity[] {
   const byId = new Map(notes.map((note) => [note.id, note]));
   const adjacency = new Map<string, Set<string>>();

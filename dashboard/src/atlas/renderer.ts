@@ -2,12 +2,9 @@
  * Moteur Canvas 2D de l'atlas (zéro dépendance, compatible CSP stricte).
  *
  * - rAF seulement à la demande (interaction, vol de caméra) ; jamais en boucle.
- * - Souris : glisser = orbite (pan en 2D), Maj/clic droit + glisser = pan,
- *   molette = zoom vers le curseur, clic = sélection, double-clic = vol.
- * - Clavier (canevas focalisé) : flèches = navigation entre notes (vue),
- *   Maj + flèches = orbite (déplacement en 2D), +/- = zoom, 0 = recentrer.
- * - 2D/3D : projection orthographique ou perspective (`setMode`), sans
- *   recharger le graphe ni perdre la sélection.
+ * - Souris : glisser = orbite, Maj/clic droit + glisser = pan, molette =
+ *   zoom vers le curseur, clic = sélection, double-clic = vol.
+ * - Clavier (canevas focalisé) : flèches = orbite, +/- = zoom, 0 = recentrer.
  */
 import { cameraFor, lerpCamera, orbit, pan, project, project2d, zoomAt } from "./camera";
 import {
@@ -59,6 +56,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   const ctx = canvas.getContext("2d");
   let view: AtlasView = { nodes: [], edges: [], clusters: [], matches: new Set(), groups: [], communities: [] };
   let projection: AtlasProjection = opts.mode ?? "3d";
+  let measureNextDraw = false;
   let byId = new Map<string, AtlasNode | AtlasCluster>();
   let selected: string | null = null;
   let hovered: string | null = null;
@@ -150,7 +148,6 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     const fog = (p: ProjectedPoint): number => Math.max(0.3, Math.min(1, 1.55 - (p.depth / camera.distance) * 0.55));
     const isDim = (id: string): boolean => (dimming && focus !== null && !focus.has(id)) || (searching && !view.matches.has(id));
 
-    // Communautés de liens : halo pointillé coloré sous les zones, étiqueté.
     for (const community of view.communities) {
       const p = projectPoint(community.position);
       if (p.scale <= 0) continue;
@@ -282,7 +279,6 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
         ctx.arc(p.x, p.y, r + 6, 0, Math.PI * 2);
         ctx.stroke();
       } else if (focus !== null && focus.has(node.id)) {
-        // Voisin direct de la sélection : anneau discret, sans éteindre la carte.
         ctx.globalAlpha = 0.55;
         ctx.lineWidth = 1.5;
         ctx.strokeStyle = pal.accent;
@@ -343,7 +339,6 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       ctx.fillText(group.label, box.x + 20, box.y + 11.5);
     }
 
-    // Étiquettes des communautés, au-dessus de leur halo.
     ctx.font = LABEL_FONT;
     for (const community of view.communities) {
       const p = projectPoint(community.position);
@@ -395,23 +390,34 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     drawn = next;
   };
 
-  /** Dessin mesuré : `performance.mark` + rappel `onRender` (vue → affichage). */
   const draw = (): void => {
+    if (!measureNextDraw) {
+      drawFrame();
+      return;
+    }
+    measureNextDraw = false;
+    const name = "studio:vault-atlas:draw";
+    const startMark = `${name}:start`;
+    const endMark = `${name}:end`;
     const start = typeof performance !== "undefined" ? performance.now() : 0;
     try {
-      performance.mark("studio:vault-atlas:draw:start");
+      performance.mark(startMark);
     } catch {
-      /* performance.mark absent (environnement exotique) */
     }
     drawFrame();
     const ms = (typeof performance !== "undefined" ? performance.now() : 0) - start;
     try {
-      performance.mark("studio:vault-atlas:draw:end");
-      performance.measure("studio:vault-atlas:draw", "studio:vault-atlas:draw:start", "studio:vault-atlas:draw:end");
+      performance.mark(endMark);
+      performance.measure(name, startMark, endMark);
     } catch {
-      /* idem */
     }
     opts.onRender?.(ms);
+    try {
+      performance.clearMarks(startMark);
+      performance.clearMarks(endMark);
+      performance.clearMeasures(name);
+    } catch {
+    }
   };
 
   const tick = (now: number): void => {
@@ -516,8 +522,6 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   };
   const onKeyDown = (event: KeyboardEvent): void => {
     const step = 24;
-    // Flèches seules : navigation entre les notes (gérée par la vue).
-    // Maj + flèches : caméra (orbite en 3D, déplacement en 2D).
     const cameraMove: Record<string, () => AtlasCamera> = {
       ArrowLeft: () => (projection === "2d" ? pan(camera, step, 0, height) : orbit(camera, -step, 0)),
       ArrowRight: () => (projection === "2d" ? pan(camera, -step, 0, height) : orbit(camera, step, 0)),
@@ -568,6 +572,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
         framed = true;
       }
       if (hovered !== null && !byId.has(hovered)) hovered = null;
+      measureNextDraw = true;
       requestRender();
     },
     setSelected(id) {
@@ -580,8 +585,6 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     },
     setMode(mode) {
       projection = mode;
-      // En 2D la projection ignore yaw/pitch : on remet la caméra d'aplomb
-      // pour que le pan (Maj + glisser) reste dans le plan de l'écran.
       camera = { ...camera, yaw: 0, pitch: 0 };
       flight = null;
       requestRender();

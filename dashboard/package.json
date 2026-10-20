@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "analyze:bundle": "node scripts/analyze-bundle.mjs",
     "check:bundle": "node scripts/analyze-bundle.mjs --check",
