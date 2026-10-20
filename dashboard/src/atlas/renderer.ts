@@ -52,6 +52,20 @@ function truncate(text: string, max = 42): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+/** Sphère englobante (centre de la boîte, marge), ou null si moins de deux points. */
+function boundingSphere(points: Vec3[]): { center: Vec3; radius: number } | null {
+  if (points.length < 2) return null;
+  const min = { x: Infinity, y: Infinity, z: Infinity };
+  const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const p of points) {
+    min.x = Math.min(min.x, p.x); min.y = Math.min(min.y, p.y); min.z = Math.min(min.z, p.z);
+    max.x = Math.max(max.x, p.x); max.y = Math.max(max.y, p.y); max.z = Math.max(max.z, p.z);
+  }
+  const center = { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 };
+  const radius = points.reduce((r, p) => Math.max(r, Math.hypot(p.x - center.x, p.y - center.y, p.z - center.z)), 0);
+  return { center, radius: radius + 18 };
+}
+
 export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRendererOptions): AtlasRenderer {
   const ctx = canvas.getContext("2d");
   let view: AtlasView = { nodes: [], edges: [], clusters: [], matches: new Set(), groups: [], communities: [] };
@@ -66,6 +80,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   let frame = 0;
   let flight: { from: AtlasCamera; to: AtlasCamera; start: number } | null = null;
   let drawn: Drawn[] = [];
+  let globe: { center: Vec3; radius: number } | null = null;
   let width = 0;
   let height = 0;
   let destroyed = false;
@@ -147,6 +162,41 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     // Brume de profondeur : ce qui est loin derrière la cible s'estompe.
     const fog = (p: ProjectedPoint): number => Math.max(0.3, Math.min(1, 1.55 - (p.depth / camera.distance) * 0.55));
     const isDim = (id: string): boolean => (dimming && focus !== null && !focus.has(id)) || (searching && !view.matches.has(id));
+
+    // Sphère englobante en fil de fer : silhouette, équateur et deux méridiens.
+    if (globe !== null) {
+      const { center, radius } = globe;
+      ctx.strokeStyle = pal.textMuted;
+      ctx.lineWidth = 1;
+      const ring = (point: (t: number) => Vec3, alpha: number): void => {
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        let pen = false;
+        for (let s = 0; s <= 96; s += 1) {
+          const p = projectPoint(point((s / 96) * Math.PI * 2));
+          if (p.scale <= 0) pen = false;
+          else if (pen) ctx.lineTo(p.x, p.y);
+          else {
+            ctx.moveTo(p.x, p.y);
+            pen = true;
+          }
+        }
+        ctx.stroke();
+      };
+      const c = projectPoint(center);
+      if (c.scale > 0) {
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, radius * c.scale, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (projection === "3d") {
+        const at = (x: number, y: number, z: number): Vec3 => ({ x: center.x + x * radius, y: center.y + y * radius, z: center.z + z * radius });
+        ring((t) => at(Math.cos(t), 0, Math.sin(t)), 0.16);
+        ring((t) => at(Math.cos(t), Math.sin(t), 0), 0.1);
+        ring((t) => at(0, Math.sin(t), Math.cos(t)), 0.1);
+      }
+    }
 
     for (const community of view.communities) {
       const p = projectPoint(community.position);
@@ -566,6 +616,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       for (const node of next.nodes) byId.set(node.id, node);
       for (const cluster of next.clusters) byId.set(cluster.id, cluster);
       const points = [...next.nodes.map((n) => n.position), ...next.clusters.map((c) => c.position)];
+      globe = boundingSphere(points);
       home = cameraFor(points);
       if (!framed && points.length > 0) {
         camera = home;

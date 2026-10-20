@@ -81,7 +81,7 @@ describe("atlas model", () => {
     expect(dec.radius).toBeGreaterThan(plain.radius);
   });
 
-  it("spaces notes and keeps group discs apart, with labelled groups", () => {
+  it("spaces notes in 3D and keeps group balls apart, with labelled groups", () => {
     const many = Array.from({ length: 240 }, (_, i) =>
       note(`n${i}`, { note_type: i % 3 === 0 ? "rule" : "decision", scope: i % 5 === 0 ? "project" : "studio", project_id: i % 5 === 0 ? "p1" : null }));
     const graph = buildAtlasGraph(many, false);
@@ -92,16 +92,20 @@ describe("atlas model", () => {
       for (let j = i + 1; j < notes.length; j += 1) {
         const a = notes[i]!.position;
         const b = notes[j]!.position;
-        closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+        closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z));
       }
     }
-    expect(closest).toBeGreaterThan(7);
+    expect(closest).toBeGreaterThan(5);
+    // Volume réel : l'étendue en Z est du même ordre que celle en X.
+    const extent = (axis: "x" | "z"): number =>
+      Math.max(...notes.map((n) => n.position[axis])) - Math.min(...notes.map((n) => n.position[axis]));
+    expect(extent("z")).toBeGreaterThan(extent("x") * 0.5);
     const view = applyFilters(graph, defaultFilters(), new Map([["p1", "Kartouche"]]));
     expect(view.groups).toHaveLength(4);
     for (const g of view.groups) {
       for (const h of view.groups) {
         if (g.id >= h.id) continue;
-        expect(Math.hypot(g.center.x - h.center.x, g.center.y - h.center.y)).toBeGreaterThan(g.radius + h.radius);
+        expect(Math.hypot(g.center.x - h.center.x, g.center.y - h.center.y, g.center.z - h.center.z)).toBeGreaterThan(g.radius + h.radius);
       }
     }
     expect(view.groups.map((g) => g.label)).toContain("Kartouche · Règles (16)");
