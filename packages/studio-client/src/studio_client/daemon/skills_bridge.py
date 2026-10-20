@@ -609,7 +609,10 @@ def _preview_hash(entry: SkillPlanEntry) -> str:
     return sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _target_label(plan: SkillSyncPlan, target: SkillTargetPlan) -> str:
+def _target_label(
+    plan: SkillSyncPlan | DefinitionSyncPlan,
+    target: SkillTargetPlan | DefinitionTargetPlan,
+) -> str:
     return target.path.relative_to(plan.home).as_posix()
 
 
