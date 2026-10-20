@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -406,8 +406,20 @@ async def _abort_dangling_multipart_uploads(storage: StorageProvider, object_key
 async def _do_delete(
     session: AsyncSession, storage: StorageProvider, transfer: TransferModel
 ) -> None:
-    await _abort_dangling_multipart_uploads(storage, transfer.object_key)
-    await storage.delete_object(transfer.object_key)
+    if transfer.status == "deleted":
+        return
+    try:
+        await _abort_dangling_multipart_uploads(storage, transfer.object_key)
+        await storage.delete_object(transfer.object_key)
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_code": "storage_unavailable",
+                "resource": "transfer",
+                "action": "delete",
+            },
+        ) from exc
     transfer.status = "deleted"
     transfer.deleted_at = datetime.now(UTC)
     await session.commit()

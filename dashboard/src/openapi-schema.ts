@@ -1500,6 +1500,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/timeline/dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Timeline Dates
+         * @description Complete UTC dates of project events and recorded session starts/ends, newest first. Independent of timeline page limits. Restricted to an accessible project.
+         */
+        get: operations["get_timeline_dates_api_v1_timeline_dates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/github/webhook": {
         parameters: {
             query?: never;
@@ -1756,7 +1776,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Transfer
-         * @description Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically.
+         * @description Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically. Repeating an authorized deletion preserves the original deletion timestamp. Storage failures return 503 storage_unavailable.
          */
         delete: operations["delete_transfer_api_v1_transfers__transfer_id__delete"];
         options?: never;
@@ -12310,6 +12330,11 @@ export interface operations {
                 task_id?: string | null;
                 agent_id?: string | null;
                 open?: boolean;
+                project_id?: string | null;
+                since?: string | null;
+                until?: string | null;
+                offset?: number;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -16616,6 +16641,10 @@ export interface operations {
                 project_id: string;
                 since?: string | null;
                 limit?: number;
+                /** @description Exclusive upper timestamp bound. */
+                until?: string | null;
+                /** @description Rows to skip in timestamp/sequence descending order. */
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -16630,6 +16659,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Timeline"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_timeline_dates_api_v1_timeline_dates_get: {
+        parameters: {
+            query: {
+                project_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
             /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
@@ -18046,6 +18138,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Storage unavailable (storage_unavailable); transfer is not marked deleted. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

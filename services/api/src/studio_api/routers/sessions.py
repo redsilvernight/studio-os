@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Header, Query, Request, status
@@ -53,10 +54,24 @@ async def list_sessions(
     task_id: UUID | None = Query(default=None),
     agent_id: UUID | None = Query(default=None),
     open_only: bool = Query(default=False, alias="open"),
+    project_id: UUID | None = Query(default=None),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int | None = Query(default=None, ge=1, le=500),
 ) -> list[WorkSession]:
     settings = get_settings()
     sessions = await sessions_service.list_sessions(
-        session, principal, task_id=task_id, agent_id=agent_id, open_only=open_only
+        session,
+        principal,
+        task_id=task_id,
+        agent_id=agent_id,
+        open_only=open_only,
+        project_id=project_id,
+        since=since,
+        until=until,
+        offset=offset,
+        limit=limit,
     )
     return [_present(s, settings) for s in sessions]
 

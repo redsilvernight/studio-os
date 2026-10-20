@@ -2985,6 +2985,86 @@
        "default": false,
        "title": "Open"
       }
+     },
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 500,
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Limit"
+      }
      }
     ],
     "responses": {
@@ -8374,9 +8454,42 @@
       "schema": {
        "type": "integer",
        "maximum": 500,
+       "minimum": 1,
        "default": 200,
        "title": "Limit"
       }
+     },
+     {
+      "name": "until",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Exclusive upper timestamp bound.",
+       "title": "Until"
+      },
+      "description": "Exclusive upper timestamp bound."
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "Rows to skip in timestamp/sequence descending order.",
+       "default": 0,
+       "title": "Offset"
+      },
+      "description": "Rows to skip in timestamp/sequence descending order."
      }
     ],
     "responses": {
@@ -8386,6 +8499,84 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/Timeline"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/timeline/dates": {
+   "get": {
+    "tags": [
+     "timeline"
+    ],
+    "summary": "Get Timeline Dates",
+    "description": "Complete UTC dates of project events and recorded session starts/ends, newest first. Independent of timeline page limits. Restricted to an accessible project.",
+    "operationId": "get_timeline_dates_api_v1_timeline_dates_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "string",
+          "format": "date"
+         },
+         "title": "Response Get Timeline Dates Api V1 Timeline Dates Get"
         }
        }
       }
@@ -10077,7 +10268,7 @@
      "transfers"
     ],
     "summary": "Delete Transfer",
-    "description": "Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically.",
+    "description": "Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically. Repeating an authorized deletion preserves the original deletion timestamp. Storage failures return 503 storage_unavailable.",
     "operationId": "delete_transfer_api_v1_transfers__transfer_id__delete",
     "security": [
      {
@@ -10133,6 +10324,9 @@
         }
        }
       }
+     },
+     "503": {
+      "description": "Storage unavailable (storage_unavailable); transfer is not marked deleted."
      },
      "422": {
       "description": "Validation Error",

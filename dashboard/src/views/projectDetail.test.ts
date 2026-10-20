@@ -79,7 +79,7 @@ describe("projectCoordinationHtml", () => {
     expect(html).toContain("Le chemin de sortie est-il déjà validé ?");
     expect(html).toContain("Blocage");
     expect(html).not.toContain("Oui, c'est validé.");
-    expect(html.match(/class="ds-list-item"/g)).toHaveLength(1);
+    expect(html.match(/class="ds-list-item workspace-coordination-item"/g)).toHaveLength(1);
   });
 
   it("rien à traiter : handoff et information seuls ne demandent aucune action", () => {

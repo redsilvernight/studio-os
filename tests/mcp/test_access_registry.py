@@ -224,6 +224,7 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_get_transfers": (Probe({"project_id": "{pid}"}), Probe({}, "filtered")),
     "studio_get_transfer": (Probe({"transfer_id": "{transfer}"}),),
     "studio_request_transfer_download": (Probe({"transfer_id": "{transfer}"}),),
+    "studio_delete_transfer": (Probe({"transfer_id": "{transfer}"}),),
     "studio_resolve_agent": (Probe({"stable_key": "world-agent", "project_id": "{pid}"}),),
     "studio_discover_definitions": (
         Probe({"project_id": "{pid}"}),

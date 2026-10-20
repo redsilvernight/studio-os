@@ -427,6 +427,10 @@ function apiStub15(long: boolean) {
       await json(200, bindings);
       return;
     }
+    if (url.includes("/api/v1/timeline/dates")) {
+      await json(200, ["2026-09-11"]);
+      return;
+    }
     if (url.includes("/api/v1/timeline")) {
       await json(200, { project_id: P1, days: [{ date: "2026-09-11", events: [envelope("e1")] }] });
       return;

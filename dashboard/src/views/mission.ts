@@ -6,8 +6,8 @@
  *   serveur est affiché tel quel, jamais re-dérivé ; verdict, raison, état
  *   de protocole ou lacune inconnus → « inconnu » + code brut, ton neutre.
  * - Lecture seule : aucune action de mutation (lancer, annuler, valider).
- * - Un run = un <details> : lancement → session → résultat, lien vers la
- *   tâche. Aucun UUID visible hors dsTechDetails repliés.
+ * - Un run = un <details> : statut, tâche, poste/agent et résultat visibles ;
+ *   lancement et session au dépliage. Aucun UUID hors dsTechDetails repliés.
  * - Temps réel : le shell re-rend la vue sur SSE. En `lost`, bandeau +
  *   rafraîchissement automatique borné (30 s, 10 essais) puis arrêt annoncé ;
  *   arrêt immédiat si la vue est détachée ou si le direct revient.
@@ -19,6 +19,7 @@ import { fetchProjectMission, type MissionRun, type ProjectMission } from "../mi
 import { LIVE_CHANGE_EVENT } from "../realtime";
 import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
+import { agentRef, machineRef } from "../actorNames";
 
 export type LiveState = "live" | "lost" | "off";
 
@@ -171,13 +172,13 @@ function sessionStepHtml(run: MissionRun, gaps: string[]): string {
   );
 }
 
-function resultStepHtml(run: MissionRun): string {
+function resultHtml(run: MissionRun): string {
   const handoff = run.handoff;
   const body =
     handoff === null || handoff === undefined
-      ? `<p class="ds-list-sub">Aucun résultat transmis</p>`
-      : `<p>${esc(handoff.summary)}</p>${handoff.completed_at ? `<p class="ds-list-sub">Transmis ${fmtTime(handoff.completed_at)}</p>` : ""}`;
-  return `<li data-mission-result><strong>Résultat</strong> · ${esc(protocolLabel(run.protocol_state))}${body}</li>`;
+      ? `<span class="ds-list-sub">Aucun résultat transmis</span>`
+      : `<span class="mission-result-text">${esc(handoff.summary)}</span>${handoff.completed_at ? `<span class="ds-list-sub">Transmis ${fmtTime(handoff.completed_at)}</span>` : ""}`;
+  return `<span class="mission-result" data-mission-result><span class="mission-label">Résultat</span>${body}</span>`;
 }
 
 function techRows(run: MissionRun): DsTechRow[] {
@@ -188,13 +189,13 @@ function techRows(run: MissionRun): DsTechRow[] {
   ];
   if (run.launch) rows.push({ label: "Lancement", value: run.launch.id, mono: true });
   if (run.session) rows.push({ label: "Session", value: run.session.id, mono: true });
+  if (run.session?.agent_id) rows.push({ label: "Agent", value: run.session.agent_id, mono: true });
   if (run.handoff) rows.push({ label: "Travail IA", value: run.handoff.ai_work_id, mono: true });
   rows.push({ label: "Verdict (code)", value: run.verdict, mono: true });
   if (run.reasons.length > 0) rows.push({ label: "Raisons (codes)", value: run.reasons.join(", "), mono: true });
   return rows;
 }
 
-/** Un run : <details> fermé, résumé (verdict, tâche, raison, mise à jour) puis détail. */
 export function missionRunHtml(run: MissionRun): string {
   const gaps: string[] = run.data_gaps ?? [];
   const reason = run.reasons[0];
@@ -210,20 +211,24 @@ export function missionRunHtml(run: MissionRun): string {
       ? ""
       : `<p class="ds-list-sub">Autres raisons : ${otherReasons.map((r) => esc(reasonLabel(r))).join(" · ")}</p>`;
   const machine = gaps.includes("machine_unknown")
-    ? gapHtml("machine_unknown")
-    : run.machine_status
-      ? `<p class="ds-list-sub">Poste ${esc(labelOf(MACHINE_STATUS_LABEL, run.machine_status))}</p>`
-      : "";
+    ? `<span data-mission-gap="machine_unknown">Donnée manquante : poste inconnu</span>`
+    : `${machineRef(run.machine_id)}${run.machine_status ? ` · ${esc(labelOf(MACHINE_STATUS_LABEL, run.machine_status))}` : ""}`;
+  const harnessLabels: Record<string, string> = { "claude-code": "Claude Code", codex: "Codex", opencode: "OpenCode" };
+  const agent = run.session?.agent_id
+    ? agentRef(run.session.agent_id)
+    : esc(run.launch?.harness_id ? (harnessLabels[run.launch.harness_id] ?? run.launch.harness_id) : FALLBACK_LABEL.agent);
   const claims = run.active_claims > 0 ? `<p class="ds-list-sub">${run.active_claims} réservation(s) active(s)</p>` : "";
   // Lacunes non rattachées à une étape (vocabulaire additif) : mention générique.
   const extraGaps = gaps.filter((g) => !["machine_unknown", "session_not_found", "task_not_found"].includes(g)).map(gapHtml).join("");
   return (
     `<details class="ds-panel mission-run" data-mission-run="${esc(run.run_id)}" data-verdict="${esc(run.verdict)}">` +
-    `<summary>${dsBadge(verdictLabel(run.verdict), verdictTone(run.verdict))} <strong>${title}</strong>` +
-    `${reason !== undefined ? ` · <span>${esc(reasonLabel(reason))}</span>` : ""}` +
-    ` · <span class="ds-list-sub">mis à jour ${fmtTime(run.updated_at)}</span></summary>` +
-    `<div class="body"><ol class="mission-steps">${launchStepHtml(run)}${sessionStepHtml(run, gaps)}${resultStepHtml(run)}</ol>` +
-    `${others}${machine}${claims}${extraGaps}` +
+    `<summary><span class="mission-run-heading">${dsBadge(verdictLabel(run.verdict), verdictTone(run.verdict))}<strong>${title}</strong></span>` +
+    `<span class="mission-run-context"><span><span class="mission-label">Poste</span>${machine}</span><span><span class="mission-label">Agent</span>${agent}</span></span>` +
+    `${reason !== undefined ? `<span class="mission-reason">${esc(reasonLabel(reason))}</span>` : ""}` +
+    resultHtml(run) +
+    `<span class="mission-run-footer"><span class="ds-list-sub">Mis à jour ${fmtTime(run.updated_at)}</span><span class="mission-disclosure">Lancement, session et diagnostic</span></span></summary>` +
+    `<div class="body"><ol class="mission-steps">${launchStepHtml(run)}${sessionStepHtml(run, gaps)}</ol>` +
+    `<p>${esc(protocolLabel(run.protocol_state))}</p>${others}${claims}${extraGaps}` +
     `<p><a href="#/tasks/${esc(run.task_id)}">${esc(ACTION_LABEL.openTask)}</a></p>` +
     `${dsTechDetails(techRows(run))}</div></details>`
   );

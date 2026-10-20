@@ -10,6 +10,19 @@
   padding-bottom: var(--ds-space-12);
 }
 
+.tasks-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.tasks-actions > .ds-btn {
+  flex: none;
+}
+
 /* Barre d'outils : un groupe logique (vue, filtre, statut) sur une surface. */
 .tasks-toolbar {
   display: flex;
@@ -30,7 +43,7 @@
 
 .tasks-toolbar .ds-search {
   flex: 1;
-  min-width: 220px;
+  min-width: min(220px, 100%);
 }
 
 /* Vues nommées (Maintenant, Mon travail, Toutes) : l'active porte aria-pressed. */

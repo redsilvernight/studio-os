@@ -35,6 +35,7 @@ import { renderMissionInto, renderMissionSummaryInto, type LiveState } from "./m
 import { renderProjectUsageInto } from "./usage";
 import { renderTasksInto } from "./tasks";
 import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
+import "./projectDetail.css";
 
 type Project = components["schemas"]["Project"];
 type ProjectState = components["schemas"]["ProjectState"];
@@ -269,9 +270,9 @@ const COORDINATION_TONE: Record<CoordinationIntent, DsTone> = {
 function coordinationItemHtml(item: CoordinationItem): string {
   const link = item.taskId === null ? "" : ` · <a href="#/tasks/${esc(item.taskId)}">${esc(ACTION_LABEL.openTask)}</a>`;
   return (
-    `<li class="ds-list-item" data-coordination-intent="${esc(item.intent)}"><div class="grow">` +
+    `<li class="ds-list-item workspace-coordination-item" data-coordination-intent="${esc(item.intent)}"><div class="grow">` +
     `<div class="ds-list-title">${dsBadge(intentLabel(item.intent), COORDINATION_TONE[item.intent])}</div>` +
-    `<div class="ds-list-sub">${esc(item.text)}</div>` +
+    `<div class="workspace-coordination-text">${esc(item.text)}</div>` +
     `<div class="ds-list-sub"><time datetime="${esc(item.at)}">${esc(fmtTime(item.at))}</time>${link}</div>` +
     `</div></li>`
   );
@@ -291,7 +292,7 @@ export function projectCoordinationHtml(items: CoordinationItem[] | null): strin
           if (pending.length === 0) return `<p class="ds-list-sub">Rien à traiter.</p>`;
           return `<ul class="ds-list">${pending.map(coordinationItemHtml).join("")}</ul>`;
         })();
-  return `<section class="workspace-section" aria-label="Coordination à traiter">${dsSectionHeader("Coordination à traiter")}${body}</section>`;
+  return `<section class="workspace-section workspace-summary-card" aria-label="Coordination à traiter">${dsSectionHeader("Coordination à traiter")}${body}</section>`;
 }
 
 export interface CoordinationBoxContext {
@@ -309,6 +310,7 @@ export async function renderProjectCoordinationInto(root: HTMLElement, ctx: Coor
     root.innerHTML = "";
     return;
   }
+  root.innerHTML = `<section class="workspace-section workspace-summary-card" aria-label="Coordination à traiter">${dsSectionHeader("Coordination à traiter")}${dsSkeleton(2)}</section>`;
   let items: CoordinationItem[] | null = null;
   try {
     items = await fetchProjectCoordination(ctx.client, ctx.projectId);
@@ -369,12 +371,14 @@ export async function renderProjectDetail(
     }
     panel.innerHTML = projectOverviewHtml(project, state, Date.now(), step);
     const missionSlot = document.createElement("div");
+    missionSlot.className = "workspace-summary-card";
     panel.querySelector(".workspace-hero")?.after(missionSlot);
     // La coordination ne bloque rien : deux emplacements distincts, chargés
     // en parallèle, chaque rendu gère son propre échec.
     const coordinationSlot = document.createElement("div");
     panel.querySelector(".workspace-hero")?.after(coordinationSlot);
     const usageSlot = document.createElement("div");
+    usageSlot.className = "workspace-summary-card";
     missionSlot.after(usageSlot);
     await Promise.all([
       renderProjectUsageInto(usageSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed }),
@@ -388,7 +392,7 @@ export async function renderProjectDetail(
     return;
   }
   if (tab === "tasks") {
-    panel.innerHTML = `<p class="ds-list-sub">Les tâches du projet — même présentation que la page Tâches, filtrées sur ce projet. <a href="#/tasks">Toutes les tâches</a>.</p><div data-slot></div>`;
+    panel.innerHTML = `<div data-slot></div>`;
     const slot = panel.querySelector<HTMLElement>("[data-slot]");
     if (slot !== null) {
       await renderTasksInto(slot, {

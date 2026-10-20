@@ -163,6 +163,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/projects/{project_id}/budget-policy/approve"): _P,
     ("POST", "/api/v1/projects/{project_id}/budget/reconcile"): _P,
     ("GET", "/api/v1/timeline"): _P,
+    ("GET", "/api/v1/timeline/dates"): _P,
     ("POST", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("GET", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("PATCH", "/api/v1/projects/{project_id}/github-integration"): _P,

@@ -175,6 +175,10 @@ function apiStub(opts: StubOptions = {}) {
       await json(200, TASKS);
       return;
     }
+    if (url.includes("/api/v1/timeline/dates")) {
+      await json(200, []);
+      return;
+    }
     if (url.includes("/api/v1/timeline")) {
       await json(200, { project_id: P1, days: [] });
       return;
@@ -223,6 +227,7 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[]; errors: strin
 
 async function login(page: Page, startHash: string, opts: StubOptions = {}): Promise<void> {
   await page.route("**/api/**", apiStub(opts));
+  await page.route("**/healthz", (route) => route.fulfill({ status: 503, body: "" }));
   await page.goto(`/${startHash}`);
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");

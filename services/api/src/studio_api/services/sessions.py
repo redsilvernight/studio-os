@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
@@ -106,8 +106,22 @@ async def list_sessions(
     task_id: uuid.UUID | None = None,
     agent_id: uuid.UUID | None = None,
     open_only: bool = False,
+    project_id: uuid.UUID | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    offset: int = 0,
+    limit: int | None = None,
 ) -> list[WorkSessionModel]:
-    stmt = select(WorkSessionModel)
+    stmt = select(WorkSessionModel).order_by(
+        WorkSessionModel.started_at.desc(), WorkSessionModel.id.desc()
+    )
+    if project_id is not None:
+        ensure_project_access(principal, project_id)
+        stmt = stmt.where(
+            WorkSessionModel.task_id.in_(
+                select(TaskModel.id).where(TaskModel.project_id == project_id)
+            )
+        )
     if task_id is not None:
         await _ensure_task_project_access(session, principal, task_id, "read")
         stmt = stmt.where(WorkSessionModel.task_id == task_id)
@@ -117,6 +131,19 @@ async def list_sessions(
         stmt = stmt.where(WorkSessionModel.agent_id == agent_id)
     if open_only:
         stmt = stmt.where(WorkSessionModel.ended_at.is_(None))
+    if since is not None or until is not None:
+        ranges = []
+        for column in (WorkSessionModel.started_at, WorkSessionModel.ended_at):
+            bounds = [column.is_not(None)]
+            if since is not None:
+                bounds.append(column >= since)
+            if until is not None:
+                bounds.append(column < until)
+            ranges.append(and_(*bounds))
+        stmt = stmt.where(or_(*ranges))
+    stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 

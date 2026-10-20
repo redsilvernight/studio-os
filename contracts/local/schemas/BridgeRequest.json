@@ -14,6 +14,7 @@
         "identity.enroll",
         "identity.forget",
         "workspace.validate",
+        "workspace.list",
         "workspace.get_config",
         "workspace.confirm_roots",
         "workspace.git_status",

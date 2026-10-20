@@ -15,11 +15,7 @@
  * - POST /api/v1/transfers/{id}/download-url  (URL signée courte, jamais les octets)
  * - GET  /api/v1/projects, /api/v1/tasks       (contexte lisible, secondaire)
  *
- * Actions volontairement ABSENTES (aucun endpoint / autorisation fiable) :
- * annuler, supprimer, réessayer, renvoyer, partager, prolonger, révoquer.
- * `DELETE /transfers/{id}` existe mais est réservé à l'expéditeur/admin — le
- * tableau de bord ne connaît ni l'utilisateur courant ni son rôle : aucun
- * bouton destructif n'est exposé (voir le tiroir, section technique).
+ * DELETE /transfers/{id} : expéditeur ou admin, après confirmation du fichier.
  *
  * Statut backend réel : created, uploading, ready, downloaded, expired,
  * deleted. L'expiration encore visible est DÉRIVÉE de `expires_at` (le
@@ -29,8 +25,10 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import {
   createTransfer,
+  deleteTransfer,
   downloadUrl,
   getConsumption,
+  getTransfer,
   listTransfers,
   uploadTransfer,
   type Transfer,
@@ -76,6 +74,7 @@ import {
 import { describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 import type { components } from "../openapi-schema";
+import { fetchIdentity, type AuthIdentity } from "../identityApi";
 import "./transfers.css";
 
 type Project = components["schemas"]["Project"];
@@ -208,6 +207,7 @@ function fact(label: string, value: string): string {
 export function transferDrawerBodyHtml(
   transfer: Transfer,
   ctx: TransfersFilterContext,
+  identity: AuthIdentity | null = null,
 ): string {
   const status = effectiveStatus(transfer, ctx.now);
   const info = transferInfo(transfer, ctx);
@@ -228,6 +228,13 @@ export function transferDrawerBodyHtml(
   const download = downloadable
     ? `<button class="ds-btn ds-btn--primary ds-btn--sm" type="button" data-transfer-download="${esc(transfer.id)}">Télécharger</button>`
     : `<p class="ds-list-sub">Téléchargement indisponible pour cet état.</p>`;
+  const deletion = canDeleteTransfer(transfer, identity)
+    ? `<section class="transfer-delete"><button class="ds-btn ds-btn--danger" type="button" data-transfer-delete>Supprimer ce transfert</button>` +
+      `<div data-transfer-delete-confirm hidden><p>Supprimer définitivement le fichier <strong>${esc(transfer.filename)}</strong> ? Le fichier sera retiré du stockage ; l'historique du transfert sera conservé.</p>` +
+      `<div class="transfer-delete-actions"><button class="ds-btn" type="button" data-transfer-delete-cancel>Conserver le fichier</button>` +
+      `<button class="ds-btn ds-btn--danger" type="button" data-transfer-delete-submit>Confirmer la suppression</button></div></div>` +
+      `<div data-transfer-delete-error role="alert" aria-live="assertive"></div></section>`
+    : "";
 
   const facts =
     `<dl class="transfer-facts">` +
@@ -255,15 +262,20 @@ export function transferDrawerBodyHtml(
     fact("Content-MD5", transfer.content_md5 === null || transfer.content_md5 === undefined ? "Non renseigné" : `<code class="mono">${esc(transfer.content_md5)}</code> (vérifié par le stockage, voie mono-partie)`) +
     fact("Build", transfer.build_id === null || transfer.build_id === undefined ? "Aucun" : `<code class="mono">${esc(transfer.build_id)}</code>`) +
     fact("Supprimé le", fmtTime(transfer.deleted_at)) +
-    `</dl><p class="ds-list-sub">Suppression, annulation, prolongation et renvoi ne sont pas proposés : réservés au serveur, à l'expéditeur ou hors interface.</p></details>`;
+    `</dl><p class="ds-list-sub">La suppression est réservée à l'expéditeur et aux administrateurs. Annulation, prolongation et renvoi ne sont pas proposés.</p></details>`;
 
   return (
     `<h3 class="transfer-drawer-title">${esc(transfer.filename)}</h3>` +
     `<div class="transfer-drawer-summary">${transferStatusHtml(transfer, ctx.now)}` +
     `<p class="ds-list-sub">${esc(status.hint)}</p>${download}</div>` +
-    facts +
+    facts + deletion +
     technical
   );
+}
+
+export function canDeleteTransfer(transfer: Transfer, identity: AuthIdentity | null): boolean {
+  return transfer.status !== "deleted" && identity !== null &&
+    (identity.role === "admin" || (identity.role === "developer" && identity.user_id === transfer.sender_user_id));
 }
 
 /* ------------------------------------------------------------------ */
@@ -408,6 +420,7 @@ export function uploadProgressHtml(progress: UploadProgress): string {
 /* ------------------------------------------------------------------ */
 
 export interface TransfersPageData {
+  identity?: AuthIdentity | null;
   transfers: Transfer[];
   state: TransfersFilterState;
   ctx: TransfersFilterContext;
@@ -470,11 +483,12 @@ export async function renderTransfers(root: HTMLElement, ctx: TransfersContext):
   }
   root.innerHTML = transfersLoadingHtml();
 
-  const [transfersResult, projectsResult, tasksResult, consumptionResult] = await Promise.all([
+  const [transfersResult, projectsResult, tasksResult, consumptionResult, identity] = await Promise.all([
     settle(listTransfers(ctx.client)),
     settle(fetchProjects(ctx.client)),
     settle(listTasks(ctx.client, { limit: 100 })),
     settle(getConsumption(ctx.client)),
+    fetchIdentity(ctx.client),
   ]);
 
   if (!transfersResult.ok) {
@@ -501,6 +515,7 @@ export async function renderTransfers(root: HTMLElement, ctx: TransfersContext):
     taskTitleById: new Map(tasks.map((task) => [task.id, task.title])),
   };
   const data: TransfersPageData = {
+    identity,
     transfers: transfersResult.value,
     state: initialTransfersFilterState(),
     ctx: ctxFilter,
@@ -599,10 +614,66 @@ function bindListButtons(root: HTMLElement, ctx: TransfersContext, data: Transfe
       if (transfer === undefined) return;
       const body = root.querySelector("#transfer-drawer-body");
       if (body === null) return;
-      body.innerHTML = transferDrawerBodyHtml(transfer, data.ctx);
+      body.innerHTML = transferDrawerBodyHtml(transfer, data.ctx, data.identity ?? null);
       bindDownloadButtons(body, root, ctx);
+      bindDeleteTransfer(body, root, ctx, data, transfer);
       openDsDialog(root, "transfer-drawer", button);
     });
+  });
+}
+
+function bindDeleteTransfer(body: Element, root: HTMLElement, ctx: TransfersContext, data: TransfersPageData, transfer: Transfer): void {
+  const open = body.querySelector<HTMLButtonElement>("[data-transfer-delete]");
+  const confirmation = body.querySelector<HTMLElement>("[data-transfer-delete-confirm]");
+  const submit = body.querySelector<HTMLButtonElement>("[data-transfer-delete-submit]");
+  const cancel = body.querySelector<HTMLButtonElement>("[data-transfer-delete-cancel]");
+  const errorBox = body.querySelector<HTMLElement>("[data-transfer-delete-error]");
+  if (open === null || confirmation === null || submit === null || cancel === null || errorBox === null) return;
+  open.addEventListener("click", () => {
+    confirmation.hidden = false;
+    open.hidden = true;
+    cancel.focus();
+  });
+  cancel.addEventListener("click", () => {
+    confirmation.hidden = true;
+    open.hidden = false;
+    errorBox.textContent = "";
+    open.focus();
+  });
+  submit.addEventListener("click", async () => {
+    if (submit.disabled) return;
+    submit.disabled = true;
+    cancel.disabled = true;
+    errorBox.textContent = "";
+    try {
+      await deleteTransfer(ctx.client, transfer.id);
+      let deleted: Transfer = { ...transfer, status: "deleted" };
+      let refreshed = true;
+      try {
+        deleted = await getTransfer(ctx.client, transfer.id);
+      } catch {
+        refreshed = false;
+      }
+      data.transfers = data.transfers.map((item) => item.id === transfer.id ? deleted : item);
+      refreshList(root, ctx, data);
+      body.innerHTML = transferDrawerBodyHtml(deleted, data.ctx, data.identity ?? null);
+      dsNotify(`Fichier « ${transfer.filename} » supprimé.`, "success");
+      if (!refreshed) body.insertAdjacentHTML("afterbegin", `<p role="status" class="ds-notice ds-notice--warning">Suppression effectuée. Les dates de l'historique n'ont pas pu être rechargées ; actualisez la page pour les consulter.</p>`);
+      const title = body.querySelector<HTMLElement>("h3");
+      title?.setAttribute("tabindex", "-1");
+      title?.focus();
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 403
+        ? "Suppression refusée : vous devez être l'expéditeur ou un administrateur autorisé sur ce projet."
+        : error instanceof ApiError && error.errorCode === "storage_unavailable"
+          ? "Le stockage est indisponible. Le transfert n'a pas été marqué supprimé ; réessayez."
+          : transferErrorMessage(error);
+      errorBox.textContent = `Suppression impossible : ${message}`;
+      focusDsErrorBox(errorBox);
+    } finally {
+      submit.disabled = false;
+      cancel.disabled = false;
+    }
   });
 }
 

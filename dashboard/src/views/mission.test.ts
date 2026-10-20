@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "../api";
 import type { MissionRun, ProjectMission } from "../missionApi";
 import { LIVE_CHANGE_EVENT } from "../realtime";
+import { resetActorNames, setActorNames } from "../actorNames";
 import {
   missionRunHtml,
   protocolLabel,
@@ -83,6 +84,7 @@ function mount(): HTMLElement {
 afterEach(() => {
   document.body.innerHTML = "";
   vi.useRealTimers();
+  resetActorNames();
 });
 
 describe("libellés tolérants", () => {
@@ -110,6 +112,28 @@ describe("libellés tolérants", () => {
 });
 
 describe("missionRunHtml", () => {
+  it.each(["running", "waiting_human", "done", "failed"] as const)("présente tâche, poste, agent et résultat avant les détails pour %s", (verdict) => {
+    const item = run({
+      verdict,
+      session: { id: "session-1", agent_id: "agent-1", status: "active", started_at: "2026-10-10T10:00:00Z" },
+      handoff: { ai_work_id: "work-1", status: "completed", summary: "Résultat de la tâche\nSeconde ligne", completed_at: null },
+    });
+    setActorNames([{ id: item.machine_id, display_name: "Poste du studio" }], [{ id: "agent-1", display_name: "Agent de test" }]);
+    const root = mount();
+    root.innerHTML = missionRunHtml(item);
+    const details = root.querySelector<HTMLDetailsElement>("[data-mission-run]")!;
+    expect(details.open).toBe(false);
+    const summary = details.querySelector("summary")!;
+    expect(summary.textContent).toContain(item.task_title);
+    expect(summary.textContent).toContain(verdictLabel(verdict));
+    expect(summary.textContent).toContain("Poste du studio");
+    expect(summary.textContent).toContain("Agent de test");
+    expect(summary.querySelector("[data-mission-result]")?.textContent).toContain("Résultat de la tâche\nSeconde ligne");
+    expect(summary.querySelector(".mission-steps")).toBeNull();
+    expect(details.querySelector(".mission-steps")?.textContent).toContain("Lancement");
+    expect(details.querySelector(".ds-tech")).not.toBeNull();
+  });
+
   it("données manquantes : mention explicite, rien de fabriqué", () => {
     const root = mount();
     root.innerHTML = missionRunHtml(

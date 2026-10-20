@@ -572,6 +572,38 @@ def _builds_show(args: argparse.Namespace, config: ClientConfig) -> None:
     _print_model(build, as_json=args.json)
 
 
+def _transfers_delete(args: argparse.Namespace, config: ClientConfig) -> None:
+    transfer_id = _parse_uuid(args.transfer_id, field="transfer_id")
+    transfer = _run(config, lambda client: client.get_transfer(transfer_id))
+    already_deleted = transfer.status == "deleted"
+    if not already_deleted and not args.yes:
+        if args.json or not sys.stdin.isatty():
+            print(
+                f"error: confirm deletion of {transfer.filename!r} with --yes; "
+                "metadata is preserved",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        answer = input(
+            f"Delete stored file {transfer.filename!r}? Metadata will be preserved. [y/N] "
+        )
+        if answer.strip().lower() not in {"y", "yes"}:
+            print("Deletion cancelled.")
+            return
+    _run(config, lambda client: client.delete_transfer(transfer_id))
+    result = {
+        "id": str(transfer.id),
+        "filename": transfer.filename,
+        "status": "deleted",
+        "already_deleted": already_deleted,
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        state = "already deleted" if already_deleted else "deleted"
+        print(f"File {transfer.filename!r}: {state}. Transfer metadata preserved.")
+
+
 def _producer_run(args: argparse.Namespace, config: ClientConfig) -> None:
     project_id = _parse_uuid(args.project_id, field="project_id")
     task_id = _parse_uuid(args.task_id, field="task_id") if args.task_id else None
@@ -1480,6 +1512,18 @@ def _build_parser() -> argparse.ArgumentParser:
     projects_list = projects_sub.add_parser("list", help="List projects.")
     _add_json_flag(projects_list)
     projects_list.set_defaults(func=_projects_list)
+
+    transfers_parser = subparsers.add_parser("transfers", help="Transfers.")
+    transfers_sub = transfers_parser.add_subparsers(dest="transfers_command", required=True)
+    transfers_delete = transfers_sub.add_parser(
+        "delete", help="Delete stored bytes; keep transfer metadata."
+    )
+    transfers_delete.add_argument("transfer_id")
+    transfers_delete.add_argument(
+        "--yes", "-y", action="store_true", help="Confirm permanent deletion of this file."
+    )
+    _add_json_flag(transfers_delete)
+    transfers_delete.set_defaults(func=_transfers_delete)
 
     tasks_parser = subparsers.add_parser("tasks", help="Tasks.")
     tasks_sub = tasks_parser.add_subparsers(dest="tasks_command", required=True)

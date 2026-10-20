@@ -116,9 +116,9 @@ const TIMELINE = {
     {
       date: "2026-09-12",
       events: [
-        stubEvent({ event_type: "task.created", payload: { title: "Caméra Android bloquée" }, task_id: "t-blocked" }),
-        stubEvent({ event_type: "resource.conflict", payload: { resource_path: "godot/scenes/niveau.tscn" } }),
-        stubEvent({ event_type: "future.unknown_thing", payload: { anything: "kept-hidden" } }),
+        stubEvent({ event_id: "task-created", event_type: "task.created", payload: { title: "Caméra Android bloquée" }, task_id: "t-blocked" }),
+        stubEvent({ event_id: "resource-conflict", event_type: "resource.conflict", payload: { resource_path: "godot/scenes/niveau.tscn" } }),
+        stubEvent({ event_id: "future-event", event_type: "future.unknown_thing", payload: { anything: "kept-hidden" } }),
       ],
     },
     { date: "2026-09-11", events: [stubEvent({ event_type: "build.failed", server_timestamp: "2026-09-11T16:00:01Z" })] },
@@ -161,8 +161,13 @@ function apiStub() {
       await json(200, PROJECTS);
       return;
     }
+    if (url.includes("/api/v1/timeline/dates")) {
+      await json(200, TIMELINE.days.map((day) => day.date));
+      return;
+    }
     if (url.includes("/api/v1/timeline")) {
-      await json(200, TIMELINE);
+      const selected = new URL(url).searchParams.get("since")?.slice(0, 10);
+      await json(200, { ...TIMELINE, days: selected ? TIMELINE.days.filter((day) => day.date === selected) : TIMELINE.days });
       return;
     }
     if (url.includes("/api/v1/claims")) {
@@ -335,7 +340,7 @@ test.describe("UI-4 projets et workspace", () => {
     await expect(accept).toHaveCount(1);
     await expect(supersede).toHaveCount(1);
     await expect(accept).toHaveText("Accepter");
-    await expect(supersede).toHaveText("Remplacer");
+    await expect(supersede).toHaveText("Écarter la proposition");
     await expect(accept).toBeDisabled();
     await expect(supersede).toBeDisabled();
     await expect(view).toContainText("Réservé au rôle admin.");

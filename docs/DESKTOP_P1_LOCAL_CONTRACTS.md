@@ -208,6 +208,15 @@ single-use à TTL court, consommé par `save_config`) et `workspace.git_status`
 (sonde Git en lecture seule : état, branche, remote, détaché). Les anciens
 pairs ignorent ces commandes ; l'export compte 31 commandes.
 
+La page Espaces de travail utilise aussi `workspace.list`, ajout local compatible
+sous `workspace.config` : requête vide, réponse `WorkspaceListResult { items:
+WorkspaceStatus[] }`. Le daemon filtre les associations au profil courant
+(origine et identifiant de profil), puis vérifie chaque dossier. La configuration
+locale accompagne aussi les dossiers déplacés ou absents pour conserver le nom
+du projet et permettre une réparation explicite. Aucun chemin n'est publié sur
+le serveur. L'entrée réelle du daemon partage le registre `workspaces/{id}.json`
+avec la CLI et la source des watchers ; le web ne sert aucune de ces commandes.
+
 ## Fixtures
 
 94 fixtures valides et 23 invalides nommées, couvrant : runtime

@@ -199,6 +199,7 @@ export function apiStub(captured: Captured, options: StubOptions = {}) {
     if (/\/api\/v1\/runtimes\/[^/]+$/.test(url)) return json(200, d.runtimes[0]);
     if (url.includes("/api/v1/runtimes")) return json(200, d.runtimes);
     if (url.includes("/api/v1/runtime-bindings")) return json(200, d.bindings);
+    if (url.includes("/api/v1/timeline/dates")) return json(200, ["2026-09-11"]);
     if (url.includes("/api/v1/timeline")) return json(200, { project_id: P1, days: [{ date: "2026-09-11", events: [d.envelope] }] });
     if (url.includes("/api/v1/claims")) return json(200, d.claims);
     if (url.includes("/api/v1/agents")) return json(200, d.agents);

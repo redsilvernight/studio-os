@@ -12,6 +12,7 @@ from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,
     WorkspaceConfirmRootsResult,
     WorkspaceGitStatus,
+    WorkspaceListResult,
     WorkspaceSaveConfigRequest,
     WorkspaceScope,
     WorkspaceStatus,
@@ -47,6 +48,16 @@ class WorkspaceBridge:
 
     def validate(self, workspace_id: UUID, profile: ProfileRef) -> WorkspaceStatus:
         return self._store.validate(workspace_id, profile)
+
+    def list(self, profile: ProfileRef) -> WorkspaceListResult:
+        return WorkspaceListResult(
+            items=[
+                self._store.validate(config.workspace_id, profile).model_copy(
+                    update={"config": config}
+                )
+                for config in self._store.list_workspaces(profile)
+            ]
+        )
 
     def get_config(self, workspace_id: UUID, profile: ProfileRef) -> LocalWorkspaceConfig:
         return self._store.load(workspace_id, profile)

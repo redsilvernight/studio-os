@@ -2,7 +2,8 @@
  * UI-4 — Onglet Activité : timeline lisible depuis GET /timeline, jamais un
  * dump JSON. DOM-free : chaînes pures + lecture statique de workspace.css.
  */
-import { describe, expect, it } from "vitest";
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -15,7 +16,11 @@ import {
   timelineEventContext,
   timelineEventLabel,
   timelineHtml,
+  newestTimelineFirst,
+  renderActivityInto,
+  utcDayWindow,
 } from "./activity";
+import type { StudioClient } from "../api";
 
 const baseEvent = {
   event_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -266,14 +271,14 @@ describe("timelineHtml limites et états", () => {
     const events = Array.from({ length: TIMELINE_LIMIT_DEFAULT }, () => event({ event_type: "task.updated" }));
     const html = timelineHtml({ timeline: timeline({ date: "2026-09-12", events }), limit: TIMELINE_LIMIT_DEFAULT });
     expect(html).toContain("data-timeline-more");
-    expect(html).toContain("historique plus ancien");
+    expect(html).toContain("suite de cette journée");
   });
 
-  it("plafond serveur : message honnête, plus de bouton", () => {
+  it("une page pleine continue au-delà de 500 événements", () => {
     const events = Array.from({ length: TIMELINE_LIMIT_MAX }, () => event({ event_type: "task.updated" }));
     const html = timelineHtml({ timeline: timeline({ date: "2026-09-12", events }), limit: TIMELINE_LIMIT_MAX });
-    expect(html).not.toContain("data-timeline-more");
-    expect(html).toContain(`${TIMELINE_LIMIT_MAX} événements`);
+    expect(html).toContain("data-timeline-more");
+    expect(html).not.toContain("limite serveur");
   });
 });
 
@@ -287,6 +292,77 @@ describe("countTimelineEvents", () => {
         ),
       ),
     ).toBe(3);
+  });
+});
+
+describe("historique exhaustif et pagination par journée UTC", () => {
+  it("trie les jours et événements du plus récent au plus ancien sans muter la source", () => {
+    const source = timeline(
+      { date: "2026-09-11", events: [event({ event_id: "old", server_timestamp: "2026-09-11T23:59:00Z" })] },
+      { date: "2026-09-12", events: [
+        event({ event_id: "a", server_timestamp: "2026-09-12T12:00:00+02:00" }),
+        event({ event_id: "b", server_timestamp: "2026-09-12T11:00:00Z" }),
+      ] },
+    );
+    const sorted = newestTimelineFirst(source);
+    expect(sorted.days.map((day) => day.date)).toEqual(["2026-09-12", "2026-09-11"]);
+    expect(sorted.days[0]?.events.map((item) => item.event_id)).toEqual(["b", "a"]);
+    expect((source as { days: { date: string }[] }).days[0]?.date).toBe("2026-09-11");
+    expect(utcDayWindow("2026-10-25")).toEqual({ since: "2026-10-25T00:00:00.000Z", until: "2026-10-26T00:00:00.000Z" });
+  });
+
+  it("charge 501 événements à la demande puis un ancien mois indépendant du lot récent", async () => {
+    const root = document.createElement("div");
+    const GET = vi.fn(async (path: string, options: { params: { query: Record<string, unknown> } }) => {
+      const query = options.params.query;
+      expect(query["project_id"]).toBe("p1");
+      if (path.endsWith("/dates")) return { response: new Response(), data: ["2026-10-20", "2026-07-09"] };
+      if (path.endsWith("/sessions")) return { response: new Response(), data: [] };
+      const selected = String(query["since"]).slice(0, 10);
+      const offset = Number(query["offset"]);
+      const total = selected === "2026-10-20" ? 501 : 1;
+      const events = Array.from({ length: Math.min(200, total - offset) }, (_, index) => event({
+        event_id: `${selected}-${offset + index}`,
+        event_type: "task.updated",
+        payload: { title: `${selected}-événement-${offset + index}` },
+        server_timestamp: `${selected}T12:00:00Z`,
+      }));
+      return { response: new Response(), data: timeline({ date: selected, events }) };
+    });
+    await renderActivityInto(root, { client: { GET } as unknown as StudioClient, projectId: "p1", authed: true });
+    expect(root.querySelectorAll(".tl-item")).toHaveLength(200);
+    root.querySelector<HTMLButtonElement>("[data-timeline-more]")!.click();
+    await vi.waitFor(() => expect(root.querySelectorAll(".tl-item")).toHaveLength(400));
+    root.querySelector<HTMLButtonElement>("[data-timeline-more]")!.click();
+    await vi.waitFor(() => expect(root.querySelectorAll(".tl-item")).toHaveLength(501));
+    expect(root.querySelector("[data-timeline-more]")).toBeNull();
+    for (let i = 0; i < 3; i++) root.querySelector<HTMLButtonElement>('[data-cal-month="-1"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-cal-day="2026-07-09"]')!.click();
+    await vi.waitFor(() => expect(root.textContent).toContain("2026-07-09-événement-0"));
+    expect(root.querySelectorAll(".tl-item")).toHaveLength(1);
+    expect(GET.mock.calls.some(([path, options]) => path.endsWith("/timeline") && options.params.query["offset"] === 400)).toBe(true);
+    expect(GET.mock.calls.find(([path, options]) => path.endsWith("/timeline") && String(options.params.query["since"]).startsWith("2026-07"))?.[1].params.query["until"]).toBe("2026-07-10T00:00:00.000Z");
+    expect(root.textContent).toContain("Dates et heures en UTC");
+  });
+
+  it("une session sans événements reste consultable au calendrier, et une panne ne devient pas un jour vide", async () => {
+    const root = document.createElement("div");
+    const GET = vi.fn(async (path: string) => ({
+      response: new Response(),
+      data: path.endsWith("/dates") ? ["2026-01-02"] : path.endsWith("/sessions") ? [{
+        id: "s1", task_id: "t1", machine_id: "m1", agent_id: null,
+        started_at: "2026-01-01T23:59:00Z", ended_at: "2026-01-02T00:01:00Z", status: "ended",
+      }] : timeline(),
+    }));
+    await renderActivityInto(root, { client: { GET } as unknown as StudioClient, projectId: "p1", authed: true });
+    expect(root.textContent).toContain("Session de travail terminée");
+    expect(root.textContent).not.toContain("Aucune activité");
+    expect(root.querySelector('a[href="#/tasks/t1"]')).not.toBeNull();
+    GET.mockRejectedValueOnce(new Error("réseau indisponible"));
+    root.querySelector<HTMLButtonElement>("[data-cal-latest]")!.click();
+    await vi.waitFor(() => expect(root.querySelector('[role="alert"]')?.textContent).toContain("réseau indisponible"));
+    expect(root.textContent).not.toContain("Aucune activité");
+    expect(root.querySelector("[data-timeline-retry]")).not.toBeNull();
   });
 });
 
