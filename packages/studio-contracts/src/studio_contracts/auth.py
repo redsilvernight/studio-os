@@ -63,13 +63,18 @@ class User(VersionedModel):
 class Machine(VersionedModel):
     """A machine owns its own revocable credential: an opaque token whose
     hash alone is stored server-side, so a leaked database never leaks
-    access."""
+    access. `workstation_id` (additive) is the physical
+    workstation this machine belongs to: the Desktop's own machine for a
+    tool machine, `None` for a workstation itself and for a legacy machine
+    never attached. One level only, same owner, never an authorization
+    input."""
 
     id: UUID
     owner_user_id: UUID
     display_name: str
     last_seen_at: datetime | None = None
     status: MachineStatus = MachineStatus.OFFLINE
+    workstation_id: UUID | None = None
 
 
 class Agent(VersionedModel):
@@ -141,16 +146,27 @@ class MachineCreate(ContractModel):
     lets it choose another owner, and never looks that other User up. Only
     `admin` provisions a machine for someone else. `display_name` is the
     workstation name shown in « Postes » (default: the enrollment station's
-    own hostname, editable): stripped, never blank, at most 100 characters."""
+    own hostname, editable): stripped, never blank, at most 100 characters.
+    `workstation_id` (optional) attaches the new machine to an
+    active workstation machine of the same owner that is not itself
+    attached."""
 
     owner_user_id: UUID | None = None
     display_name: NonEmptyStr100
+    workstation_id: UUID | None = None
 
 
 class MachineUpdate(ContractModel):
     """Update a machine's display name. Only the owner or an admin."""
 
     display_name: NonEmptyStr100
+
+
+class MachineWorkstationUpdate(ContractModel):
+    """Attach a machine to a workstation, or detach it with `None`
+    Only the owner or an admin."""
+
+    workstation_id: UUID | None = None
 
 
 class MachineCreated(Machine):

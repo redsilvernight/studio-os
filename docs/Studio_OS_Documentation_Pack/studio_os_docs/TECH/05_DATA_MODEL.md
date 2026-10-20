@@ -105,7 +105,11 @@ lancement profile, `false`/`absent` le refuse) ; jamais un chemin ni un
 secret),
 `capabilities_reported_at` (nullable, heure de reception du dernier
 rapport — un rapport stale n'est jamais presente comme courant ;
-l'eligibilite e1963627 s'en sert), + champs communs mutables (contrat
+l'eligibilite e1963627 s'en sert), `workstation_id` (FK `machines.id` nullable, DEC-0226 :
+poste physique de la machine — la machine du Desktop pour une machine-outil,
+`null` pour un poste et pour une machine heritee non rattachee ; un seul
+niveau, meme proprietaire ; migration Alembic `0036`, additive, sans
+backfill), + champs communs mutables (contrat
 e1963627, etendu DEC-0171, migration Alembic `0024`, additive et
 reversible). `status`
 (`online|idle|offline`) n'est PAS stocke : derive de `last_seen_at` a la

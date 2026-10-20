@@ -113,6 +113,23 @@ class FakeProvisioner:
     created: list[tuple[str, str, str]] = field(default_factory=list)
     revoked: list[str] = field(default_factory=list)
     tokens: dict[str, str] = field(default_factory=dict)
+    reusable: dict[str, str] = field(default_factory=dict)
+    adopted: list[str] = field(default_factory=list)
+
+    def reuse(
+        self, origin: str, display_name: str, known_machine_id: str | None
+    ) -> tuple[str, str] | None:
+        machine_id = (
+            known_machine_id
+            if known_machine_id in self.reusable
+            else next((m for m, n in self.reusable.items() if n == display_name), None)
+        )
+        if machine_id is None or machine_id in self.revoked:
+            return None
+        token = f"sk_test_{uuid4().hex}"
+        self.adopted.append(machine_id)
+        self.tokens[machine_id] = token
+        return machine_id, token
 
     def create(self, origin: str, display_name: str) -> tuple[str, str]:
         if self.fail_create:

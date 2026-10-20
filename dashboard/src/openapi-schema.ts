@@ -1879,7 +1879,7 @@ export interface paths {
         put?: never;
         /**
          * Create Machine
-         * @description Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.
+         * @description Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint. Optional `workstation_id` attaches the new machine to an active, unattached machine of the same owner: another User's machine answers 404 like a missing one, a revoked or attached one `409 workstation_invalid`.
          */
         post: operations["create_machine_api_v1_machines_post"];
         delete?: never;
@@ -1966,6 +1966,26 @@ export interface paths {
          * @description Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version` (required).
          */
         patch: operations["rename_machine_api_v1_machines__machine_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/machines/{machine_id}/workstation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Machine Workstation
+         * @description Attach a machine to its physical workstation, or detach it with `workstation_id: null`. Owner or admin; `agent` gets 403; another User's machine or workstation answers 404 like a missing one. The workstation must be an active machine of the same owner, not itself attached, and the machine must not have attached machines, otherwise `409 workstation_invalid`. Uses optimistic concurrency via `If-Match-Version` (required). Never changes a credential.
+         */
+        put: operations["set_machine_workstation_api_v1_machines__machine_id__workstation_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/machines/{machine_id}/launch-grants": {
@@ -5390,7 +5410,11 @@ export interface components {
          * Machine
          * @description A machine owns its own revocable credential: an opaque token whose
          *     hash alone is stored server-side, so a leaked database never leaks
-         *     access.
+         *     access. `workstation_id` (additive) is the physical
+         *     workstation this machine belongs to: the Desktop's own machine for a
+         *     tool machine, `None` for a workstation itself and for a legacy machine
+         *     never attached. One level only, same owner, never an authorization
+         *     input.
          */
         Machine: {
             /**
@@ -5421,6 +5445,8 @@ export interface components {
             last_seen_at?: string | null;
             /** @default offline */
             status: components["schemas"]["MachineStatus"];
+            /** Workstation Id */
+            workstation_id?: string | null;
         };
         /**
          * MachineCapabilities
@@ -5461,12 +5487,17 @@ export interface components {
          *     `admin` provisions a machine for someone else. `display_name` is the
          *     workstation name shown in « Postes » (default: the enrollment station's
          *     own hostname, editable): stripped, never blank, at most 100 characters.
+         *     `workstation_id` (optional) attaches the new machine to an
+         *     active workstation machine of the same owner that is not itself
+         *     attached.
          */
         MachineCreate: {
             /** Owner User Id */
             owner_user_id?: string | null;
             /** Display Name */
             display_name: string;
+            /** Workstation Id */
+            workstation_id?: string | null;
         };
         /**
          * MachineCreated
@@ -5502,6 +5533,8 @@ export interface components {
             last_seen_at?: string | null;
             /** @default offline */
             status: components["schemas"]["MachineStatus"];
+            /** Workstation Id */
+            workstation_id?: string | null;
             /** Credential */
             credential: string;
         };
@@ -5586,6 +5619,15 @@ export interface components {
         MachineUpdate: {
             /** Display Name */
             display_name: string;
+        };
+        /**
+         * MachineWorkstationUpdate
+         * @description Attach a machine to a workstation, or detach it with `None`
+         *     Only the owner or an admin.
+         */
+        MachineWorkstationUpdate: {
+            /** Workstation Id */
+            workstation_id?: string | null;
         };
         /**
          * MeasurementCoverage
@@ -18854,6 +18896,107 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MachineUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_machine_workstation_api_v1_machines__machine_id__workstation_put: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineWorkstationUpdate"];
             };
         };
         responses: {

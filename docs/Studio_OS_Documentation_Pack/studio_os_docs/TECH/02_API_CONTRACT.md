@@ -211,6 +211,16 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   machine revoquee = `409` ; pas de `Idempotency-Key`. Cote client,
   `IdentityEnrollRequest.adopt_machine_id` (optionnel) l'emploie a la place de
   `POST /machines`.
+- PUT /machines/{machine_id}/workstation (additif, DEC-0226) — rattache une
+  machine a son poste physique (`{"workstation_id": "<uuid>"}`) ou l'en
+  detache (`null`). Proprietaire ou `admin` ; `agent` recoit `403` ; une
+  machine ou un poste d'un autre User repond `404`, a l'identique d'une machine
+  inexistante. Le poste doit etre une machine active du meme proprietaire, non
+  rattachee elle-meme, et la machine ne doit pas avoir de machines rattachees :
+  sinon `409 {"detail": {"error_code": "workstation_invalid"}}`. Concurrence
+  optimiste via `If-Match-Version` (obligatoire). Ne touche jamais au
+  credential. `POST /machines` accepte le meme `workstation_id` optionnel, avec
+  les memes regles ; `Machine.workstation_id` (nullable) est expose partout.
 - PATCH /machines/{machine_id} (additif) — renomme la machine (`display_name`).
   Proprietaire ou `admin` ; `agent` recoit `403`. Pour un non-admin, la machine
   d'un autre User repond `404`. Concurrence optimiste obligatoire via header
