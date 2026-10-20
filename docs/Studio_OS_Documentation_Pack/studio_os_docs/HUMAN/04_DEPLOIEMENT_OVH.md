@@ -110,6 +110,12 @@ Distinction a retenir :
   cron. La reinstallation remplace l'entree de ce script en conservant les
   autres entrees. Une erreur de lecture de crontab interrompt l'installation.
   Un `<backup_root>` place sous `docker/backups/` est ignore par Git : ces dumps contiennent des hashes de credentials et ne doivent jamais etre commites.
+  En production : racine `/home/ubuntu/studio-backups`, 02:00, sept sauvegardes.
+- copie hors site : `scripts/pull-offsite-backup.ps1` sur un poste Windows rapatrie
+  par `scp` la derniere sauvegarde absente localement, verifie SHA-256 du dump,
+  nombre et taille des fichiers, puis n'en garde que `-Keep` (3 par defaut).
+  Tache planifiee `StudioOS-OffsiteBackup` (ouverture de session + 10 min et
+  12:00, rattrapage si le poste etait eteint), journal `pull.log` a la racine.
 - sauvegarde des secrets hors du VPS.
 - copie/replication des objets importants selon budget.
 - test de restauration documente avec `./restore.sh <backup_dir>` sur une base vierge.
