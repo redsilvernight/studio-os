@@ -1,5 +1,5 @@
 /**
- * Indicateur permanent de synchronisation des skills (Desktop) : état courant
+ * Indicateur permanent de synchronisation de la Library (Desktop) : état courant
  * du démon (`skills.status`), notification à la fin d'une synchro qui a changé
  * quelque chose ou échoué, détail et actions (différences, réessayer).
  * Les messages affichés sont fixes : jamais le texte brut du démon.
@@ -25,6 +25,8 @@ const NOTIFIED_KEY = "studio.skills-sync.notified";
 const RUNNING_POLL_MS = 3000;
 const IDLE_POLL_MS = 60000;
 const DIALOG_ID = "skills-sync-dialog";
+const SKILLS_CALL_TIMEOUT_MS = 30000;
+const TIMEOUT = Symbol("timeout");
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let current: SkillsSyncStatus | null = null;
@@ -42,6 +44,14 @@ type PreviewEntry = NonNullable<SkillsPreviewResult["skills"]>[number];
 type EntryKind = NonNullable<PreviewEntry["kind"]>;
 
 const KIND_LABELS: Record<EntryKind, string> = { skill: "Skill", rule: "Rule", agent: "Agent" };
+
+function withDeadline<T>(work: Promise<T>): Promise<T | typeof TIMEOUT> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<typeof TIMEOUT>((resolve) => {
+    deadline = setTimeout(() => resolve(TIMEOUT), SKILLS_CALL_TIMEOUT_MS);
+  });
+  return Promise.race([work, expiry]).finally(() => clearTimeout(deadline));
+}
 
 function entryKind(entry: PreviewEntry): EntryKind {
   return entry.kind ?? "skill";
@@ -106,7 +116,7 @@ function nameList(items: readonly string[] | undefined): string {
 export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = false): string {
   const known = status !== null && !failed;
   const level = known ? SYNC_STATE_LEVELS[status.state] : "warn";
-  const label = known ? SYNC_STATE_LABELS[status.state] : "Skills : état indisponible";
+  const label = known ? SYNC_STATE_LABELS[status.state] : "Library : état indisponible";
   const pending = known ? (status.conflicts ?? []).length || (status.updated ?? []).length + (status.added ?? []).length : 0;
   const suffix = known && pending > 0 && status.state !== "up_to_date" ? ` (${pending})` : "";
   return (
@@ -165,11 +175,11 @@ function notifyIfChanged(status: SkillsSyncStatus): void {
   }
   if (status.state === "updated") {
     const count = (status.added ?? []).length + (status.updated ?? []).length;
-    dsNotify(`Skills synchronisés : ${count} ajouté(s) ou mis à jour.`, "success");
+    dsNotify(`Library synchronisée : ${count} élément(s) ajouté(s) ou mis à jour.`, "success");
   } else if (status.state === "conflicts") {
-    dsNotify(`Skills : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
+    dsNotify(`Library : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
   } else {
-    dsNotify("Skills non synchronisés (hors ligne, non connecté ou erreur).", "warning");
+    dsNotify("Library non synchronisée (hors ligne, non connecté ou erreur).", "warning");
   }
   document.getElementById("ds-toast-region")?.lastElementChild?.setAttribute("data-skills-notice", "");
 }
@@ -202,10 +212,14 @@ async function loadPreview(platform: Platform): Promise<void> {
   const generation = ++previewGeneration;
   previewLoading = true;
   previewIssue = "";
-  const outcome = await previewSkills(platform).catch(() => null);
+  const outcome = await withDeadline(previewSkills(platform)).catch(() => null);
   if (generation !== previewGeneration) return;
   previewLoading = false;
-  if (outcome?.ok) {
+  if (outcome === TIMEOUT) {
+    preview = null;
+    choices.clear();
+    previewIssue = "L'assistant local n'a pas répondu à temps. Il est peut-être occupé : réessayez dans un instant.";
+  } else if (outcome?.ok) {
     const previous = new Map((preview?.skills ?? []).map((skill) => [entryId(skill), skill.preview_hash]));
     preview = outcome.value;
     for (const key of choices.keys()) {
@@ -314,7 +328,8 @@ function bindActions(platform: Platform): void {
 }
 
 async function refresh(platform: Platform, notify = true): Promise<void> {
-  const outcome = await getSkillsSyncStatus(platform).catch(() => null);
+  const answer = await withDeadline(getSkillsSyncStatus(platform)).catch(() => null);
+  const outcome = answer === TIMEOUT ? null : answer;
   unavailable = outcome === null || !outcome.ok;
   if (outcome?.ok) {
     current = outcome.value;
@@ -340,7 +355,7 @@ export function mountSkillsSync(platform: Platform): void {
     const dialog = document.createElement("template");
     dialog.innerHTML = dsModalHtml({
       id: DIALOG_ID,
-      title: "Synchronisation des skills",
+      title: "Synchronisation de la Library",
       body: `<div id="${DIALOG_ID}-body"></div>`,
       actions: [],
     });
