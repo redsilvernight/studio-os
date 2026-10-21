@@ -37,6 +37,7 @@ import type {
 import { esc } from "../ui";
 import { originRefusalMessage } from "../originRefusal";
 import { toWorkspaceViewModel } from "../workspaces/workspaces";
+import { findLinkedWorkspaceId } from "../workspaces/api";
 import { pickWorkspaceFolder, type FolderPickOutcome } from "../views/workspacesPage";
 import { createProject, type Project } from "../creationsApi";
 import { newIdempotencyKey } from "../claimsApi";
@@ -1027,6 +1028,16 @@ async function associateFolder(
   if (!profile) {
     session.error = "Ce poste n'est pas reconnu. Revenez à l'étape « Vérification ».";
     return again();
+  }
+  const linkedId = session.state.workspaceId ? undefined : await findLinkedWorkspaceId(platform, projectId, path);
+  if (linkedId) {
+    session.state = { ...session.state, workspaceId: linkedId, folderName: displayName };
+    session.folder = null;
+    session.statusText = null;
+    session.notice = "Dossier déjà associé à ce projet.";
+    persist(session);
+    go(session, nextStep("dossier") ?? "memoire");
+    return;
   }
   const roots = { workspace_root: path, repo_roots: [] as { name: string; path: string }[] };
   // Le pont exige une confirmation liée à ces racines exactes : l'identifiant

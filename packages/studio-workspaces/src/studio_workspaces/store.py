@@ -134,7 +134,9 @@ class WorkspaceStore:
         except OSError as exc:
             raise WorkspaceStoreError(LocalErrorCode.WORKSPACE_INACCESSIBLE, str(exc)) from exc
 
-    def _same_folder_conflict(self, config: LocalWorkspaceConfig) -> None:
+    def _same_folder_conflict(
+        self, config: LocalWorkspaceConfig, *, reject_same_project: bool
+    ) -> None:
         wanted = workspace_binding_key(config.roots.workspace_root)
         for path in sorted(self._registry_dir.glob("workspaces/*.json")):
             if path.name == f"{config.workspace_id}.json":
@@ -150,6 +152,11 @@ class WorkspaceStore:
                     LocalErrorCode.INVALID_REQUEST,
                     "this folder is already linked to another project or profile",
                 )
+            if reject_same_project:
+                raise WorkspaceStoreError(
+                    LocalErrorCode.INVALID_REQUEST,
+                    "this folder is already linked to this project",
+                )
 
     def create(
         self, request: WorkspaceSaveConfigRequest, profile: ProfileRef
@@ -163,7 +170,7 @@ class WorkspaceStore:
             request.root_confirmation_id, request.current_roots, config.roots
         )
         assert_no_secrets(config.model_dump(mode="json"))
-        self._same_folder_conflict(config)
+        self._same_folder_conflict(config, reject_same_project=True)
         self._write(config)
         return config
 
@@ -188,7 +195,10 @@ class WorkspaceStore:
             request.root_confirmation_id, request.current_roots, config.roots
         )
         assert_no_secrets(config.model_dump(mode="json"))
-        self._same_folder_conflict(config)
+        moved = workspace_binding_key(config.roots.workspace_root) != workspace_binding_key(
+            stored.roots.workspace_root
+        )
+        self._same_folder_conflict(config, reject_same_project=moved)
         self._write(config)
         return config
 
