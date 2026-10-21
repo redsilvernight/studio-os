@@ -148,7 +148,7 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.8.2"
+DAEMON_VERSION = "0.8.3"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
@@ -189,6 +189,7 @@ SERVED = frozenset(
         BridgeCommand.DAEMON_HEALTH,
         BridgeCommand.IDENTITY_GET_VIEW,
         BridgeCommand.IDENTITY_ENROLL,
+        BridgeCommand.IDENTITY_FORGET,
         BridgeCommand.WORKSPACE_LIST,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
@@ -217,6 +218,7 @@ SERVED = frozenset(
         BridgeCommand.SKILLS_PREVIEW,
         BridgeCommand.SKILLS_APPLY,
         BridgeCommand.SKILLS_STATUS,
+        BridgeCommand.SKILLS_CONFIGURE,
         BridgeCommand.SETUP_PLAN,
         BridgeCommand.SETUP_APPLY,
         BridgeCommand.SETUP_HOOKS_CHECK,

@@ -51,7 +51,7 @@ test("skills choices are targeted, accessible and preserve dialog focus", async 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await openSkills(page);
-  const dialog = page.getByRole("dialog", { name: "Synchronisation des skills" });
+  const dialog = page.getByRole("dialog", { name: "Synchronisation de la Library" });
   await expect(dialog.locator("h2")).toBeFocused();
   await expect(page.locator("[data-skills-notice]")).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Appliquer les choix" })).toBeDisabled();
@@ -83,7 +83,7 @@ test("skills choices are targeted, accessible and preserve dialog focus", async 
 test("skills dialog reflows at mobile width with visible footer actions", async ({ page }, testInfo) => {
   await openSkills(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  const dialog = page.getByRole("dialog", { name: "Synchronisation des skills" });
+  const dialog = page.getByRole("dialog", { name: "Synchronisation de la Library" });
   await expect(dialog.getByLabel("Version à utiliser pour Skill delegate")).toBeVisible();
   await dialog.getByLabel("Version à utiliser pour Skill delegate").selectOption("local");
   const apply = dialog.getByRole("button", { name: "Appliquer 1 choix" });
