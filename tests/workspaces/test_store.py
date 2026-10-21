@@ -175,6 +175,17 @@ def test_same_folder_incompatible_association_is_refused(tmp_path: Path) -> None
         store.create(_initial(third, store), OTHER_PROFILE)
 
 
+def test_same_folder_same_project_is_not_duplicated(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    root = tmp_path / "demo"
+    root.mkdir()
+    store.create(_initial(make_config(WS_A, str(root)), store), PROFILE)
+    with pytest.raises(WorkspaceStoreError) as exc:
+        store.create(_initial(make_config(WS_B, str(root)), store), PROFILE)
+    assert exc.value.code == LocalErrorCode.INVALID_REQUEST
+    assert [config.workspace_id for config in store.list_workspaces(PROFILE)] == [WS_A]
+
+
 def test_dissociation_is_not_destructive(tmp_path: Path) -> None:
     store = _store(tmp_path)
     root = tmp_path / "demo"
