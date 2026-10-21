@@ -208,6 +208,35 @@ describe("skills sync indicator", () => {
     expect(document.activeElement).toBe(choice);
   });
 
+  it("stops waiting for a preview that never answers and offers a retry", async () => {
+    vi.useFakeTimers();
+    let previews = 0;
+    const platform = fakeDesktop({
+      request: async (command: string) => {
+        if (command === "skills.status") return answer(status({ state: "conflicts", conflicts: ["k"] }));
+        if (command === "skills.preview") {
+          previews += 1;
+          if (previews === 1) return new Promise<BridgeAnswer>(() => undefined);
+          return answer(previewResult());
+        }
+        return answer({});
+      },
+    } as never);
+    mountSkillsSync(platform);
+    await vi.advanceTimersByTimeAsync(0);
+    document.getElementById("skills-sync")?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(document.querySelector("#skills-sync-dialog-body")?.textContent).toContain("Chargement des versions");
+    await vi.advanceTimersByTimeAsync(30000);
+    const body = document.querySelector("#skills-sync-dialog-body");
+    expect(body?.textContent).not.toContain("Chargement des versions");
+    expect(body?.querySelector('[role="alert"]')?.textContent).toContain("n'a pas répondu à temps");
+    document.querySelector<HTMLElement>('.skills-sync-actions [data-skills-action="refresh"]')?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(previews).toBe(2);
+    expect(document.querySelector('[data-skill="skill:delegate"]')).not.toBeNull();
+  });
+
   it("does not enable targeted writes against an older daemon preview", async () => {
     const plan = previewResult();
     for (const entry of plan.skills ?? []) delete entry.preview_hash;
