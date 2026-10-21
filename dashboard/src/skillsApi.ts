@@ -64,12 +64,12 @@ export function configureSkillsSync(platform: Platform, autoSync: boolean): Prom
 }
 
 export const SYNC_STATE_LABELS: Record<SkillSyncStatusState, string> = {
-  in_progress: "Skills : synchronisation…",
-  up_to_date: "Skills à jour",
-  updated: "Skills mis à jour",
-  conflicts: "Skills : conflits à résoudre",
-  not_synced: "Skills non synchronisés",
-  disabled: "Skills : synchro désactivée",
+  in_progress: "Library : synchronisation…",
+  up_to_date: "Library à jour",
+  updated: "Library mise à jour",
+  conflicts: "Library : conflits à résoudre",
+  not_synced: "Library non synchronisée",
+  disabled: "Library : synchro désactivée",
 };
 
 export const SYNC_STATE_LEVELS: Record<SkillSyncStatusState, "ok" | "info" | "warn" | "error"> = {
@@ -83,9 +83,9 @@ export const SYNC_STATE_LEVELS: Record<SkillSyncStatusState, "ok" | "info" | "wa
 
 /** Message fixe : jamais le texte brut du démon (aucun chemin ni contenu de skill). */
 export const SYNC_STATE_MESSAGES: Record<SkillSyncStatusState, string> = {
-  in_progress: "La synchronisation des skills de la Library est en cours.",
-  up_to_date: "Tous les skills de la Library sont à jour sur ce poste.",
-  updated: "Des skills de la Library ont été ajoutés ou mis à jour sur ce poste.",
+  in_progress: "La synchronisation de la Library (skills, rules, agents) est en cours.",
+  up_to_date: "Les skills, rules et agents de la Library sont à jour sur ce poste.",
+  updated: "Des skills, rules ou agents de la Library ont été ajoutés ou mis à jour sur ce poste.",
   conflicts:
     "Des skills, rules ou agents modifiés à la main n'ont pas été écrasés. Comparez les versions et choisissez celle à garder pour chaque fichier.",
   not_synced:

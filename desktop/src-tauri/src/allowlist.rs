@@ -30,6 +30,7 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "identity.get_view",
     "identity.enroll",
     "identity.forget",
+    "workspace.list",
     "workspace.validate",
     "workspace.get_config",
     "workspace.confirm_roots",
