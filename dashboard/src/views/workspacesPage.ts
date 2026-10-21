@@ -3,7 +3,7 @@ import { getPlatform, type PickResult, type Platform } from "../platform";
 import type { IdentityView, LocalWorkspaceConfig, WorkspaceStatus } from "../platform/generated/local-contracts.generated";
 import { describeError, esc, newUuid } from "../ui";
 import { dsPageHeader } from "../ds/ds";
-import { confirmRoots, listWorkspaces, saveWorkspaceConfig, workspaceErrorMessage } from "../workspaces/api";
+import { confirmRoots, findLinkedWorkspace, listWorkspaces,saveWorkspaceConfig, workspaceErrorMessage } from "../workspaces/api";
 import { toWorkspaceViewModel, workspaceDetailHtml, workspaceListHtml } from "../workspaces/workspaces";
 
 export type FolderPickOutcome =
@@ -127,6 +127,10 @@ export async function renderWorkspaces(root: HTMLElement, platform: Platform = g
     const picked = replacement ?? (state.outcome?.kind === "selected" ? state.outcome : null);
     const project = state.projects.find((item) => item.id === state.selectedProject);
     if (!existing && (!picked || !project || !state.identity)) return;
+    if (!existing && findLinkedWorkspace(state.items, project!.id, picked!.path)) {
+      state.outcome = null; state.error = ""; state.notice = "Ce dossier est déjà associé à ce projet sur ce poste."; paint();
+      return;
+    }
     state.busy = true; state.error = ""; state.notice = ""; paint();
     try {
       const now = new Date().toISOString();
