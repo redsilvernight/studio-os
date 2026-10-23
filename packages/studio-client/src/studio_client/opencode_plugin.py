@@ -36,7 +36,7 @@ from studio_client.hooks import (
 
 PLUGIN_REL = Path(".config") / "opencode" / "plugins" / "studio-os.js"
 
-_PLUGIN_JS_TEMPLATE = """// Studio OS — plugin global OpenCode.
+_PLUGIN_JS_TEMPLATE = r"""// Studio OS — plugin global OpenCode (API V2).
 // __MANAGED_MARKER__ (L1/setup-hooks). Fichier d'integration Studio OS :
 // safe a regenerer via `studio-client setup-hooks`. Fail-open.
 //
@@ -45,6 +45,11 @@ _PLUGIN_JS_TEMPLATE = """// Studio OS — plugin global OpenCode.
 //     (appel direct, stdin JSON {"tool_input":{"command"},"cwd"} ; sortie 2 = bloquer).
 // (a) au demarrage -> __SESSION_SCRIPT__ (deploys par setup-hooks),
 //     contexte texte ajoute au system prompt (project_id, agent_id cle "opencode").
+//
+// API OpenCode V2 : export default { id, setup } ; le contexte systeme passe par
+// ctx.session.hook("context", event) (event.system en parties {type, text}) et le
+// garde-fou par ctx.tool.hook("execute.before", event) (event.input mutable, throw
+// pour bloquer). Les evenements arrivent par ctx.event.subscribe (charge utile `data`).
 //
 // Tout est fail-open : si pwsh ou un script manque, la session continue sans garde-fou
 // (les memes regles restent dans AGENTS.md global en repli manuel).
@@ -69,93 +74,87 @@ function runScript(script, payload) {
   return { exit: 0, stdout: "", stderr: "", skipped: true };
 }
 
-export const StudioOS = async ({ client, directory }) => {
-  const cwd = directory;
-  let cachedContext = null;
-  const agentCache = new Map();
+const systemText = (part) =>
+  typeof part === "string" ? part : part && typeof part.text === "string" ? part.text : "";
 
-  async function sessionContext() {
-    if (cachedContext !== null) return cachedContext;
-    cachedContext = "";
-    try {
-      const r = runScript(SESSION_SCRIPT, { cwd });
-      if (!r.skipped && r.exit === 0 && r.stdout.trim()) cachedContext = r.stdout.trim();
-    } catch {
+export default {
+  id: "studio-os",
+  async setup(ctx) {
+    const cwd = ctx.location && ctx.location.directory;
+    let cachedContext = null;
+    const agentCache = new Map();
+
+    function sessionContext() {
+      if (cachedContext !== null) return cachedContext;
       cachedContext = "";
-    }
-    if (cachedContext) {
       try {
-        await client.app.log({
-          body: { service: "studio-os", level: "info", message: "Studio OS context injected" },
-        });
+        const r = runScript(SESSION_SCRIPT, { cwd });
+        if (!r.skipped && r.exit === 0 && r.stdout.trim()) cachedContext = r.stdout.trim();
       } catch {
-        // Journal indisponible : le contexte reste injecte via le system prompt.
+        cachedContext = "";
       }
+      return cachedContext;
     }
-    return cachedContext;
-  }
 
-  return {
-    event: async ({ event }) => {
+    // Session demarree : amorce le contexte (meme role que le hook V1 `event`).
+    const controller = new AbortController();
+    if (ctx.event && ctx.event.subscribe) void (async () => {
       try {
-        if (event && event.type === "session.created") await sessionContext();
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          try {
+            if (event && event.type === "session.created") sessionContext();
+          } catch {
+            // Fail-open : aucun blocage de session.
+          }
+        }
       } catch {
-        // Fail-open : aucun blocage de session.
+        // Flux interrompu : le plugin se decharge.
       }
-    },
-    "experimental.chat.system.transform": async (input, output) => {
-      const ctx = await sessionContext();
-      if (
-        ctx &&
-        output &&
-        Array.isArray(output.system) &&
-        !output.system.some((s) => typeof s === "string" && s.includes("Studio OS"))
-      ) {
-        output.system.push(ctx);
-      }
-      // Agent par modele : input.model = { id, providerID }. Resolu une fois
-      // par (session, modele) via le script (cache fichier + ensure API),
-      // fail-open : en cas d'echec, rien n'est injecte.
+    })();
+
+    // Injection du contexte Studio OS et de la ligne agent par modele.
+    await ctx.session.hook("context", (event) => {
       try {
-        const m = input && input.model;
+        if (!event || !Array.isArray(event.system)) return;
+        const has = (needle) => event.system.some((part) => systemText(part).includes(needle));
+        const text = sessionContext();
+        if (text && !has("Studio OS")) event.system.push({ type: "text", text });
+        const m = event.model;
         const modelRef =
           m && typeof m.id === "string" && typeof m.providerID === "string"
             ? `${m.providerID}/${m.id}`
             : null;
-        if (modelRef && output && Array.isArray(output.system)) {
-          const sid = (input && input.sessionID) || "noid";
-          const key = `${sid}::${modelRef}`;
-          if (!agentCache.has(key)) {
-            let line = "";
-            try {
-              const r = runScript(SESSION_SCRIPT, { cwd, model: modelRef });
-              if (!r.skipped && r.exit === 0 && r.stdout.trim()) {
-                line = r.stdout
-                  .trim()
-                  .split(/\\r?\\n/)
-                  .filter((l) => l.includes("harness/modele"))
-                  .join("\\n");
-              }
-            } catch {
-              line = "";
+        if (!modelRef) return;
+        const sid = event.sessionID || "noid";
+        const key = `${sid}::${modelRef}`;
+        if (!agentCache.has(key)) {
+          let line = "";
+          try {
+            const r = runScript(SESSION_SCRIPT, { cwd, model: modelRef });
+            if (!r.skipped && r.exit === 0 && r.stdout.trim()) {
+              line = r.stdout
+                .trim()
+                .split(/\r?\n/)
+                .filter((l) => l.includes("harness/modele"))
+                .join("\n");
             }
-            agentCache.set(key, line);
+          } catch {
+            line = "";
           }
-          const cached = agentCache.get(key);
-          if (
-            cached &&
-            !output.system.some((s) => typeof s === "string" && s.includes("harness/modele"))
-          ) {
-            output.system.push(cached);
-          }
+          agentCache.set(key, line);
         }
+        const cached = agentCache.get(key);
+        if (cached && !has("harness/modele")) event.system.push({ type: "text", text: cached });
       } catch {
         // Fail-open : aucun blocage de completion.
       }
-    },
-    "tool.execute.before": async (input, output) => {
-      if (!input || input.tool !== "bash") return;
-      const command = output && output.args ? output.args.command : undefined;
+    });
+
+    // Garde-fou git : sortie 2 du script = commande bloquee.
+    await ctx.tool.hook("execute.before", (event) => {
+      if (!event || event.tool !== "bash") return;
+      const input = event.input;
+      const command = input && input.command;
       if (typeof command !== "string" || !command) return;
       let r;
       try {
@@ -167,8 +166,10 @@ export const StudioOS = async ({ client, directory }) => {
         const detail = (r.stderr || "").trim();
         throw new Error(detail || "studio-git-guard: commit direct interdit sur cette branche.");
       }
-    },
-  };
+    });
+
+    return () => controller.abort();
+  },
 };
 """
 
