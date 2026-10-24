@@ -76,6 +76,9 @@ class FakeAdapter(HarnessAdapter):
     def __init__(self, argv: tuple[str, ...]) -> None:
         self._argv = argv
 
+    def headless_safety_argv(self, *, allow_production: bool, mode: AccessMode) -> tuple[str, ...]:
+        return ()
+
     def resolve_executable(self, ctx: HarnessContext) -> Path:
         return Path(sys.executable)
 
@@ -609,3 +612,19 @@ async def test_failing_usage_queue_never_fails_the_run(tmp_path: Path) -> None:
     await executor._tasks[launch.id]
 
     assert _statuses(store) == ["preparing", "running", "succeeded"]
+
+
+async def test_unsupported_safety_refuses_before_preparing_or_executing(tmp_path: Path) -> None:
+    marker = tmp_path / "production-executed"
+    adapter = FakeAdapter(("-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"))
+    adapter.headless_safety_argv = HarnessAdapter.headless_safety_argv.__get__(adapter, FakeAdapter)  # type: ignore[method-assign]
+    repo = _repo(tmp_path)
+    executor, store = _executor(tmp_path, repo, adapter, FakeClient())
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+    assert not marker.exists()
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    assert [row.payload["status"] for row in rows] == ["failed"]
+    assert "production_safety_unsupported" in str(rows[0].payload["output_excerpt"])
+    assert not (tmp_path / f"project-wt-{launch.task_id.hex[:8]}").exists()

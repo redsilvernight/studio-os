@@ -40,7 +40,7 @@ def test_current_versions_match_code_constants() -> None:
         "local_protocol_major": LOCAL_PROTOCOL_MAJOR,
         "local_protocol_minor": LOCAL_PROTOCOL_MINOR,
     }
-    assert API_CONTRACT_VERSION == 2
+    assert API_CONTRACT_VERSION == 3
     assert EVENT_SCHEMA_VERSION == 1
     assert (LOCAL_PROTOCOL_MAJOR, LOCAL_PROTOCOL_MINOR) == (1, 0)
 

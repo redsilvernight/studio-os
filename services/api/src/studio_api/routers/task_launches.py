@@ -60,7 +60,11 @@ router = APIRouter(tags=["task-launches"])
         "contract version, content digest) after resolving that agent — a "
         "profiled launch only targets a machine whose latest capabilities "
         "report `launch_profiles: true`, and an unprofiled launch simply "
-        "omits `profile`. "
+        "omits `profile`. `allow_production` defaults to false. True requires "
+        "an authenticated dashboard user session; machine/MCP credentials cannot "
+        "approve production. The target must report `launch_safety: true`; "
+        "otherwise admission fails with `launch_safety_unsupported_by_machine`. "
+        "Retries never inherit production approval. "
         "Accepts `Idempotency-Key`: the same key with the identical body "
         "returns the original launch instead of a duplicate."
     ),

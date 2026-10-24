@@ -50,7 +50,7 @@ from studio_client.daemon.launch_runner import (
 )
 from studio_client.daemon.launch_snapshot import SnapshotInputs, build_snapshot_payload
 from studio_client.errors import StudioApiError
-from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, AdapterRefusal, HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
 from studio_client.usage.collectors import RunObservation
@@ -215,6 +215,16 @@ class LaunchExecutor:
                 )
                 return
             mode = enforcement.mode
+            safety_argv = resolved.adapter.headless_safety_argv(
+                allow_production=(
+                    launch.allow_production
+                    and (
+                        resolved.profile is None
+                        or {"execute", "network"}.issubset(resolved.profile.permissions)
+                    )
+                ),
+                mode=mode,
+            )
             self._reporter.report(launch, TaskLaunchStatus.PREPARING)
             prepared = await asyncio.to_thread(
                 self._preparer.prepare,
@@ -241,6 +251,7 @@ class LaunchExecutor:
                 task_id=launch.task_id,
                 agent_id=agent_id,
                 agent_stable_key=launch.agent_stable_key,
+                allow_production=launch.allow_production,
             )
             credential = await self._client.issue_launch_credential(launch.id)
             with tempfile.TemporaryDirectory(
@@ -262,6 +273,7 @@ class LaunchExecutor:
                         ctx, model=model, isolation_dir=isolation_dir, mode=mode
                     ),
                 )
+                argv += safety_argv
                 self._reporter.report(launch, TaskLaunchStatus.RUNNING)
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running
@@ -285,6 +297,13 @@ class LaunchExecutor:
                     if error.step == "agent_identity"
                     else None
                 ),
+            )
+        except AdapterRefusal as error:
+            self._reporter.report(
+                launch,
+                TaskLaunchStatus.FAILED,
+                reason_code=TaskLaunchReasonCode.PREPARATION_FAILED,
+                output_excerpt=f"[studio:safety_refused] reason={error.reason}",
             )
         except LaunchError as error:
             logger.warning("launch could not start: %s", error.reason)

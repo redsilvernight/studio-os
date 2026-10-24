@@ -66,6 +66,8 @@ def evaluate(
             reasons.append(IneligibilityReason.PROJECT_NOT_REGISTERED)
         if not capabilities.accepts_launches:
             reasons.append(IneligibilityReason.LAUNCHES_NOT_ACCEPTED)
+        if capabilities.launch_safety is not True:
+            reasons.append(IneligibilityReason.LAUNCH_SAFETY_UNSUPPORTED)
         usable = [h for h in harnesses if h.detected and h.configured]
         if harness_id is not None and all(h.harness_id != harness_id for h in usable):
             reasons.append(IneligibilityReason.HARNESS_INCOMPATIBLE)

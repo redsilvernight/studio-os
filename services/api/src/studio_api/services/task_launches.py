@@ -156,6 +156,14 @@ def authorize_profile_request(launch_in: TaskLaunchCreate) -> None:
         )
 
 
+def authorize_production_request(principal: Principal, launch_in: TaskLaunchCreate) -> None:
+    if launch_in.allow_production and not principal.human_authenticated:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={"error_code": "production_approval_requires_user_session"},
+        )
+
+
 async def authorize_create(
     session: AsyncSession,
     principal: Principal,
@@ -174,6 +182,7 @@ async def authorize_create(
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "task_launch")
     authorize_profile_request(launch_in)
+    authorize_production_request(principal, launch_in)
     if task.project_id != project_id or launch_in.task_id != task.id:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -213,6 +222,11 @@ async def authorize_create(
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={"error_code": "project_not_registered"},
+        )
+    if capabilities.launch_safety is not True:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "launch_safety_unsupported_by_machine"},
         )
     if launch_in.profile_key is not None and capabilities.launch_profiles is not True:
         raise HTTPException(
@@ -284,6 +298,7 @@ async def stage_launch(
     )
     now = datetime.now(UTC)
     admission = await budgets_service.decide_admission(session, project_id, now)
+    authorize_production_request(principal, launch_in)
     pin = await resolve_profile_pin(session, principal, project_id, launch_in)
     launch = TaskLaunchModel(
         project_id=project_id,
@@ -298,6 +313,7 @@ async def stage_launch(
         attempt=attempt,
         retry_of_launch_id=retry_of_launch_id,
         replay_basis=replay_basis,
+        allow_production=launch_in.allow_production,
         profile_key=launch_in.profile_key,
         profile_contract_version=None if pin is None else pin.contract_version,
         profile_digest=None if pin is None else pin.digest,
@@ -643,10 +659,12 @@ async def pull_pending(
         else heartbeats_service.parse_stored_capabilities(machine.capabilities)
     )
     profiles_supported = capabilities is not None and capabilities.launch_profiles is True
+    safety_supported = capabilities is not None and capabilities.launch_safety is True
     live = [
         launch
         for launch in launches
         if launch.status not in {s.value for s in TERMINAL_STATUSES}
+        and safety_supported
         and (profiles_supported or launch.profile_key is None)
     ]
     items = [TaskLaunch.model_validate(launch) for launch in live[:LAUNCH_POLL_MAX]]

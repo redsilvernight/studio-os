@@ -693,3 +693,11 @@ de la proposition **est** la revision resultante (`revision_no` = `approved_revi
 sa provenance d'auteur n'est jamais reecrite par la relecture, qui ajoute seulement
 `status`, `reviewed_by_user_id`, `reviewed_at`, `review_comment`. La provenance d'une
 phase/etape/lien est celle de sa **creation** (une edition est attribuee par la revision).
+
+
+### TaskLaunch : autorisation de production (DEC-0235)
+
+`allow_production` : booléen non null, défaut serveur false (migration 0037).
+Fixé à la création par une session utilisateur JWT ; attribution via
+`requested_by_user_id` et `created_at`. Une nouvelle tentative repart à false.
+La migration est réversible ; aucune donnée existante n’est autorisée par défaut.

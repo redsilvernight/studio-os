@@ -135,6 +135,9 @@ class FakeHarness(HarnessAdapter):
     harness_id = HARNESS
     display_name = "Fake harness"
 
+    def headless_safety_argv(self, *, allow_production: bool, mode: AccessMode) -> tuple[str, ...]:
+        return ()
+
     def __init__(self, script: str) -> None:
         self._script = script
         self.prompts: list[str] = []
@@ -258,6 +261,7 @@ async def _report_capabilities(api_b: StudioApiClient, machine_b: UUID, project_
             ],
             project_ids=[project_id],
             accepts_launches=True,
+            launch_safety=True,
             running_launches=0,
             max_launches=2,
         ),

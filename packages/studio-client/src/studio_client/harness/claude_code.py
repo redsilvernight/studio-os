@@ -198,6 +198,15 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "acceptEdits",
         )
 
+    def headless_safety_argv(self, *, allow_production: bool, mode: AccessMode) -> tuple[str, ...]:
+        self.require_mode(mode)
+        if allow_production:
+            return ()
+        tools = (
+            self._READ_ONLY_TOOLS if mode is AccessMode.READ_ONLY else "Read,Edit,Write,Grep,Glob"
+        )
+        return ("--restricted", "--tools", tools)
+
     def headless_environment(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
@@ -248,18 +257,16 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         identity) and the git guard. Combined with an empty `--setting-sources`
         it keeps a remotely launched harness from running the operator's own
         hooks (bonsai delegation, rtk, office hooks) and, above all, the
-        repository's committed hooks, which no human has validated. `None` when
-        the Studio session hook is not deployed: the run then has no hook."""
+        repository's committed hooks, which no human has validated. Each Studio
+        hook is included independently; `None` when neither is deployed."""
         session_hook = ctx.home / _CLAUDE_SPEC.hook_rel
-        if not session_hook.is_file():
-            return None
-        hooks: dict[str, list[dict[str, object]]] = {
-            "SessionStart": [{"hooks": [_hook_command(session_hook)]}]
-        }
+        hooks: dict[str, list[dict[str, object]]] = {}
+        if session_hook.is_file():
+            hooks["SessionStart"] = [{"hooks": [_hook_command(session_hook)]}]
         guard = ctx.home / GUARD_REL
         if guard.is_file():
             hooks["PreToolUse"] = [{"matcher": "Bash|PowerShell", "hooks": [_hook_command(guard)]}]
-        return json.dumps({"hooks": hooks})
+        return json.dumps({"hooks": hooks}) if hooks else None
 
     def _isolation_mcp_path(self, isolation_dir: Path) -> Path:
         return isolation_dir / _ISOLATION_MCP_FILENAME
