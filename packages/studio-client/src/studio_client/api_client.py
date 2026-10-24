@@ -151,6 +151,7 @@ class StudioApiClient:
         attempt = 1
         while True:
             error: StudioApiError
+            retry_after = 0
             try:
                 response = await self._client.request(
                     method, path, json=json, params=params, headers=headers
@@ -164,6 +165,10 @@ class StudioApiClient:
                     self._note_update_advisory(response)
                     return response
                 error = error_from_response(response)
+                if response.status_code == 429:
+                    value = response.headers.get("retry-after", "").strip()
+                    if value.isascii() and value.isdecimal() and len(value) <= 10:
+                        retry_after = int(value)
 
             if (
                 not can_retry
@@ -171,7 +176,9 @@ class StudioApiClient:
                 or not is_retryable(error)
             ):
                 raise error
-            await sleep(self._retry_policy.delay_for(attempt))
+            if retry_after > self._retry_policy.backoff_max:
+                raise error
+            await sleep(max(retry_after, self._retry_policy.delay_for(attempt)))
             attempt += 1
 
     def _note_update_advisory(self, response: httpx.Response) -> None:
