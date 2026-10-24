@@ -680,3 +680,19 @@ describe("provenance (DEC-0199)", () => {
     expect(shortDigest("court")).toBe("court");
   });
 });
+
+
+describe("production approval", () => {
+  it("starts unchecked and is explicit in the launch confirmation", () => {
+    const html = launchPanelHtml(state());
+    expect(html).toContain('id="launch-production"');
+    expect(html).not.toContain('id="launch-production" checked');
+    expect(launchConfirmText(machine(), "claude-code", "", false)).toContain("Mode protégé");
+    expect(launchConfirmText(machine(), "claude-code", "", true)).toContain("explicitement");
+    expect(launchConfirmText(machine(), "claude-code", "", true)).toContain("ce lancement uniquement");
+  });
+  it("shows the persisted approval and keeps the user's current choice", () => {
+    expect(launchPanelHtml(state({ allowProduction: true }))).toContain('id="launch-production" checked');
+    expect(latestHtml(state({ data: { machines: [], agents: [], latest: launch({ allow_production: true }) } }))).toContain("Production autorisée pour ce lancement");
+  });
+});

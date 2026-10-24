@@ -63,6 +63,7 @@ def build_instruction(
     task_id: UUID,
     agent_id: UUID | None = None,
     agent_stable_key: str | None = None,
+    allow_production: bool = False,
 ) -> str:
     """Resume the task with its issuing server's provenance identity.
 
@@ -96,6 +97,20 @@ def build_instruction(
         "termine par `studio_handoff` avec `task_status=blocked`, en indiquant la commande "
         "exacte proposée, la cible et la validation requise.",
     ]
+    if allow_production:
+        lines.append(
+            "Une session humaine a explicitement autorisé les actions de production pour ce "
+            "lancement uniquement. Cette autorisation ne couvre ni push, merge, rebase ni "
+            "les opérations refusées par le profil ou les règles du poste. "
+            "Elle ne se transmet pas à un autre lancement ou à un rejeu."
+        )
+    else:
+        lines.append(
+            "Mode protégé : édition dans le dossier de travail uniquement, sans outil "
+            "d’exécution de commandes. Si une commande est nécessaire, ne cherche aucun "
+            "contournement : termine par studio_handoff(task_status=blocked) avec la "
+            "commande proposée et attends une nouvelle demande humaine autorisée."
+        )
     return "\n".join(lines)
 
 

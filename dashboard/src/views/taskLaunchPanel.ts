@@ -75,6 +75,7 @@ export interface LaunchPanelState {
   selectedMachineId: string;
   selectedHarnessId: string;
   agentStableKey: string;
+  allowProduction?: boolean;
   preview: ResolvedAgentDefinition | null;
   previewLoading: boolean;
   previewError: string;
@@ -209,6 +210,7 @@ const REASON_FR: Record<IneligibilityReason, string> = {
   owner_no_project_access: "propriétaire sans accès au projet",
   project_not_registered: "projet non enregistré sur le poste",
   launches_not_accepted: "lancements non acceptés sur le poste",
+  launch_safety_unsupported: "mise à jour du poste requise pour les lancements protégés",
   harness_incompatible: "harnais incompatible",
   at_capacity: "capacité atteinte",
 };
@@ -350,6 +352,7 @@ export function latestHtml(state: LaunchPanelState): string {
   const details = [
     `Poste ${esc(latest.machine_id)}`,
     `Harnais ${esc(latest.harness_id)}`,
+    latest.allow_production ? "Production autorisée pour ce lancement" : "Mode protégé",
     latest.agent_stable_key ? `Agent ${esc(latest.agent_stable_key)}` : "Sans agent",
   ];
   if (latest.reason_code !== "none") details.push(`Motif ${esc(launchReasonCodeLabel(latest.reason_code))}`);
@@ -380,10 +383,14 @@ export function launchConfirmText(
   machine: MachineEligibility | null,
   harnessId: string,
   agentStableKey: string,
+  allowProduction = false,
 ): string {
   const agent = agentStableKey === "" ? "sans agent résolu" : `avec l'agent « ${agentStableKey} »`;
   return (
     `Lancer cette tâche sur « ${machine?.display_name ?? "?"} » (harnais ${harnessId || "?"}, ${agent}) ? ` +
+    (allowProduction
+      ? `Vous autorisez explicitement les commandes et les actions de production pour ce lancement uniquement. `
+      : `Mode protégé : édition locale uniquement, sans exécution de commandes. `) +
     `Le poste cible décide localement (opt-in, projet enregistré) et rapporte l'exécution ; le statut affiché ne vient que de lui.`
   );
 }
@@ -770,6 +777,8 @@ export function launchPanelHtml(state: LaunchPanelState): string {
     dsField("launch-machine", "Poste cible", `<select class="ds-select" id="FIELD">${machineOptions(state, data)}</select>`) +
     dsField("launch-harness", "Harnais", `<select class="ds-select" id="FIELD">${harnessOptions(state, machine)}</select>`) +
     dsField("launch-agent", "Agent à résoudre (facultatif)", `<select class="ds-select" id="FIELD">${agentOptions(state, data)}</select>`) +
+    `<label class="ds-checkbox"><input type="checkbox" id="launch-production"${state.allowProduction ? " checked" : ""}> Autoriser les commandes et les actions de production pour ce lancement</label>` +
+    `<p class="ds-list-sub">Sans autorisation : édition locale uniquement, sans exécution de commandes. Un agent incompatible avec ce mode est refusé.</p>` +
     `<div class="tasks-footer">` +
     `<button class="ds-btn" type="button" data-action="launch-preview"${canPreview ? "" : " disabled"}>Afficher la configuration de lancement</button>` +
     `<button class="ds-btn ds-btn--primary" type="button" data-action="launch-submit"${canLaunch ? "" : " disabled"}>Lancer sur cette machine</button>` +

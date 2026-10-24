@@ -551,6 +551,7 @@ export function launchSectionHtml(data: TaskDetailData): string {
     selectedMachineId: "",
     selectedHarnessId: "",
     agentStableKey: "",
+    allowProduction: false,
     preview: null,
     previewLoading: false,
     previewError: "",
@@ -815,6 +816,7 @@ function bindLaunchPanel(
     selectedMachineId: "",
     selectedHarnessId: "",
     agentStableKey: "",
+    allowProduction: false,
     preview: null,
     previewLoading: false,
     previewError: "",
@@ -838,6 +840,7 @@ function bindLaunchPanel(
   function bindPanel(): void {
     container.querySelector<HTMLSelectElement>("#launch-machine")?.addEventListener("change", (event) => {
       state.selectedMachineId = (event.target as HTMLSelectElement).value;
+      state.allowProduction = false;
       state.selectedHarnessId = "";
       state.preview = null;
       state.previewError = "";
@@ -846,6 +849,7 @@ function bindLaunchPanel(
     });
     container.querySelector<HTMLSelectElement>("#launch-harness")?.addEventListener("change", (event) => {
       state.selectedHarnessId = (event.target as HTMLSelectElement).value;
+      state.allowProduction = false;
       render();
     });
     container.querySelector<HTMLSelectElement>("#launch-agent")?.addEventListener("change", (event) => {
@@ -853,6 +857,9 @@ function bindLaunchPanel(
       state.preview = null;
       state.previewError = "";
       render();
+    });
+    container.querySelector<HTMLInputElement>("#launch-production")?.addEventListener("change", (event) => {
+      state.allowProduction = (event.target as HTMLInputElement).checked;
     });
     container.querySelector("[data-action=launch-preview]")?.addEventListener("click", () => void doPreview());
     container.querySelector("[data-action=launch-submit]")?.addEventListener("click", () => void doLaunch());
@@ -988,7 +995,7 @@ function bindLaunchPanel(
   async function doLaunch(): Promise<void> {
     const machine = selectedMachine(state);
     if (machine === null || !machine.eligible || state.selectedHarnessId === "") return;
-    if (!window.confirm(launchConfirmText(machine, state.selectedHarnessId, state.agentStableKey))) return;
+    if (!window.confirm(launchConfirmText(machine, state.selectedHarnessId, state.agentStableKey, state.allowProduction))) return;
     state.error = "";
     state.notice = "";
     const submit = container.querySelector<HTMLButtonElement>("[data-action=launch-submit]");
@@ -1003,9 +1010,11 @@ function bindLaunchPanel(
           harness_id: state.selectedHarnessId,
           ...(state.agentStableKey === "" ? {} : { agent_stable_key: state.agentStableKey }),
           expires_in_seconds: 900,
+          allow_production: state.allowProduction === true,
         },
         newIdempotencyKey(),
       );
+      state.allowProduction = false;
       applyLatest(created);
       if (state.data !== null) {
         state.data = { ...state.data, ...(await readProvenance(ctx.client, task.project_id, created.id)) };

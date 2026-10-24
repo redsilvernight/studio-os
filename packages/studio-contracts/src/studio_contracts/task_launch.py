@@ -118,6 +118,7 @@ class TaskLaunchCreate(IdempotentCreate):
     harness_id: HarnessId
     agent_stable_key: StableKey | None = None
     profile_key: StableKey | None = None
+    allow_production: bool = False
     expires_in_seconds: int = Field(
         default=LAUNCH_DEFAULT_TTL_SECONDS, ge=60, le=LAUNCH_MAX_TTL_SECONDS
     )
@@ -148,6 +149,7 @@ class TaskLaunch(VersionedModel):
     expires_at: datetime
     finished_at: datetime | None = None
     profile: LaunchProfilePin | None = Field(default=None, exclude_if=lambda v: v is None)
+    allow_production: bool = False
 
 
 class TaskLaunchProtocolStatus(StrEnum):

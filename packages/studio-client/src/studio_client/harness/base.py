@@ -229,6 +229,11 @@ class HarnessAdapter(ABC):
         (`AdapterRefusal('headless_unsupported')`)."""
         raise AdapterRefusal("headless_unsupported")
 
+    def headless_safety_argv(self, *, allow_production: bool, mode: AccessMode) -> tuple[str, ...]:
+        if not allow_production:
+            raise AdapterRefusal("production_safety_unsupported")
+        return ()
+
     def headless_extra_argv(
         self,
         ctx: HarnessContext,

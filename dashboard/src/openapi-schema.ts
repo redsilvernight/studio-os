@@ -455,7 +455,7 @@ export interface paths {
         put?: never;
         /**
          * Create Task Launch
-         * @description Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Optional `profile_key`: the work profile the agent runs under, named against the reference profiles. It needs `agent_stable_key`, and the server pins it (`profile`: stable key, contract version, content digest) after resolving that agent — a profiled launch only targets a machine whose latest capabilities report `launch_profiles: true`, and an unprofiled launch simply omits `profile`. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.
+         * @description Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Optional `profile_key`: the work profile the agent runs under, named against the reference profiles. It needs `agent_stable_key`, and the server pins it (`profile`: stable key, contract version, content digest) after resolving that agent — a profiled launch only targets a machine whose latest capabilities report `launch_profiles: true`, and an unprofiled launch simply omits `profile`. `allow_production` defaults to false. True requires an authenticated dashboard user session; machine/MCP credentials cannot approve production. The target must report `launch_safety: true`; otherwise admission fails with `launch_safety_unsupported_by_machine`. Retries never inherit production approval. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.
          */
         post: operations["create_task_launch_api_v1_projects__project_id__task_launches_post"];
         delete?: never;
@@ -4903,7 +4903,7 @@ export interface components {
          * @description Deterministic, evaluated in this declaration order.
          * @enum {string}
          */
-        IneligibilityReason: "offline" | "no_capabilities_report" | "capabilities_stale" | "owner_no_project_access" | "project_not_registered" | "launches_not_accepted" | "harness_incompatible" | "at_capacity";
+        IneligibilityReason: "offline" | "no_capabilities_report" | "capabilities_stale" | "owner_no_project_access" | "project_not_registered" | "launches_not_accepted" | "launch_safety_unsupported" | "harness_incompatible" | "at_capacity";
         /** InitializationAction */
         InitializationAction: {
             section: components["schemas"]["InitializationSection"];
@@ -5478,6 +5478,8 @@ export interface components {
             bootstrap?: components["schemas"]["ProjectBootstrapStatus"][] | null;
             /** Launch Profiles */
             launch_profiles?: boolean | null;
+            /** Launch Safety */
+            launch_safety?: boolean | null;
         };
         /**
          * MachineCreate
@@ -8195,6 +8197,11 @@ export interface components {
             /** Finished At */
             finished_at?: string | null;
             profile?: components["schemas"]["LaunchProfilePin"] | null;
+            /**
+             * Allow Production
+             * @default false
+             */
+            allow_production: boolean;
         };
         /**
          * TaskLaunchCancel
@@ -8231,6 +8238,11 @@ export interface components {
             agent_stable_key?: string | null;
             /** Profile Key */
             profile_key?: string | null;
+            /**
+             * Allow Production
+             * @default false
+             */
+            allow_production: boolean;
             /**
              * Expires In Seconds
              * @default 900
@@ -8497,6 +8509,11 @@ export interface components {
             /** Finished At */
             finished_at?: string | null;
             profile?: components["schemas"]["LaunchProfilePin"] | null;
+            /**
+             * Allow Production
+             * @default false
+             */
+            allow_production: boolean;
             protocol: components["schemas"]["TaskLaunchProtocol"];
             /**
              * Attempt

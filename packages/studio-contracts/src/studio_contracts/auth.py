@@ -216,6 +216,7 @@ class MachineCapabilities(ContractModel):
     max_launches: int = Field(default=0, ge=0)
     bootstrap: list[ProjectBootstrapStatus] | None = Field(default=None, max_length=256)
     launch_profiles: bool | None = None
+    launch_safety: bool | None = None
 
 
 class HeartbeatRequest(ContractModel):
@@ -245,6 +246,7 @@ class IneligibilityReason(StrEnum):
     OWNER_NO_PROJECT_ACCESS = "owner_no_project_access"
     PROJECT_NOT_REGISTERED = "project_not_registered"
     LAUNCHES_NOT_ACCEPTED = "launches_not_accepted"
+    LAUNCH_SAFETY_UNSUPPORTED = "launch_safety_unsupported"
     HARNESS_INCOMPATIBLE = "harness_incompatible"
     AT_CAPACITY = "at_capacity"
 

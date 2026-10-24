@@ -198,6 +198,15 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "acceptEdits",
         )
 
+    def headless_safety_argv(self, *, allow_production: bool, mode: AccessMode) -> tuple[str, ...]:
+        self.require_mode(mode)
+        if allow_production:
+            return ()
+        tools = (
+            self._READ_ONLY_TOOLS if mode is AccessMode.READ_ONLY else "Read,Edit,Write,Grep,Glob"
+        )
+        return ("--restricted", "--tools", tools)
+
     def headless_environment(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:

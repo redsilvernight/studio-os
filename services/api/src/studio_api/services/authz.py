@@ -59,6 +59,7 @@ class Principal:
     user: UserModel
     role: Role
     project_scope: ProjectScope = field(default_factory=frozenset)
+    human_authenticated: bool = False
 
 
 async def load_principal(session: AsyncSession, machine: MachineModel) -> Principal:

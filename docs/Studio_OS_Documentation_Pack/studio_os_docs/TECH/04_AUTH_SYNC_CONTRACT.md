@@ -460,3 +460,13 @@ Les objets mutables utilisent `updated_at` et idealement une version entiere. En
 
 ## Offline
 La queue locale SQLite conserve payload, event_id, tentative, prochaine tentative, statut et erreur. Backoff exponentiel borne. Les actions critiques non rejouables doivent etre marquees explicitement.
+
+
+### Autorisation de production des lancements (DEC-0235)
+
+Seule une session dashboard JWT validée peut demander `allow_production=true`.
+Un jeton machine ou MCP ne peut pas s’auto-autoriser, même admin ; les credentials
+éphémères restent limités à leur lancement. Ce contrôle est commun au service
+HTTP/MCP. La confirmation UI concerne un seul lancement ; retry/replay ne
+réutilisent pas l’autorisation. Les accès projet, rôle, propriétaire/grant et
+idempotence restent nécessaires.

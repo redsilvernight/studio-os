@@ -209,3 +209,18 @@ def test_tool_restrictions_keep_studio_mcp_and_isolation(tmp_path: Path, mode: A
         assert "--disallowedTools" not in argv + extra
         assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
         assert allowed == {"Read", "Edit", "Write", "Bash", "Grep", "Glob", "mcp__studio-os"}
+
+
+@pytest.mark.parametrize("mode", [AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE])
+def test_protected_launch_removes_execution_tools_and_bounds_file_access(mode: AccessMode) -> None:
+    adapter = ClaudeCodeAdapter()
+    argv = adapter.headless_safety_argv(allow_production=False, mode=mode)
+    assert "--restricted" in argv
+    tools = set(argv[argv.index("--tools") + 1].split(","))
+    assert not tools & {"Bash", "PowerShell", "Agent", "Task", "WebFetch", "NotebookEdit"}
+    assert tools == (
+        {"Read", "Grep", "Glob"}
+        if mode is AccessMode.READ_ONLY
+        else {"Read", "Edit", "Write", "Grep", "Glob"}
+    )
+    assert adapter.headless_safety_argv(allow_production=True, mode=mode) == ()

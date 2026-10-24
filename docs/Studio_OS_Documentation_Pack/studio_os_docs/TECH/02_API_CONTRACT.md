@@ -1,6 +1,29 @@
 # API Contract v1
 
-Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 2` (DEC-0103).
+Version contractuelle 3 (DEC-0235, 2026-10-24) : admission des lancements protégés.
+Chaque création/retry exige `capabilities.launch_safety=true` ; sinon 409
+`launch_safety_unsupported_by_machine`. Le transport reste `/api/v1`. Mettre à jour
+le daemon avant de lancer ; les anciennes machines ne reçoivent aucun lancement.
+
+`TaskLaunchCreate.allow_production` est un booléen optionnel, défaut false. True
+exige un JWT de session utilisateur validé (403 `production_approval_requires_user_session`
+pour les jetons machine, MCP et credentials de lancement). La valeur est persistée,
+immuable et attribuée à `requested_by_user_id`/`created_at` dans TaskLaunch.
+La réponse expose toujours sa valeur, y compris false pour les archives. Le service vérifie cette origine
+avant de créer, même hors HTTP et avant rejeu idempotent. Retry/replay repartent
+toujours avec false, sans héritage d’approbation.
+
+Le daemon impose une édition bornée au dossier sans outil de commandes si false.
+Claude Code utilise `--restricted --tools Read,Edit,Write,Grep,Glob` (>=2.1.248 ;
+une CLI antérieure échoue avant exécution). Les adaptateurs ne garantissant pas
+ce mode refusent avant préparation/lancement ; aucun repli permissif. True ne
+contourne ni le profil lecture seule ni les permissions du poste. Une opération
+nécessitant une commande en mode protégé exige `studio_handoff(task_status=blocked)`
+avec commande et cible ; une nouvelle demande humaine est nécessaire.
+
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 3` (DEC-0235).
+
+Historique version 2 (DEC-0103) :
 Statut : **DEC-0103 acceptee ; enforcement projet et `GET /machines` /
 `GET /agents` self/admin livres (A0, tache 00397d8d) ; gestion des membres
 (`/projects/{id}/members`) livree (A0, tache 0324dbb3)**, le serveur annonce la

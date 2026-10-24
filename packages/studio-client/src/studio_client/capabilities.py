@@ -106,4 +106,5 @@ def build_capabilities(
         max_launches=config.max_concurrent_launches,
         bootstrap=bootstrap_statuses(config) or None,
         launch_profiles=True,
+        launch_safety=True,
     )

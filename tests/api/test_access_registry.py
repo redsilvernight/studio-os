@@ -577,6 +577,7 @@ async def _build_world(
                 "harnesses": [{"harness_id": "claude-code", "version": "2.1.0"}],
                 "project_ids": [pid],
                 "accepts_launches": True,
+                "launch_safety": True,
                 "running_launches": 0,
                 "max_launches": 2,
             },
