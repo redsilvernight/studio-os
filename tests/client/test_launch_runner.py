@@ -32,6 +32,18 @@ def test_instruction_names_the_task_and_the_loop() -> None:
     assert "push" in text and "merge" in text
 
 
+def test_instruction_requires_production_approval_and_a_blocked_handoff() -> None:
+    text = build_instruction(project_id=PROJECT, task_id=TASK)
+    assert "validation humaine explicite" in text
+    assert "aucun déploiement" in text
+    assert "connexion SSH vers un hôte de production" in text
+    assert "action irréversible hors du dépôt" in text
+    assert "permission d'outil ne vaut pas" in text
+    assert "ne l'exécute pas" in text
+    assert "task_status=blocked" in text
+    assert "commande exacte proposée" in text
+
+
 def test_instruction_carries_the_optional_stable_key() -> None:
     with_key = build_instruction(project_id=PROJECT, task_id=TASK, agent_stable_key="dev-agent")
     assert "dev-agent" in with_key

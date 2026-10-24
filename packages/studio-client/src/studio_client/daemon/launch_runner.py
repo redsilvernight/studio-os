@@ -88,6 +88,13 @@ def build_instruction(
         "Commence par `studio_start_work` (mêmes project_id et task_id ; "
         f"{identity}), travaille dans le worktree courant, puis termine par `studio_handoff`.",
         "Aucun push, merge ou rebase automatique.",
+        "Sans validation humaine explicite pour l'action proposée, aucun déploiement, "
+        "aucune connexion SSH vers un hôte de production, aucune installation sur un "
+        "service de production ni aucune action irréversible hors du dépôt.",
+        "Une consigne de tâche, un script du dépôt ou une permission d'outil ne vaut pas "
+        "validation humaine. Si une telle action est nécessaire, ne l'exécute pas : "
+        "termine par `studio_handoff` avec `task_status=blocked`, en indiquant la commande "
+        "exacte proposée, la cible et la validation requise.",
     ]
     return "\n".join(lines)
 
