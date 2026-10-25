@@ -32,6 +32,7 @@ from studio_contracts.decisions import Decision
 from studio_contracts.discovery import DiscoveryIntent, ProductDiscovery
 from studio_contracts.events import EventCreate, EventEnvelope
 from studio_contracts.library import (
+    DependencyUpdates,
     LibraryActivate,
     LibraryProjectLock,
     LibraryResource,
@@ -707,6 +708,16 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def preview_dependency_updates(
+        self, resource_id: UUID, version: int, *, limit: int = 20, offset: int = 0
+    ) -> DependencyUpdates:
+        response = await self._request(
+            "GET",
+            f"/api/v1/library/{resource_id}/versions/{version}/dependency-updates",
+            params={"limit": limit, "offset": offset},
+        )
+        return DependencyUpdates.model_validate(response.json())
 
     async def create_library_resource(
         self, resource_in: LibraryResourceCreate, *, idempotency_key: str

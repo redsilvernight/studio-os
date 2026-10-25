@@ -55,6 +55,7 @@ import {
   listLibraryLocks,
   listLibraryResources,
   listLibraryVersions,
+  previewDependencyUpdates,
   releaseLibraryLock,
   type LibraryLockCreate,
   type LibraryProjectLock,
@@ -62,6 +63,7 @@ import {
   type LibraryResourceCreate,
   type LibraryVersion,
   type LibraryVersionCreate,
+  type DependencyUpdates,
 } from "../libraryApi";
 import {
   buildContent,
@@ -641,6 +643,7 @@ export function buildResourcePayload(form: HTMLFormElement, kind: LibraryKind): 
     description: description === "" ? null : description,
     content,
     dependencies: dependencies.value.map((pin) => ({
+      ...(pin.resource_id ? { resource_id: pin.resource_id } : {}),
       kind: pin.kind,
       stable_key: pin.stable_key,
       version: pin.version,
@@ -925,6 +928,7 @@ function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value:
       description: description === "" ? null : description,
       content,
       dependencies: dependencies.value.map((pin) => ({
+        ...(pin.resource_id ? { resource_id: pin.resource_id } : {}),
         kind: pin.kind,
         stable_key: pin.stable_key,
         version: pin.version,
@@ -935,6 +939,15 @@ function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value:
 }
 
 /** Page détail complète en HTML pur (DOM-free, testable) : lecture d'abord, technique repliée. */
+export function dependencyUpdatesHtml(preview: DependencyUpdates): string {
+  return `<p>Aperçu en lecture seule. Les dépendances restent épinglées ; toute modification exige une nouvelle version.</p>` +
+    (preview.items.length === 0 ? `<p>Aucune dépendance sur cette page.</p>` : `<ul>${preview.items.map((item) =>
+      `<li>${esc(item.suggested_pin.stable_key)} · ${esc(item.scope)} · épinglée v${item.pinned_version}, active v${item.active_version}` +
+      `${item.deprecated ? " · obsolète" : item.update_available ? " · mise à jour disponible" : " · aucune mise à jour"}` +
+      `<pre>${esc(JSON.stringify(item.suggested_pin, null, 2))}</pre></li>`).join("")}</ul>`) +
+    (preview.additional_available > 0 ? `<button type="button" class="ds-btn" data-dependency-next="${preview.offset + preview.items.length}">Suite (${preview.additional_available})</button>` : "");
+}
+
 export function libraryDetailHtml(
   resource: LibraryResource,
   versions: LibraryVersion[],
@@ -963,7 +976,9 @@ export function libraryDetailHtml(
         `<div class="library-version-body"><p class="ds-list-sub">${fmtTime(version.created_at)}${version.created_by_user_id ? ` · par ${esc(FALLBACK_LABEL.user)}` : ""}</p>` +
         (version.description ? `<p>${esc(version.description)}</p>` : "") +
         versionContentHtml(resource.kind, version) +
-        `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}</div></details>`
+        `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}` +
+        `<button type="button" class="ds-btn" data-dependency-preview="${version.version}">Vérifier les mises à jour</button>` +
+        `<div data-dependency-output="${version.version}" aria-live="polite"></div></div></details>`
       );
     })
     .join("");
@@ -1074,6 +1089,23 @@ export async function renderLibraryDetail(
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
+  for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {
+    const version = Number(button.dataset["dependencyPreview"]);
+    const output = root.querySelector<HTMLElement>(`[data-dependency-output="${version}"]`);
+    if (output === null) continue;
+    const load = (offset: number): void => {
+      button.disabled = true;
+      output.textContent = "Vérification des versions…";
+      previewDependencyUpdates(ctx.client, resource.id, version, offset).then((preview) => {
+        output.innerHTML = dependencyUpdatesHtml(preview);
+        const next = output.querySelector<HTMLButtonElement>("[data-dependency-next]");
+        next?.addEventListener("click", () => { load(Number(next.dataset["dependencyNext"])); });
+      }).catch((error: unknown) => {
+        output.textContent = `Aperçu indisponible : ${describeError(error)}`;
+      }).finally(() => { button.disabled = false; });
+    };
+    button.addEventListener("click", () => { load(0); });
+  }
   const incomingButton = root.querySelector<HTMLButtonElement>("[data-hook-incoming]");
   incomingButton?.addEventListener("click", () => {
     const output = root.querySelector<HTMLElement>("[data-hook-incoming-output]");

@@ -13,6 +13,7 @@ import { scopeLabel } from "../libraryFormat";
 import {
   createFormFieldsHtml,
   dependenciesTableHtml,
+  dependencyUpdatesHtml,
   filterLibraryResources,
   inspectorLinkHtml,
   kindFr,
@@ -32,6 +33,14 @@ import {
 } from "./library";
 import type { LibraryProjectLock, LibraryResource, LibraryVersion } from "../libraryApi";
 import type { SkillsSyncStatus } from "../skillsApi";
+
+it("explains pinned update previews and escapes definition content", () => {
+  const html = dependencyUpdatesHtml({ resource_id: "source", version: 1, mutates: false, offset: 0, additional_available: 1, items: [{ resource_id: "target", scope: "studio", pinned_version: 1, active_version: 2, deprecated: false, update_available: true, suggested_pin: { resource_id: "target", kind: "rule", stable_key: "<script>bad</script>", version: 2 } }] });
+  expect(html).toContain("lecture seule");
+  expect(html).toContain("épinglée v1, active v2");
+  expect(html).toContain('data-dependency-next="1"');
+  expect(html).not.toContain("<script>");
+});
 
 const resource = (overrides: Partial<LibraryResource>): LibraryResource =>
   ({

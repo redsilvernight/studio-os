@@ -1277,6 +1277,16 @@ def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> N
         raise SystemExit(1)
 
 
+def _library_dependency_updates(args: argparse.Namespace, config: ClientConfig) -> None:
+    async def action(client: StudioApiClient) -> Any:
+        return await client.preview_dependency_updates(
+            UUID(args.resource_id), args.version, limit=args.limit, offset=args.offset
+        )
+
+    result = _run(config, action)
+    print(result.model_dump_json(indent=2))
+
+
 def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
     """Publish canonical `.agents/` rules, skills and agent definitions to the
     Library (P4). Reads are always allowed; nothing is written with
@@ -2033,6 +2043,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     library_parser = subparsers.add_parser("library", help="Library publication (P4).")
     library_sub = library_parser.add_subparsers(dest="library_command", required=True)
+    library_updates = library_sub.add_parser(
+        "dependency-updates", help="Preview pinned dependency updates without changing them."
+    )
+    library_updates.add_argument("resource_id", help="Source resource UUID.")
+    library_updates.add_argument("version", type=int, help="Pinned source version.")
+    library_updates.add_argument("--limit", type=int, default=20)
+    library_updates.add_argument("--offset", type=int, default=0)
+    library_updates.set_defaults(func=_library_dependency_updates)
     library_publish = library_sub.add_parser(
         "publish",
         help="Publish `.agents/` rules, skills, agents to the Library (drafts unless --activate).",

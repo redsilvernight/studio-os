@@ -231,6 +231,7 @@ PROBES: dict[str, tuple[Probe, ...]] = {
         Probe({"resource_id": "{lib}"}),
         Probe({}, "filtered"),
     ),
+    "studio_preview_dependency_updates": (Probe({"resource_id": "{lib}", "version": 1}),),
     "studio_publish_definition": (
         Probe(
             {

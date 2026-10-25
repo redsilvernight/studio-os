@@ -5146,6 +5146,88 @@
     }
    }
   },
+  "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Dependency Updates",
+    "description": "Preview active-version changes of pinned dependencies without changing versions, activation or projection. Suggested pins carry explicit resource UUIDs.",
+    "operationId": "dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "version",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Version"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 100,
+       "minimum": 1,
+       "default": 20,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DependencyUpdates"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/library/{resource_id}/activate": {
    "post": {
     "tags": [
@@ -20209,6 +20291,96 @@
     "title": "DependencyPin",
     "description": "A version-pinned reference to another library resource version.\n\n`relation` names the Library Binding type. When omitted it\nis inferred server-side from the unique matrix mapping for the\n`(source kind, target kind)` couple; an explicitly wrong relation for an\notherwise allowed couple is rejected with `422 invalid_binding`."
    },
+   "DependencyUpdate": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "pinned_version": {
+      "type": "integer",
+      "title": "Pinned Version"
+     },
+     "active_version": {
+      "type": "integer",
+      "title": "Active Version"
+     },
+     "deprecated": {
+      "type": "boolean",
+      "title": "Deprecated"
+     },
+     "update_available": {
+      "type": "boolean",
+      "title": "Update Available"
+     },
+     "suggested_pin": {
+      "$ref": "#/components/schemas/ResourceDependencyPin"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "scope",
+     "pinned_version",
+     "active_version",
+     "deprecated",
+     "update_available",
+     "suggested_pin"
+    ],
+    "title": "DependencyUpdate"
+   },
+   "DependencyUpdates": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "mutates": {
+      "type": "boolean",
+      "const": false,
+      "title": "Mutates",
+      "default": false
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/DependencyUpdate"
+      },
+      "type": "array",
+      "maxItems": 100,
+      "title": "Items"
+     },
+     "additional_available": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Additional Available",
+      "default": 0
+     },
+     "offset": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Offset",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "version",
+     "items"
+    ],
+    "title": "DependencyUpdates"
+   },
    "DesiredIntegration": {
     "properties": {
      "plan_hash": {
@@ -22423,7 +22595,14 @@
      },
      "dependencies": {
       "items": {
-       "$ref": "#/components/schemas/DependencyPin"
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/ResourceDependencyPin"
+        },
+        {
+         "$ref": "#/components/schemas/DependencyPin"
+        }
+       ]
       },
       "type": "array",
       "title": "Dependencies",
@@ -22560,7 +22739,14 @@
      },
      "dependencies": {
       "items": {
-       "$ref": "#/components/schemas/DependencyPin"
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/ResourceDependencyPin"
+        },
+        {
+         "$ref": "#/components/schemas/DependencyPin"
+        }
+       ]
       },
       "type": "array",
       "title": "Dependencies",
@@ -25334,6 +25520,45 @@
      "ttl_seconds"
     ],
     "title": "ResourceClaimCreate"
+   },
+   "ResourceDependencyPin": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "relation": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BindingRelation"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "version",
+     "resource_id"
+    ],
+    "title": "ResourceDependencyPin"
    },
    "ResourceType": {
     "type": "string",

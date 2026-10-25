@@ -764,6 +764,19 @@ les evenements sont inchanges.
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
   epinglee inexistante = `404 pin_version_not_found`, pin
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
+- Les entrees de dependance acceptent aussi `resource_id` (UUID explicite),
+  en plus de `kind`, `stable_key`, `version` et `relation`. L'UUID, le type
+  et la cle doivent correspondre a une ressource visible ; sinon
+  `404 pin_not_found`. Les regles de scope restent appliquees. Les anciennes
+  entrees et sorties `DependencyPin` conservent leur forme.
+- GET /library/{id}/versions/{version}/dependency-updates — lecture seule,
+  `limit` 1..100 (20 par defaut), `offset` >= 0. Retourne `mutates=false`,
+  versions epinglees/actives, scope, statut obsolete et `suggested_pin`
+  portant l'UUID. Une version active plus recente est proposee si la cible
+  n'est pas obsolete. Aucune version, activation, projection ou dependance
+  n'est modifiee. `additional_available` permet de paginer. Meme service
+  via MCP `studio_preview_dependency_updates` et CLI
+  `studio-client library dependency-updates UUID VERSION`.
 - Bindings types (P5, DEC-0067) : chaque dependance porte une `relation`
   (`requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
   `references_workflow`/`refines_skill_rule`/`uses_hook` (DEC-0194 :

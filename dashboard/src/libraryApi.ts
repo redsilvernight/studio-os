@@ -16,6 +16,7 @@ export type LibraryResource = components["schemas"]["LibraryResource"];
 export type LibraryResourceCreate = components["schemas"]["LibraryResourceCreate"];
 export type LibraryVersion = components["schemas"]["LibraryVersion"];
 export type LibraryVersionCreate = components["schemas"]["LibraryVersionCreate"];
+export type DependencyUpdates = components["schemas"]["DependencyUpdates"];
 export type LibraryActivate = components["schemas"]["LibraryActivate"];
 export type LibraryDeprecate = components["schemas"]["LibraryDeprecate"];
 export type LibraryProjectLock = components["schemas"]["LibraryProjectLock"];
@@ -56,6 +57,12 @@ export function listLibraryVersions(client: StudioClient, resourceId: string): P
   return unwrap(
     client.GET("/api/v1/library/{resource_id}/versions", { params: { path: { resource_id: resourceId } } }),
   );
+}
+
+export function previewDependencyUpdates(client: StudioClient, resourceId: string, version: number, offset = 0): Promise<DependencyUpdates> {
+  return unwrap(client.GET("/api/v1/library/{resource_id}/versions/{version}/dependency-updates", {
+    params: { path: { resource_id: resourceId, version }, query: { limit: 20, offset } },
+  }));
 }
 
 export function createLibraryResource(

@@ -13,6 +13,7 @@ from studio_mcp.tools.agents import studio_register_agent, studio_resolve_agent_
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
     studio_discover_definitions,
+    studio_preview_dependency_updates,
     studio_publish_definition,
     studio_register_runtime,
     studio_resolve_agent,
@@ -793,6 +794,11 @@ def create_server() -> MCPServer:
             "private definitions are silently omitted and fail with definition_not_found, "
             "never forbidden."
         ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_preview_dependency_updates,
+        name="studio_preview_dependency_updates",
         annotations=_READ_ONLY,
     )
     server.add_tool(

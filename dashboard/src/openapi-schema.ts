@@ -965,6 +965,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dependency Updates
+         * @description Preview active-version changes of pinned dependencies without changing versions, activation or projection. Suggested pins carry explicit resource UUIDs.
+         */
+        get: operations["dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/{resource_id}/activate": {
         parameters: {
             query?: never;
@@ -4356,6 +4376,52 @@ export interface components {
             version: number;
             relation?: components["schemas"]["BindingRelation"] | null;
         };
+        /** DependencyUpdate */
+        DependencyUpdate: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Pinned Version */
+            pinned_version: number;
+            /** Active Version */
+            active_version: number;
+            /** Deprecated */
+            deprecated: boolean;
+            /** Update Available */
+            update_available: boolean;
+            suggested_pin: components["schemas"]["ResourceDependencyPin"];
+        };
+        /** DependencyUpdates */
+        DependencyUpdates: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Mutates
+             * @default false
+             * @constant
+             */
+            mutates: false;
+            /** Items */
+            items: components["schemas"]["DependencyUpdate"][];
+            /**
+             * Additional Available
+             * @default 0
+             */
+            additional_available: number;
+            /**
+             * Offset
+             * @default 0
+             */
+            offset: number;
+        };
         /**
          * DesiredIntegration
          * @description Server-side expectation: the bootstrap plan of the project. Counts by
@@ -5379,7 +5445,7 @@ export interface components {
              * Dependencies
              * @default []
              */
-            dependencies: components["schemas"]["DependencyPin"][];
+            dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
         };
         /**
          * LibraryScope
@@ -5449,7 +5515,7 @@ export interface components {
              * Dependencies
              * @default []
              */
-            dependencies: components["schemas"]["DependencyPin"][];
+            dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
         };
         /**
          * LinkTask
@@ -6710,6 +6776,20 @@ export interface components {
             resource_type: components["schemas"]["ResourceType"];
             /** Ttl Seconds */
             ttl_seconds: number;
+        };
+        /** ResourceDependencyPin */
+        ResourceDependencyPin: {
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            /** Version */
+            version: number;
+            relation?: components["schemas"]["BindingRelation"] | null;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
         };
         /**
          * ResourceType
@@ -14193,6 +14273,41 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                resource_id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DependencyUpdates"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
