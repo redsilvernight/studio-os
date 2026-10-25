@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import subprocess
 import sys
@@ -212,6 +213,40 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     assert [row.payload["status"] for row in rows] == ["preparing", "running", "succeeded"]
     assert [row.payload["expected_version"] for row in rows] == [1, 2, 3]
     assert _body(rows[-1].payload["output_excerpt"]) == "ok"
+
+
+@pytest.mark.parametrize(
+    "payload, expected",
+    [
+        (
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "command": "pytest",
+                    "status": "completed",
+                    "exit_code": 1,
+                    "aggregated_output": "No module named pytest",
+                },
+            },
+            "environment_unavailable",
+        ),
+        ({"type": "result", "is_error": True, "result": "failed"}, "failed"),
+    ],
+)
+async def test_process_exit_zero_does_not_validate_failed_commands(
+    tmp_path: Path, payload: dict[str, object], expected: str
+) -> None:
+    repo = _repo(tmp_path)
+    script = f"print({json.dumps(payload)!r})"
+    executor, store = _executor(tmp_path, repo, FakeAdapter(("-c", script)), FakeClient())
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+    row = store.list_pending(OutboxTable.MUTATIONS)[-1]
+    assert row.payload["status"] == "failed"
+    assert f"validation={expected}" in row.payload["output_excerpt"]
+    assert "exit_code=0" in row.payload["output_excerpt"]
 
 
 async def test_requested_launch_model_does_not_invent_an_observed_identity(tmp_path: Path) -> None:
