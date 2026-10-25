@@ -160,3 +160,26 @@ liste de harnesses et sa limite de concurrence.
   un manifeste `studio.bootstrap/v1` validé ;
 - drift persistant : relire `bootstrap diff`, puis restaurer ou accepter
   explicitement le fichier concerné avant de synchroniser.
+
+## Découvrir les fonctions du produit
+
+Dans l'accueil connecté, « Découvrir Studi'OS » propose un résumé, un parcours
+de démarrage et les vérifications de configuration. Le détail d'une capacité
+donne un exemple, ses prérequis et les restrictions de rôle. Les données sont
+chargées à la demande. Le catalogue décrit les fonctions du produit, sans
+charger le contenu des définitions de bibliothèque.
+
+Dans un harnais connecté, demander « Que peux-tu faire avec Studi'OS ? »,
+« Comment démarrer mon projet ? » ou « Qu'est-ce qui manque dans ma configuration ? ».
+Le même catalogue est disponible par la CLI :
+
+```powershell
+studio-client capabilities
+studio-client capabilities --intent start_project
+studio-client capabilities --intent configuration
+studio-client capabilities --key vault
+```
+
+Un état disponible décrit l'accès à la fonction selon les droits et les rapports
+reçus ; ce n'est pas un test de connectivité. Un rapport absent ou périmé reste
+signalé. Les vérifications Git et des fichiers du poste se font dans le setup.

@@ -306,6 +306,39 @@ def _agents_list(args: argparse.Namespace, config: ClientConfig) -> None:
     _print_models(agents, as_json=args.json)
 
 
+def _discover_capabilities(args: argparse.Namespace, config: ClientConfig) -> None:
+    result = _run(
+        config,
+        lambda client: client.discover_capabilities(
+            intent=args.intent,
+            key=args.key,
+            limit=args.limit,
+        ),
+    )
+    if args.json:
+        _print_model(result, as_json=True)
+        return
+    labels = {
+        "available": "Disponible",
+        "needs_configuration": "À configurer",
+        "not_authorized": "Non autorisé",
+        "unsupported": "Non pris en charge",
+    }
+    print(result.summary)
+    for item in result.capabilities:
+        print(f"{item.key}: {item.title} — {labels[item.state]} — {item.summary}")
+        if item.reason:
+            print(item.reason)
+        if item.example:
+            print(f"Exemple : {item.example}")
+        for detail in item.prerequisites + item.restrictions:
+            print(detail)
+    for step in result.next_steps:
+        print(step)
+    if result.additional_available:
+        print(f"{result.additional_available} autres capacités ; --limit 24 ou détail avec --key.")
+
+
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
@@ -1525,6 +1558,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     projects_parser = subparsers.add_parser("projects", help="Projects.")
+    discovery_parser = subparsers.add_parser(
+        "capabilities", help="Découvrir Studi'OS et ses prérequis."
+    )
+    discovery_parser.add_argument(
+        "--intent", choices=("overview", "start_project", "configuration"), default="overview"
+    )
+    discovery_parser.add_argument("--key", help="Détail d'une capacité du résumé.")
+    discovery_parser.add_argument("--limit", type=int, default=6)
+    _add_json_flag(discovery_parser)
+    discovery_parser.set_defaults(func=_discover_capabilities)
     projects_sub = projects_parser.add_subparsers(dest="projects_command", required=True)
     projects_list = projects_sub.add_parser("list", help="List projects.")
     _add_json_flag(projects_list)

@@ -20,6 +20,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_register_runtime": "own",
     "studio_register_agent": "own",
     "studio_resolve_agent_identity": "own",
+    "studio_discover_capabilities": "own",
     "studio_pull_pending_launches": "own",
     # Project: every other tool reads or writes project data (lists filtered).
     "studio_get_projects": _P,

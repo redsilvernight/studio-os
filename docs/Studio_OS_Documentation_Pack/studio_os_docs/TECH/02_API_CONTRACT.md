@@ -522,7 +522,21 @@ Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
   plafonne titre+resume+extrait cumules (`truncated=true` si coupe) ;
   `snippet` <= 280.
 
+### Decouverte produit (additive)
+`GET /capabilities?intent=overview|start_project|configuration&key=&limit=`
+renvoie `ProductDiscovery` (`studio.capabilities/v1`), sans ecriture. Authentifie,
+lecture autorisee a tous les roles. Resume de 6 capacites, limite 1..24 ; `key`
+(80 caracteres max) charge une capacite avec exemple, prerequis et restrictions.
+Chaque capacite porte `available`, `needs_configuration`, `not_authorized` ou
+`unsupported`, la raison et `write_allowed`. Les droits sont informatifs : ils
+ne remplacent jamais les controles de service. Les projets/CI invisibles ne
+sont ni comptes ni nommes. Les etats utilisent la configuration declaree et les
+rapports machine recents, sans sonde reseau : Git reste verifie localement par
+le setup. Aucun contenu de bibliotheque ni capacite seulement prevue n'est lu
+ou annonce. `additional_available` permet la lecture progressive.
+
 ### Agents and AI work
+
 - `POST /agents/resolve-identity` (additif) : `AgentIdentityRequest` porte
   `harness`, `provider`, `effective_model`, `selection_alias` facultatif.
   Writer requis ; `readonly` refuse. Le fournisseur est trim/minuscule, le

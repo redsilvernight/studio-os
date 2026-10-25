@@ -33,6 +33,7 @@ from studio_mcp.tools.decisions import (
     studio_get_decisions,
     studio_supersede_decision,
 )
+from studio_mcp.tools.discovery import studio_discover_capabilities
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.initialization import (
@@ -489,6 +490,17 @@ def create_server() -> MCPServer:
             "may have already succeeded — replaying the same key+arguments returns "
             "the original agent instead of a duplicate; the same key with different "
             "arguments fails with idempotency_key_payload_mismatch."
+        ),
+    )
+    server.add_tool(
+        studio_discover_capabilities,
+        name="studio_discover_capabilities",
+        description=(
+            "Que peux-tu faire avec Studi'OS ? Comment démarrer mon projet ? "
+            "Qu'est-ce qui manque dans ma configuration ? Read-only product discovery "
+            "adapted to caller rights and machine reports. intent: overview, start_project "
+            "or configuration. Compact first (limit1..24, default6); pass key for examples, "
+            "prerequisites and restrictions. Product features, not library definitions."
         ),
     )
     server.add_tool(

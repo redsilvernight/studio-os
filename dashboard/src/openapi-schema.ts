@@ -880,6 +880,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capabilities */
+        get: operations["capabilities_api_v1_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library": {
         parameters: {
             query?: never;
@@ -6027,6 +6044,55 @@ export interface components {
          * @enum {string}
          */
         ProducerJobStatus: "requested" | "running" | "completed" | "failed";
+        /** ProductCapability */
+        ProductCapability: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "needs_configuration" | "not_authorized" | "unsupported";
+            /** Reason */
+            reason?: string | null;
+            /** Write Allowed */
+            write_allowed: boolean;
+            /** Example */
+            example?: string | null;
+            /** Prerequisites */
+            prerequisites?: string[];
+            /** Restrictions */
+            restrictions?: string[];
+        };
+        /** ProductDiscovery */
+        ProductDiscovery: {
+            /**
+             * Format
+             * @default studio.capabilities/v1
+             * @constant
+             */
+            format: "studio.capabilities/v1";
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "overview" | "start_project" | "configuration";
+            /** Summary */
+            summary: string;
+            /** Capabilities */
+            capabilities?: components["schemas"]["ProductCapability"][];
+            /**
+             * Additional Available
+             * @default 0
+             */
+            additional_available: number;
+            /** Next Steps */
+            next_steps?: string[];
+        };
         /**
          * Progress
          * @description `done / total` over non-skipped steps; `ratio` in [0, 1], `1.0` when
@@ -13685,6 +13751,39 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    capabilities_api_v1_capabilities_get: {
+        parameters: {
+            query?: {
+                intent?: "overview" | "start_project" | "configuration";
+                key?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDiscovery"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

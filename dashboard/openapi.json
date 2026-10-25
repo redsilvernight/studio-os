@@ -4537,6 +4537,88 @@
     }
    }
   },
+  "/api/v1/capabilities": {
+   "get": {
+    "tags": [
+     "discovery"
+    ],
+    "summary": "Capabilities",
+    "operationId": "capabilities_api_v1_capabilities_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "intent",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "enum": [
+        "overview",
+        "start_project",
+        "configuration"
+       ],
+       "type": "string",
+       "default": "overview",
+       "title": "Intent"
+      }
+     },
+     {
+      "name": "key",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 80
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Key"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 24,
+       "minimum": 1,
+       "default": 6,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProductDiscovery"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/library": {
    "get": {
     "tags": [
@@ -23798,6 +23880,136 @@
      "failed"
     ],
     "title": "ProducerJobStatus"
+   },
+   "ProductCapability": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "state": {
+      "type": "string",
+      "enum": [
+       "available",
+       "needs_configuration",
+       "not_authorized",
+       "unsupported"
+      ],
+      "title": "State"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "write_allowed": {
+      "type": "boolean",
+      "title": "Write Allowed"
+     },
+     "example": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Example"
+     },
+     "prerequisites": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 8,
+      "title": "Prerequisites"
+     },
+     "restrictions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 8,
+      "title": "Restrictions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "summary",
+     "state",
+     "write_allowed"
+    ],
+    "title": "ProductCapability"
+   },
+   "ProductDiscovery": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.capabilities/v1",
+      "title": "Format",
+      "default": "studio.capabilities/v1"
+     },
+     "intent": {
+      "type": "string",
+      "enum": [
+       "overview",
+       "start_project",
+       "configuration"
+      ],
+      "title": "Intent"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "capabilities": {
+      "items": {
+       "$ref": "#/components/schemas/ProductCapability"
+      },
+      "type": "array",
+      "maxItems": 24,
+      "title": "Capabilities"
+     },
+     "additional_available": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Additional Available",
+      "default": 0
+     },
+     "next_steps": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 6,
+      "title": "Next Steps"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "intent",
+     "summary"
+    ],
+    "title": "ProductDiscovery"
    },
    "Progress": {
     "properties": {

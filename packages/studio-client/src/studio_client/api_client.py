@@ -29,6 +29,7 @@ from studio_contracts.builds import (
 )
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
+from studio_contracts.discovery import DiscoveryIntent, ProductDiscovery
 from studio_contracts.events import EventCreate, EventEnvelope
 from studio_contracts.library import (
     LibraryActivate,
@@ -247,6 +248,20 @@ class StudioApiClient:
     async def list_agents(self) -> list[Agent]:
         response = await self._request("GET", "/api/v1/agents")
         return [Agent.model_validate(item) for item in response.json()]
+
+    async def discover_capabilities(
+        self, *, intent: DiscoveryIntent = "overview", key: str | None = None, limit: int = 6
+    ) -> ProductDiscovery:
+        response = await self._request(
+            "GET",
+            "/api/v1/capabilities",
+            params={
+                "intent": intent,
+                "limit": limit,
+                **({"key": key} if key is not None else {}),
+            },
+        )
+        return ProductDiscovery.model_validate(response.json())
 
     async def resolve_agent_identity(self, request: AgentIdentityRequest) -> AgentIdentityResult:
         response = await self._request(

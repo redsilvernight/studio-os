@@ -27,6 +27,7 @@ LAUNCH_REST_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("POST", "/api/v1/agents/ensure"),
         ("POST", "/api/v1/agents/resolve-identity"),
         ("GET", "/api/v1/agents"),
+        ("GET", "/api/v1/capabilities"),
         ("POST", "/api/v1/usage"),
         ("POST", "/api/v1/usage/corrections"),
     }
@@ -44,6 +45,7 @@ LAUNCH_MCP_ALLOWLIST: frozenset[str] = frozenset(
         "studio_handoff",
         "studio_register_agent",
         "studio_resolve_agent_identity",
+        "studio_discover_capabilities",
         "studio_get_task",
         "studio_update_task",
         "studio_claim_task",

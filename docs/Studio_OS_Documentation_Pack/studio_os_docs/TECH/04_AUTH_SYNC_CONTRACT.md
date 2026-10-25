@@ -86,10 +86,10 @@ publique `register`/`resend-verification`/`verify-email` — contrat complet :
   `TaskLaunch.expires_at`), lancement non terminal, machine et proprietaire actifs ;
   sinon le `401` generique. `Principal.project_scope` est reduit au seul projet du
   lancement. Ouvre uniquement une allowlist : REST `POST /agents/ensure`,
-  `POST /agents/resolve-identity` et
+  `POST /agents/resolve-identity`, `GET /capabilities` et
   `GET /agents` ; MCP `prepare_context`, `start_work`, `start_session`, `end_session`,
   `sync`, `coordinate`, `log_ai_work`, `handoff`, `register_agent`,
-  `resolve_agent_identity`, `get_task`,
+  `resolve_agent_identity`, `discover_capabilities`, `get_task`,
   `update_task`, `claim_task`, `release_task`, `claim_resource(s)`, `release_resource`,
   `get_resource_claims`, `get_decisions`, `add_decision`. Hors allowlist :
   `403 launch_credential_scope`. Limites connues : la portee tache/session n'est pas

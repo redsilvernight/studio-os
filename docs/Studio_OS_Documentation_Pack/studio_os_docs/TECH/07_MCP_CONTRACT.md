@@ -27,6 +27,7 @@ studio_sync
 studio_coordinate
 studio_register_agent
 studio_resolve_agent_identity
+studio_discover_capabilities
 studio_log_ai_work
 studio_get_ai_work
 studio_get_review_queue
@@ -377,6 +378,14 @@ Les identites canoniques sont utilisables par les machines autorisees du meme
 utilisateur. Les fiches historiques gardent leur ownership machine ; la machine
 effective reste dans les traces. Le profil session expose cet outil, distinct
 de `studio_resolve_agent` qui resout une definition de bibliotheque.
+
+`studio_discover_capabilities(intent?, key?, limit?)` est une lecture du
+catalogue fonctionnel du produit, pas de la bibliotheque. Meme service que
+`GET /capabilities`, accessible aux roles readonly inclus, sans modification.
+`intent` : overview, start_project ou configuration ; 6 items par defaut,
+1..24 maximum, detail par `key` (80 caracteres max). Reponse bornee, disponible
+dans le profil session ; les droits, preconditions et rapports absents/perimes
+sont explicites. Les noms de projets, depots et definitions prives sont omis.
 
 **`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
 `ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
