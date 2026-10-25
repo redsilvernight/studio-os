@@ -2351,7 +2351,7 @@ export interface paths {
         put?: never;
         /**
          * Create Proposal
-         * @description Propose a change to an `active` roadmap: records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified — a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.
+         * @description Revise a draft in place (current `revision_no` as `base_revision_no`; `submit=false` keeps a draft snapshot, otherwise submits it). A proposed roadmap requires an authorized `request_changes` transition first. For an `active` roadmap, records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified — a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.
          */
         post: operations["create_proposal_api_v1_roadmaps__roadmap_id__proposals_post"];
         delete?: never;
@@ -6179,14 +6179,20 @@ export interface components {
         };
         /**
          * ProposalCreate
-         * @description A structured change to an approved roadmap. `base_revision_no` is the
-         *     revision the author read; if it is no longer current when reviewed, the
-         *     approval fails `409 base_revision_stale`.
+         * @description Draft replacement or pending change to an active roadmap.
+         *
+         *     Drafts check the current revision before writing. Active proposals check
+         *     the approved base at review; `submit` only controls draft submission.
          */
         ProposalCreate: {
             /** Base Revision No */
             base_revision_no: number;
             document: components["schemas"]["RoadmapDocument"];
+            /**
+             * Submit
+             * @default true
+             */
+            submit: boolean;
             /** Summary */
             summary?: string | null;
             provenance?: components["schemas"]["WriteProvenance"];

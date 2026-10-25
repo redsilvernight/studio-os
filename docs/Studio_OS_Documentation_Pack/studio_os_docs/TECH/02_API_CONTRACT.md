@@ -984,6 +984,15 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   `DELETE .../steps/{key}/links/{task_id}` ; meme projet sinon
   `422 task_project_mismatch` ; aucun `task.roadmap_id`
 - Propositions (**implementees, P8** ; contrats P1 figes) : `POST .../proposals`
+  accepte aussi un `draft` : `base_revision_no` doit correspondre a sa
+  `revision_no` courante (sinon `409 version_conflict`, `server_revision_no`).
+  Le document est reconcilie par cle sur le meme ID, liens conserves ; retirer
+  une etape liee reste refuse (`409 step_has_links`). `submit` optionnel (defaut
+  `true`) soumet le brouillon ; `false` conserve un snapshot draft. La revision
+  augmente dans les deux cas. Sur `proposed`, `409 invalid_state` indique la
+  transition `request_changes` par un reviewer habilite ; commentaires et
+  anciennes revisions restent conserves. Extension additive, aucune permission
+  d'approbation accordee aux agents. Pour une roadmap active, comportement inchange :
   (`ProposalCreate`, `Idempotency-Key`, `201`, roadmap `active` requise) enregistre
   une revision `proposal` `pending` (`base_revision_no` = revision lue) **sans
   modifier la roadmap** ; une proposition `pending` precedente devient `superseded` ;

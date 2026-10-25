@@ -651,6 +651,13 @@ nouveau contrat neutre `studio.initialization/v1`.
 - `studio_propose_roadmap(project_id, document, submit?, idempotency_key?,
   agent_id?, roadmap_id?, base_revision_no?, summary?)` — ecriture : cree un
   `draft`, ou le soumet `proposed` si `submit`. Pour modifier une roadmap
+  `draft` existante, passer `roadmap_id` + sa `revision_no` courante dans
+  `base_revision_no` : reconciliation sur le meme ID et nouvelle revision
+  monotone, `submit=false` garde le brouillon. Une base perimee renvoie
+  `version_conflict` avec `server_revision_no`. Une roadmap `proposed` exige
+  d'abord `request_changes` par un reviewer habilite (erreur explicite), puis
+  revision du draft ; historique, commentaires et liens sont conserves.
+  Pour modifier une roadmap
   `active`, passer `roadmap_id` + `base_revision_no` (le `approved_revision_no`
   lu) : la modification devient une revision `pending` a valider par un humain,
   la roadmap n'est pas touchee. Ne cree jamais de Task, n'active jamais,

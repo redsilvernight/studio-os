@@ -13292,7 +13292,7 @@
      "roadmaps"
     ],
     "summary": "Create Proposal",
-    "description": "Propose a change to an `active` roadmap: records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified \u2014 a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.",
+    "description": "Revise a draft in place (current `revision_no` as `base_revision_no`; `submit=false` keeps a draft snapshot, otherwise submits it). A proposed roadmap requires an authorized `request_changes` transition first. For an `active` roadmap, records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified \u2014 a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.",
     "operationId": "create_proposal_api_v1_roadmaps__roadmap_id__proposals_post",
     "security": [
      {
@@ -24017,6 +24017,11 @@
      "document": {
       "$ref": "#/components/schemas/RoadmapDocument"
      },
+     "submit": {
+      "type": "boolean",
+      "title": "Submit",
+      "default": true
+     },
      "summary": {
       "anyOf": [
        {
@@ -24040,7 +24045,7 @@
      "document"
     ],
     "title": "ProposalCreate",
-    "description": "A structured change to an approved roadmap. `base_revision_no` is the\nrevision the author read; if it is no longer current when reviewed, the\napproval fails `409 base_revision_stale`."
+    "description": "Draft replacement or pending change to an active roadmap.\n\nDrafts check the current revision before writing. Active proposals check\nthe approved base at review; `submit` only controls draft submission."
    },
    "ProposalReview": {
     "properties": {
