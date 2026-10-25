@@ -51,6 +51,7 @@ from studio_client.drift import (
     load_managed_hashes,
 )
 from studio_client.errors import AuthenticationError, StudioApiError
+from studio_client.projection_backups import commit_projection_backup, prepare_projection_backup
 from studio_client.skill_sync import (
     _STABLE_KEY_RE,
     _WINDOWS_RESERVED_NAMES,
@@ -120,6 +121,7 @@ class DefinitionSyncPlan:
     manifest_path: Path
     manifest_text: str
     retired: tuple[DefinitionTargetPlan, ...] = ()
+    manifest_before: str | None = None
 
     @property
     def current(self) -> tuple[DefinitionTargetPlan, ...]:
@@ -294,6 +296,7 @@ def plan_definition_sync(
 ) -> DefinitionSyncPlan:
     root = Path(home).expanduser().resolve()
     manifest_path = root / ".studio-os" / _DEFINITIONS_MANIFEST_NAME
+    manifest_before = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else None
     managed_hashes = load_managed_hashes(manifest_path)
     entries: list[DefinitionPlanEntry] = []
     retired: list[DefinitionTargetPlan] = []
@@ -356,6 +359,7 @@ def plan_definition_sync(
         manifest_path=manifest_path,
         manifest_text=manifest_text,
         retired=tuple(retired),
+        manifest_before=manifest_before,
     )
 
 
@@ -405,6 +409,13 @@ def _plan_retired_definition(
 
 
 def _verify_definition_plan_is_fresh(plan: DefinitionSyncPlan) -> None:
+    if plan.manifest_path.exists() and not plan.manifest_path.is_file():
+        raise SkillSyncConflictError("definition manifest changed since planning")
+    manifest = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
+    )
+    if manifest != plan.manifest_before:
+        raise SkillSyncConflictError("definition manifest changed since planning")
     for target in [*(t for e in plan.entries for t in e.all_targets), *plan.retired]:
         if target.path.exists():
             if not target.path.is_file():
@@ -432,11 +443,10 @@ def _select_definitions(
     if selected - known:
         raise SkillSyncError("unknown definition selection")
     manifest = json.loads(plan.manifest_text)
-    previous = (
-        json.loads(plan.manifest_path.read_text(encoding="utf-8"))
-        if plan.manifest_path.is_file()
-        else {}
+    previous_text = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
     )
+    previous = json.loads(previous_text) if previous_text is not None else {}
     if not isinstance(previous, dict) or not isinstance(previous.get("items", []), list):
         raise SkillSyncError("invalid existing definition manifest")
 
@@ -458,6 +468,7 @@ def _select_definitions(
         ),
         retired=(),
         manifest_text=dump_manifest_v2(items),
+        manifest_before=previous_text,
     )
 
 
@@ -480,6 +491,17 @@ def apply_definition_sync(
             "refusing to overwrite locally modified definition files "
             f"without overwrite=True: {paths}"
         )
+    _verify_definition_plan_is_fresh(plan)
+
+    desired: dict[Path, str | None] = {
+        target.path: target.desired_text
+        for entry in plan.entries
+        for target in entry.all_targets
+        if target.state != "current"
+    }
+    desired.update({target.path: None for target in plan.retired})
+    desired[plan.manifest_path] = plan.manifest_text
+    journal = prepare_projection_backup(plan.home, desired)
     _verify_definition_plan_is_fresh(plan)
 
     backup_root: Path | None = None
@@ -519,6 +541,7 @@ def apply_definition_sync(
             pass
 
     _atomic_write(plan.manifest_path, plan.manifest_text)
+    commit_projection_backup(journal)
     return SkillSyncResult(
         written=tuple(written),
         backups=tuple(backups),

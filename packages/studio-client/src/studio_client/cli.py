@@ -1277,6 +1277,40 @@ def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> N
         raise SystemExit(1)
 
 
+def _library_restore(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.bootstrap import BootstrapError
+    from studio_client.projection_backups import list_projection_backups, restore_projection_backup
+
+    _ = config
+    try:
+        home = Path(args.home).expanduser().resolve()
+        if args.list:
+            journals = list_projection_backups(home)
+            print(
+                json.dumps(
+                    {
+                        "backups": [
+                            {
+                                "id": item.directory.name,
+                                "created_at": item.created_at,
+                                "status": item.status,
+                                "files": [entry.path for entry in item.entries],
+                            }
+                            for item in journals[:20]
+                        ],
+                        "additional_available": max(0, len(journals) - 20),
+                    },
+                    indent=2,
+                )
+            )
+            return
+        restored = restore_projection_backup(home, args.backup_id)
+        print(json.dumps({"restored": restored}, indent=2))
+    except (BootstrapError, OSError) as exc:
+        print(f"projection_restore_failed: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
 def _library_profile_preview(args: argparse.Namespace, config: ClientConfig | None) -> None:
     from studio_contracts.profiles import MachinePolicy
     from studio_contracts.work_profile_pack import WorkProfilePack, WorkProfilePackRequest
@@ -2091,8 +2125,21 @@ def _build_parser() -> argparse.ArgumentParser:
         _add_json_flag(hooks_command)
         hooks_command.set_defaults(func=_hooks_library_command)
 
-    library_parser = subparsers.add_parser("library", help="Library publication (P4).")
+    library_parser = subparsers.add_parser(
+        "library", help="Inspect and manage AI library projections."
+    )
     library_sub = library_parser.add_subparsers(dest="library_command", required=True)
+    library_restore = library_sub.add_parser(
+        "restore", help="Restore managed global projections; refuse later local edits."
+    )
+    library_restore.add_argument("--home", default=str(Path.home()), help="Harness home directory.")
+    library_restore.add_argument(
+        "--backup-id", help="Projection backup ID; default latest applied."
+    )
+    library_restore.add_argument(
+        "--list", action="store_true", help="List projection backups without restoring."
+    )
+    library_restore.set_defaults(func=_library_restore)
     library_profile = library_sub.add_parser(
         "profile-preview", help="Validate a work-profile pack and preview it without publishing."
     )
@@ -2262,6 +2309,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         or getattr(args, "bootstrap_command", None)
         in ("init", "check", "diff", "sync", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
+        or getattr(args, "library_command", None) == "restore"
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)
