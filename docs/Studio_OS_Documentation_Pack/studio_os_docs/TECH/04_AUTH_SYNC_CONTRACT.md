@@ -85,9 +85,11 @@ publique `register`/`resend-verification`/`verify-email` — contrat complet :
   `task_id`). Valide seulement tant que : non revoque, non expire (au plus
   `TaskLaunch.expires_at`), lancement non terminal, machine et proprietaire actifs ;
   sinon le `401` generique. `Principal.project_scope` est reduit au seul projet du
-  lancement. Ouvre uniquement une allowlist : REST `POST /agents/ensure` et
+  lancement. Ouvre uniquement une allowlist : REST `POST /agents/ensure`,
+  `POST /agents/resolve-identity` et
   `GET /agents` ; MCP `prepare_context`, `start_work`, `start_session`, `end_session`,
-  `sync`, `coordinate`, `log_ai_work`, `handoff`, `register_agent`, `get_task`,
+  `sync`, `coordinate`, `log_ai_work`, `handoff`, `register_agent`,
+  `resolve_agent_identity`, `get_task`,
   `update_task`, `claim_task`, `release_task`, `claim_resource(s)`, `release_resource`,
   `get_resource_claims`, `get_decisions`, `add_decision`. Hors allowlist :
   `403 launch_credential_scope`. Limites connues : la portee tache/session n'est pas
@@ -230,7 +232,12 @@ qui applique la meme regle :
 - `actor_type="user"` : `actor_id` doit egaler `machine.owner_user_id`, sinon
   `409 actor_id_mismatch`.
 - `actor_type="agent"` : `actor_id` doit referencer un `AgentModel` dont
-  `machine_id` est la machine authentifiee, sinon `409 actor_not_owned`.
+  `machine_id` est la machine authentifiee pour une fiche historique, ou dont
+  `owner_user_id` est le proprietaire de la machine authentifiee pour une
+  identite canonique utilisateur ; sinon `409 actor_not_owned`. Ce controle
+  central est commun aux events, start_work, handoff, sync, provenance roadmap,
+  AIWork et attribution des lancements. Les permissions restent celles du User
+  et du projet ; aucune metadonnee de modele ne donne un droit.
 - `actor_type="system"` : `actor_id` doit egaler la machine authentifiee
   elle-meme (`actor_id == machine.id`), sinon `409 actor_not_owned`. C'est le
   cas des events emis par les watchers git/godot (DEC-0032, `actor_id =

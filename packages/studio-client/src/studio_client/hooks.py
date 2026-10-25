@@ -199,20 +199,9 @@ __MODEL_BLOCK__
 """
 
 _MODEL_BLOCK_PS = """
-    # Bloc modele (DEC-0225, toutes sorties) : un agent par modele et par
-    # poste, partage par tous les harnais, jamais l'agent du harnais en plus.
-    # Cache local "agent-model:<origin>:<provider>/<model>" dans
-    # studio-agent.json, resolu via `agents ensure --model-identity`
-    # (POST /agents/ensure, idempotent), fail-open.
     if ($modelRef) {
-        $cacheKey = "agent-model:${originKey}:$($modelRef.Trim().ToLowerInvariant())"
+        $cacheKey = "agent-model-v2:${originKey}:__HARNESS__:$modelRef"
         $modelAgentId = $null
-        try {
-            if (Test-Path -LiteralPath $agentPath) {
-                $stored = Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json
-                $modelAgentId = $stored."$cacheKey"
-            }
-        } catch {}
         if (-not $modelAgentId) {
             try {
                 $haveClient = Get-Command studio-client -ErrorAction SilentlyContinue
@@ -234,7 +223,7 @@ _MODEL_BLOCK_PS = """
                     )
                     if ($prov) { $ensureArgs += @('--provider', $prov) }
                     $ensured = (& studio-client @ensureArgs 2>$null | ConvertFrom-Json)
-                    if ($ensured -and $ensured.id) {
+                    if ($ensured -and $ensured.id -and $ensured.model) {
                         $modelAgentId = [string]$ensured.id
                         $doc = @{}
                         try {
@@ -253,7 +242,7 @@ _MODEL_BLOCK_PS = """
         }
         if ($modelAgentId) {
             $agentId = $modelAgentId
-            $agentLabel = "ce modele sur ce poste ($modelRef)"
+            $agentLabel = "ce harnais et ce modele ($modelRef)"
         }
     }
 """

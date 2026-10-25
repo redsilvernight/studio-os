@@ -9,7 +9,7 @@ from mcp.types import ToolAnnotations
 from studio_mcp.deprecation import deprecated, deprecated_description
 from studio_mcp.strict_args import enforce_strict_arguments
 from studio_mcp.tool_profiles import ToolProfileMiddleware
-from studio_mcp.tools.agents import studio_register_agent
+from studio_mcp.tools.agents import studio_register_agent, studio_resolve_agent_identity
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
     studio_discover_definitions,
@@ -371,7 +371,8 @@ def create_server() -> MCPServer:
             "task_id: claims the task (idempotent) + resumes or creates the agent's open "
             "session on it + returns the scoped project context. Without task_id: the project "
             "context plus candidate tasks (current-step linked first, then other unclaimed), "
-            "claiming nothing. agent_id must belong to the caller's machine (actor_not_owned "
+            "claiming nothing. agent_id must belong to the caller's user or legacy machine "
+            "(actor_not_owned "
             "otherwise). Requires a writer role. Pass idempotency_key when retrying a call "
             "that may have already succeeded — replaying the same key+arguments returns the "
             "original result, never a duplicate claim nor a duplicate session; the same key "
@@ -385,7 +386,8 @@ def create_server() -> MCPServer:
             "Close a work session in one call (L3 handoff). project_id, session_id (UUID "
             "strings) and expected_version are required. task_status (e.g. completed, blocked) "
             "optionally updates the task. agent_id + summary optionally logs an AI work entry "
-            "linked to the session. agent_id must belong to the caller's machine. Caller-generated "
+            "linked to the session. agent_id must belong to the caller's user or legacy machine. "
+            "Caller-generated "
             "idempotency_key makes the call replay-safe: the same key returns the original result "
             "instead of running the composite again — a duplicate call returns the original result "
             "without a second status update, duplicate claim releases, duplicate AI work entry, or "
@@ -488,6 +490,18 @@ def create_server() -> MCPServer:
             "the original agent instead of a duplicate; the same key with different "
             "arguments fails with idempotency_key_payload_mismatch."
         ),
+    )
+    server.add_tool(
+        studio_resolve_agent_identity,
+        name="studio_resolve_agent_identity",
+        description=(
+            "Resolve or create the authenticated user's durable provenance identity for "
+            "a logical harness, provider and observed effective_model. Desktop/CLI aliases "
+            "share logical harness identity; machine attribution stays on executions. "
+            "selection_alias never supplies the effective model. Missing model/provider "
+            "returns state=unknown and creates nothing. Requires writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_log_ai_work,
@@ -678,7 +692,7 @@ def create_server() -> MCPServer:
             "fail with invalid_event_type. Identity is validated against the caller's "
             "authenticated machine: omit machine_id (derived automatically), use actor_type user "
             "with the machine "
-            "owner's user id, agent with an agent attached to the caller's own machine, or system "
+            "owner's user id, agent owned by the caller's user or legacy machine, or system "
             "with the machine's own id — anything else fails with machine_id_mismatch, "
             "actor_id_mismatch or actor_not_owned. No agent identity is needed: user and system "
             "actors are fully supported. Pass a stable event_id (UUID string) when this call might "

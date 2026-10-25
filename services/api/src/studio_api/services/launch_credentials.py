@@ -25,6 +25,7 @@ from studio_api.services.authz import (
 LAUNCH_REST_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
     {
         ("POST", "/api/v1/agents/ensure"),
+        ("POST", "/api/v1/agents/resolve-identity"),
         ("GET", "/api/v1/agents"),
         ("POST", "/api/v1/usage"),
         ("POST", "/api/v1/usage/corrections"),
@@ -42,6 +43,7 @@ LAUNCH_MCP_ALLOWLIST: frozenset[str] = frozenset(
         "studio_log_ai_work",
         "studio_handoff",
         "studio_register_agent",
+        "studio_resolve_agent_identity",
         "studio_get_task",
         "studio_update_task",
         "studio_claim_task",

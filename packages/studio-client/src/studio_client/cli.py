@@ -21,7 +21,7 @@ from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
-from studio_client.agent_identity import model_agent_create
+from studio_client.agent_identity import observed_identity_request
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.context import (
@@ -313,14 +313,29 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     `studio_log_ai_work`. The default stable key is stable per harness so
     a retried hook never registers a duplicate; changing the metadata with
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
-    model_agent = model_agent_create(args.model, args.provider) if args.model_identity else None
-    agent_in = model_agent or AgentCreate(
+    if args.model_identity:
+        identity = _run(
+            config,
+            lambda client: client.resolve_agent_identity(
+                observed_identity_request(args.harness, args.model, args.provider)
+            ),
+        )
+        if identity.agent is not None:
+            if args.json:
+                _print_model(identity.agent, as_json=True)
+            else:
+                print(f"Resolved model agent {identity.agent.id} ({identity.logical_harness}).")
+            return
+        print(
+            f"Model identity unknown: {identity.reason}; using harness identity.", file=sys.stderr
+        )
+    agent_in = AgentCreate(
         display_name=args.display_name or f"studio-{args.harness}",
         agent_kind=args.agent_kind,
         agent_profile=args.agent_profile,
         harness=args.harness,
-        provider=args.provider,
-        model=args.model,
+        provider=None if args.model_identity else args.provider,
+        model=None if args.model_identity else args.model,
         stable_key=args.stable_key or f"agents-ensure-{args.harness}",
     )
 

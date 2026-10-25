@@ -39,6 +39,7 @@ SESSION_TOOL_PROFILE: frozenset[str] = frozenset(
         "studio_get_project_state",
         "studio_prepare_context",
         "studio_start_work",
+        "studio_resolve_agent_identity",
         "studio_sync",
         "studio_coordinate",
         "studio_log_ai_work",

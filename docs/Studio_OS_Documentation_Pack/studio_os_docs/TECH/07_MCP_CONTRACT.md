@@ -26,6 +26,7 @@ studio_start_work
 studio_sync
 studio_coordinate
 studio_register_agent
+studio_resolve_agent_identity
 studio_log_ai_work
 studio_get_ai_work
 studio_get_review_queue
@@ -366,6 +367,16 @@ et rejouent sous des namespaces distincts (`POST /agents` vs
 sur les deux chemins. L'enregistrement ne confere aucun droit (CC-1) ;
 `display_name` requis, `agent_kind`/`agent_profile`/`harness`/`provider`/
 `model` optionnels (chaines ouvertes d'observabilite, TECH/02).
+
+`studio_resolve_agent_identity(harness, provider?, effective_model?, selection_alias?)`
+reutilise `agents.resolve_identity`, comme `POST /agents/resolve-identity`.
+Writer requis, compte derive du credential, creation/resolution idempotente
+sous contrainte unique ; harnais logique commun aux variantes Desktop/CLI.
+Un alias seul renvoie `state=unknown`, `agent=null`, sans creer de fiche.
+Les identites canoniques sont utilisables par les machines autorisees du meme
+utilisateur. Les fiches historiques gardent leur ownership machine ; la machine
+effective reste dans les traces. Le profil session expose cet outil, distinct
+de `studio_resolve_agent` qui resout une definition de bibliotheque.
 
 **`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
 `ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`

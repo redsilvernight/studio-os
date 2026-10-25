@@ -6655,7 +6655,7 @@
      "agents"
     ],
     "summary": "List Agents",
-    "description": "List agent provenance identities: those whose machine belongs to the caller's User, every agent for `admin` (contract version 2).",
+    "description": "List agent provenance identities owned by the caller's user, or legacy rows whose machine belongs to the caller's User, every agent for `admin` (contract version 2).",
     "operationId": "list_agents_api_v1_agents_get",
     "security": [
      {
@@ -6789,6 +6789,87 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/agents/resolve-identity": {
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Resolve Identity",
+    "description": "Resolve the authenticated user's durable logical harness/provider/observed-model identity across authorized machines. An alias alone returns unknown without creation.",
+    "operationId": "resolve_identity_api_v1_agents_resolve_identity_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentIdentityRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentIdentityResult"
+        }
+       }
+      }
+     },
+     "201": {
+      "description": "Identity created",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentIdentityResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
    }
   },
   "/api/v1/agents/ensure": {
@@ -17587,6 +17668,18 @@
        }
       ],
       "title": "Stable Key"
+     },
+     "owner_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner User Id"
      }
     },
     "additionalProperties": false,
@@ -17600,7 +17693,7 @@
      "agent_kind"
     ],
     "title": "Agent",
-    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity)."
+    "description": "Provenance identity owned by a user, or by one machine for legacy rows.\n`machine_id` records registration; execution machines stay on sessions.\n`owner_user_id` marks canonical user identities. Permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity)."
    },
    "AgentCreate": {
     "properties": {
@@ -17695,6 +17788,122 @@
     ],
     "title": "AgentEnsureResult",
     "description": "Result of `POST /agents/ensure` (AIB-I, additive): the caller's own\nmachine's agent for `stable_key`, plus whether this call created it."
+   },
+   "AgentIdentityRequest": {
+    "properties": {
+     "harness": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "effective_model": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective Model"
+     },
+     "selection_alias": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Selection Alias"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "harness"
+    ],
+    "title": "AgentIdentityRequest"
+   },
+   "AgentIdentityResult": {
+    "properties": {
+     "state": {
+      "type": "string",
+      "enum": [
+       "resolved",
+       "unknown"
+      ],
+      "title": "State"
+     },
+     "logical_harness": {
+      "type": "string",
+      "title": "Logical Harness"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "unknown_model",
+         "unknown_provider"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "selection_alias": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Selection Alias"
+     },
+     "agent": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Agent"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "created": {
+      "type": "boolean",
+      "title": "Created",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "state",
+     "logical_harness"
+    ],
+    "title": "AgentIdentityResult"
    },
    "AgentResolutionRequest": {
     "properties": {

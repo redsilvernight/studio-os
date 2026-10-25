@@ -19,6 +19,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     # Own: user-private runtime registry and the caller's own machine agents.
     "studio_register_runtime": "own",
     "studio_register_agent": "own",
+    "studio_resolve_agent_identity": "own",
     "studio_pull_pending_launches": "own",
     # Project: every other tool reads or writes project data (lists filtered).
     "studio_get_projects": _P,

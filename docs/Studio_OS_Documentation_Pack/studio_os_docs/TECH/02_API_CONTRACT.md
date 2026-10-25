@@ -523,8 +523,26 @@ Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
   `snippet` <= 280.
 
 ### Agents and AI work
+- `POST /agents/resolve-identity` (additif) : `AgentIdentityRequest` porte
+  `harness`, `provider`, `effective_model`, `selection_alias` facultatif.
+  Writer requis ; `readonly` refuse. Le fournisseur est trim/minuscule, le
+  modele effectif est trim sans fusion de variantes ni changement de casse.
+  `codex[-cli|-desktop]`, `claude[-code|-cli|-desktop]` et
+  `opencode[-cli|-desktop]` partagent chacun un harnais logique ; les autres
+  identifiants restent distincts apres trim/minuscule et `_` -> `-`.
+  Alias seul, modele absent/default/auto/unknown ou fournisseur inconnu :
+  `200`, `state=unknown`, `reason`, `agent=null`, aucune creation. Sinon
+  `201` a la creation, `200` a la reutilisation, `AgentIdentityResult` ;
+  `selection_alias` est une trace de selection et ne participe pas a la cle.
+  Unicite utilisateur/harnais/fournisseur/modele garantie en base sous
+  concurrence. La fiche retrouve le meme ID sur les postes autorises du meme
+  compte, les sessions gardent la machine effective. Le changement de modele
+  doit resoudre son identite observee ; un modele demande au lancement n'est
+  pas une observation. Les anciennes fiches restent intactes et visibles
+  comme anciennes identites, sans fusion automatique de provenance.
 - GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
-  dont la machine (`Agent.machine_id`) appartient au User appelant
+  canoniques dont `owner_user_id` est le User appelant, ou les anciennes fiches
+  sans owner_user_id dont la machine (`Agent.machine_id`) appartient au User appelant
   (`Machine.owner_user_id = principal.user`) ; `admin` voit tout. Un agent
   sans machine n'est visible que de `admin`. Une co-membership ne donne
   jamais acces aux agents d'un co-membre.

@@ -20,6 +20,7 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    owns_agent,
     project_visibility_clause,
 )
 
@@ -93,7 +94,7 @@ async def event_actor(
     to the calling machine, otherwise the machine's user."""
     if agent_id is not None:
         agent = await session.get(AgentModel, agent_id)
-        if agent is not None and agent.machine_id == principal.machine.id:
+        if owns_agent(agent, principal.machine):
             return "agent", agent.id
     return "user", principal.user.id
 

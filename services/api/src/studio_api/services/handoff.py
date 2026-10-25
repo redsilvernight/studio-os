@@ -36,6 +36,7 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    owns_agent,
 )
 
 # Stable namespace: the `coordination.handoff` event id derives from the
@@ -52,7 +53,7 @@ async def authorize_handoff(
     ensure_can_write(principal, "handoff")
     if request.agent_id is not None:
         agent = await session.get(AgentModel, request.agent_id)
-        if agent is None or agent.machine_id != principal.machine.id:
+        if not owns_agent(agent, principal.machine):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail={

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
+from studio_contracts.agent_identity import AgentIdentityRequest, AgentIdentityResult
 from studio_contracts.auth import Agent, AgentCreate, AgentEnsureResult, Role
 
 from studio_api.db.models.agent import AgentModel
@@ -24,7 +25,8 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
     "",
     response_model=list[Agent],
     description=(
-        "List agent provenance identities: those whose machine belongs to the "
+        "List agent provenance identities owned by the caller's user, or legacy rows whose "
+        "machine belongs to the "
         "caller's User, every agent for `admin` (contract version 2)."
     ),
     responses={**RESP_401_UNAUTHORIZED},
@@ -32,11 +34,40 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 async def list_agents(session: DbSession, principal: CurrentPrincipal) -> list[Agent]:
     stmt = select(AgentModel)
     if principal.role != Role.ADMIN:
-        stmt = stmt.join(MachineModel, AgentModel.machine_id == MachineModel.id).where(
-            MachineModel.owner_user_id == principal.user.id
+        stmt = stmt.outerjoin(MachineModel, AgentModel.machine_id == MachineModel.id).where(
+            or_(
+                AgentModel.owner_user_id == principal.user.id,
+                and_(
+                    AgentModel.owner_user_id.is_(None),
+                    MachineModel.owner_user_id == principal.user.id,
+                ),
+            )
         )
     result = await session.execute(stmt)
     return [Agent.model_validate(a) for a in result.scalars().all()]
+
+
+@router.post(
+    "/resolve-identity",
+    response_model=AgentIdentityResult,
+    description="Resolve the authenticated user's durable logical harness/provider/observed-model "
+    "identity across authorized machines. An alias alone returns unknown without creation.",
+    responses={
+        201: {"model": AgentIdentityResult, "description": "Identity created"},
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+    },
+)
+async def resolve_identity(
+    payload: AgentIdentityRequest,
+    response: Response,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> AgentIdentityResult:
+    result = await agents_service.resolve_identity(session, principal, payload)
+    if result.created:
+        response.status_code = status.HTTP_201_CREATED
+    return result
 
 
 @router.post(

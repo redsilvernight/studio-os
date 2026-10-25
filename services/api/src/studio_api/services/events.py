@@ -23,6 +23,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     has_project_access,
     load_project_scope,
+    owns_agent,
     project_visibility_clause,
 )
 
@@ -85,7 +86,7 @@ async def resolve_event_identity(
             )
     elif event_in.actor_type == "agent":
         agent = await session.get(AgentModel, event_in.actor_id)
-        if agent is None or agent.machine_id != machine.id:
+        if not owns_agent(agent, machine):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail={

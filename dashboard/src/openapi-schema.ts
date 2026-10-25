@@ -1197,7 +1197,7 @@ export interface paths {
         };
         /**
          * List Agents
-         * @description List agent provenance identities: those whose machine belongs to the caller's User, every agent for `admin` (contract version 2).
+         * @description List agent provenance identities owned by the caller's user, or legacy rows whose machine belongs to the caller's User, every agent for `admin` (contract version 2).
          */
         get: operations["list_agents_api_v1_agents_get"];
         put?: never;
@@ -1206,6 +1206,26 @@ export interface paths {
          * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required; `agent_kind`, `agent_profile`, `harness`, `provider` and `model` are optional free-form metadata (open strings, default null, every value accepted). Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["register_agent_api_v1_agents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/resolve-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Identity
+         * @description Resolve the authenticated user's durable logical harness/provider/observed-model identity across authorized machines. An alias alone returns unknown without creation.
+         */
+        post: operations["resolve_identity_api_v1_agents_resolve_identity_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3164,8 +3184,9 @@ export interface components {
         AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
         /**
          * Agent
-         * @description Provenance identity attached to one machine: who did the work, for
-         *     audit and attribution. Never an authorization input — permissions come
+         * @description Provenance identity owned by a user, or by one machine for legacy rows.
+         *     `machine_id` records registration; execution machines stay on sessions.
+         *     `owner_user_id` marks canonical user identities. Permissions come
          *     from the machine owner's role alone. `agent_profile`, `harness`,
          *     `provider` and `model` are optional additive observability metadata:
          *     open strings, never whitelisted, never a capability or compatibility
@@ -3209,6 +3230,8 @@ export interface components {
             model?: string | null;
             /** Stable Key */
             stable_key?: string | null;
+            /** Owner User Id */
+            owner_user_id?: string | null;
         };
         /**
          * AgentCreate
@@ -3251,6 +3274,37 @@ export interface components {
         AgentEnsureResult: {
             agent: components["schemas"]["Agent"];
             /** Created */
+            created: boolean;
+        };
+        /** AgentIdentityRequest */
+        AgentIdentityRequest: {
+            /** Harness */
+            harness: string;
+            /** Provider */
+            provider?: string | null;
+            /** Effective Model */
+            effective_model?: string | null;
+            /** Selection Alias */
+            selection_alias?: string | null;
+        };
+        /** AgentIdentityResult */
+        AgentIdentityResult: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "resolved" | "unknown";
+            /** Logical Harness */
+            logical_harness: string;
+            /** Reason */
+            reason?: ("unknown_model" | "unknown_provider") | null;
+            /** Selection Alias */
+            selection_alias?: string | null;
+            agent?: components["schemas"]["Agent"] | null;
+            /**
+             * Created
+             * @default false
+             */
             created: boolean;
         };
         /**
@@ -15466,6 +15520,80 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_identity_api_v1_agents_resolve_identity_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentIdentityRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentIdentityResult"];
+                };
+            };
+            /** @description Identity created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentIdentityResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
                      *       }
                      *     }
                      */

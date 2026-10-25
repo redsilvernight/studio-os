@@ -7,6 +7,7 @@ from typing import Any, cast
 from uuid import UUID
 
 import httpx
+from studio_contracts.agent_identity import AgentIdentityRequest, AgentIdentityResult
 from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import (
     Agent,
@@ -246,6 +247,15 @@ class StudioApiClient:
     async def list_agents(self) -> list[Agent]:
         response = await self._request("GET", "/api/v1/agents")
         return [Agent.model_validate(item) for item in response.json()]
+
+    async def resolve_agent_identity(self, request: AgentIdentityRequest) -> AgentIdentityResult:
+        response = await self._request(
+            "POST",
+            "/api/v1/agents/resolve-identity",
+            json=request.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return AgentIdentityResult.model_validate(response.json())
 
     async def register_agent(self, agent_in: AgentCreate, *, idempotency_key: str) -> Agent:
         response = await self._request(

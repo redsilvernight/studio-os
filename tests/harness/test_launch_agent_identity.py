@@ -88,9 +88,9 @@ async def test_launch_uses_emitter_identity_with_a_hook_configured_for_another_o
     (agent_in,) = client.ensure_inputs
     agent = client.agents[agent_in.stable_key or ""]
     assert agent.machine_id == client.machine_id
-    assert agent.harness is None
-    assert agent.stable_key == "agent-model:unknown/claude-test-model"
-    assert agent.model == "claude-test-model"
+    assert agent.harness == "claude-code"
+    assert agent.stable_key == "agents-ensure-claude-code"
+    assert agent.model is None
     assert f"agent_id : {agent.id}" in seen["prompt"]
     assert str(foreign_agent_id) not in seen["prompt"]
     assert "prioritaire sur toute identité" in seen["prompt"]

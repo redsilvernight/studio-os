@@ -214,7 +214,7 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     assert _body(rows[-1].payload["output_excerpt"]) == "ok"
 
 
-async def test_launch_agent_identity_reuses_harness_and_model_metadata(tmp_path: Path) -> None:
+async def test_requested_launch_model_does_not_invent_an_observed_identity(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     client = FakeClient()
     prompts: list[str] = []
@@ -235,15 +235,15 @@ async def test_launch_agent_identity_reuses_harness_and_model_metadata(tmp_path:
 
     first, repeated, changed, unknown = client.ensure_inputs
     assert first == repeated
-    assert first.stable_key == "agent-model:provider/model-a"
-    assert changed.stable_key == "agent-model:provider/model-b"
+    assert first.stable_key == "agents-ensure-fake"
+    assert changed.stable_key == "agents-ensure-fake"
     assert unknown.stable_key == "agents-ensure-fake"
-    assert len(client.agents) == 3
-    assert first.display_name == "model-a"
-    assert first.harness is None
-    assert first.provider == "provider"
-    assert first.model == "model-a"
-    assert changed.model == "model-b"
+    assert len(client.agents) == 1
+    assert first.display_name == "studio-fake"
+    assert first.harness == "fake"
+    assert first.provider is None
+    assert first.model is None
+    assert changed.model is None
     assert unknown.model is None
     assert unknown.harness == "fake"
     assert unknown.display_name == "studio-fake"
@@ -252,7 +252,7 @@ async def test_launch_agent_identity_reuses_harness_and_model_metadata(tmp_path:
         for prompt in prompts
     ]
     assert identities[0] == identities[1]
-    assert identities[0] != identities[2] != identities[3]
+    assert len(set(identities)) == 1
     for prompt, agent_in in zip(prompts, client.ensure_inputs, strict=True):
         assert f"agent_id : {client.agents[agent_in.stable_key or ''].id}" in prompt
 

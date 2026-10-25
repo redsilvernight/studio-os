@@ -4,13 +4,45 @@ import json
 from typing import Any
 
 from mcp.server.mcpserver import Context
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.services import agents as agents_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import Principal, ensure_can_write
+from studio_contracts.agent_identity import AgentIdentityRequest
 from studio_contracts.auth import Agent, AgentCreate
 
 from studio_mcp.errors import run_tool
+
+
+async def studio_resolve_agent_identity(
+    harness: str,
+    ctx: Context,
+    provider: str | None = None,
+    effective_model: str | None = None,
+    selection_alias: str | None = None,
+) -> dict[str, Any]:
+    """Resolve the caller user's durable harness/model identity; aliases alone stay unknown."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        ensure_can_write(principal, "agent")
+        try:
+            request = AgentIdentityRequest(
+                harness=harness,
+                provider=provider,
+                effective_model=effective_model,
+                selection_alias=selection_alias,
+            )
+        except ValidationError:
+            return {"error_code": "invalid_argument", "message": "invalid agent identity input"}
+        result = await agents_service.resolve_identity(
+            session,
+            principal,
+            request,
+        )
+        return result.model_dump(mode="json")
+
+    return await run_tool(ctx, _handler)
 
 
 async def studio_register_agent(

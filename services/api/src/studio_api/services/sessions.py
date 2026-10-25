@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import claims as claims_service
@@ -22,6 +23,7 @@ from studio_api.services.authz import (
     ensure_machine_owned,
     ensure_project_access,
     get_launch_scope,
+    owns_agent,
     project_visibility_clause,
 )
 from studio_api.settings import Settings
@@ -176,12 +178,19 @@ async def _find_open_session(
 
 
 async def authorize_start(
-    session: AsyncSession, principal: Principal, task_id: uuid.UUID | None
+    session: AsyncSession,
+    principal: Principal,
+    task_id: uuid.UUID | None,
+    agent_id: uuid.UUID | None = None,
 ) -> None:
     """Project (via the task) then role check of a session start, run ahead
     of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     await _ensure_task_project_access(session, principal, task_id, "write")
     ensure_can_write(principal, "session")
+    if agent_id is not None and not owns_agent(
+        await session.get(AgentModel, agent_id), principal.machine
+    ):
+        raise HTTPException(409, detail={"error_code": "actor_not_owned"})
 
 
 async def resume_or_start_session(
@@ -198,7 +207,7 @@ async def resume_or_start_session(
     case with no open session. An `ended` session is never reused. The
     caller is authorized exactly like a start; closing emits `session.ended`
     then the new one `session.started`. Returns `(session, resumed)`."""
-    await authorize_start(session, principal, session_in.task_id)
+    await authorize_start(session, principal, session_in.task_id, session_in.agent_id)
     # Same ownership rule as `end_session`: a session is a machine's own
     # presence, so it never resumes (nor closes) another machine's session.
     ensure_machine_owned(principal, session_in.machine_id, "session", "resume")
@@ -248,7 +257,8 @@ async def resume_or_start_session(
 async def start_session(
     session: AsyncSession, principal: Principal, session_in: WorkSessionCreate
 ) -> WorkSessionModel:
-    await authorize_start(session, principal, session_in.task_id)
+    await authorize_start(session, principal, session_in.task_id, session_in.agent_id)
+    ensure_machine_owned(principal, session_in.machine_id, "session", "start")
     now = datetime.now(UTC)
     handoff_cursor = None
     if session_in.task_id is not None:

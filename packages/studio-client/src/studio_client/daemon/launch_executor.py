@@ -29,7 +29,6 @@ from studio_contracts.task_launch import (
     TaskLaunchStatus,
 )
 
-from studio_client.agent_identity import model_agent_create
 from studio_client.api_client import StudioApiClient
 from studio_client.daemon.launch_policy import LaunchProfile, enforce_profile, run_diagnostics
 from studio_client.daemon.launch_prepare import (
@@ -326,7 +325,7 @@ class LaunchExecutor:
             self._tasks.pop(launch.id, None)
 
     async def _ensure_launch_agent(self, harness_id: str, model: str | None) -> UUID:
-        agent_in = model_agent_create(model) or AgentCreate(
+        agent_in = AgentCreate(
             display_name=f"studio-{harness_id}",
             harness=harness_id,
             stable_key=f"agents-ensure-{harness_id}",

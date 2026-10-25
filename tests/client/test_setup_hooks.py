@@ -237,7 +237,7 @@ def test_opencode_render_carries_the_model_protocol() -> None:
     """AIB L1 : le template de hook OpenCode porte le bloc modele, resolu via
     POST /agents/ensure avec l'identite par modele et par poste (DEC-0225)."""
     rendered = render_hook(_SPECS["opencode"])
-    assert "ce modele sur ce poste" in rendered
+    assert "ce harnais et ce modele" in rendered
     assert "'--model-identity'" in rendered
     assert "'--harness', 'opencode'" in rendered
     assert "$modelRef = $payload.model" in rendered
@@ -251,7 +251,7 @@ def test_all_harnesses_carry_the_model_protocol() -> None:
         rendered = render_hook(spec)
         assert "'--model-identity'" in rendered
         assert f"agents-ensure-{spec.harness}:" not in rendered
-        assert '"agent-model:${originKey}:' in rendered
+        assert '"agent-model-v2:${originKey}:' in rendered
         assert f"'--harness', '{spec.harness}'" in rendered
         assert "$modelRef = $payload.model" in rendered
 
@@ -425,11 +425,14 @@ def test_hook_emits_model_agent_line_from_ensured_agent(
     bindir.mkdir()
     if os.name == "nt":
         (bindir / "studio-client.cmd").write_text(
-            f'@echo {{"id": "{agent_id}"}}\r\n', encoding="utf-8"
+            f'@echo {{"id": "{agent_id}", "model": "observed-model"}}\r\n', encoding="utf-8"
         )
     else:
         stub = bindir / "studio-client"
-        stub.write_text(f'#!/bin/sh\necho \'{{"id": "{agent_id}"}}\'\n', encoding="utf-8")
+        stub.write_text(
+            f'#!/bin/sh\necho \'{{"id": "{agent_id}", "model": "observed-model"}}\'\n',
+            encoding="utf-8",
+        )
         stub.chmod(0o755)
 
     env = os.environ.copy()
@@ -457,12 +460,15 @@ def test_hook_emits_model_agent_line_from_ensured_agent(
         env=env,
     )
     assert result.returncode == 0, result.stderr
-    assert "ce modele sur ce poste" in result.stdout
+    assert "ce harnais et ce modele" in result.stdout
     assert "opencode-go/deepseek-v4.1-flash" in result.stdout
     assert agent_id in result.stdout
 
     store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
-    assert store["agent-model:http://example.invalid:opencode-go/deepseek-v4.1-flash"] == agent_id
+    assert (
+        store["agent-model-v2:http://example.invalid:opencode:opencode-go/deepseek-v4.1-flash"]
+        == agent_id
+    )
     # Pas de doublon : l'agent du harnais n'est pas cree quand le modele est connu.
     assert "opencode:http://example.invalid" not in store
 
@@ -508,11 +514,14 @@ def test_claude_json_hook_emits_model_agent_in_context(
     bindir.mkdir()
     if os.name == "nt":
         (bindir / "studio-client.cmd").write_text(
-            f'@echo {{"id": "{agent_id}"}}\r\n', encoding="utf-8"
+            f'@echo {{"id": "{agent_id}", "model": "observed-model"}}\r\n', encoding="utf-8"
         )
     else:
         stub = bindir / "studio-client"
-        stub.write_text(f'#!/bin/sh\necho \'{{"id": "{agent_id}"}}\'\n', encoding="utf-8")
+        stub.write_text(
+            f'#!/bin/sh\necho \'{{"id": "{agent_id}", "model": "observed-model"}}\'\n',
+            encoding="utf-8",
+        )
         stub.chmod(0o755)
 
     env = os.environ.copy()
@@ -541,12 +550,15 @@ def test_claude_json_hook_emits_model_agent_in_context(
     assert result.returncode == 0, result.stderr
     envelope = json.loads(result.stdout)
     context = envelope["hookSpecificOutput"]["additionalContext"]
-    assert "ce modele sur ce poste" in context
+    assert "ce harnais et ce modele" in context
     assert "anthropic/claude-opus-5-5" in context
     assert agent_id in context
 
     store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
-    assert store["agent-model:http://example.invalid:anthropic/claude-opus-5-5"] == agent_id
+    assert (
+        store["agent-model-v2:http://example.invalid:claude-code:anthropic/claude-opus-5-5"]
+        == agent_id
+    )
     assert "claude-code:http://example.invalid" not in store
 
 

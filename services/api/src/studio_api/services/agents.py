@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import AgentCreate
+from studio_contracts.agent_identity import (
+    AgentIdentityRequest,
+    AgentIdentityResult,
+    logical_harness,
+)
+from studio_contracts.auth import Agent, AgentCreate
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.services.authz import Principal, ensure_can_write
@@ -19,6 +27,67 @@ _METADATA_FIELDS = (
     "provider",
     "model",
 )
+
+
+async def resolve_identity(
+    session: AsyncSession, principal: Principal, request: AgentIdentityRequest
+) -> AgentIdentityResult:
+    ensure_can_write(principal, "agent")
+    harness = logical_harness(request.harness)
+    provider = (request.provider or "").strip().lower()
+    model = (request.effective_model or "").strip()
+    unknown_model = model.lower() in {"", "unknown", "default", "auto"}
+    unknown_provider = provider in {"", "unknown", "default", "auto"}
+    if not harness:
+        raise HTTPException(422, detail={"error_code": "invalid_argument", "field": "harness"})
+    if unknown_model or unknown_provider:
+        return AgentIdentityResult(
+            state="unknown",
+            logical_harness=harness,
+            reason="unknown_model" if unknown_model else "unknown_provider",
+            selection_alias=request.selection_alias,
+        )
+    key = (
+        "canonical-model-v1:"
+        + hashlib.sha256(
+            json.dumps(
+                [harness, provider, model], ensure_ascii=False, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+    )
+    statement = (
+        insert(AgentModel)
+        .values(
+            owner_user_id=principal.user.id,
+            machine_id=principal.machine.id,
+            display_name=model,
+            agent_kind="model",
+            harness=harness,
+            provider=provider,
+            model=model,
+            stable_key=key,
+        )
+        .on_conflict_do_nothing(constraint="uq_agents_user_stable_key")
+        .returning(AgentModel.id)
+    )
+    identifier = (await session.execute(statement)).scalar_one_or_none()
+    created = identifier is not None
+    agent = (
+        await session.execute(
+            select(AgentModel).where(
+                AgentModel.owner_user_id == principal.user.id, AgentModel.stable_key == key
+            )
+        )
+    ).scalar_one()
+    await session.commit()
+    await session.refresh(agent)
+    return AgentIdentityResult(
+        state="resolved",
+        logical_harness=harness,
+        selection_alias=request.selection_alias,
+        agent=Agent.model_validate(agent),
+        created=created,
+    )
 
 
 async def _find_by_stable_key(
