@@ -532,7 +532,9 @@ def plan_library_sync(
     projections: tuple[LibraryContextItem, ...] | list[LibraryContextItem],
 ) -> tuple[SkillSyncPlan, DefinitionSyncPlan]:
     skills = [
-        item for item in projections if item.library_kind == "skill" and item.scope == "studio"
+        item
+        for item in projections
+        if item.library_kind == "skill" and item.scope in _GLOBAL_SCOPES
     ]
     definitions = [
         item

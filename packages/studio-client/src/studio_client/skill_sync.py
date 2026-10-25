@@ -131,7 +131,7 @@ async def fetch_skill_projections(
     project_id: UUID | None,
     limit: int = 100,
 ) -> tuple[LibraryContextItem, ...]:
-    """Fetch effective skills and keep only globally safe Studio-scope rows.
+    """Fetch effective skills visible to the caller for global projection.
 
     Deprecated rows are kept so ``plan_skill_sync`` can retire their managed copies."""
 
@@ -142,7 +142,7 @@ async def fetch_skill_projections(
     )
     return tuple(
         sorted(
-            (item for item in result.items if item.scope == "studio"),
+            (item for item in result.items if item.scope in {"studio", "user"}),
             key=lambda item: item.stable_key,
         )
     )
@@ -403,9 +403,9 @@ def _validate_projection(projection: LibraryContextItem) -> None:
         raise SkillSyncError(f"unsafe skill stable_key: {key!r}")
     if projection.library_kind != "skill":
         raise SkillSyncError(f"expected a skill projection, got {projection.library_kind!r}")
-    if projection.scope != "studio":
+    if projection.scope not in {"studio", "user"}:
         raise SkillSyncError(
-            f"refusing to project non-studio skill {key!r} with scope {projection.scope!r}"
+            f"refusing to project non-global skill {key!r} with scope {projection.scope!r}"
         )
     if projection.version <= 0:
         raise SkillSyncError(f"invalid skill version for {key!r}: {projection.version}")

@@ -117,6 +117,14 @@ studio-client skills sync
 studio-client rules sync
 ```
 
+La synchronisation globale des skills inclut les scopes `studio` et `user`
+visibles par le compte connecté. Une définition `user` de même clé remplace
+la définition `studio` selon la résolution existante ; leurs textes ne sont
+pas fusionnés. Les skills `project` restent hors de cette synchronisation.
+Utiliser `skills diff` pour examiner les changements avant `skills sync` ;
+les fichiers modifiés localement restent protégés contre un écrasement implicite.
+Les projections personnelles appartiennent au répertoire utilisateur du poste.
+
 Un manifeste dont `format` annonce une version inconnue ou future est refusé
 avant toute écriture. Mettre le client à niveau ou réinitialiser le manifeste
 après revue ; ne pas modifier seulement la chaîne de version pour contourner le

@@ -102,6 +102,28 @@ def test_auto_sync_projects_skills_rules_and_agents(tmp_path: Path, monkeypatch)
     assert status.conflicts == []
 
 
+def test_auto_sync_includes_user_skills_and_excludes_project_skills(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    _patch_fetch(
+        monkeypatch,
+        [
+            _projection("personal", "skill", "Personal skill", scope="user"),
+            _projection("project-only", "skill", "Project skill", scope="project"),
+        ],
+    )
+
+    _run(home, tmp_path / "data")
+
+    for harness in ("agents", "claude"):
+        assert "Personal skill" in (
+            home / f".{harness}" / "skills" / "personal" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        assert not (home / f".{harness}" / "skills" / "project-only").exists()
+
+
 def test_local_conflict_blocks_every_kind_and_stays_visible(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "home"
     edited = home / ".claude" / "rules" / "coding-standard.md"
