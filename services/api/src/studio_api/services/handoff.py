@@ -86,6 +86,13 @@ async def handoff(
 
     # Verify session ownership
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
+    if request.agent_id is not None and request.agent_id != work_session.agent_id:
+        raise HTTPException(409, detail={"error_code": "session_agent_mismatch"})
+    if (
+        task.claimed_by_machine_id == principal.machine.id
+        and task.claimed_by_agent_id not in (None, work_session.agent_id)
+    ):
+        raise HTTPException(409, detail={"error_code": "already_claimed"})
 
     # C4: last bounded sync, then the optional `coordination.handoff` signal,
     # both while the session is live and before the task can be closed (a
@@ -169,10 +176,14 @@ async def handoff(
             task = refreshed
 
     # Release all claims for the task
-    released_claims = await claims_service.release_task_claims_by_task(session, principal, task)
+    released_claims = await claims_service.release_task_claims_by_task(
+        session, principal, task, agent_id=work_session.agent_id
+    )
 
     if task.claimed_by_machine_id == principal.machine.id:
-        task = await tasks_service.release_task(session, principal, task)
+        task = await tasks_service.release_task(
+            session, principal, task, expected_version=task.version
+        )
 
     # Log AI work if agent_id provided. A retry converges: the entry already
     # logged for this (session, agent) pair is updated instead of duplicated,

@@ -3309,7 +3309,7 @@
      "start-work"
     ],
     "summary": "Start Work",
-    "description": "Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.",
+    "description": "Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim for the caller's machine and agent (idempotent; another holder, including another agent on this machine, gets 409 already_claimed) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.",
     "operationId": "start_work_api_v1_start_work_post",
     "security": [
      {

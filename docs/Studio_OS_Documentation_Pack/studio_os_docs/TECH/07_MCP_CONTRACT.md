@@ -44,15 +44,23 @@ Demarrer/reprendre en un appel : claim idempotent + reprise ou creation de
 session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
 claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
 (`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
+Version API 4 (DEC-0240 proposee) : un autre agent sur la meme machine
+recoit `already_claimed` comme une autre machine ; liberer explicitement le
+claim avant transfert. Les demarrages simultanes du meme couple reprennent
+une seule session ouverte, y compris apres expiration.
 C4 (additif) : avec `task_id`, la reponse porte aussi `sync`, le bloc
 `studio_sync` initial borne depuis le curseur de la session (herite du dernier
 handoff de la tache), sans ack ; `sync` est `null` sans `task_id`.
 
 ### studio_handoff (L3, additif, DEC-0163)
 Cloture en un appel : met a jour le statut de la tache (`expected_version`,
-requis seulement avec `task_status`), libere tous les claims de la tache
+requis seulement avec `task_status`), libere les claims de l'agent de la session
 (un `resource.released` par claim), journalise `ai_work` (si `agent_id` +
 `summary`, `ai_work_status` type, `session_id` valide), termine la session.
+Version API 4 : les claims d'un autre agent sont preserves ; les claims sans
+agent suivent le detenteur de la tache. Une tache reprise par un autre agent
+du poste refuse l'ancien handoff (`already_claimed`). `agent_id` fourni doit
+correspondre a la session (`session_agent_mismatch` sinon).
 Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 `idempotency_key` optionnel. Autorisation avant le court-circuit
 d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus

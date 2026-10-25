@@ -21,7 +21,12 @@ contourne ni le profil lecture seule ni les permissions du poste. Une opération
 nécessitant une commande en mode protégé exige `studio_handoff(task_status=blocked)`
 avec commande et cible ; une nouvelle demande humaine est nécessaire.
 
-Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 3` (DEC-0235).
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 4`.
+
+Version 4 : un claim protege le couple machine/agent. Une autre identite
+d'agent (y compris `null`) ne remplace plus silencieusement le detenteur sur
+la meme machine : `409 already_claimed`. Liberer explicitement avant une
+reprise par un autre agent. Version 3 : DEC-0235. Transport et evenements inchanges.
 
 Historique version 2 (DEC-0103) :
 Statut : **DEC-0103 acceptee ; enforcement projet et `GET /machines` /
@@ -310,13 +315,14 @@ public de bootstrap, pas de secret d'environnement dedie.
   DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
   meme machine avec le meme agent, est un no-op (aucun bump de `version`,
   aucun evenement `task.started` duplique) — un appel rejoue reste donc sans
-  effet nouveau, sans cle. Une machine differente garde `409 already_claimed` ;
-  reclamer une tache liberee, bloquee ou terminee, ou avec un `agent_id`
-  different, est une (re)prise reelle (version + `task.started`). Accepte
+  effet nouveau, sans cle. Une machine ou un agent different (y compris
+  `null`) recoit `409 already_claimed`, sans changer le detenteur. Liberer
+  explicitement le claim avant son transfert. Reclamer une tache liberee,
+  ou bloquee/terminee avec le meme detenteur, est une reprise reelle
+  (version + `task.started`). Les claims concurrents sont serialises. Accepte
   `Idempotency-Key` (meme cle + meme corps = claim d'origine, corps
-  different = `409 idempotency_key_payload_mismatch`). Aucun changement de
-  champ, de code HTTP ni d'enveloppe d'evenement : pas de bump de version
-  contractuelle.
+  different = `409 idempotency_key_payload_mismatch`). Rupture de comportement
+  intra-poste annoncee par la version contractuelle 4 ; enveloppe inchangee.
 - POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
   comportement inchange ; present et perime, `409 {"detail": {"error_code":
   "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
@@ -351,10 +357,16 @@ public de bootstrap, pas de secret d'environnement dedie.
   reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
   DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
 - Repli L3 (DEC-0163) : `PATCH /sessions/{id}/end` libere desormais les
-  claims actifs de la tache detenus par la machine appelante, avec un
+  claims actifs de la tache detenus par la machine et l'agent de la session, avec un
   `resource.released` par claim (meme chemin que `release_claim`), avant de
   marquer la session terminee — et aussi sur une session deja terminee, pour
   converger apres un echec partiel.
+  Version 4 (DEC-0240 proposee) : les claims d'un autre agent sont preserves.
+  Les claims sans agent sont liberes seulement si aucun autre agent ne tient
+  la tache. Un ancien handoff sur une tache reprise par un autre agent du
+  poste recoit `409 already_claimed` ; il peut terminer sa propre session via
+  `PATCH /sessions/{id}/end`. Un `agent_id` de handoff different de celui de
+  la session recoit `409 session_agent_mismatch` sans reattribuer l'historique.
 
 ### Start work (L2, additif, DEC-0159)
 - POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
@@ -363,8 +375,8 @@ public de bootstrap, pas de secret d'environnement dedie.
   Composite en un appel (les services composes gardent leurs propres
   commits : ce n'est pas une transaction unique, un echec en cours converge
   au rejeu), sans nouvelle table ni nouvel evenement :
-  avec `task_id`, claim idempotent pour la meme machine (`409
-  already_claimed` si une autre machine tient la tache) + reprise de la
+  avec `task_id`, claim idempotent pour le meme couple machine/agent (`409
+  already_claimed` si un autre couple tient la tache) + reprise de la
   session ouverte du meme agent sur la tache ou creation (AIB-H ; les
   expirees sont closes par L2) + `touch_session` + `prepare_context`
   borne et cadre (`task_id`, `files`, `agent_stable_key`) ; sans `task_id`,

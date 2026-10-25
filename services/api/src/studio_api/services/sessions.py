@@ -10,6 +10,7 @@ from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import claims as claims_service
@@ -211,6 +212,16 @@ async def resume_or_start_session(
     # Same ownership rule as `end_session`: a session is a machine's own
     # presence, so it never resumes (nor closes) another machine's session.
     ensure_machine_owned(principal, session_in.machine_id, "session", "resume")
+    if session_in.task_id is not None:
+        await session.execute(
+            select(TaskModel.id).where(TaskModel.id == session_in.task_id).with_for_update()
+        )
+    else:
+        await session.execute(
+            select(MachineModel.id)
+            .where(MachineModel.id == session_in.machine_id)
+            .with_for_update()
+        )
     now = datetime.now(UTC)
     existing = await _find_open_session(
         session, session_in.task_id, session_in.agent_id, session_in.machine_id
@@ -228,9 +239,7 @@ async def resume_or_start_session(
     if existing is not None:
         existing.ended_at = now
         existing.last_activity_at = now
-        await session.commit()
-        await session.refresh(existing)
-        await _emit_session_event(session, principal, existing, EventType.SESSION_ENDED)
+        await session.flush()
     handoff_cursor = None
     if session_in.task_id is not None:
         task = await tasks_service.get_task(session, session_in.task_id)
@@ -247,6 +256,8 @@ async def resume_or_start_session(
     session.add(work_session)
     await session.commit()
     await session.refresh(work_session)
+    if existing is not None:
+        await _emit_session_event(session, principal, existing, EventType.SESSION_ENDED)
     await task_launches_service.link_session_to_launch(
         session, work_session, _scoped_launch_id(principal)
     )
@@ -298,7 +309,9 @@ async def end_session(
     if work_session.task_id is not None:
         task = await tasks_service.get_task(session, work_session.task_id)
         if task is not None:
-            await claims_service.release_task_claims_by_task(session, principal, task)
+            await claims_service.release_task_claims_by_task(
+                session, principal, task, agent_id=work_session.agent_id
+            )
     if work_session.ended_at is not None:
         return work_session
     now = datetime.now(UTC)
