@@ -315,6 +315,7 @@
     "SetupPlanRequest",
     "SetupSkillsResult",
     "SetupSkillsStep",
+    "SetupVersioningStep",
     "SharedStatusSummary",
     "SkillCheckEntry",
     "SkillPreviewEntry",

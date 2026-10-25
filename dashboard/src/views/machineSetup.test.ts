@@ -130,6 +130,25 @@ describe("« Configurer ce poste » — aperçu", () => {
     expect(text).toContain("Extension de l'outil (opencode)");
   });
 
+  it("explique Git absent sans annoncer le poste entièrement configuré", () => {
+    const html = setupSectionHtml({ plan: makePlan({
+      versioning: { state: "missing", identity_configured: false, workspaces: 0, repositories: 0, with_identity: 0, with_remote: 0, unavailable: 0 },
+    }) });
+    expect(html).toContain("Git est absent");
+    expect(html).toContain("vérifiez git --version");
+    expect(html).not.toContain("Ce poste est déjà configuré");
+  });
+
+  it("distingue dépôt local, identité locale et distant facultatif", () => {
+    const html = setupSectionHtml({ plan: makePlan({
+      versioning: { state: "checked", identity_configured: false, workspaces: 2, repositories: 1, with_identity: 1, with_remote: 0, unavailable: 0 },
+    }) });
+    expect(html).toContain("1 dépôt(s) local(aux)");
+    expect(html).toContain("0 avec un distant");
+    expect(html).toContain("une identité locale au projet suffit");
+    expect(html).toContain("Un dépôt distant est facultatif");
+  });
+
   it("renvoie aux cartes de harnais pour le MCP au lieu d'y répéter leurs badges", () => {
     const html = setupSectionHtml({ plan: makePlan() }, [
       { adapter_id: "claude-code", display_name: "Claude Code", state: "detected" } as never,

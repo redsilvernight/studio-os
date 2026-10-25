@@ -21,6 +21,9 @@ from __future__ import annotations
 import difflib
 import hashlib
 import os
+import shutil
+import subprocess
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -28,6 +31,7 @@ from pathlib import Path
 from typing import Literal
 
 from studio_contracts.local.common import contains_absolute_path, contains_secret_material
+from studio_contracts.local.machine_setup import SetupVersioningStep
 
 from studio_client.harness.redaction import redact_text
 from studio_client.hooks import (
@@ -58,6 +62,70 @@ PLUGIN_ITEM_ID = "plugin"
 # Harness whose hook file is wired by the harness' own settings, which the
 # setup never edits (DEC-0096): the file is deployed, the registration stays manual.
 _MANUAL_REGISTRATION = frozenset({"claude-code", "codex"})
+
+
+def _git_check(executable: str, root: Path, *args: str) -> tuple[int, str]:
+    result = subprocess.run(
+        [executable, "-C", str(root), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=2,
+        check=False,
+    )
+    return result.returncode, result.stdout.strip()
+
+
+def probe_versioning(
+    home: Path, roots: Sequence[Path], path_dirs: Sequence[str]
+) -> SetupVersioningStep:
+    deadline = time.monotonic() + 10
+    executable = shutil.which("git", path=os.pathsep.join(path_dirs))
+    if executable is None:
+        return SetupVersioningStep(state="missing", workspaces=len(roots))
+    try:
+        if _git_check(executable, home, "--version")[0] != 0:
+            return SetupVersioningStep(state="unavailable", workspaces=len(roots))
+        identity = all(
+            code == 0 and bool(output)
+            for code, output in (
+                _git_check(executable, home, "config", "--global", "--get", key)
+                for key in ("user.name", "user.email")
+            )
+        )
+    except (OSError, subprocess.SubprocessError):
+        return SetupVersioningStep(state="unavailable", workspaces=len(roots))
+    repositories = with_identity = with_remote = unavailable = 0
+    for root in roots:
+        try:
+            if time.monotonic() >= deadline or not root.is_dir():
+                unavailable += 1
+                continue
+            code, output = _git_check(executable, root, "rev-parse", "--is-inside-work-tree")
+            if code != 0 or output != "true":
+                continue
+            repositories += 1
+            with_identity += all(
+                code == 0 and bool(output)
+                for code, output in (
+                    _git_check(executable, root, "config", "--get", key)
+                    for key in ("user.name", "user.email")
+                )
+            )
+            remote_code, remote_names = _git_check(executable, root, "remote")
+            with_remote += remote_code == 0 and bool(remote_names)
+        except (OSError, subprocess.SubprocessError):
+            unavailable += 1
+    return SetupVersioningStep(
+        state="checked",
+        identity_configured=identity,
+        workspaces=len(roots),
+        repositories=repositories,
+        with_identity=with_identity,
+        with_remote=with_remote,
+        unavailable=unavailable,
+    )
 
 
 @dataclass(frozen=True)
