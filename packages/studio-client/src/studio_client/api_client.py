@@ -246,7 +246,9 @@ class StudioApiClient:
         return Machine.model_validate(response.json())
 
     async def list_agents(self) -> list[Agent]:
-        response = await self._request("GET", "/api/v1/agents")
+        response = await self._request(
+            "GET", "/api/v1/agents", params={"include_identity_owner": True}
+        )
         return [Agent.model_validate(item) for item in response.json()]
 
     async def discover_capabilities(

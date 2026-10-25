@@ -560,6 +560,11 @@ ou annonce. `additional_available` permet la lecture progressive.
   (`Machine.owner_user_id = principal.user`) ; `admin` voit tout. Un agent
   sans machine n'est visible que de `admin`. Une co-membership ne donne
   jamais acces aux agents d'un co-membre.
+  `include_identity_owner=true` (optionnel, defaut false) expose le champ
+  `owner_user_id` aux clients recents. Sans opt-in, la forme JSON historique
+  est conservee pour les lecteurs stricts N-1. POST /agents et /agents/ensure
+  conservent aussi leur forme historique ; le nouveau resolve-identity porte
+  l'identite complete. Ce parametre ne change jamais le filtre de visibilite.
 - POST /agents (CC-1, additif) — enregistrement public d'une identite
   Agent de provenance operationnelle pour la machine authentifiee.
   Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel

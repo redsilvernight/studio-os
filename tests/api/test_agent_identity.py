@@ -181,3 +181,25 @@ async def test_resolution_preserves_legacy_identity_and_provenance(
     assert (agent.id, agent.machine_id, agent.stable_key, agent.version) == old
     assert agent.owner_user_id is None
     assert resolved.json()["agent"]["id"] != str(agent.id)
+
+
+async def test_legacy_agent_responses_require_opt_in_for_new_identity_fields(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    resolved = await client.post(PATH, headers=auth_headers, json=payload())
+    identifier = resolved.json()["agent"]["id"]
+    legacy = await client.get("/api/v1/agents", headers=auth_headers)
+    assert all("owner_user_id" not in row for row in legacy.json())
+    extended = await client.get(
+        "/api/v1/agents",
+        headers=auth_headers,
+        params={"include_identity_owner": True},
+    )
+    assert next(row for row in extended.json() if row["id"] == identifier)["owner_user_id"]
+    registered = await client.post(
+        "/api/v1/agents",
+        headers=auth_headers,
+        json={"display_name": "legacy-client"},
+    )
+    assert "owner_user_id" not in registered.json()

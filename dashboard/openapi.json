@@ -6744,6 +6744,18 @@
       "MachineBearer": []
      }
     ],
+    "parameters": [
+     {
+      "name": "include_identity_owner",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Include Identity Owner"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -6765,6 +6777,16 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
         }
        }
       }

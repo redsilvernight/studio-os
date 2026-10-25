@@ -15520,7 +15520,9 @@ export interface operations {
     };
     list_agents_api_v1_agents_get: {
         parameters: {
-            query?: never;
+            query?: {
+                include_identity_owner?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15548,6 +15550,15 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

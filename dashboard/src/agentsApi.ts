@@ -45,7 +45,9 @@ async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response:
 }
 
 export function fetchAgents(client: StudioClient): Promise<Agent[]> {
-  return unwrap(client.GET("/api/v1/agents"));
+  return unwrap(client.GET("/api/v1/agents", {
+    params: { query: { include_identity_owner: true } },
+  }));
 }
 
 export function fetchAgentSessions(client: StudioClient): Promise<WorkSession[]> {

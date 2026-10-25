@@ -75,7 +75,7 @@ async def studio_register_agent(
                     stable_key=stable_key,
                 ),
             )
-            return Agent.model_validate(created).model_dump(mode="json")
+            return Agent.model_validate(created).model_dump(mode="json", exclude={"owner_user_id"})
 
         request_hash = idempotency_service.hash_request(
             json.dumps(
