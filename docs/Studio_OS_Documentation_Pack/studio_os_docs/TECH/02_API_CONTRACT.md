@@ -1218,6 +1218,31 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
   sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
   rapport perime (R1) = `409` explicite.
+- Pack metier (additif, DEC-0241 proposee) :
+  `POST /resolutions/work-profile-pack` valide et previsualise un document
+  `studio.work-profile-pack/v1`, compose du `WorkProfile` existant, d'une
+  `base` studio et de `adaptations` (0..16 pins UUID/version d'agent_definition,
+  UUID uniques). La derniere adaptation, ou la base seule, est la racine du
+  profil. Pas de texte de definition, de commande ni de secret dans le format.
+  Le corps porte aussi `machine_policy` (non autoritaire) et `project_id?`.
+  Les references sont controlees en visibilite avant la resolution commune ;
+  ressource inconnue/invisible/mauvais type ou cle = `404 pin_not_found`,
+  version absente = `404 pin_version_not_found`, base non studio =
+  `422 pack_base_must_be_studio`, format inconnu = validation 422.
+  La composition effective doit correspondre exactement aux references
+  declarees ; sinon `accepted=false` avec `composition_mismatch`.
+  Plus de 17 agents effectifs = `composition_too_large`, apercu borne.
+  La reponse porte `mutates=false`, `authoritative=false`, le `ProfilePreview`
+  existant et les references observees. Aucune publication, activation,
+  projection ou configuration locale n'est changee. Les permissions restent
+  intersectees avec la politique machine ; l'apercu n'autorise aucun lancement.
+  MCP : `studio_preview_work_profile_pack` (erreurs structurees, entree 128 KiB).
+  CLI : `library profile-preview fichier.json [--policy politique.json]`,
+  `--validate-only` valide hors ligne sans lire les credentials ni contacter
+  le serveur (cela ne verifie pas l'existence des references).
+  Desktop/dashboard : Bibliotheque, Verifier un pack metier ; fichiers limites
+  a 128 KiB, politique restrictive par defaut. Aucun pack metier n'est fourni
+  par ce changement de format.
 - Profil de travail sur un lancement (P04, DEC-0198, additif) : `profile_key?` nomme un profil de
   reference (`REFERENCE_PROFILES` de `studio_contracts.profiles`, ex. `coding`,
   `architecture-read-only`) ; le serveur materialise ce profil pour l'agent demande et l'epingle

@@ -14,6 +14,7 @@ import {
   createFormFieldsHtml,
   dependenciesTableHtml,
   dependencyUpdatesHtml,
+  workProfilePackPreviewHtml,
   filterLibraryResources,
   inspectorLinkHtml,
   kindFr,
@@ -39,6 +40,13 @@ it("explains pinned update previews and escapes definition content", () => {
   expect(html).toContain("lecture seule");
   expect(html).toContain("épinglée v1, active v2");
   expect(html).toContain('data-dependency-next="1"');
+  expect(html).not.toContain("<script>");
+});
+
+it("shows a pack preview as non-authoritative and escapes references", () => {
+  const html = workProfilePackPreviewHtml({ accepted: false, authoritative: false, mutates: false, format: "studio.work-profile-pack-preview/v1", observed: [{ kind: "agent_definition", resource_id: "id", stable_key: "<script>", version: 1 }], issues: [], profile: { contract_version: 1, stable_key: "sample", authoritative: false, accepted: false, elements: [], permissions: [], effective_permissions: [], refusals: [] } });
+  expect(html).toContain("Composition conforme");
+  expect(html).toContain("La machine garde la décision finale");
   expect(html).not.toContain("<script>");
 });
 

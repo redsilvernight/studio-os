@@ -95,6 +95,14 @@ CATALOGUE = (
         "/api/v1/library",
     ),
     CapabilitySpec(
+        "work_profiles",
+        "Packs métier",
+        "Vérifier les références d'un profil, de sa base et de ses adaptations.",
+        "Vérifie la composition de ce pack sans publier de définition.",
+        "/api/v1/resolutions/work-profile-pack",
+        True,
+    ),
+    CapabilitySpec(
         "agents",
         "Identités d'agents",
         "Retrouver les identités durables et leurs traces d'exécution.",
@@ -266,6 +274,9 @@ async def discover_product(
             restrictions.append(
                 "Seul un admin peut accepter ou remplacer une DEC ; un agent peut proposer."
             )
+        if spec.key == "work_profiles":
+            write_allowed = False
+            restrictions.append("Aperçu seulement : aucune publication ni activation.")
         if spec.key == "setup" and reason is None:
             reason = "Git et les fichiers locaux restent à vérifier dans Configurer ce poste."
         if not writer:
@@ -282,6 +293,11 @@ async def discover_product(
         elif spec.key == "agents":
             prerequisites.append(
                 "Le harnais doit exposer le fournisseur et le modèle effectivement utilisés."
+            )
+        elif spec.key == "work_profiles":
+            prerequisites.append(
+                "Manifeste studio.work-profile-pack/v1 et références UUID/version visibles ; "
+                "politique machine restrictive par défaut."
             )
         elif spec.key == "launches":
             prerequisites.append(

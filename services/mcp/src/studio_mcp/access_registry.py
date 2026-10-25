@@ -77,6 +77,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_resolve_agent": _P,
     "studio_discover_definitions": _P,
     "studio_preview_dependency_updates": _P,
+    "studio_preview_work_profile_pack": _P,
     "studio_publish_definition": _P,
     "studio_configure_runtime": _P,
 }

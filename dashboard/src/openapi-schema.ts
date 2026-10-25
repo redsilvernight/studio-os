@@ -1185,6 +1185,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/resolutions/work-profile-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Work Profile Pack
+         * @description Validate and preview a versioned work profile pack. Read-only: no import, publication, activation or projection; the machine retains final authority.
+         */
+        post: operations["preview_work_profile_pack_api_v1_resolutions_work_profile_pack_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resolutions": {
         parameters: {
             query?: never;
@@ -5747,6 +5767,26 @@ export interface components {
             expires_at?: string | null;
         };
         /**
+         * MachinePolicy
+         * @description The local launch settings plus optional permissions (additive).
+         *     `None` (absent) authorizes nothing: fail closed. Never persisted to
+         *     `launch.json` nor sent to a daemon without a negotiated capability: an
+         *     N-1 `LaunchSettings` forbids the extra field.
+         */
+        MachinePolicy: {
+            /** Opt In */
+            opt_in: boolean;
+            /** Max Concurrent */
+            max_concurrent: number;
+            /**
+             * Allowed Harnesses
+             * @default []
+             */
+            allowed_harnesses: string[];
+            /** Permissions */
+            permissions?: ("read" | "write" | "execute" | "network" | "launch")[] | null;
+        };
+        /**
          * MachineStatus
          * @enum {string}
          */
@@ -5930,6 +5970,22 @@ export interface components {
             offset: number;
             /** Total */
             total?: number | null;
+        };
+        /** PermissionDecision */
+        PermissionDecision: {
+            /**
+             * Permission
+             * @enum {string}
+             */
+            permission: "read" | "write" | "execute" | "network" | "launch";
+            /** Granted */
+            granted: boolean;
+            /**
+             * Origin
+             * @default machine_policy
+             * @constant
+             */
+            origin: "machine_policy";
         };
         /** Phase */
         Phase: {
@@ -6158,6 +6214,72 @@ export interface components {
             additional_available: number;
             /** Next Steps */
             next_steps?: string[];
+        };
+        /** ProfileElement */
+        ProfileElement: {
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            /** Version */
+            version: number;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "library" | "runtime_binding" | "model_profile" | "session_override" | "machine_policy";
+        };
+        /**
+         * ProfilePreview
+         * @description Explanatory preview: every effective value with its origin, every
+         *     refusal. `authoritative` is always false — the machine decides.
+         */
+        ProfilePreview: {
+            /**
+             * Contract Version
+             * @default 1
+             */
+            contract_version: number;
+            /** Stable Key */
+            stable_key: string;
+            /**
+             * Authoritative
+             * @default false
+             * @constant
+             */
+            authoritative: false;
+            /** Accepted */
+            accepted: boolean;
+            /** Elements */
+            elements: components["schemas"]["ProfileElement"][];
+            runtime?: components["schemas"]["ResolvedRuntime"] | null;
+            /** Runtime Origin */
+            runtime_origin?: ("library" | "runtime_binding" | "model_profile" | "session_override" | "machine_policy") | null;
+            /** Permissions */
+            permissions: components["schemas"]["PermissionDecision"][];
+            /** Effective Permissions */
+            effective_permissions: ("read" | "write" | "execute" | "network" | "launch")[];
+            /**
+             * Refusals
+             * @default []
+             */
+            refusals: components["schemas"]["ProfileRefusal"][];
+        };
+        /** ProfileRefusal */
+        ProfileRefusal: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "capability_incompatible" | "no_runtime_selected" | "machine_opt_in_off" | "permission_denied" | "harness_not_allowed";
+            /** Subject */
+            subject: string;
+            /**
+             * Details
+             * @default {}
+             */
+            details: {
+                [key: string]: unknown;
+            };
         };
         /**
          * Progress
@@ -9927,6 +10049,88 @@ export interface components {
              * @default []
              */
             matched_terms: string[];
+        };
+        /**
+         * WorkProfile
+         * @description What a profile asks for: an agent definition (by stable key, resolved by
+         *     the common resolver), the capabilities the work needs, and permissions it
+         *     requests. It declares no rule text and grants nothing by itself.
+         */
+        WorkProfile: {
+            /**
+             * Contract Version
+             * @default 1
+             */
+            contract_version: number;
+            /** Stable Key */
+            stable_key: string;
+            /** Title */
+            title: string;
+            /** Agent Stable Key */
+            agent_stable_key: string;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools_required": [],
+             *       "local_compatible": false
+             *     }
+             */
+            required_capabilities: components["schemas"]["CapabilityRequirement"];
+            /**
+             * Permissions
+             * @default []
+             */
+            permissions: ("read" | "write" | "execute" | "network" | "launch")[];
+        };
+        /** WorkProfilePack */
+        WorkProfilePack: {
+            /**
+             * Format
+             * @constant
+             */
+            format: "studio.work-profile-pack/v1";
+            profile: components["schemas"]["WorkProfile"];
+            base: components["schemas"]["ResourceDependencyPin"];
+            /** Adaptations */
+            adaptations?: components["schemas"]["ResourceDependencyPin"][];
+        };
+        /** WorkProfilePackPreview */
+        WorkProfilePackPreview: {
+            /**
+             * Format
+             * @default studio.work-profile-pack-preview/v1
+             * @constant
+             */
+            format: "studio.work-profile-pack-preview/v1";
+            /**
+             * Authoritative
+             * @default false
+             * @constant
+             */
+            authoritative: false;
+            /**
+             * Mutates
+             * @default false
+             * @constant
+             */
+            mutates: false;
+            /** Accepted */
+            accepted: boolean;
+            profile: components["schemas"]["ProfilePreview"];
+            /** Observed */
+            observed: components["schemas"]["ResourceDependencyPin"][];
+            /**
+             * Issues
+             * @default []
+             */
+            issues: ("composition_mismatch" | "composition_too_large")[];
+        };
+        /** WorkProfilePackRequest */
+        WorkProfilePackRequest: {
+            pack: components["schemas"]["WorkProfilePack"];
+            machine_policy: components["schemas"]["MachinePolicy"];
+            /** Project Id */
+            project_id?: string | null;
         };
         /** WorkSession */
         WorkSession: {
@@ -15434,6 +15638,39 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_work_profile_pack_api_v1_resolutions_work_profile_pack_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkProfilePackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkProfilePackPreview"];
                 };
             };
             /** @description Validation Error */

@@ -151,6 +151,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("GET", "/api/v1/runtime-bindings/{binding_id}"): _P,
     ("DELETE", "/api/v1/runtime-bindings/{binding_id}"): _P,
     ("POST", "/api/v1/resolutions"): _P,
+    ("POST", "/api/v1/resolutions/work-profile-pack"): _P,
     ("POST", "/api/v1/bootstrap-plan"): _P,
     ("GET", "/api/v1/ai-work"): _P,
     ("POST", "/api/v1/ai-work"): _P,

@@ -14,6 +14,7 @@ from studio_api.services import library as library_service
 from studio_api.services import resolution as resolution_service
 from studio_api.services import runtime_bindings as bindings_service
 from studio_api.services import runtime_registry as registry_service
+from studio_api.services import work_profile_pack as pack_service
 from studio_api.services.authz import Principal, ensure_can_write
 from studio_contracts.library import (
     DependencyPin,
@@ -39,6 +40,7 @@ from studio_contracts.runtime import (
     RuntimeRegistrationUpdate,
     RuntimeTarget,
 )
+from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_mcp.errors import McpError, run_tool
 from studio_mcp.util import parse_uuid
@@ -275,6 +277,37 @@ async def studio_discover_definitions(
         )
 
     return cast(DefinitionList | DefinitionDetail | McpError, await _run_p8(ctx, _handler))
+
+
+async def studio_preview_work_profile_pack(
+    ctx: Context,
+    pack: dict[str, Any],
+    machine_policy: dict[str, Any],
+    project_id: str | None = None,
+) -> WorkProfilePackPreview | McpError:
+    """Preview a versioned work-profile pack without publishing or activating."""
+    if len(json.dumps([pack, machine_policy], default=str)) > 131072:
+        return _invalid("pack and machine policy exceed 128 KiB")
+    try:
+        request = WorkProfilePackRequest.model_validate(
+            {
+                "pack": pack,
+                "machine_policy": machine_policy,
+                "project_id": project_id,
+            }
+        )
+    except ValidationError as exc:
+        return _invalid(_validation_message(exc))
+
+    async def _handler(
+        session: AsyncSession, principal: Principal
+    ) -> WorkProfilePackPreview | McpError:
+        try:
+            return await pack_service.preview_work_profile_pack(session, principal, request)
+        except HTTPException as exc:
+            return _from_http(exc)
+
+    return cast(WorkProfilePackPreview | McpError, await _run_p8(ctx, _handler))
 
 
 async def studio_preview_dependency_updates(

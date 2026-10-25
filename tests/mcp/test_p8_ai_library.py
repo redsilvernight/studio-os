@@ -44,6 +44,7 @@ RULE = LibraryKind.RULE
 SKILL = LibraryKind.SKILL
 
 P8_TOOL_NAMES = {
+    "studio_preview_work_profile_pack",
     "studio_preview_dependency_updates",
     "studio_resolve_agent",
     "studio_discover_definitions",
@@ -87,6 +88,16 @@ async def test_preview_dependency_updates_validates_bounds_and_returns_explicit_
         )
         assert isinstance(rejected, McpError)
         assert rejected.error_code == "invalid_argument"
+
+
+async def test_pack_preview_returns_structured_validation_errors(auth_ctx: FakeContext) -> None:
+    for pack in [{"format": "unsupported"}, {"format": "x" * 131073}]:
+        result = await p8.studio_preview_work_profile_pack(
+            auth_ctx, pack, {"opt_in": False, "max_concurrent": 1}
+        )
+        assert isinstance(result, McpError)
+        assert result.error_code == "invalid_argument"
+        assert len(result.message) < 1000
 
 
 def _key(prefix: str) -> str:

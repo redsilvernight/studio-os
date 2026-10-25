@@ -1277,6 +1277,56 @@ def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> N
         raise SystemExit(1)
 
 
+def _library_profile_preview(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_contracts.profiles import MachinePolicy
+    from studio_contracts.work_profile_pack import WorkProfilePack, WorkProfilePackRequest
+
+    try:
+        with Path(args.file).open("rb") as source:
+            raw = source.read(131073)
+        if len(raw) > 131072:
+            raise ValueError("pack too large")
+        pack = WorkProfilePack.model_validate_json(raw)
+        policy_raw = b'{"opt_in":false,"max_concurrent":1}'
+        if args.policy:
+            with Path(args.policy).open("rb") as source:
+                policy_raw = source.read(131073)
+        if len(policy_raw) > 131072:
+            raise ValueError("policy too large")
+        request = WorkProfilePackRequest(
+            pack=pack,
+            machine_policy=MachinePolicy.model_validate_json(policy_raw),
+            project_id=UUID(args.project_id) if args.project_id else None,
+        )
+    except OSError:
+        raise SystemExit("work_profile_pack_unavailable: cannot read the selected files") from None
+    except ValueError:
+        raise SystemExit(
+            "invalid_work_profile_pack: check JSON, format, references and the 128 KiB file limit"
+        ) from None
+    if args.validate_only:
+        print(
+            json.dumps(
+                {
+                    "valid": True,
+                    "format": pack.format,
+                    "mutates": False,
+                    "authoritative": False,
+                    "server_checked": False,
+                }
+            )
+        )
+        return
+    if config is None:
+        raise SystemExit("server_configuration_required")
+
+    async def action(client: StudioApiClient) -> Any:
+        return await client.preview_work_profile_pack(request)
+
+    result = _run(config, action)
+    print(result.model_dump_json(indent=2))
+
+
 def _library_dependency_updates(args: argparse.Namespace, config: ClientConfig) -> None:
     async def action(client: StudioApiClient) -> Any:
         return await client.preview_dependency_updates(
@@ -2043,6 +2093,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
     library_parser = subparsers.add_parser("library", help="Library publication (P4).")
     library_sub = library_parser.add_subparsers(dest="library_command", required=True)
+    library_profile = library_sub.add_parser(
+        "profile-preview", help="Validate a work-profile pack and preview it without publishing."
+    )
+    library_profile.add_argument("file", help="Versioned work-profile pack JSON file.")
+    library_profile.add_argument(
+        "--policy", help="Read-only machine policy JSON; default grants nothing."
+    )
+    library_profile.add_argument("--project-id", help="Optional project UUID for resolution.")
+    library_profile.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Validate files offline; do not contact the server.",
+    )
+    library_profile.set_defaults(func=_library_profile_preview)
     library_updates = library_sub.add_parser(
         "dependency-updates", help="Preview pinned dependency updates without changing them."
     )
@@ -2197,6 +2261,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         or getattr(args, "worktrees_command", None) in ("prune",)
         or getattr(args, "bootstrap_command", None)
         in ("init", "check", "diff", "sync", "rollback", "scan")
+        or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)

@@ -59,6 +59,7 @@ from studio_contracts.transfers import (
     UploadPartsRefreshResponse,
 )
 from studio_contracts.version import VersionInfo
+from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
@@ -708,6 +709,14 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def preview_work_profile_pack(
+        self, request: WorkProfilePackRequest
+    ) -> WorkProfilePackPreview:
+        response = await self._request(
+            "POST", "/api/v1/resolutions/work-profile-pack", json=request.model_dump(mode="json")
+        )
+        return WorkProfilePackPreview.model_validate(response.json())
 
     async def preview_dependency_updates(
         self, resource_id: UUID, version: int, *, limit: int = 20, offset: int = 0

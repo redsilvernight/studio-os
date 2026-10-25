@@ -302,6 +302,29 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/resolutions"): (
         Probe("/api/v1/resolutions", {"stable_key": "some-agent", "project_id": "{pid}"}),
     ),
+    ("POST", "/api/v1/resolutions/work-profile-pack"): (
+        Probe(
+            "/api/v1/resolutions/work-profile-pack",
+            {
+                "project_id": "{pid}",
+                "machine_policy": {"opt_in": False, "max_concurrent": 1},
+                "pack": {
+                    "format": "studio.work-profile-pack/v1",
+                    "profile": {
+                        "stable_key": "sample",
+                        "title": "Sample",
+                        "agent_stable_key": "sample",
+                    },
+                    "base": {
+                        "kind": "agent_definition",
+                        "stable_key": "sample",
+                        "version": 1,
+                        "resource_id": "{lib}",
+                    },
+                },
+            },
+        ),
+    ),
     ("POST", "/api/v1/bootstrap-plan"): (Probe("/api/v1/bootstrap-plan", {"project_id": "{pid}"}),),
     ("GET", "/api/v1/ai-work"): (
         Probe("/api/v1/ai-work?project_id={pid}"),

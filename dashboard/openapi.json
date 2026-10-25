@@ -6633,6 +6633,53 @@
     }
    }
   },
+  "/api/v1/resolutions/work-profile-pack": {
+   "post": {
+    "tags": [
+     "resolutions"
+    ],
+    "summary": "Preview Work Profile Pack",
+    "description": "Validate and preview a versioned work profile pack. Read-only: no import, publication, activation or projection; the machine retains final authority.",
+    "operationId": "preview_work_profile_pack_api_v1_resolutions_work_profile_pack_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WorkProfilePackRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WorkProfilePackPreview"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/resolutions": {
    "post": {
     "tags": [
@@ -23228,6 +23275,59 @@
     "title": "MachineLaunchGrantCreate",
     "description": "Body of `PUT /machines/{machine_id}/launch-grants/{user_id}`. Both\nbounds are optional: no `project_id` = any project the grantee is a\nmember of, no `expires_at` = until revoked."
    },
+   "MachinePolicy": {
+    "properties": {
+     "opt_in": {
+      "type": "boolean",
+      "title": "Opt In"
+     },
+     "max_concurrent": {
+      "type": "integer",
+      "maximum": 8.0,
+      "minimum": 1.0,
+      "title": "Max Concurrent"
+     },
+     "allowed_harnesses": {
+      "items": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "title": "Allowed Harnesses",
+      "default": []
+     },
+     "permissions": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "enum": [
+          "read",
+          "write",
+          "execute",
+          "network",
+          "launch"
+         ]
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Permissions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "opt_in",
+     "max_concurrent"
+    ],
+    "title": "MachinePolicy",
+    "description": "The local launch settings plus optional permissions (additive).\n`None` (absent) authorizes nothing: fail closed. Never persisted to\n`launch.json` nor sent to a daemon without a negotiated capability: an\nN-1 `LaunchSettings` forbids the extra field."
+   },
    "MachineStatus": {
     "type": "string",
     "enum": [
@@ -23686,6 +23786,38 @@
      "offset"
     ],
     "title": "Page[TaskLaunchView]"
+   },
+   "PermissionDecision": {
+    "properties": {
+     "permission": {
+      "type": "string",
+      "enum": [
+       "read",
+       "write",
+       "execute",
+       "network",
+       "launch"
+      ],
+      "title": "Permission"
+     },
+     "granted": {
+      "type": "boolean",
+      "title": "Granted"
+     },
+     "origin": {
+      "type": "string",
+      "const": "machine_policy",
+      "title": "Origin",
+      "default": "machine_policy"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "permission",
+     "granted"
+    ],
+    "title": "PermissionDecision"
    },
    "Phase": {
     "properties": {
@@ -24218,6 +24350,171 @@
      "summary"
     ],
     "title": "ProductDiscovery"
+   },
+   "ProfileElement": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "origin": {
+      "type": "string",
+      "enum": [
+       "library",
+       "runtime_binding",
+       "model_profile",
+       "session_override",
+       "machine_policy"
+      ],
+      "title": "Origin"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "version",
+     "origin"
+    ],
+    "title": "ProfileElement"
+   },
+   "ProfilePreview": {
+    "properties": {
+     "contract_version": {
+      "type": "integer",
+      "title": "Contract Version",
+      "default": 1
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "authoritative": {
+      "type": "boolean",
+      "const": false,
+      "title": "Authoritative",
+      "default": false
+     },
+     "accepted": {
+      "type": "boolean",
+      "title": "Accepted"
+     },
+     "elements": {
+      "items": {
+       "$ref": "#/components/schemas/ProfileElement"
+      },
+      "type": "array",
+      "title": "Elements"
+     },
+     "runtime": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ResolvedRuntime"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "runtime_origin": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "library",
+         "runtime_binding",
+         "model_profile",
+         "session_override",
+         "machine_policy"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Origin"
+     },
+     "permissions": {
+      "items": {
+       "$ref": "#/components/schemas/PermissionDecision"
+      },
+      "type": "array",
+      "title": "Permissions"
+     },
+     "effective_permissions": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "read",
+        "write",
+        "execute",
+        "network",
+        "launch"
+       ]
+      },
+      "type": "array",
+      "title": "Effective Permissions"
+     },
+     "refusals": {
+      "items": {
+       "$ref": "#/components/schemas/ProfileRefusal"
+      },
+      "type": "array",
+      "title": "Refusals",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "stable_key",
+     "accepted",
+     "elements",
+     "permissions",
+     "effective_permissions"
+    ],
+    "title": "ProfilePreview",
+    "description": "Explanatory preview: every effective value with its origin, every\nrefusal. `authoritative` is always false \u2014 the machine decides."
+   },
+   "ProfileRefusal": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "enum": [
+       "capability_incompatible",
+       "no_runtime_selected",
+       "machine_opt_in_off",
+       "permission_denied",
+       "harness_not_allowed"
+      ],
+      "title": "Code"
+     },
+     "subject": {
+      "type": "string",
+      "title": "Subject"
+     },
+     "details": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Details",
+      "default": {}
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "code",
+     "subject"
+    ],
+    "title": "ProfileRefusal"
    },
    "Progress": {
     "properties": {
@@ -32884,6 +33181,182 @@
     ],
     "title": "Why",
     "description": "Why an item was selected \u2014 the only relations Studi'OS knows how to\nestablish: a structural link, or an exact-token overlap with the objective."
+   },
+   "WorkProfile": {
+    "properties": {
+     "contract_version": {
+      "type": "integer",
+      "title": "Contract Version",
+      "default": 1
+     },
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "agent_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Agent Stable Key"
+     },
+     "required_capabilities": {
+      "$ref": "#/components/schemas/CapabilityRequirement",
+      "default": {
+       "coding": false,
+       "tools_required": [],
+       "local_compatible": false
+      }
+     },
+     "permissions": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "read",
+        "write",
+        "execute",
+        "network",
+        "launch"
+       ]
+      },
+      "type": "array",
+      "title": "Permissions",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "stable_key",
+     "title",
+     "agent_stable_key"
+    ],
+    "title": "WorkProfile",
+    "description": "What a profile asks for: an agent definition (by stable key, resolved by\nthe common resolver), the capabilities the work needs, and permissions it\nrequests. It declares no rule text and grants nothing by itself."
+   },
+   "WorkProfilePack": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.work-profile-pack/v1",
+      "title": "Format"
+     },
+     "profile": {
+      "$ref": "#/components/schemas/WorkProfile"
+     },
+     "base": {
+      "$ref": "#/components/schemas/ResourceDependencyPin"
+     },
+     "adaptations": {
+      "items": {
+       "$ref": "#/components/schemas/ResourceDependencyPin"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "title": "Adaptations"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "format",
+     "profile",
+     "base"
+    ],
+    "title": "WorkProfilePack"
+   },
+   "WorkProfilePackPreview": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.work-profile-pack-preview/v1",
+      "title": "Format",
+      "default": "studio.work-profile-pack-preview/v1"
+     },
+     "authoritative": {
+      "type": "boolean",
+      "const": false,
+      "title": "Authoritative",
+      "default": false
+     },
+     "mutates": {
+      "type": "boolean",
+      "const": false,
+      "title": "Mutates",
+      "default": false
+     },
+     "accepted": {
+      "type": "boolean",
+      "title": "Accepted"
+     },
+     "profile": {
+      "$ref": "#/components/schemas/ProfilePreview"
+     },
+     "observed": {
+      "items": {
+       "$ref": "#/components/schemas/ResourceDependencyPin"
+      },
+      "type": "array",
+      "maxItems": 17,
+      "title": "Observed"
+     },
+     "issues": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "composition_mismatch",
+        "composition_too_large"
+       ]
+      },
+      "type": "array",
+      "title": "Issues",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "accepted",
+     "profile",
+     "observed"
+    ],
+    "title": "WorkProfilePackPreview"
+   },
+   "WorkProfilePackRequest": {
+    "properties": {
+     "pack": {
+      "$ref": "#/components/schemas/WorkProfilePack"
+     },
+     "machine_policy": {
+      "$ref": "#/components/schemas/MachinePolicy"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "pack",
+     "machine_policy"
+    ],
+    "title": "WorkProfilePackRequest"
    },
    "WorkSession": {
     "properties": {

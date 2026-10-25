@@ -109,6 +109,8 @@ note vault `note_type=decision` de meme `readable_id`, lisible par
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
 studio_discover_definitions
+studio_preview_dependency_updates
+studio_preview_work_profile_pack
 studio_publish_definition
 studio_configure_runtime
 studio_register_runtime
@@ -523,6 +525,19 @@ seconde taxonomie ; aucun `version`/`schema_version` en payload
 gagnants selon P4, jamais persists.
 
 Kind `hook` (DEC-0194, additif, schemas d'outils inchanges) :
+`studio_preview_dependency_updates(resource_id, version, limit=20, offset=0)`
+lit les liens epingles, les versions actives et propose des pins UUID/version
+explicites sans modifier ni activer de definition. `limit` 1..100, offset >= 0 ;
+memes gardes de visibilite que l'API. Reponse `DependencyUpdates | McpError`.
+
+`studio_preview_work_profile_pack(pack, machine_policy, project_id?)` valide le
+format `studio.work-profile-pack/v1` et compose le resolver commun avec
+`WorkProfile` (aucun nouveau LibraryKind). Entree bornee a 128 KiB, erreurs
+`invalid_argument` structurees pour un format invalide. References privees
+invisibles = `pin_not_found`. Reponse `WorkProfilePackPreview | McpError`,
+toujours `mutates=false` et `authoritative=false` ; aucune publication,
+activation ou projection. Detail dans TECH/02_API_CONTRACT.md.
+
 `studio_discover_definitions` et `studio_publish_definition` acceptent
 `kind="hook"` (`studio.library.hook/v1`) ; un contenu de hook incoherent
 remonte `invalid_hook` (avec `reason`/`field`, meme vocabulaire que
