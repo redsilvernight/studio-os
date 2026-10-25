@@ -141,7 +141,8 @@ def create_server() -> MCPServer:
         name="studio_get_active_tasks",
         description=(
             "List active (created/in_progress/blocked) tasks for a project_id (UUID string) — "
-            "read-only."
+            "read-only. Up to 100 by default, with returned/additional_available counts; "
+            "optional limit, title_prefix and fields narrow the response."
         ),
         annotations=_READ_ONLY,
     )
@@ -504,6 +505,7 @@ def create_server() -> MCPServer:
             "or configuration. Compact first (limit1..24, default6); pass key for examples, "
             "prerequisites and restrictions. Product features, not library definitions."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_resolve_agent_identity,

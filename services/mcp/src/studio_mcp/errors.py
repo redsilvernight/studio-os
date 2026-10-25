@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import HTTPException
 from mcp.server.mcpserver import Context
-from pydantic import BaseModel, ConfigDict
-from sqlalchemy.exc import IntegrityError
+from pydantic import BaseModel, ConfigDict, ValidationError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.session import get_session_factory
 from studio_api.services.authz import Principal, load_principal
@@ -15,6 +17,36 @@ from studio_api.services.launch_credentials import ensure_tool_allowed
 from studio_mcp.auth import McpAuthError, authenticate
 
 ToolHandler = Callable[[AsyncSession, Principal], Awaitable[Any]]
+logger = logging.getLogger(__name__)
+
+
+def bounded_error(error: dict[str, Any]) -> dict[str, Any]:
+    if len(json.dumps(error, ensure_ascii=False, default=str).encode("utf-8")) <= 8192:
+        return error
+    compact = {
+        "error_code": str(error.get("error_code", "error"))[:80],
+        "message": str(error.get("message", ""))[:1000],
+        "details_truncated": True,
+    }
+    if isinstance(error.get("server_version"), int):
+        compact["server_version"] = error["server_version"]
+    return compact
+
+
+def validation_error(exc: ValidationError) -> dict[str, Any]:
+    return {
+        "error_code": "invalid_argument",
+        "message": "invalid tool arguments",
+        "fields": [
+            {
+                "field": ".".join(str(part) for part in error["loc"])[:100],
+                "type": str(error["type"])[:80],
+            }
+            for error in exc.errors(include_input=False, include_context=False, include_url=False)[
+                :3
+            ]
+        ],
+    }
 
 
 class McpError(BaseModel):
@@ -34,8 +66,8 @@ class McpError(BaseModel):
 def _http_exception_to_dict(exc: HTTPException) -> dict[str, Any]:
     detail = exc.detail
     if isinstance(detail, dict):
-        return detail
-    return {"error_code": "error", "message": str(detail)}
+        return bounded_error(detail)
+    return bounded_error({"error_code": "error", "message": str(detail)})
 
 
 def _tool_name(handler: Callable[..., Any]) -> str | None:
@@ -62,19 +94,28 @@ async def run_tool[T](
             machine = await authenticate(ctx, session)
             ensure_tool_allowed(machine, _tool_name(handler))
             principal = await load_principal(session, machine)
-            return await handler(session, principal)
+            result = await handler(session, principal)
+            if isinstance(result, dict) and "error_code" in result:
+                return bounded_error(result)  # type: ignore[return-value]
+            if isinstance(result, McpError):
+                return McpError.model_validate(bounded_error(result.model_dump()))  # type: ignore[return-value]
+            return result
         except McpAuthError as exc:
             return exc.to_dict()  # type: ignore[return-value]
         except HTTPException as exc:
             return _http_exception_to_dict(exc)  # type: ignore[return-value]
-        except ImportError as exc:
+        except ValidationError as exc:
+            await session.rollback()
+            return validation_error(exc)  # type: ignore[return-value]
+        except ImportError:
             # A lazily imported service module that is not deployed yet (e.g.
             # the Roadmap service before P3 converges) must answer a structured
             # error, never a raw stack trace (.claude/rules/mcp-tools.md).
             await session.rollback()
+            logger.exception("MCP service module unavailable")
             return {  # type: ignore[return-value]
                 "error_code": "service_unavailable",
-                "message": str(exc),
+                "message": "service module unavailable",
             }
         except IntegrityError:
             # A caller-supplied id (task_id, project_id, ...) that
@@ -88,4 +129,18 @@ async def run_tool[T](
             return {  # type: ignore[return-value]
                 "error_code": "invalid_reference",
                 "message": "one of the referenced ids does not exist",
+            }
+        except SQLAlchemyError:
+            await session.rollback()
+            logger.exception("MCP database operation failed")
+            return {  # type: ignore[return-value]
+                "error_code": "service_unavailable",
+                "message": "database operation unavailable",
+            }
+        except Exception:
+            await session.rollback()
+            logger.exception("Unexpected MCP service failure")
+            return {  # type: ignore[return-value]
+                "error_code": "internal_error",
+                "message": "unexpected service failure",
             }

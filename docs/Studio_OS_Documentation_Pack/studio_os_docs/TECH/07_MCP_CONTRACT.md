@@ -1,5 +1,18 @@
 # MCP Contract
 
+Version API 4 (DEC-0242 proposee) : arguments JSON bornes a 1 MiB ; `limit`
+1..500, `offset` >= 0, `max_chars` 1..50000 apres coercition SDK. Les bornes
+plus strictes de chaque outil restent appliquees. Une violation retourne
+`invalid_argument` en donnees structurees, sans echo de la valeur recue.
+Une erreur service depassant 8 KiB est reduite avec `details_truncated=true`,
+code d'erreur et version serveur conserves. Indisponibilite DB/module =
+`service_unavailable`, defaut inattendu = `internal_error`, avec journal
+serveur et sans exception brute envoyee au client.
+`studio_get_active_tasks` retourne au plus 100 taches par defaut (1..100 avec
+`limit`), tri deterministe par titre puis UUID ; `additional_available`
+compte exactement le reliquat. Les anciens appels sans limite ne renvoient
+plus toute la liste. Ces changements de bornes sont declares par la version 4.
+
 ## Outils de base
 studio_get_projects
 studio_get_project_state
@@ -592,6 +605,15 @@ Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 1500 caractères par élément puis au budget `max_chars` (`truncated`,
 `omitted_for_budget`) ; ce qui existe sans être retourné est compté dans
 `additional_available`. Le budget compte des caractères, pas des tokens.
+Contexte ciblé : les descriptions des tâches voisines utilisent au plus
+20 % du budget lorsqu'une tâche est demandée. Le handoff lié est sélectionné
+avant l'aperçu de roadmap, sous sa tranche existante. Les DEC acceptées
+pertinentes précèdent les propositions lexicales ; les liens directs restent
+prioritaires. Sur un corpus d'au moins cinq éléments, un terme présent dans
+60 % des éléments cesse de départager les candidats si l'objectif comporte
+un terme attesté dans au plus 20 % du corpus. Une requête portant seulement
+sur le terme commun reste utilisable. Aucun nombre dans `additional_available`
+ou `omitted_for_budget` ne prétend compter des tokens.
 Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
 jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
 outils de lecture composés (Library `user` d'autrui invisible, Library

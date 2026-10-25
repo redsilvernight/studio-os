@@ -27,6 +27,8 @@ Version 4 : un claim protege le couple machine/agent. Une autre identite
 d'agent (y compris `null`) ne remplace plus silencieusement le detenteur sur
 la meme machine : `409 already_claimed`. Liberer explicitement avant une
 reprise par un autre agent. Version 3 : DEC-0235. Transport et evenements inchanges.
+Version 4 couvre aussi les bornes MCP explicites et les listes de taches
+actives bornees par defaut (DEC-0242 proposee, TECH/07_MCP_CONTRACT.md).
 
 Historique version 2 (DEC-0103) :
 Statut : **DEC-0103 acceptee ; enforcement projet et `GET /machines` /
