@@ -16,7 +16,11 @@ from uuid import UUID
 
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
 from studio_client.drift import SyncState, classify_state
-from studio_client.projection_backups import commit_projection_backup, prepare_projection_backup
+from studio_client.projection_backups import (
+    ProjectionBackup,
+    commit_projection_backup,
+    prepare_projection_backup,
+)
 
 _STABLE_KEY_RE = re.compile(r"\A[a-z0-9][a-z0-9._-]{0,199}\Z")
 _MANIFEST_SCHEMA_VERSION = 1
@@ -312,6 +316,7 @@ def apply_skill_sync(
     *,
     overwrite: bool = False,
     selected_keys: set[str] | None = None,
+    journal_sink: list[ProjectionBackup] | None = None,
 ) -> SkillSyncResult:
     """Apply a plan atomically per file, backing up authorized overwrites."""
 
@@ -397,7 +402,10 @@ def apply_skill_sync(
         except OSError:
             pass
     _atomic_write(plan.manifest_path, plan.manifest_text)
-    commit_projection_backup(journal)
+    if journal_sink is None:
+        commit_projection_backup(journal)
+    elif journal is not None:
+        journal_sink.append(journal)
     return SkillSyncResult(
         written=tuple(written),
         backups=tuple(backups),

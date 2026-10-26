@@ -11,6 +11,7 @@ import pytest
 from studio_client.config import ClientConfig
 from studio_client.context.library import LibraryContextItem
 from studio_client.daemon import skills_bridge
+from studio_client.projection_backups import list_projection_backups
 from studio_client.skill_sync import SkillSyncConflictError
 from studio_client.tokens import MemoryTokenStore
 
@@ -63,6 +64,35 @@ def _patch_fetch(monkeypatch: pytest.MonkeyPatch, projections: list[LibraryConte
         return projections
 
     monkeypatch.setattr(skills_bridge, "_fetch", fake)
+
+
+def test_definition_failure_rolls_back_skills_without_publishing_successful_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    data_root = tmp_path / "data"
+    _patch_fetch(monkeypatch, [_projection("standard", "skill", "Version one")])
+    _run(home, data_root)
+    path = home / ".agents/skills/standard/SKILL.md"
+    before = path.read_bytes()
+    journals_before = {j.directory.name for j in list_projection_backups(home)}
+    _patch_fetch(
+        monkeypatch,
+        [
+            _projection("standard", "skill", "Version two", version=2),
+            _projection("coding", "rule", "A rule"),
+        ],
+    )
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("injected definition write failure")
+
+    monkeypatch.setattr(skills_bridge, "apply_definition_sync", fail)
+    _run(home, data_root)
+    assert path.read_bytes() == before
+    assert {j.directory.name for j in list_projection_backups(home)} == journals_before
+    assert not (home / ".agents/rules/coding.md").exists()
 
 
 def _snapshot(root: Path) -> dict[str, tuple[bytes, int]]:
