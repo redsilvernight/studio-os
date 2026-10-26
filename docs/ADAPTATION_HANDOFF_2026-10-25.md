@@ -29,7 +29,7 @@ Aucune publication/déploiement, push/merge, modification de bibliothèque de pr
 
 ## Machine et validation
 
-Bonsai doit rester ARRÊTÉ, Docker aussi. Un démarrage automatique Docker lors du préflight a épuisé la mémoire engagée Windows et provoqué les erreurs Git/WhisperFlow signalées. L’utilisateur a arrêté Bonsai et libéré la VRAM. Aucun rechargement/inférence. Le préflight a depuis été corrigé : lecture seule par défaut ; ne pas utiliser `-StartServices`/`-Migrate` ici.
+Le LLM local doit rester ARRÊTÉ, Docker aussi. Un démarrage automatique Docker lors du préflight a épuisé la mémoire engagée Windows et provoqué les erreurs Git/WhisperFlow signalées. L’utilisateur a arrêté le LLM local et libéré la VRAM. Aucun rechargement/inférence. Le préflight a depuis été corrigé : lecture seule par défaut ; ne pas utiliser `-StartServices`/`-Migrate` ici.
 
 Des services de test natifs avaient été lancés sous `C:/Users/redsi/AppData/Local/Temp/studios-native-tests-65c649b38ee5480db7c03e9c356f4f2d` : PostgreSQL port 55432, base `studio_os_test`, utilisateur studio (trust), migration 0038 ; MinIO port 19000, bucket studio-transfers. À l’arrêt, inventaire sandbox `Get-Process` sans résultat exploitable et CIM refusé : état actuel NON confirmé. Ne pas supposer ces services démarrés ; vérifier sans relancer Docker. Ne pas tuer de processus par nom.
 
@@ -42,9 +42,9 @@ Env de tests : `STUDIO_TEST_DATABASE_URL=postgresql+asyncpg://studio@127.0.0.1:5
 3. Identités : rapprochement legacy et transitions de modèle/session, matrice des points d’entrée restent à vérifier.
 4. Même home OS avec changement de compte : pas encore résolu pour projections. Absence dans fetch borné ne prouve pas suppression ; ne pas purger automatiquement.
 5. Journal projections : succès skills puis échec definitions peut laisser un journal skills marqué appliqué après rollback mémoire global ; hashguard empêche écrasement mais inventaire imparfait. Restauration locale ne modifie pas les pins serveur ; autosync peut réappliquer.
-6. Préflight worker spécifique au projet, preuves OpenCode, validation vault/DEC et scénarios intégrés restent à compléter. Outils personnels Bonsai/OpenCode : inspecter interfaces seulement, aucune extension silencieuse du périmètre.
+6. Préflight worker spécifique au projet, preuves OpenCode, validation vault/DEC et scénarios intégrés restent à compléter. Outils personnels (Local AI Hub, OpenCode) : inspecter interfaces seulement, aucune extension silencieuse du périmètre.
 7. Revue contrats avant intégration ; full suite une fois juste avant merge, dans un contexte adapté aux changements personnels préservés.
 
 ## Graphify
 
-Launcher exclusif `scripts/graphify-studio.ps1`, graphe central `E:/Graphify/Studio-OS/graphify-out`. Mise à jour AST confirmée jusqu’au commit HEAD `4f53b6e4` : 19551 nœuds, 57904 liens, 800 communautés, coût d’inférence 0 token / 0 $. Trois anciens nœuds curatés sans source_file et labels de communautés devenus approximatifs restent signalés ; ne pas lancer `graphify label` ni Bonsai. Le lot non committé n’a pas encore été indexé. Mettre à jour ses chemins exacts après reprise/validation, sans extraction sémantique.
+Launcher exclusif `scripts/graphify-studio.ps1`, graphe central `E:/Graphify/Studio-OS/graphify-out`. Mise à jour AST confirmée jusqu’au commit HEAD `4f53b6e4` : 19551 nœuds, 57904 liens, 800 communautés, coût d’inférence 0 token / 0 $. Trois anciens nœuds curatés sans source_file et labels de communautés devenus approximatifs restent signalés ; ne pas lancer `graphify label` ni le LLM local. Le lot non committé n’a pas encore été indexé. Mettre à jour ses chemins exacts après reprise/validation, sans extraction sémantique.

@@ -258,7 +258,7 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         """Minimal settings JSON keeping only the Studio session hook (agent
         identity) and the git guard. Combined with an empty `--setting-sources`
         it keeps a remotely launched harness from running the operator's own
-        hooks (bonsai delegation, rtk, office hooks) and, above all, the
+        hooks (local hub routing, rtk, office hooks) and, above all, the
         repository's committed hooks, which no human has validated. Each Studio
         hook is included independently; `None` when neither is deployed."""
         session_hook = ctx.home / _CLAUDE_SPEC.hook_rel
