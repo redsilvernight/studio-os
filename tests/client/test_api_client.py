@@ -20,6 +20,7 @@ from studio_client.errors import (
 )
 from studio_client.tokens import MemoryTokenStore, MissingMachineToken
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
+from studio_contracts.handoff import HandoffRequest
 from studio_contracts.sessions import WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
@@ -54,6 +55,36 @@ async def test_injects_auth_header() -> None:
         await client.list_projects()
 
     assert seen["authorization"] == "Bearer secret-abc"
+
+
+async def test_handoff_client_preserves_legacy_payload_and_uses_replay_key() -> None:
+    seen = {}
+    project_id, session_id, task_id = uuid4(), uuid4(), uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json_module.loads(request.content)
+        seen["key"] = request.headers["Idempotency-Key"]
+        return httpx.Response(
+            200,
+            json={
+                "task_id": str(task_id),
+                "task_status": "in_progress",
+                "task_version": 2,
+                "session_id": str(session_id),
+                "released_claims": [],
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        result = await client.handoff(
+            HandoffRequest(project_id=project_id, session_id=session_id),
+            idempotency_key="client-handoff",
+        )
+    assert result.task_id == task_id
+    assert seen["key"] == "client-handoff"
+    assert "completion" not in seen["body"]
 
 
 async def test_healthz_is_unauthenticated() -> None:

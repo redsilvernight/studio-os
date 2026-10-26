@@ -446,6 +446,40 @@ public de bootstrap, pas de secret d'environnement dedie.
   releases the task's claims automatically (L3 fallback, DEC-0163). A
   client that does not call the route observes no change.
 
+#### Preuves de clôture optionnelles (additif, proposition DEC-0243)
+
+`HandoffRequest.completion` accepte une preuve déclarative
+`studio.completion/v1`, sans changer la réponse ni imposer de preuve aux
+appels historiques. `kind` vaut `code`, `audit`, `diagnostic` ou `operation`.
+La preuve contient au plus 10 références `artifacts` (1..1000 caractères)
+et 20 `checks` : nom (1..200), nature `command|review|observation|ci`,
+but `validation|finding`, statut
+`passed|failed|not_run|environment_unavailable`, `exit_code` entier strict
+optionnel et référence optionnelle (<=1000 caractères).
+
+Une clôture avec preuve exige un artefact non vide et une validation réussie.
+Chaque validation doit être `passed`, sans code non nul ; une commande exige
+explicitement `exit_code=0`, et un contrôle CI une référence non vide.
+Les constats `finding` restent distincts : un échec observé peut accompagner
+un diagnostic validé, mais `not_run` est refusé et une commande doit avoir
+un code de sortie. Une réussite avec code non nul est incohérente.
+Le code exige `versioned=true` et `revision` non vide (<=200 caractères).
+Si `integration_required=true`, `integrated=true` et `target_branch` non vide
+(<=200) sont requis ; si `ci_required=true`, `ci_verified=true` et un contrôle
+CI de validation sont requis. Aucune branche cible n'est choisie par défaut.
+Une opération exige `effect_verified=true`. `deployed` est un état séparé,
+jamais déduit de la clôture.
+
+Avant toute mutation du handoff, une preuve sans `agent_id` et `summary`
+produit `422 completion_log_required`. Avec `task_status.status=completed`,
+une preuve incohérente produit `409 completion_incomplete` et une liste
+`issues` de codes précis. Un checkpoint non terminal peut conserver une
+preuve incomplète. La preuve et son verdict sont journalisés dans le résumé
+AIWork (`COMPLETION` / `COMPLETION_EVIDENCE`). Le contrôle vérifie la cohérence
+déclarée, pas la réalité d'un Git ou d'une commande sur un poste distant.
+Le rejeu idempotent inclut la preuve lorsqu'elle est fournie ; les empreintes
+des anciens appels sans preuve sont conservées.
+
 ### Sync (C2, additif, DEC-0157)
 - GET /sync — point de resynchronisation unique : « Qu'est-ce qui a changé depuis mon dernier sync et qui concerne mon travail ? », en réponse compacte et bornée. Lecture seule sur les ressources métier ; écrit un curseur de session (distinct de `prepare_context`, qui reste en lecture seule, DEC-0080). Outil MCP `studio_sync` (même contrat, DEC-0046/DEC-0048 : pas de version dans le payload).
   - Query params : `session_id` (UUID, optionnel — sinon `agent_id` + `task_id` requis), `ack` (curseur `seq` acquitté, optionnel — absent = début de session), `files` (liste de chemins déclarés, optionnel — filtre les claims recoupant ces fichiers), `limit` (défaut 50, max 200), `max_chars` (défaut 12000, max 50000 — budget de caractères partagé avec `prepare_context`).

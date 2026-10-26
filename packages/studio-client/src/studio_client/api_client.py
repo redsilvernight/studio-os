@@ -31,6 +31,7 @@ from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
 from studio_contracts.discovery import DiscoveryIntent, ProductDiscovery
 from studio_contracts.events import EventCreate, EventEnvelope
+from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.library import (
     DependencyUpdates,
     LibraryActivate,
@@ -709,6 +710,19 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def handoff(self, request: HandoffRequest, *, idempotency_key: str) -> HandoffResult:
+        payload = request.model_dump(mode="json")
+        if request.completion is None:
+            payload.pop("completion")
+        response = await self._request(
+            "POST",
+            "/api/v1/handoff",
+            json=payload,
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return HandoffResult.model_validate(response.json())
 
     async def preview_work_profile_pack(
         self, request: WorkProfilePackRequest

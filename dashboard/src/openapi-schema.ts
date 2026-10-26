@@ -3971,6 +3971,89 @@ export interface components {
          * @enum {string}
          */
         ClaimStatus: "active" | "released" | "expired";
+        /** CompletionCheck */
+        CompletionCheck: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default command
+             * @enum {string}
+             */
+            kind: "command" | "review" | "observation" | "ci";
+            /**
+             * Purpose
+             * @default validation
+             * @enum {string}
+             */
+            purpose: "validation" | "finding";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "not_run" | "environment_unavailable";
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Reference */
+            reference?: string | null;
+        };
+        /** CompletionEvidence */
+        CompletionEvidence: {
+            /**
+             * Format
+             * @default studio.completion/v1
+             * @constant
+             */
+            format: "studio.completion/v1";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "code" | "audit" | "diagnostic" | "operation";
+            /** Artifacts */
+            artifacts?: string[];
+            /** Checks */
+            checks?: components["schemas"]["CompletionCheck"][];
+            /**
+             * Versioned
+             * @default false
+             */
+            versioned: boolean;
+            /** Revision */
+            revision?: string | null;
+            /** Target Branch */
+            target_branch?: string | null;
+            /**
+             * Integration Required
+             * @default false
+             */
+            integration_required: boolean;
+            /**
+             * Integrated
+             * @default false
+             */
+            integrated: boolean;
+            /**
+             * Ci Required
+             * @default false
+             */
+            ci_required: boolean;
+            /**
+             * Ci Verified
+             * @default false
+             */
+            ci_verified: boolean;
+            /**
+             * Effect Verified
+             * @default false
+             */
+            effect_verified: boolean;
+            /**
+             * Deployed
+             * @default false
+             */
+            deployed: boolean;
+        };
         /**
          * ConfigurationHistory
          * @description Configuration history of a project over `[since, until)` of the launch's
@@ -4863,6 +4946,7 @@ export interface components {
             /** Tests Run */
             tests_run?: string[] | null;
             coordination?: components["schemas"]["HandoffCoordination"] | null;
+            completion?: components["schemas"]["CompletionEvidence"] | null;
         };
         /**
          * HandoffResult

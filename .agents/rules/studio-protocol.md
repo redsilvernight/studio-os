@@ -8,4 +8,4 @@ Studio OS is the persistent memory; LLM context is a temporary cache.
 4. Replay writes with `idempotency_key`; on 409 reread, merge, retry with `expected_version`.
 5. Persist decisions via `studio_add_decision`; resolve only when entitled.
 6. Load definitions on demand: `studio_discover_definitions`, `studio_resolve_agent`.
-7. One agent by default; subagent only for a real trigger. End via one `studio_handoff`; completed requires merge into `dev` and verified green CI.
+7. One agent by default; subagent only for a real trigger. End via `studio_handoff` + completion by kind: code/versioning + repo gates; audit/diagnostic/verified artifacts; operation/verified effects. No fixed branch. Separate implemented/tested/integrated/deployed.

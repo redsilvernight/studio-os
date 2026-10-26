@@ -9,6 +9,7 @@ Idempotent via `Idempotency-Key` (same key returns the original result)."""
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -16,6 +17,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
+from studio_contracts.completion import check_completion
 from studio_contracts.coordination import CoordinationEmit
 from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.sync import SyncResult
@@ -88,11 +90,30 @@ async def handoff(
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
     if request.agent_id is not None and request.agent_id != work_session.agent_id:
         raise HTTPException(409, detail={"error_code": "session_agent_mismatch"})
-    if (
-        task.claimed_by_machine_id == principal.machine.id
-        and task.claimed_by_agent_id not in (None, work_session.agent_id)
+    if task.claimed_by_machine_id == principal.machine.id and task.claimed_by_agent_id not in (
+        None,
+        work_session.agent_id,
     ):
         raise HTTPException(409, detail={"error_code": "already_claimed"})
+    summary = request.summary
+    if request.completion is not None:
+        if request.agent_id is None or request.summary is None:
+            raise HTTPException(422, detail={"error_code": "completion_log_required"})
+        report = check_completion(request.completion)
+        if (
+            request.task_status is not None
+            and request.task_status.status == TaskStatus.COMPLETED
+            and not report.ready
+        ):
+            raise HTTPException(
+                409, detail={"error_code": "completion_incomplete", "issues": report.issues}
+            )
+        summary = (
+            f"COMPLETION kind={request.completion.kind} ready={str(report.ready).lower()} "
+            f"versioned={request.completion.versioned} integrated={request.completion.integrated} "
+            f"deployed={request.completion.deployed}\n{request.summary}\nCOMPLETION_EVIDENCE "
+            + json.dumps(request.completion.model_dump(mode="json"), sort_keys=True)
+        )
 
     # C4: last bounded sync, then the optional `coordination.handoff` signal,
     # both while the session is live and before the task can be closed (a
@@ -191,7 +212,7 @@ async def handoff(
     # status, files and tests instead of losing them. Earliest first:
     # deterministic (DEC-0163).
     ai_work_id = None
-    if request.agent_id is not None and request.summary is not None:
+    if request.agent_id is not None and summary is not None:
         target_status = (
             request.ai_work_status if request.ai_work_status is not None else AIWorkStatus.COMPLETED
         )
@@ -215,7 +236,7 @@ async def handoff(
                 principal,
                 existing,
                 AIWorkLogUpdate(
-                    summary=request.summary,
+                    summary=summary,
                     status=target_status,
                     changed_files=request.changed_files,
                     tests_run=request.tests_run,
@@ -232,7 +253,7 @@ async def handoff(
                     agent_id=request.agent_id,
                     machine_id=principal.machine.id,
                     session_id=request.session_id,
-                    summary=request.summary,
+                    summary=summary,
                     status=target_status,
                     changed_files=request.changed_files or [],
                     tests_run=request.tests_run or [],

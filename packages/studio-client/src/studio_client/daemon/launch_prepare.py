@@ -36,7 +36,7 @@ from studio_client.bootstrap import (
 logger = logging.getLogger(__name__)
 
 WORKTREE_SUFFIX = "-wt-"
-DEFAULT_BASE_BRANCH = "dev"
+DEFAULT_BASE_BRANCH: str | None = None
 SLUG_MAX_LENGTH = 40
 SLUG_FALLBACK = "task"
 STEP_BOOTSTRAP = "bootstrap"
@@ -64,16 +64,20 @@ GitRunner = Callable[[Sequence[str], Path], GitResult]
 
 
 def run_git(args: Sequence[str], cwd: Path) -> GitResult:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise PreparationError("worktree", "git command timed out after 30 seconds") from exc
     return GitResult(completed.returncode, completed.stdout, completed.stderr)
 
 
@@ -144,7 +148,7 @@ def ensure_task_worktree(
     task_id: UUID,
     slug: str,
     *,
-    base: str = DEFAULT_BASE_BRANCH,
+    base: str | None = DEFAULT_BASE_BRANCH,
     fetch: bool = True,
     runner: GitRunner = run_git,
 ) -> Worktree:
@@ -178,7 +182,20 @@ def ensure_task_worktree(
         if fetched.returncode != 0:
             logger.warning("launch prepare: git fetch origin failed; using the local base")
 
-    base_ref = f"origin/{base}" if _verify(runner, root, f"origin/{base}") else base
+    if base is None:
+        remote_head = runner(
+            ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], root
+        )
+        if remote_head.returncode == 0 and _verify(runner, root, remote_head.stdout.strip()):
+            base = remote_head.stdout.strip()
+        else:
+            local_head = runner(["symbolic-ref", "--quiet", "--short", "HEAD"], root)
+            base = local_head.stdout.strip() if local_head.returncode == 0 else "HEAD"
+    base_ref = (
+        f"origin/{base}"
+        if not base.startswith("origin/") and _verify(runner, root, f"origin/{base}")
+        else base
+    )
     if not _verify(runner, root, base_ref):
         raise PreparationError("worktree", f"base branch {base!r} not found")
 
@@ -198,7 +215,7 @@ class PreparationRequest:
     task_id: UUID
     task_title: str | None
     harness_id: str
-    base_branch: str = DEFAULT_BASE_BRANCH
+    base_branch: str | None = DEFAULT_BASE_BRANCH
 
 
 @dataclass(frozen=True)
@@ -306,7 +323,7 @@ class LaunchPreparer:
         self,
         *,
         configurators: Sequence[IaConfigurator] | None = None,
-        base_branch: str = DEFAULT_BASE_BRANCH,
+        base_branch: str | None = DEFAULT_BASE_BRANCH,
         fetch: bool = True,
         runner: GitRunner = run_git,
     ) -> None:

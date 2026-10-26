@@ -387,8 +387,9 @@ def create_server() -> MCPServer:
         studio_handoff,
         name="studio_handoff",
         description=(
-            "Close a work session in one call (L3 handoff). project_id, session_id (UUID "
-            "strings) and expected_version are required. task_status (e.g. completed, blocked) "
+            "Close a work session in one call (L3 handoff). project_id and session_id (UUID "
+            "strings) are required; expected_version is required when changing task_status. "
+            "task_status (e.g. completed, blocked) "
             "optionally updates the task. agent_id + summary optionally logs an AI work entry "
             "linked to the session. agent_id must belong to the caller's user or legacy machine. "
             "Caller-generated "
@@ -398,7 +399,10 @@ def create_server() -> MCPServer:
             "second session end. coordination_text (<=280 chars) optionally emits a "
             "coordination.handoff signal on the task for its next session (delivered via "
             "studio_sync, never re-emitted on replay). The response also carries the last bounded "
-            "sync block and the task's handoff_cursor_seq. Requires a writer role."
+            "sync block and the task's handoff_cursor_seq. Optional completion evidence separates "
+            "code, audit, diagnostic and operation checks; incomplete validation refuses completed "
+            "with completion_incomplete. Evidence requires agent_id and summary for its work log. "
+            "Requires a writer role."
         ),
         annotations=_IDEMPOTENT_WRITE,
     )

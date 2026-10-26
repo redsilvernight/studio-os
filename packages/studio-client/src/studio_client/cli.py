@@ -1277,6 +1277,26 @@ def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> N
         raise SystemExit(1)
 
 
+def _completion_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_contracts.completion import CompletionEvidence, check_completion
+
+    _ = config
+    try:
+        with Path(args.file).open("rb") as source:
+            raw = source.read(131073)
+        if len(raw) > 131072:
+            raise ValueError("completion evidence too large")
+        evidence = CompletionEvidence.model_validate_json(raw)
+    except (OSError, ValueError):
+        raise SystemExit(
+            "invalid_completion_evidence: check file, format and 128 KiB limit"
+        ) from None
+    report = check_completion(evidence)
+    print(report.model_dump_json(indent=2))
+    if not report.ready:
+        raise SystemExit(1)
+
+
 def _library_restore(args: argparse.Namespace, config: ClientConfig | None) -> None:
     from studio_client.bootstrap import BootstrapError
     from studio_client.projection_backups import list_projection_backups, restore_projection_backup
@@ -2125,6 +2145,16 @@ def _build_parser() -> argparse.ArgumentParser:
         _add_json_flag(hooks_command)
         hooks_command.set_defaults(func=_hooks_library_command)
 
+    completion_parser = subparsers.add_parser(
+        "completion", help="Check work-kind completion evidence offline."
+    )
+    completion_sub = completion_parser.add_subparsers(dest="completion_command", required=True)
+    completion_check = completion_sub.add_parser(
+        "check", help="Validate evidence without closing anything."
+    )
+    completion_check.add_argument("file", help="Completion evidence JSON file.")
+    completion_check.set_defaults(func=_completion_check)
+
     library_parser = subparsers.add_parser(
         "library", help="Inspect and manage AI library projections."
     )
@@ -2310,6 +2340,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         in ("init", "check", "diff", "sync", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
         or getattr(args, "library_command", None) == "restore"
+        or getattr(args, "completion_command", None) == "check"
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)

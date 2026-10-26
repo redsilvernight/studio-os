@@ -86,6 +86,18 @@ optionnellement un `coordination.handoff` sur la tache ; `event_id` derive de
 la session : jamais de doublon au rejeu. Repli minimal : `end_session` libere les claims de la tache
 automatiquement.
 
+`completion` optionnel suit `HandoffRequest.completion` (TECH/02, preuves de
+clôture, proposition DEC-0243) : format `studio.completion/v1`, types
+`code|audit|diagnostic|operation`, au plus 10 artefacts et 20 contrôles.
+La preuve exige `agent_id` et `summary` (`completion_log_required` sinon).
+Pour `task_status=completed`, les validations incohérentes sont refusées
+avant mutation (`completion_incomplete`, avec `issues`). Ces erreurs métier
+sont renvoyées in-band comme les autres erreurs du service. La preuve est
+conservée dans AIWork ; le verdict reste déclaratif, sans vérification du
+poste distant. Aucun défaut de branche, d'intégration, de CI ou de
+déploiement n'est ajouté. Les appels sans preuve et leurs empreintes
+d'idempotence restent compatibles ; une preuve fournie participe à l'empreinte.
+
 ### studio_sync (C2, additif, DEC-0157)
 Resynchronisation en un appel : « quoi de neuf depuis mon dernier sync qui
 concerne mon travail ? », en reponse compacte et bornee. Meme contrat que

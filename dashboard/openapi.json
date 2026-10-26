@@ -19442,6 +19442,179 @@
     "title": "ClaimStatus",
     "description": "A claim past `expires_at` is not active regardless of stored status.\nA claim is a soft lock: it warns, it never blocks a Git operation or a\nfile write."
    },
+   "CompletionCheck": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "command",
+       "review",
+       "observation",
+       "ci"
+      ],
+      "title": "Kind",
+      "default": "command"
+     },
+     "purpose": {
+      "type": "string",
+      "enum": [
+       "validation",
+       "finding"
+      ],
+      "title": "Purpose",
+      "default": "validation"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "passed",
+       "failed",
+       "not_run",
+       "environment_unavailable"
+      ],
+      "title": "Status"
+     },
+     "exit_code": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exit Code"
+     },
+     "reference": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 1000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reference"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name",
+     "status"
+    ],
+    "title": "CompletionCheck"
+   },
+   "CompletionEvidence": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.completion/v1",
+      "title": "Format",
+      "default": "studio.completion/v1"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "code",
+       "audit",
+       "diagnostic",
+       "operation"
+      ],
+      "title": "Kind"
+     },
+     "artifacts": {
+      "items": {
+       "type": "string",
+       "maxLength": 1000,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 10,
+      "title": "Artifacts"
+     },
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/CompletionCheck"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Checks"
+     },
+     "versioned": {
+      "type": "boolean",
+      "title": "Versioned",
+      "default": false
+     },
+     "revision": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Revision"
+     },
+     "target_branch": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Target Branch"
+     },
+     "integration_required": {
+      "type": "boolean",
+      "title": "Integration Required",
+      "default": false
+     },
+     "integrated": {
+      "type": "boolean",
+      "title": "Integrated",
+      "default": false
+     },
+     "ci_required": {
+      "type": "boolean",
+      "title": "Ci Required",
+      "default": false
+     },
+     "ci_verified": {
+      "type": "boolean",
+      "title": "Ci Verified",
+      "default": false
+     },
+     "effect_verified": {
+      "type": "boolean",
+      "title": "Effect Verified",
+      "default": false
+     },
+     "deployed": {
+      "type": "boolean",
+      "title": "Deployed",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind"
+    ],
+    "title": "CompletionEvidence"
+   },
    "ConfigurationHistory": {
     "properties": {
      "project_id": {
@@ -21363,6 +21536,16 @@
       "anyOf": [
        {
         "$ref": "#/components/schemas/HandoffCoordination"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "completion": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CompletionEvidence"
        },
        {
         "type": "null"
