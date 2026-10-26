@@ -67,6 +67,7 @@ _MANUAL_REGISTRATION = frozenset({"claude-code", "codex"})
 def _git_check(executable: str, root: Path, *args: str) -> tuple[int, str]:
     result = subprocess.run(
         [executable, "-C", str(root), *args],
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -134,6 +135,7 @@ def _git_run(
     try:
         return subprocess.run(
             [executable, "-C", str(cwd), *args],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",

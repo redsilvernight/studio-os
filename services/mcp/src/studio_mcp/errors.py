@@ -14,6 +14,7 @@ from studio_api.db.session import get_session_factory
 from studio_api.services.authz import Principal, load_principal
 from studio_api.services.launch_credentials import ensure_tool_allowed
 
+from studio_mcp.argument_errors import validation_error as validation_error
 from studio_mcp.auth import McpAuthError, authenticate
 
 ToolHandler = Callable[[AsyncSession, Principal], Awaitable[Any]]
@@ -31,22 +32,6 @@ def bounded_error(error: dict[str, Any]) -> dict[str, Any]:
     if isinstance(error.get("server_version"), int):
         compact["server_version"] = error["server_version"]
     return compact
-
-
-def validation_error(exc: ValidationError) -> dict[str, Any]:
-    return {
-        "error_code": "invalid_argument",
-        "message": "invalid tool arguments",
-        "fields": [
-            {
-                "field": ".".join(str(part) for part in error["loc"])[:100],
-                "type": str(error["type"])[:80],
-            }
-            for error in exc.errors(include_input=False, include_context=False, include_url=False)[
-                :3
-            ]
-        ],
-    }
 
 
 class McpError(BaseModel):

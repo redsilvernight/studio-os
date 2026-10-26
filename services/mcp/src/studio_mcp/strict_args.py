@@ -6,7 +6,7 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import ValidationError
 
-from studio_mcp.errors import validation_error
+from studio_mcp.argument_errors import validation_error
 
 MAX_ARGUMENT_BYTES = 1024 * 1024
 

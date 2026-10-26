@@ -69,13 +69,17 @@ def test_instruction_uses_the_issuing_servers_agent_identity() -> None:
                 "-p",
                 "do the work",
                 "--output-format",
-                "json",
+                "stream-json",
+                "--verbose",
                 "--permission-mode",
                 "acceptEdits",
             ),
         ),
         (OpenCodeAdapter(), ("run", "--auto", "do the work")),
-        (CodexAdapter(), ("-a", "never", "exec", "--sandbox", "workspace-write", "do the work")),
+        (
+            CodexAdapter(),
+            ("-a", "never", "exec", "--json", "--sandbox", "workspace-write", "do the work"),
+        ),
     ],
 )
 def test_each_adapter_has_a_bounded_headless_invocation(
