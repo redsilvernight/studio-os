@@ -21,6 +21,7 @@ from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
+from studio_client import machine_setup
 from studio_client.agent_identity import observed_identity_request
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
@@ -210,6 +211,60 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
                 if hint:
                     print(f"Next ({report.harness}): " + hint.format(target=report.target))
     return 0
+
+
+def versioning(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="studio-client versioning")
+    sub = parser.add_subparsers(dest="action", required=True)
+    status = sub.add_parser("status", help="Diagnose Git without changing anything.")
+    status.add_argument("--path", action="append", default=[])
+    _add_json_flag(status)
+    configure = sub.add_parser(
+        "configure", help="Configure Git identity after explicit confirmation."
+    )
+    configure.add_argument("--scope", choices=("local", "global"), required=True)
+    configure.add_argument("--name", required=True)
+    configure.add_argument("--email", required=True)
+    configure.add_argument("--repo", default=".")
+    configure.add_argument("--home", default=str(Path.home()))
+    configure.add_argument("--confirm", action="store_true")
+    _add_json_flag(configure)
+    init = sub.add_parser("init", help="Initialize a local Git repository after confirmation.")
+    init.add_argument("--path", default=".")
+    init.add_argument("--branch")
+    init.add_argument("--confirm", action="store_true")
+    _add_json_flag(init)
+    args = parser.parse_args(argv)
+    path_dirs = tuple(os.environ.get("PATH", "").split(os.pathsep))
+    result: BaseModel | dict[str, object]
+    if args.action == "status":
+        roots = tuple(Path(value).expanduser() for value in args.path) or (Path.cwd(),)
+        result = machine_setup.probe_versioning(Path.home(), roots, path_dirs)
+    elif args.action == "configure":
+        try:
+            result = machine_setup.configure_versioning(
+                Path(args.home).expanduser(),
+                Path(args.repo).expanduser() if args.scope == "local" else None,
+                scope=args.scope,
+                name=args.name,
+                email=args.email,
+                confirm=args.confirm,
+                path_dirs=path_dirs,
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    else:
+        try:
+            result = machine_setup.init_versioning(
+                Path(args.path), branch=args.branch, confirm=args.confirm, path_dirs=path_dirs
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    payload = result.model_dump(mode="json") if isinstance(result, BaseModel) else result
+    print(json.dumps(payload, indent=2) if args.json else payload)
+    return 0 if payload.get("ok", payload.get("state") == "checked") else 1
 
 
 def _projects_list(args: argparse.Namespace, config: ClientConfig) -> None:
@@ -1670,6 +1725,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "setup-hooks",
         help="Deploy Studio OS session-start hooks (`studio-client setup-hooks --help`).",
     )
+    subparsers.add_parser("versioning", help="Diagnose and explicitly configure local Git.")
 
     projects_parser = subparsers.add_parser("projects", help="Projects.")
     discovery_parser = subparsers.add_parser(
@@ -2323,6 +2379,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(login(argv[1:]))
     if argv[:1] == ["setup-hooks"]:
         raise SystemExit(setup_hooks(argv[1:]))
+    if argv[:1] == ["versioning"]:
+        raise SystemExit(versioning(argv[1:]))
     if argv[:2] == ["outbox", "legacy"]:
         raise SystemExit(legacy_outbox_main(argv[2:]))
 

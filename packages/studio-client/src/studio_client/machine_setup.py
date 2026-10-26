@@ -128,6 +128,146 @@ def probe_versioning(
     )
 
 
+def _git_run(
+    executable: str, cwd: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            [executable, "-C", str(cwd), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return subprocess.CompletedProcess([executable, *args], 125, "", str(exc))
+
+
+def _valid_git_value(value: str, label: str) -> str:
+    value = value.strip()
+    if not value or value.startswith("-") or any(ord(char) < 32 for char in value):
+        raise ValueError(
+            f"{label} must be non-empty and cannot start with '-' or contain control characters"
+        )
+    return value
+
+
+def configure_versioning(
+    home: Path,
+    repository: Path | None,
+    *,
+    scope: Literal["local", "global"],
+    name: str,
+    email: str,
+    confirm: bool,
+    path_dirs: Sequence[str],
+) -> dict[str, object]:
+    executable = shutil.which("git", path=os.pathsep.join(path_dirs))
+    if executable is None:
+        return {
+            "ok": False,
+            "state": "missing",
+            "instructions": "Install Git from https://git-scm.com/downloads, then rerun.",
+        }
+    if not confirm:
+        return {"ok": False, "state": "confirmation_required"}
+    name, email = _valid_git_value(name, "name"), _valid_git_value(email, "email")
+    target = repository if scope == "local" else home
+    if target is None or not target.is_dir():
+        return {"ok": False, "state": "invalid_repository"}
+    env = None
+    if scope == "global" and home != Path.home():
+        env = os.environ.copy()
+        env["GIT_CONFIG_GLOBAL"] = str(home / ".gitconfig")
+    results = []
+    for key, value in (("user.name", name), ("user.email", email)):
+        result = _git_run(executable, target, "config", "--" + scope, key, value, env=env)
+        results.append(
+            {"key": key, "returncode": result.returncode, "stderr": result.stderr.strip()}
+        )
+    readback = {
+        key: _git_run(
+            executable, target, "config", "--" + scope, "--get", key, env=env
+        ).stdout.strip()
+        for key in ("user.name", "user.email")
+    }
+    ok = all(item["returncode"] == 0 for item in results) and readback == {
+        "user.name": name,
+        "user.email": email,
+    }
+    return {
+        "ok": ok,
+        "state": "configured" if ok else "failed",
+        "scope": scope,
+        "readback": readback,
+        "results": results,
+    }
+
+
+def init_versioning(
+    path: Path, *, branch: str | None, confirm: bool, path_dirs: Sequence[str]
+) -> dict[str, object]:
+    executable = shutil.which("git", path=os.pathsep.join(path_dirs))
+    if executable is None:
+        return {
+            "ok": False,
+            "state": "missing",
+            "instructions": "Install Git from https://git-scm.com/downloads, then rerun.",
+        }
+    if not confirm:
+        return {"ok": False, "state": "confirmation_required"}
+    path = path.expanduser().resolve()
+    probe_path = path
+    while not probe_path.exists() and probe_path != probe_path.parent:
+        probe_path = probe_path.parent
+    if branch:
+        branch = _valid_git_value(branch, "branch")
+        ref_check = _git_run(executable, probe_path, "check-ref-format", "--branch", branch)
+        if ref_check.returncode != 0:
+            return {
+                "ok": False,
+                "state": "invalid_branch",
+                "returncode": ref_check.returncode,
+                "stderr": ref_check.stderr.strip(),
+            }
+    if probe_path.is_dir():
+        probe = _git_run(executable, probe_path, "rev-parse", "--is-inside-work-tree")
+        bare_probe = _git_run(executable, probe_path, "rev-parse", "--is-bare-repository")
+        if probe.returncode == 125 or bare_probe.returncode == 125:
+            return {"ok": False, "state": "unavailable"}
+        if probe.stdout.strip() == "true" or bare_probe.stdout.strip() == "true":
+            return {
+                "ok": True,
+                "state": "existing",
+                "branch": _git_run(
+                    executable, probe_path, "branch", "--show-current"
+                ).stdout.strip(),
+            }
+    path.mkdir(parents=True, exist_ok=True)
+    if (path / ".git").exists():
+        check = _git_run(executable, path, "rev-parse", "--is-inside-work-tree")
+        return {
+            "ok": check.returncode == 0,
+            "state": "existing",
+            "branch": _git_run(executable, path, "branch", "--show-current").stdout.strip(),
+        }
+    args = ["init"]
+    if branch:
+        args += ["--initial-branch", branch]
+    result = _git_run(executable, path, *args)
+    check = _git_run(executable, path, "rev-parse", "--is-inside-work-tree")
+    return {
+        "ok": result.returncode == 0 and check.stdout.strip() == "true",
+        "state": "initialized" if result.returncode == 0 else "failed",
+        "branch": _git_run(executable, path, "branch", "--show-current").stdout.strip(),
+        "returncode": result.returncode,
+        "stderr": result.stderr.strip(),
+    }
+
+
 @dataclass(frozen=True)
 class SetupItem:
     """One managed file the setup would write, with its comparison to disk."""

@@ -183,3 +183,22 @@ studio-client capabilities --key vault
 Un état disponible décrit l'accès à la fonction selon les droits et les rapports
 reçus ; ce n'est pas un test de connectivité. Un rapport absent ou périmé reste
 signalé. Les vérifications Git et des fichiers du poste se font dans le setup.
+
+## Accompagner le versionnement local
+
+Le moteur de configuration propose aussi un parcours CLI. Aucun compte GitHub
+ni dépôt distant n'est requis pour commencer :
+
+```powershell
+studio-client versioning status --path ./mon-projet --json
+studio-client versioning init --path ./mon-projet --branch main --confirm
+studio-client versioning configure --scope local --repo ./mon-projet --name "Votre nom" --email "vous@example.org" --confirm
+```
+
+Sans `--confirm`, les commandes d'écriture refusent l'action. `--scope global`
+configure l'identité du poste ; `--scope local` la limite au dépôt indiqué.
+Chaque écriture est relue avant d'annoncer un succès. Un dépôt existant, y
+compris dans un dossier parent, est conservé ; une branche différente n'est
+pas imposée. Si Git manque, le diagnostic fournit son parcours d'installation
+manuel. Après installation, relancer le diagnostic. Le setup Desktop conserve
+le diagnostic et le guide manuel ; ces actions CLI demandent leur propre accord.

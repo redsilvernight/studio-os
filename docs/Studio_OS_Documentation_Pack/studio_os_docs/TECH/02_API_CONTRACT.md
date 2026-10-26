@@ -1299,6 +1299,14 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   Library du moment : une version d'element qui bouge change le `digest` au lieu de faire
   tourner le profil d'une tentative fermee. La machine revalide le pin au demarrage et refuse
   le run (`profile_version_changed`) plutot que d'executer un profil que personne n'a vu.
+  Contrat profil v2 : le digest inclut aussi les UUID des ressources resolues (agent,
+  rules, skills, model profile). Deux scopes partageant cle/version/origine ne peuvent
+  plus produire le meme pin. `ProfileElement.resource_id` expose cette identite ; un
+  element v2 sans UUID est refuse. Le daemon v2 relit les pins v1 en recalculant
+  exactement leur ancien digest ; il utilise la version du pin, jamais sa version
+  par defaut. Un daemon v1 refuse un profil v2 avec `profile_version_changed` : mise
+  a jour du daemon requise pour les nouveaux lancements profiles, sans effet sur
+  les lancements sans profil. Aucun pin v1 existant n'est reecrit.
 - GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
 - POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
 - GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de

@@ -24557,6 +24557,18 @@
        "machine_policy"
       ],
       "title": "Origin"
+     },
+     "resource_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resource Id"
      }
     },
     "additionalProperties": false,
@@ -24574,7 +24586,7 @@
      "contract_version": {
       "type": "integer",
       "title": "Contract Version",
-      "default": 1
+      "default": 2
      },
      "stable_key": {
       "type": "string",
@@ -33370,7 +33382,7 @@
      "contract_version": {
       "type": "integer",
       "title": "Contract Version",
-      "default": 1
+      "default": 2
      },
      "stable_key": {
       "type": "string",

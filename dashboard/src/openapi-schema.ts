@@ -6311,6 +6311,8 @@ export interface components {
              * @enum {string}
              */
             origin: "library" | "runtime_binding" | "model_profile" | "session_override" | "machine_policy";
+            /** Resource Id */
+            resource_id?: string | null;
         };
         /**
          * ProfilePreview
@@ -6320,7 +6322,7 @@ export interface components {
         ProfilePreview: {
             /**
              * Contract Version
-             * @default 1
+             * @default 2
              */
             contract_version: number;
             /** Stable Key */
@@ -10143,7 +10145,7 @@ export interface components {
         WorkProfile: {
             /**
              * Contract Version
-             * @default 1
+             * @default 2
              */
             contract_version: number;
             /** Stable Key */
