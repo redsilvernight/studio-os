@@ -288,9 +288,9 @@ ou validation du déploiement n'a été exécuté pour cette nouvelle roadmap.
 
 Graphify a fourni le vocabulaire du graphe central. La requête via
 `scripts/graphify-studio.ps1` a échoué (`uv trampoline failed to canonicalize script
-path`) ; aucune conclusion de relation n'est tirée du graphe. Bonsai était
-désactivé (`disabled.flag`) lors de la tentative de lecture. L'actualisation
-sémantique de ce document reste à faire par Bonsai FIFO. L'auto-update a aussi été
+path`) ; aucune conclusion de relation n'est tirée du graphe. Le LLM local était
+désactivé lors de la tentative de lecture. L'actualisation
+sémantique de ce document reste à faire par le LLM local (Local AI Hub). L'auto-update a aussi été
 tenté via le launcher sur le seul chemin modifié ; même échec du trampoline avant
 extraction : **0 token / 0 $**, aucun graphe actualisé. Les snapshots/ledgers dans d'autres
 domaines ne prouvent pas les nouvelles fonctions.
