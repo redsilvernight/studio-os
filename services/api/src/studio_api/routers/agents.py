@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, Request, Response, status
-from sqlalchemy import select
+from fastapi.responses import JSONResponse
+from sqlalchemy import and_, or_, select
+from studio_contracts.agent_identity import AgentIdentityRequest, AgentIdentityResult
 from studio_contracts.auth import Agent, AgentCreate, AgentEnsureResult, Role
 
 from studio_api.db.models.agent import AgentModel
@@ -23,25 +25,62 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 @router.get(
     "",
     response_model=list[Agent],
+    response_model_exclude={"__all__": {"owner_user_id"}},
     description=(
-        "List agent provenance identities: those whose machine belongs to the "
+        "List agent provenance identities owned by the caller's user, or legacy rows whose "
+        "machine belongs to the "
         "caller's User, every agent for `admin` (contract version 2)."
     ),
     responses={**RESP_401_UNAUTHORIZED},
 )
-async def list_agents(session: DbSession, principal: CurrentPrincipal) -> list[Agent]:
+async def list_agents(
+    session: DbSession, principal: CurrentPrincipal, include_identity_owner: bool = False
+) -> list[Agent] | JSONResponse:
     stmt = select(AgentModel)
     if principal.role != Role.ADMIN:
-        stmt = stmt.join(MachineModel, AgentModel.machine_id == MachineModel.id).where(
-            MachineModel.owner_user_id == principal.user.id
+        stmt = stmt.outerjoin(MachineModel, AgentModel.machine_id == MachineModel.id).where(
+            or_(
+                AgentModel.owner_user_id == principal.user.id,
+                and_(
+                    AgentModel.owner_user_id.is_(None),
+                    MachineModel.owner_user_id == principal.user.id,
+                ),
+            )
         )
     result = await session.execute(stmt)
-    return [Agent.model_validate(a) for a in result.scalars().all()]
+    agents = [Agent.model_validate(a) for a in result.scalars().all()]
+    if include_identity_owner:
+        return JSONResponse([agent.model_dump(mode="json") for agent in agents])
+    return agents
+
+
+@router.post(
+    "/resolve-identity",
+    response_model=AgentIdentityResult,
+    description="Resolve the authenticated user's durable logical harness/provider/observed-model "
+    "identity across authorized machines. An alias alone returns unknown without creation.",
+    responses={
+        201: {"model": AgentIdentityResult, "description": "Identity created"},
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+    },
+)
+async def resolve_identity(
+    payload: AgentIdentityRequest,
+    response: Response,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> AgentIdentityResult:
+    result = await agents_service.resolve_identity(session, principal, payload)
+    if result.created:
+        response.status_code = status.HTTP_201_CREATED
+    return result
 
 
 @router.post(
     "",
     response_model=Agent,
+    response_model_exclude={"owner_user_id"},
     status_code=status.HTTP_201_CREATED,
     description=(
         "Register an agent identity for the caller's own authenticated "
@@ -84,6 +123,7 @@ async def register_agent(
 @router.post(
     "/ensure",
     response_model=AgentEnsureResult,
+    response_model_exclude={"agent": {"owner_user_id"}},
     description=(
         "Server-side `agents ensure` (AIB-I, additive): find this machine's "
         "agent for `AgentCreate.stable_key` or register it, so a retried "

@@ -34,7 +34,8 @@ _RESP_409_ACTOR_NOT_OWNED: dict[int | str, dict[str, Any]] = {
     response_model=StartWorkResult,
     description=(
         "Start or resume work on a task in one call. Requires a writer role. "
-        "With `task_id`: claim the task for the caller's machine (idempotent) "
+        "With `task_id`: claim for the caller's machine and agent (idempotent; "
+        "another holder, including another agent on this machine, gets 409 already_claimed) "
         "+ resume or create the agent's open session on it + the scoped "
         "project context. Without `task_id`: the project context plus the "
         "candidate tasks (current-step linked tasks first, then other "

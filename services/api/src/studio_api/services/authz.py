@@ -3,19 +3,28 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, TypeGuard
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, false, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
 
 LAUNCH_SCOPE_ATTR = "launch_scope"
+
+
+def owns_agent(agent: AgentModel | None, machine: MachineModel) -> TypeGuard[AgentModel]:
+    if agent is None:
+        return False
+    if agent.owner_user_id is not None:
+        return agent.owner_user_id == machine.owner_user_id
+    return agent.machine_id == machine.id
 
 
 @dataclass(frozen=True)

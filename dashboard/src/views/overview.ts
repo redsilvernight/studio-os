@@ -19,6 +19,7 @@
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
+import { mountProductDiscovery } from "../productDiscovery";
 import { observedFetch } from "../apiEvents";
 import { joinUrl } from "../config";
 import { dsBadge, dsEmptyState, dsHeroCard, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus, dsStatusDot, type DsStatusState } from "../ds/ds";
@@ -142,6 +143,7 @@ export async function renderOverview(root: HTMLElement, ctx: OverviewContext): P
   ]);
   root.innerHTML = homePageHtml({ health, projects, tasks, reviewQueue, transfers, authed: ctx.authed });
   bindReviewActions(root, ctx);
+  mountProductDiscovery(root, ctx.client);
 }
 
 export interface HomeData {

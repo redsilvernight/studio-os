@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from studio_client.config import ClientConfig
@@ -64,7 +65,11 @@ def _policy(permissions: list[ProfilePermission] | None, *, opt_in: bool = True)
 
 def _element(version: int) -> ProfileElement:
     return ProfileElement(
-        kind=LibraryKind.AGENT_DEFINITION, stable_key="architect", version=version, origin="library"
+        kind=LibraryKind.AGENT_DEFINITION,
+        stable_key="architect",
+        version=version,
+        origin="library",
+        resource_id=UUID("00000000-0000-0000-0000-000000000001"),
     )
 
 
@@ -166,6 +171,7 @@ def test_write_mode_argv_is_unchanged() -> None:
         "-a",
         "never",
         "exec",
+        "--json",
         "--sandbox",
         "workspace-write",
         "p",
@@ -310,7 +316,10 @@ async def test_executor_runs_read_only_profile_in_read_only_mode(tmp_path: Path)
     rows = await _run(executor)
     assert [r["status"] for r in rows] == ["preparing", "running", "succeeded"]
     assert adapter.modes == [AccessMode.READ_ONLY]
-    assert "launch_diagnostics" not in str(rows[-1]["output_excerpt"])
+    header = str(rows[-1]["output_excerpt"]).splitlines()[0]
+    assert "mode=read_only exit_code=0 validation=unverified" in header
+    assert "start_work_not_observed" not in header
+    assert "handoff_not_observed" not in header
 
 
 async def test_forbidden_operation_with_exit_zero_is_a_failure(tmp_path: Path) -> None:
@@ -322,7 +331,8 @@ async def test_forbidden_operation_with_exit_zero_is_a_failure(tmp_path: Path) -
     assert rows[-1]["status"] == "failed"
     assert rows[-1]["reason_code"] == "harness_exited"
     excerpt = str(rows[-1]["output_excerpt"])
-    assert excerpt.startswith("[studio:launch_diagnostics] mode=read_only forbidden_operation")
+    assert excerpt.startswith("[studio:launch_diagnostics] mode=read_only exit_code=0")
+    assert "forbidden_operation" in excerpt.splitlines()[0]
 
 
 async def test_missing_protocol_calls_are_reported_not_silent(tmp_path: Path) -> None:
@@ -330,10 +340,9 @@ async def test_missing_protocol_calls_are_reported_not_silent(tmp_path: Path) ->
     rows = await _run(executor)
     assert rows[-1]["status"] == "succeeded"
     header = str(rows[-1]["output_excerpt"]).splitlines()[0]
-    assert header == (
-        "[studio:launch_diagnostics] mode=workspace_write "
-        "start_work_not_observed handoff_not_observed"
-    )
+    assert header.startswith("[studio:launch_diagnostics] mode=workspace_write exit_code=0")
+    assert "validation=unverified" in header
+    assert header.endswith("start_work_not_observed handoff_not_observed")
 
 
 # --- bridge: local permissions are the machine's, preserved and fail closed ---

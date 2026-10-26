@@ -229,4 +229,4 @@ class CodexAdapter(JsonMcpAdapter):
     ) -> tuple[str, ...]:
         self.require_mode(mode)
         sandbox = "read-only" if mode is AccessMode.READ_ONLY else "workspace-write"
-        return ("-a", "never", "exec", "--sandbox", sandbox, prompt)
+        return ("-a", "never", "exec", "--json", "--sandbox", sandbox, prompt)

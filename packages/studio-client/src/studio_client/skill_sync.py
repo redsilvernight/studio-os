@@ -16,6 +16,11 @@ from uuid import UUID
 
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
 from studio_client.drift import SyncState, classify_state
+from studio_client.projection_backups import (
+    ProjectionBackup,
+    commit_projection_backup,
+    prepare_projection_backup,
+)
 
 _STABLE_KEY_RE = re.compile(r"\A[a-z0-9][a-z0-9._-]{0,199}\Z")
 _MANIFEST_SCHEMA_VERSION = 1
@@ -80,6 +85,7 @@ class SkillSyncPlan:
     manifest_path: Path
     manifest_text: str
     retired: tuple[SkillTargetPlan, ...] = ()
+    manifest_before: str | None = None
     """Unmodified managed copies of deprecated skills, removed on apply."""
 
     @property
@@ -131,7 +137,7 @@ async def fetch_skill_projections(
     project_id: UUID | None,
     limit: int = 100,
 ) -> tuple[LibraryContextItem, ...]:
-    """Fetch effective skills and keep only globally safe Studio-scope rows.
+    """Fetch effective skills visible to the caller for global projection.
 
     Deprecated rows are kept so ``plan_skill_sync`` can retire their managed copies."""
 
@@ -142,7 +148,7 @@ async def fetch_skill_projections(
     )
     return tuple(
         sorted(
-            (item for item in result.items if item.scope == "studio"),
+            (item for item in result.items if item.scope in {"studio", "user"}),
             key=lambda item: item.stable_key,
         )
     )
@@ -186,6 +192,7 @@ def plan_skill_sync(
 
     root = Path(home).expanduser().resolve()
     manifest_path = root / ".studio-os" / "library-skills-manifest.json"
+    manifest_before = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else None
     managed_hashes = _load_managed_hashes(manifest_path)
     opencode_hashes = _load_managed_hashes(manifest_path, target="opencode")
     entries: list[SkillPlanEntry] = []
@@ -275,6 +282,7 @@ def plan_skill_sync(
         manifest_path=manifest_path,
         manifest_text=manifest_text,
         retired=tuple(retired),
+        manifest_before=manifest_before,
     )
 
 
@@ -308,6 +316,7 @@ def apply_skill_sync(
     *,
     overwrite: bool = False,
     selected_keys: set[str] | None = None,
+    journal_sink: list[ProjectionBackup] | None = None,
 ) -> SkillSyncResult:
     """Apply a plan atomically per file, backing up authorized overwrites."""
 
@@ -320,11 +329,10 @@ def apply_skill_sync(
                 written=(), backups=(), manifest_path=plan.manifest_path, removed=()
             )
         manifest = json.loads(plan.manifest_text)
-        previous = (
-            json.loads(plan.manifest_path.read_text(encoding="utf-8"))
-            if plan.manifest_path.is_file()
-            else {}
+        previous_text = (
+            plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
         )
+        previous = json.loads(previous_text) if previous_text is not None else {}
         if not isinstance(previous, dict) or not isinstance(previous.get("skills", []), list):
             raise SkillSyncError("invalid existing skill manifest")
         manifest["skills"] = [
@@ -339,6 +347,7 @@ def apply_skill_sync(
                 entry for entry in plan.entries if entry.projection.stable_key in selected_keys
             ),
             retired=(),
+            manifest_before=previous_text,
             manifest_text=json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         )
     conflicts = [target for target in plan.locally_modified]
@@ -347,6 +356,17 @@ def apply_skill_sync(
         raise SkillSyncConflictError(
             f"refusing to overwrite locally modified skill files without overwrite=True: {paths}"
         )
+    _verify_plan_is_fresh(plan)
+
+    desired: dict[Path, str | None] = {
+        target.path: _desired_text(entry, target)
+        for entry in plan.entries
+        for target in entry.all_targets
+        if target.state != "current"
+    }
+    desired.update({target.path: None for target in plan.retired})
+    desired[plan.manifest_path] = plan.manifest_text
+    journal = prepare_projection_backup(plan.home, desired)
     _verify_plan_is_fresh(plan)
 
     backup_root: Path | None = None
@@ -382,6 +402,10 @@ def apply_skill_sync(
         except OSError:
             pass
     _atomic_write(plan.manifest_path, plan.manifest_text)
+    if journal_sink is None:
+        commit_projection_backup(journal)
+    elif journal is not None:
+        journal_sink.append(journal)
     return SkillSyncResult(
         written=tuple(written),
         backups=tuple(backups),
@@ -403,9 +427,9 @@ def _validate_projection(projection: LibraryContextItem) -> None:
         raise SkillSyncError(f"unsafe skill stable_key: {key!r}")
     if projection.library_kind != "skill":
         raise SkillSyncError(f"expected a skill projection, got {projection.library_kind!r}")
-    if projection.scope != "studio":
+    if projection.scope not in {"studio", "user"}:
         raise SkillSyncError(
-            f"refusing to project non-studio skill {key!r} with scope {projection.scope!r}"
+            f"refusing to project non-global skill {key!r} with scope {projection.scope!r}"
         )
     if projection.version <= 0:
         raise SkillSyncError(f"invalid skill version for {key!r}: {projection.version}")
@@ -545,6 +569,13 @@ def _load_managed_hashes(manifest_path: Path, target: str | None = None) -> dict
 
 
 def _verify_plan_is_fresh(plan: SkillSyncPlan) -> None:
+    if plan.manifest_path.exists() and not plan.manifest_path.is_file():
+        raise SkillSyncConflictError("skill manifest changed since planning")
+    manifest = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
+    )
+    if manifest != plan.manifest_before:
+        raise SkillSyncConflictError("skill manifest changed since planning")
     targets = [target for entry in plan.entries for target in entry.all_targets]
     for target in [*targets, *plan.retired]:
         if target.path.exists():

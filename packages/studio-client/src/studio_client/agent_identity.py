@@ -1,17 +1,22 @@
-"""One agent identity per (machine, provider, model), harness-independent
-(DEC-0225, supersedes DEC-0180). Every caller that registers a model agent —
-session-start hooks of every harness and the daemon launcher — builds its
-`AgentCreate` here, so the metadata is identical and `POST /agents/ensure`
-returns the same row instead of a `409 idempotency_key_payload_mismatch`.
-The machine scope comes from the authenticated credential, never from here.
-The harness stays attributed to the execution (`ai_work.harness`)."""
+"""Observed identity requests and backward-compatible legacy identity helpers."""
 
 from __future__ import annotations
 
+from studio_contracts.agent_identity import AgentIdentityRequest
 from studio_contracts.auth import AgentCreate
 
 MODEL_AGENT_KEY_PREFIX = "agent-model:"
 UNKNOWN_PROVIDER = "unknown"
+
+
+def observed_identity_request(
+    harness: str, model: str | None, provider: str | None = None
+) -> AgentIdentityRequest:
+    mid = (model or "").strip()
+    prov = (provider or "").strip().lower()
+    if not prov and "/" in mid:
+        prov, mid = mid.split("/", 1)
+    return AgentIdentityRequest(harness=harness, provider=prov or None, effective_model=mid or None)
 
 
 def normalize_model_ref(model: str | None, provider: str | None = None) -> tuple[str, str] | None:
@@ -35,8 +40,7 @@ def model_agent_stable_key(provider: str, model: str) -> str:
 
 
 def model_agent_create(model: str | None, provider: str | None = None) -> AgentCreate | None:
-    """The canonical model agent registration, or `None` for an unknown model
-    (callers then fall back explicitly to the harness agent, DEC-0099)."""
+    """Legacy machine-scoped registration; new observations use identity resolution."""
     ref = normalize_model_ref(model, provider)
     if ref is None:
         return None
@@ -55,6 +59,6 @@ def is_legacy_model_key(stable_key: str | None) -> bool:
     a former identity, never rewritten."""
     if not stable_key:
         return False
-    return stable_key.startswith("launch-agent-") or (
+    return stable_key.startswith(("launch-agent-", "agent-model:")) or (
         stable_key.startswith("agents-ensure-") and ":" in stable_key
     )

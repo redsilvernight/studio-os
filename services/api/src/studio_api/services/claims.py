@@ -204,13 +204,18 @@ async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaim
 
 
 async def release_task_claims_by_task(
-    session: AsyncSession, principal: Principal, task: TaskModel
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    *,
+    agent_id: uuid.UUID | None,
 ) -> list[ResourceClaimModel]:
-    """Release all active claims for a given task. Used by L3 handoff and
+    """Release the session agent's active claims for a task. Used by L3 handoff and
     the `end_session` fallback. Each release goes through `release_claim`
     so a `resource.released` event is emitted per claim, exactly like a
     single release. Idempotent: already-released claims are skipped
-    without error; claims held by another machine are never touched."""
+    without error; another machine or agent's claims are never touched.
+    Unattributed claims follow the task holder when no different agent holds it."""
     ensure_project_access(principal, task.project_id, "write")
     result = await session.execute(
         select(ResourceClaimModel).where(
@@ -223,6 +228,11 @@ async def release_task_claims_by_task(
     for claim in claims:
         # Ownership check per claim: only the holding machine can release.
         if claim.claimed_by_machine_id != principal.machine.id:
+            continue
+        if claim.claimed_by_agent_id != agent_id and (
+            claim.claimed_by_agent_id is not None
+            or task.claimed_by_agent_id not in (None, agent_id)
+        ):
             continue
         released.append(await release_claim(session, principal, claim))
     return released

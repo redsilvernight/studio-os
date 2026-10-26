@@ -27,6 +27,7 @@ from studio_contracts.library import (
     LibraryResourceCreate,
     LibraryScope,
     LibraryVersionCreate,
+    ResourceDependencyPin,
     RuntimeCapabilities,
     VersionOrigin,
 )
@@ -389,6 +390,59 @@ async def test_composed_agent_resolved_through_resolve_full(
     nested = composed.resolved
     assert [r.stable_key for r in nested.rules] == ["comp-rb"]
     assert nested.runtime is None
+
+
+async def test_personal_same_key_composes_explicit_studio_base_without_merging(
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+    other_machine: tuple[MachineModel, str],
+) -> None:
+    mine = await _principal(db_session, machine)
+    other = await _principal(db_session, other_machine)
+    await _create(db_session, mine, RULE, "base-only", _rule_content("Studio rule"))
+    await _create(db_session, mine, RULE, "personal-only", _rule_content("Personal rule"))
+    base = await _create(
+        db_session,
+        mine,
+        AGENT,
+        "same-key",
+        _agent_content(),
+        dependencies=[DependencyPin(kind=RULE, stable_key="base-only", version=1)],
+    )
+    personal, _ = await library_service.create_resource(
+        db_session,
+        mine,
+        LibraryResourceCreate(
+            kind=AGENT,
+            stable_key="same-key",
+            scope=LibraryScope.USER,
+            title="Personal adaptation",
+            content=_agent_content(),
+            dependencies=[
+                ResourceDependencyPin(
+                    kind=AGENT, stable_key="same-key", version=1, resource_id=base.id
+                ),
+                DependencyPin(kind=RULE, stable_key="personal-only", version=1),
+            ],
+        ),
+    )
+    await library_service.activate_resource_version(db_session, mine, personal, 1, personal.version)
+    resolved = await resolution_service.resolve_full(db_session, mine, AGENT, "same-key")
+    assert resolved.agent.resource_id == personal.id
+    assert [rule.stable_key for rule in resolved.rules] == ["personal-only"]
+    child = resolved.composed_agents[0].resolved
+    assert child.agent.resource_id == base.id
+    assert [rule.stable_key for rule in child.rules] == ["base-only"]
+    shared = await resolution_service.resolve_full(db_session, other, AGENT, "same-key")
+    assert shared.agent.resource_id == base.id
+    assert shared.composed_agents == []
+    await library_service.create_resource_version(
+        db_session, mine, base, LibraryVersionCreate(title="v2", content=_agent_content())
+    )
+    await library_service.activate_resource_version(db_session, mine, base, 2, base.version)
+    resolved = await resolution_service.resolve_full(db_session, mine, AGENT, "same-key")
+    assert resolved.composed_agents[0].resolved.agent.version == 1
+    assert [rule.stable_key for rule in resolved.composed_agents[0].resolved.rules] == ["base-only"]
 
 
 async def test_composed_agent_cycle_fails_closed_through_resolve_full(

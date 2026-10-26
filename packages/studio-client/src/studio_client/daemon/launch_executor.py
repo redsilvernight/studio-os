@@ -29,8 +29,8 @@ from studio_contracts.task_launch import (
     TaskLaunchStatus,
 )
 
-from studio_client.agent_identity import model_agent_create
 from studio_client.api_client import StudioApiClient
+from studio_client.daemon.execution_evidence import collect_execution_evidence
 from studio_client.daemon.launch_policy import LaunchProfile, enforce_profile, run_diagnostics
 from studio_client.daemon.launch_prepare import (
     LaunchPreparer,
@@ -326,7 +326,7 @@ class LaunchExecutor:
             self._tasks.pop(launch.id, None)
 
     async def _ensure_launch_agent(self, harness_id: str, model: str | None) -> UUID:
-        agent_in = model_agent_create(model) or AgentCreate(
+        agent_in = AgentCreate(
             display_name=f"studio-{harness_id}",
             harness=harness_id,
             stable_key=f"agents-ensure-{harness_id}",
@@ -457,10 +457,16 @@ class LaunchExecutor:
         # Diagnostics read the raw harness output (JSON included); the excerpt
         # shows the collector's readable result when there is one.
         diagnostics = run_diagnostics(result.output)
+        evidence = collect_execution_evidence(
+            result.output, exit_code=result.exit_code, truncated=result.truncated
+        )
+        command_codes = ",".join(str(code) for code in evidence.command_exit_codes) or "none"
         header = (
-            f"[studio:launch_diagnostics] mode={mode.value} {' '.join(diagnostics)}\n"
-            if diagnostics
-            else ""
+            f"[studio:launch_diagnostics] mode={mode.value} exit_code={result.exit_code} "
+            f"validation={evidence.validation} observed_commands={evidence.observed_commands} "
+            f"failed_commands={evidence.failed_commands} failed_tools={evidence.failed_tools} "
+            f"command_exit_codes={command_codes} "
+            f"evidence_truncated={str(evidence.truncated).lower()} {' '.join(diagnostics)}\n"
         )
         body = self._excerpt(result.output if display is None else display, extra_secrets)
         excerpt = (header + body)[: self._max_chars]
@@ -473,7 +479,11 @@ class LaunchExecutor:
             )
         elif result.cancelled:
             return
-        elif result.exit_code == 0 and "forbidden_operation" not in diagnostics:
+        elif (
+            result.exit_code == 0
+            and not evidence.failed
+            and "forbidden_operation" not in diagnostics
+        ):
             self._reporter.report(launch, TaskLaunchStatus.SUCCEEDED, output_excerpt=excerpt)
         else:
             self._reporter.report(

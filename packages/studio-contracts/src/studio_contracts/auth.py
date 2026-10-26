@@ -78,8 +78,9 @@ class Machine(VersionedModel):
 
 
 class Agent(VersionedModel):
-    """Provenance identity attached to one machine: who did the work, for
-    audit and attribution. Never an authorization input — permissions come
+    """Provenance identity owned by a user, or by one machine for legacy rows.
+    `machine_id` records registration; execution machines stay on sessions.
+    `owner_user_id` marks canonical user identities. Permissions come
     from the machine owner's role alone. `agent_profile`, `harness`,
     `provider` and `model` are optional additive observability metadata:
     open strings, never whitelisted, never a capability or compatibility
@@ -98,6 +99,7 @@ class Agent(VersionedModel):
     provider: str | None = None
     model: str | None = None
     stable_key: str | None = None
+    owner_user_id: UUID | None = None
 
 
 class AgentCreate(IdempotentCreate):

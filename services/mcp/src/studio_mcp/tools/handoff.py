@@ -9,6 +9,7 @@ from studio_api.services import handoff as handoff_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import Principal
 from studio_contracts.ai_work import AIWorkStatus
+from studio_contracts.completion import CompletionEvidence
 from studio_contracts.coordination import COORDINATION_TEXT_MAX
 from studio_contracts.handoff import HandoffCoordination, HandoffRequest
 from studio_contracts.tasks import TaskStatus, TaskUpdate
@@ -30,6 +31,7 @@ async def studio_handoff(
     tests_run: list[str] | None = None,
     coordination_text: str | None = None,
     idempotency_key: str | None = None,
+    completion: CompletionEvidence | None = None,
 ) -> dict[str, Any]:
     """Close a work session in one call (L3 handoff). `project_id` and
     `session_id` (UUID strings) are required. `task_status` (e.g.
@@ -100,6 +102,7 @@ async def studio_handoff(
             ai_work_status=parsed_ai_work_status,
             changed_files=changed_files,
             tests_run=tests_run,
+            completion=completion,
             coordination=(
                 HandoffCoordination(text=coordination_text)
                 if coordination_text is not None
@@ -126,6 +129,11 @@ async def studio_handoff(
                     "changed_files": changed_files,
                     "tests_run": tests_run,
                     "coordination_text": coordination_text,
+                    **(
+                        {"completion": request.completion.model_dump(mode="json")}
+                        if request.completion is not None
+                        else {}
+                    ),
                 },
                 sort_keys=True,
             ).encode()

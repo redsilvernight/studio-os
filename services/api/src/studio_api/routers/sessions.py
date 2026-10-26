@@ -97,7 +97,9 @@ async def start_session(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> WorkSession:
-    await sessions_service.authorize_start(session, principal, session_in.task_id)
+    await sessions_service.authorize_start(
+        session, principal, session_in.task_id, session_in.agent_id
+    )
 
     async def _create() -> WorkSession:
         return _present(

@@ -105,6 +105,15 @@ un test échoue si l'export diverge des builders Python.
   `written` ; une seconde exécution n'écrit rien (`unchanged`). Les skills
   `locally_modified` ne sont jamais écrasées. L'enregistrement des hooks
   Claude/Codex reste manuel (DEC-0096).
+  `SetupPlan.versioning` optionnel ajoute un diagnostic Git en lecture seule :
+  absent, inexécutable ou vérifié, identité globale configurée, nombre de dépôts
+  parmi les workspaces, identité effective par dépôt et présence d'un distant
+  comptées séparément. Ni noms/e-mails, ni chemins, ni URL distantes ne sont
+  exposés. Les commandes ont un timeout ; un contrôle incomplet reste visible.
+  Le parcours manuel explique l'installation, l'initialisation et la différence
+  `--local` / `--global`, puis demande de refaire l'aperçu. `setup.apply` n'installe
+  pas Git, ne change pas son identité, n'initialise pas de dépôt et n'ajoute aucun
+  distant. Un dépôt local fonctionnel n'exige ni GitHub ni une branche nommée `dev`.
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).

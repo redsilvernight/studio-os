@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import MachineCapabilities, MachineStatus, Role
 from studio_contracts.events import EventCreate, EventType
@@ -689,10 +689,19 @@ async def _report_actor(
     machine reports), else to the machine's owner — never across machines."""
     if launch.agent_stable_key:
         result = await session.execute(
-            select(AgentModel).where(
-                AgentModel.machine_id == launch.machine_id,
+            select(AgentModel)
+            .where(
+                or_(
+                    AgentModel.owner_user_id == principal.user.id,
+                    and_(
+                        AgentModel.owner_user_id.is_(None),
+                        AgentModel.machine_id == launch.machine_id,
+                    ),
+                ),
                 AgentModel.stable_key == launch.agent_stable_key,
             )
+            .order_by(AgentModel.owner_user_id.is_(None))
+            .limit(1)
         )
         agent = result.scalar_one_or_none()
         if agent is not None:

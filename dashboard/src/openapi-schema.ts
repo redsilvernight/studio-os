@@ -683,7 +683,7 @@ export interface paths {
         put?: never;
         /**
          * Start Work
-         * @description Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.
+         * @description Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim for the caller's machine and agent (idempotent; another holder, including another agent on this machine, gets 409 already_claimed) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.
          */
         post: operations["start_work_api_v1_start_work_post"];
         delete?: never;
@@ -880,6 +880,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capabilities */
+        get: operations["capabilities_api_v1_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library": {
         parameters: {
             query?: never;
@@ -942,6 +959,26 @@ export interface paths {
          * @description Add draft version N+1 to a library definition. Never moves `active_version` — activation is a separate explicit call. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_library_version_api_v1_library__resource_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dependency Updates
+         * @description Preview active-version changes of pinned dependencies without changing versions, activation or projection. Suggested pins carry explicit resource UUIDs.
+         */
+        get: operations["dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1148,6 +1185,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/resolutions/work-profile-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Work Profile Pack
+         * @description Validate and preview a versioned work profile pack. Read-only: no import, publication, activation or projection; the machine retains final authority.
+         */
+        post: operations["preview_work_profile_pack_api_v1_resolutions_work_profile_pack_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resolutions": {
         parameters: {
             query?: never;
@@ -1197,7 +1254,7 @@ export interface paths {
         };
         /**
          * List Agents
-         * @description List agent provenance identities: those whose machine belongs to the caller's User, every agent for `admin` (contract version 2).
+         * @description List agent provenance identities owned by the caller's user, or legacy rows whose machine belongs to the caller's User, every agent for `admin` (contract version 2).
          */
         get: operations["list_agents_api_v1_agents_get"];
         put?: never;
@@ -1206,6 +1263,26 @@ export interface paths {
          * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required; `agent_kind`, `agent_profile`, `harness`, `provider` and `model` are optional free-form metadata (open strings, default null, every value accepted). Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["register_agent_api_v1_agents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/resolve-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Identity
+         * @description Resolve the authenticated user's durable logical harness/provider/observed-model identity across authorized machines. An alias alone returns unknown without creation.
+         */
+        post: operations["resolve_identity_api_v1_agents_resolve_identity_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2351,7 +2428,7 @@ export interface paths {
         put?: never;
         /**
          * Create Proposal
-         * @description Propose a change to an `active` roadmap: records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified — a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.
+         * @description Revise a draft in place (current `revision_no` as `base_revision_no`; `submit=false` keeps a draft snapshot, otherwise submits it). A proposed roadmap requires an authorized `request_changes` transition first. For an `active` roadmap, records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified — a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.
          */
         post: operations["create_proposal_api_v1_roadmaps__roadmap_id__proposals_post"];
         delete?: never;
@@ -3164,8 +3241,9 @@ export interface components {
         AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
         /**
          * Agent
-         * @description Provenance identity attached to one machine: who did the work, for
-         *     audit and attribution. Never an authorization input — permissions come
+         * @description Provenance identity owned by a user, or by one machine for legacy rows.
+         *     `machine_id` records registration; execution machines stay on sessions.
+         *     `owner_user_id` marks canonical user identities. Permissions come
          *     from the machine owner's role alone. `agent_profile`, `harness`,
          *     `provider` and `model` are optional additive observability metadata:
          *     open strings, never whitelisted, never a capability or compatibility
@@ -3209,6 +3287,8 @@ export interface components {
             model?: string | null;
             /** Stable Key */
             stable_key?: string | null;
+            /** Owner User Id */
+            owner_user_id?: string | null;
         };
         /**
          * AgentCreate
@@ -3251,6 +3331,37 @@ export interface components {
         AgentEnsureResult: {
             agent: components["schemas"]["Agent"];
             /** Created */
+            created: boolean;
+        };
+        /** AgentIdentityRequest */
+        AgentIdentityRequest: {
+            /** Harness */
+            harness: string;
+            /** Provider */
+            provider?: string | null;
+            /** Effective Model */
+            effective_model?: string | null;
+            /** Selection Alias */
+            selection_alias?: string | null;
+        };
+        /** AgentIdentityResult */
+        AgentIdentityResult: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "resolved" | "unknown";
+            /** Logical Harness */
+            logical_harness: string;
+            /** Reason */
+            reason?: ("unknown_model" | "unknown_provider") | null;
+            /** Selection Alias */
+            selection_alias?: string | null;
+            agent?: components["schemas"]["Agent"] | null;
+            /**
+             * Created
+             * @default false
+             */
             created: boolean;
         };
         /**
@@ -3860,6 +3971,89 @@ export interface components {
          * @enum {string}
          */
         ClaimStatus: "active" | "released" | "expired";
+        /** CompletionCheck */
+        CompletionCheck: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default command
+             * @enum {string}
+             */
+            kind: "command" | "review" | "observation" | "ci";
+            /**
+             * Purpose
+             * @default validation
+             * @enum {string}
+             */
+            purpose: "validation" | "finding";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "not_run" | "environment_unavailable";
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Reference */
+            reference?: string | null;
+        };
+        /** CompletionEvidence */
+        CompletionEvidence: {
+            /**
+             * Format
+             * @default studio.completion/v1
+             * @constant
+             */
+            format: "studio.completion/v1";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "code" | "audit" | "diagnostic" | "operation";
+            /** Artifacts */
+            artifacts?: string[];
+            /** Checks */
+            checks?: components["schemas"]["CompletionCheck"][];
+            /**
+             * Versioned
+             * @default false
+             */
+            versioned: boolean;
+            /** Revision */
+            revision?: string | null;
+            /** Target Branch */
+            target_branch?: string | null;
+            /**
+             * Integration Required
+             * @default false
+             */
+            integration_required: boolean;
+            /**
+             * Integrated
+             * @default false
+             */
+            integrated: boolean;
+            /**
+             * Ci Required
+             * @default false
+             */
+            ci_required: boolean;
+            /**
+             * Ci Verified
+             * @default false
+             */
+            ci_verified: boolean;
+            /**
+             * Effect Verified
+             * @default false
+             */
+            effect_verified: boolean;
+            /**
+             * Deployed
+             * @default false
+             */
+            deployed: boolean;
+        };
         /**
          * ConfigurationHistory
          * @description Configuration history of a project over `[since, until)` of the launch's
@@ -4285,6 +4479,52 @@ export interface components {
             version: number;
             relation?: components["schemas"]["BindingRelation"] | null;
         };
+        /** DependencyUpdate */
+        DependencyUpdate: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Pinned Version */
+            pinned_version: number;
+            /** Active Version */
+            active_version: number;
+            /** Deprecated */
+            deprecated: boolean;
+            /** Update Available */
+            update_available: boolean;
+            suggested_pin: components["schemas"]["ResourceDependencyPin"];
+        };
+        /** DependencyUpdates */
+        DependencyUpdates: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Mutates
+             * @default false
+             * @constant
+             */
+            mutates: false;
+            /** Items */
+            items: components["schemas"]["DependencyUpdate"][];
+            /**
+             * Additional Available
+             * @default 0
+             */
+            additional_available: number;
+            /**
+             * Offset
+             * @default 0
+             */
+            offset: number;
+        };
         /**
          * DesiredIntegration
          * @description Server-side expectation: the bootstrap plan of the project. Counts by
@@ -4706,6 +4946,7 @@ export interface components {
             /** Tests Run */
             tests_run?: string[] | null;
             coordination?: components["schemas"]["HandoffCoordination"] | null;
+            completion?: components["schemas"]["CompletionEvidence"] | null;
         };
         /**
          * HandoffResult
@@ -5308,7 +5549,7 @@ export interface components {
              * Dependencies
              * @default []
              */
-            dependencies: components["schemas"]["DependencyPin"][];
+            dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
         };
         /**
          * LibraryScope
@@ -5378,7 +5619,7 @@ export interface components {
              * Dependencies
              * @default []
              */
-            dependencies: components["schemas"]["DependencyPin"][];
+            dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
         };
         /**
          * LinkTask
@@ -5610,6 +5851,26 @@ export interface components {
             expires_at?: string | null;
         };
         /**
+         * MachinePolicy
+         * @description The local launch settings plus optional permissions (additive).
+         *     `None` (absent) authorizes nothing: fail closed. Never persisted to
+         *     `launch.json` nor sent to a daemon without a negotiated capability: an
+         *     N-1 `LaunchSettings` forbids the extra field.
+         */
+        MachinePolicy: {
+            /** Opt In */
+            opt_in: boolean;
+            /** Max Concurrent */
+            max_concurrent: number;
+            /**
+             * Allowed Harnesses
+             * @default []
+             */
+            allowed_harnesses: string[];
+            /** Permissions */
+            permissions?: ("read" | "write" | "execute" | "network" | "launch")[] | null;
+        };
+        /**
          * MachineStatus
          * @enum {string}
          */
@@ -5794,6 +6055,22 @@ export interface components {
             /** Total */
             total?: number | null;
         };
+        /** PermissionDecision */
+        PermissionDecision: {
+            /**
+             * Permission
+             * @enum {string}
+             */
+            permission: "read" | "write" | "execute" | "network" | "launch";
+            /** Granted */
+            granted: boolean;
+            /**
+             * Origin
+             * @default machine_policy
+             * @constant
+             */
+            origin: "machine_policy";
+        };
         /** Phase */
         Phase: {
             /**
@@ -5973,6 +6250,123 @@ export interface components {
          * @enum {string}
          */
         ProducerJobStatus: "requested" | "running" | "completed" | "failed";
+        /** ProductCapability */
+        ProductCapability: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "needs_configuration" | "not_authorized" | "unsupported";
+            /** Reason */
+            reason?: string | null;
+            /** Write Allowed */
+            write_allowed: boolean;
+            /** Example */
+            example?: string | null;
+            /** Prerequisites */
+            prerequisites?: string[];
+            /** Restrictions */
+            restrictions?: string[];
+        };
+        /** ProductDiscovery */
+        ProductDiscovery: {
+            /**
+             * Format
+             * @default studio.capabilities/v1
+             * @constant
+             */
+            format: "studio.capabilities/v1";
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "overview" | "start_project" | "configuration";
+            /** Summary */
+            summary: string;
+            /** Capabilities */
+            capabilities?: components["schemas"]["ProductCapability"][];
+            /**
+             * Additional Available
+             * @default 0
+             */
+            additional_available: number;
+            /** Next Steps */
+            next_steps?: string[];
+        };
+        /** ProfileElement */
+        ProfileElement: {
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            /** Version */
+            version: number;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "library" | "runtime_binding" | "model_profile" | "session_override" | "machine_policy";
+            /** Resource Id */
+            resource_id?: string | null;
+        };
+        /**
+         * ProfilePreview
+         * @description Explanatory preview: every effective value with its origin, every
+         *     refusal. `authoritative` is always false — the machine decides.
+         */
+        ProfilePreview: {
+            /**
+             * Contract Version
+             * @default 2
+             */
+            contract_version: number;
+            /** Stable Key */
+            stable_key: string;
+            /**
+             * Authoritative
+             * @default false
+             * @constant
+             */
+            authoritative: false;
+            /** Accepted */
+            accepted: boolean;
+            /** Elements */
+            elements: components["schemas"]["ProfileElement"][];
+            runtime?: components["schemas"]["ResolvedRuntime"] | null;
+            /** Runtime Origin */
+            runtime_origin?: ("library" | "runtime_binding" | "model_profile" | "session_override" | "machine_policy") | null;
+            /** Permissions */
+            permissions: components["schemas"]["PermissionDecision"][];
+            /** Effective Permissions */
+            effective_permissions: ("read" | "write" | "execute" | "network" | "launch")[];
+            /**
+             * Refusals
+             * @default []
+             */
+            refusals: components["schemas"]["ProfileRefusal"][];
+        };
+        /** ProfileRefusal */
+        ProfileRefusal: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "capability_incompatible" | "no_runtime_selected" | "machine_opt_in_off" | "permission_denied" | "harness_not_allowed";
+            /** Subject */
+            subject: string;
+            /**
+             * Details
+             * @default {}
+             */
+            details: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * Progress
          * @description `done / total` over non-skipped steps; `ratio` in [0, 1], `1.0` when
@@ -6179,14 +6573,20 @@ export interface components {
         };
         /**
          * ProposalCreate
-         * @description A structured change to an approved roadmap. `base_revision_no` is the
-         *     revision the author read; if it is no longer current when reviewed, the
-         *     approval fails `409 base_revision_stale`.
+         * @description Draft replacement or pending change to an active roadmap.
+         *
+         *     Drafts check the current revision before writing. Active proposals check
+         *     the approved base at review; `submit` only controls draft submission.
          */
         ProposalCreate: {
             /** Base Revision No */
             base_revision_no: number;
             document: components["schemas"]["RoadmapDocument"];
+            /**
+             * Submit
+             * @default true
+             */
+            submit: boolean;
             /** Summary */
             summary?: string | null;
             provenance?: components["schemas"]["WriteProvenance"];
@@ -6584,6 +6984,20 @@ export interface components {
             resource_type: components["schemas"]["ResourceType"];
             /** Ttl Seconds */
             ttl_seconds: number;
+        };
+        /** ResourceDependencyPin */
+        ResourceDependencyPin: {
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            /** Version */
+            version: number;
+            relation?: components["schemas"]["BindingRelation"] | null;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
         };
         /**
          * ResourceType
@@ -9721,6 +10135,88 @@ export interface components {
              * @default []
              */
             matched_terms: string[];
+        };
+        /**
+         * WorkProfile
+         * @description What a profile asks for: an agent definition (by stable key, resolved by
+         *     the common resolver), the capabilities the work needs, and permissions it
+         *     requests. It declares no rule text and grants nothing by itself.
+         */
+        WorkProfile: {
+            /**
+             * Contract Version
+             * @default 2
+             */
+            contract_version: number;
+            /** Stable Key */
+            stable_key: string;
+            /** Title */
+            title: string;
+            /** Agent Stable Key */
+            agent_stable_key: string;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools_required": [],
+             *       "local_compatible": false
+             *     }
+             */
+            required_capabilities: components["schemas"]["CapabilityRequirement"];
+            /**
+             * Permissions
+             * @default []
+             */
+            permissions: ("read" | "write" | "execute" | "network" | "launch")[];
+        };
+        /** WorkProfilePack */
+        WorkProfilePack: {
+            /**
+             * Format
+             * @constant
+             */
+            format: "studio.work-profile-pack/v1";
+            profile: components["schemas"]["WorkProfile"];
+            base: components["schemas"]["ResourceDependencyPin"];
+            /** Adaptations */
+            adaptations?: components["schemas"]["ResourceDependencyPin"][];
+        };
+        /** WorkProfilePackPreview */
+        WorkProfilePackPreview: {
+            /**
+             * Format
+             * @default studio.work-profile-pack-preview/v1
+             * @constant
+             */
+            format: "studio.work-profile-pack-preview/v1";
+            /**
+             * Authoritative
+             * @default false
+             * @constant
+             */
+            authoritative: false;
+            /**
+             * Mutates
+             * @default false
+             * @constant
+             */
+            mutates: false;
+            /** Accepted */
+            accepted: boolean;
+            profile: components["schemas"]["ProfilePreview"];
+            /** Observed */
+            observed: components["schemas"]["ResourceDependencyPin"][];
+            /**
+             * Issues
+             * @default []
+             */
+            issues: ("composition_mismatch" | "composition_too_large")[];
+        };
+        /** WorkProfilePackRequest */
+        WorkProfilePackRequest: {
+            pack: components["schemas"]["WorkProfilePack"];
+            machine_policy: components["schemas"]["MachinePolicy"];
+            /** Project Id */
+            project_id?: string | null;
         };
         /** WorkSession */
         WorkSession: {
@@ -13629,6 +14125,39 @@ export interface operations {
             };
         };
     };
+    capabilities_api_v1_capabilities_get: {
+        parameters: {
+            query?: {
+                intent?: "overview" | "start_project" | "configuration";
+                key?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDiscovery"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_library_api_v1_library_get: {
         parameters: {
             query?: {
@@ -14034,6 +14563,41 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                resource_id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DependencyUpdates"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15173,6 +15737,39 @@ export interface operations {
             };
         };
     };
+    preview_work_profile_pack_api_v1_resolutions_work_profile_pack_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkProfilePackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkProfilePackPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     resolve_agent_definition_api_v1_resolutions_post: {
         parameters: {
             query?: never;
@@ -15361,7 +15958,9 @@ export interface operations {
     };
     list_agents_api_v1_agents_get: {
         parameters: {
-            query?: never;
+            query?: {
+                include_identity_owner?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15389,6 +15988,15 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15460,6 +16068,80 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_identity_api_v1_agents_resolve_identity_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentIdentityRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentIdentityResult"];
+                };
+            };
+            /** @description Identity created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentIdentityResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
                      *       }
                      *     }
                      */

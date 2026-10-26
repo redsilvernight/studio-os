@@ -88,6 +88,16 @@ def _profiled(reference: str, *, version: int = 1) -> TaskLaunch:
     )
 
 
+async def test_v2_daemon_recomputes_a_legacy_v1_pin() -> None:
+    definition = _definition()
+    work = reference_work_profile(READ_ONLY_PROFILE, AGENT_KEY, contract_version=1)
+    pin = pin_profile(work, profile_elements(definition))
+    launch = _launch().model_copy(update={"agent_stable_key": AGENT_KEY, "profile": pin})
+    resolved = await resolve_launch_profile(ResolvingClient(definition), launch)
+    assert resolved is not None
+    assert resolved.resolved == pin
+
+
 class ResolvingClient(FakeClient):
     def __init__(self, definition: ResolvedAgentDefinition | None, *, fail: bool = False) -> None:
         super().__init__()

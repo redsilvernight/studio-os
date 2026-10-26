@@ -56,6 +56,7 @@ from studio_client.machine_setup import (
     detected_harnesses,
     plan_fingerprint,
     plan_hooks,
+    probe_versioning,
 )
 from studio_client.skill_sync import (
     SkillSyncConflictError,
@@ -169,6 +170,7 @@ class SetupBridge:
             ],
             skills=skills_step,
             adapters=self._check_adapters(),
+            versioning=probe_versioning(home, tuple(self._roots()), self._path_dirs()),
         )
         with self._lock:
             self._forget_expired()

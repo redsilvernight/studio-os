@@ -23,6 +23,7 @@ from studio_api.routers import (
     claims,
     coordination,
     decisions,
+    discovery,
     eligibility,
     events,
     github,
@@ -280,6 +281,7 @@ def create_app() -> FastAPI:
     app.include_router(handoff.router)
     app.include_router(claims.router)
     app.include_router(decisions.router)
+    app.include_router(discovery.router)
     app.include_router(library.router)
     app.include_router(library.locks_router)
     app.include_router(runtime_bindings.router)

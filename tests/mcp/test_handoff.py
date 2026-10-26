@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.project import ProjectModel
+from studio_contracts.completion import CompletionEvidence
 from studio_mcp.tools.ai_work import studio_log_ai_work
 from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.sessions import studio_start_session
@@ -50,6 +51,40 @@ async def test_handoff_closes_replays_and_links_ai_work(
         str(project.id), started["id"], auth_ctx, idempotency_key="mcp-handoff-1", **body
     )
     assert replayed == first
+
+
+async def test_completion_evidence_is_in_mcp_idempotency_payload(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task, started = await _task_with_session(auth_ctx, project, agent)
+    current = await studio_get_task(task["id"], auth_ctx)
+    evidence = CompletionEvidence.model_validate(
+        {
+            "kind": "audit",
+            "artifacts": ["vault:report"],
+            "checks": [{"name": "report review", "kind": "review", "status": "passed"}],
+        }
+    )
+    body = {
+        "expected_version": current["version"],
+        "task_status": "completed",
+        "agent_id": str(agent.id),
+        "summary": "Verified audit",
+        "completion": evidence,
+    }
+    first = await studio_handoff(
+        str(project.id), started["id"], auth_ctx, idempotency_key="proof-handoff", **body
+    )
+    assert first["task_status"] == "completed"
+    replay = await studio_handoff(
+        str(project.id), started["id"], auth_ctx, idempotency_key="proof-handoff", **body
+    )
+    assert replay == first
+    body["completion"] = evidence.model_copy(update={"artifacts": ["vault:other-report"]})
+    changed = await studio_handoff(
+        str(project.id), started["id"], auth_ctx, idempotency_key="proof-handoff", **body
+    )
+    assert changed["error_code"] == "idempotency_key_payload_mismatch"
 
 
 async def test_handoff_authorizes_before_idempotency_replay(

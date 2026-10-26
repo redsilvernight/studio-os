@@ -77,8 +77,8 @@ async def studio_get_active_tasks(
     limit: int | None = None,
     fields: list[str] | None = None,
 ) -> dict[str, Any]:
-    """List active tasks for a project. Historical calls remain unbounded;
-    set `limit` (1..100) for a bounded deterministic response. Optionally
+    """List active tasks for a project, bounded to 100 by default.
+    Set `limit` (1..100) for a smaller deterministic response. Optionally
     filter by case-insensitive `title_prefix` and select response `fields`;
     `id` is always included."""
 
@@ -105,16 +105,11 @@ async def studio_get_active_tasks(
                 "message": f"unknown fields: {', '.join(sorted(unknown_fields))}",
             }
         tasks = await projects_service.get_active_tasks(session, principal, parsed)
-        controls_requested = title_prefix is not None or limit is not None or fields is not None
-        ordered = (
-            sorted(tasks, key=lambda task: (task.title.casefold(), str(task.id)))
-            if controls_requested
-            else tasks
-        )
+        ordered = sorted(tasks, key=lambda task: (task.title.casefold(), str(task.id)))
         if prefix is not None:
             ordered = [task for task in ordered if task.title.casefold().startswith(prefix)]
         total = len(ordered)
-        selected = ordered if limit is None else ordered[:limit]
+        selected = ordered[: 100 if limit is None else limit]
         items = [
             {
                 key: value

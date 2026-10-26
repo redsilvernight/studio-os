@@ -105,6 +105,13 @@ jobs:
         run: uv run alembic upgrade head
         env:
           STUDIO_DATABASE_URL: postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test
+      - name: Verify latest migration round-trip
+        working-directory: services/api
+        run: |
+          uv run alembic downgrade -1
+          uv run alembic upgrade head
+        env:
+          STUDIO_DATABASE_URL: postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test
       - name: Start MinIO
         # A `services:` entry can't be given the `server /data` argument the
         # official image needs to start (GitHub Actions has no way to pass a

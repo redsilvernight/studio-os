@@ -55,6 +55,8 @@ import {
   listLibraryLocks,
   listLibraryResources,
   listLibraryVersions,
+  previewDependencyUpdates,
+  previewWorkProfilePack,
   releaseLibraryLock,
   type LibraryLockCreate,
   type LibraryProjectLock,
@@ -62,6 +64,9 @@ import {
   type LibraryResourceCreate,
   type LibraryVersion,
   type LibraryVersionCreate,
+  type DependencyUpdates,
+  type WorkProfilePackPreview,
+  type WorkProfilePackRequest,
 } from "../libraryApi";
 import {
   buildContent,
@@ -504,6 +509,48 @@ async function loadLibrarySyncStatus(): Promise<LibrarySyncState> {
 /* Page racine : cinq catégories calmes, noms français.                */
 /* ------------------------------------------------------------------ */
 
+export function workProfilePackPreviewHtml(preview: WorkProfilePackPreview): string {
+  const composition = preview.issues.length === 0 ? "Composition conforme aux références déclarées." : "La composition déclarée diffère de la résolution actuelle ou dépasse la limite prise en charge.";
+  return `<p>${composition}</p><p>${preview.accepted ? "Le profil correspond à la politique fournie pour cet aperçu." : "Le lancement reste soumis aux prérequis et aux autorisations du poste."}</p>` +
+    `<p>Aucune définition publiée ou activée. La machine garde la décision finale.</p>` +
+    `<ul>${preview.observed.map((ref) => `<li>${esc(ref.stable_key)} · v${ref.version} · <code>${esc(ref.resource_id)}</code></li>`).join("")}</ul>`;
+}
+
+function workProfilePackFormHtml(): string {
+  return `<section class="ds-panel"><header><h2>Vérifier un pack métier</h2></header><div class="body">` +
+    `<p>Lire un manifeste JSON pour comparer sa base et ses adaptations à la bibliothèque, sans publier de définition.</p>` +
+    `<form data-pack-preview><label>Manifeste du pack <input type="file" name="pack" accept="application/json,.json" required /></label>` +
+    `<details><summary>Politique pour cet aperçu</summary><p>Sans fichier, aucune autorisation de lancement n'est accordée. Ce fichier ne modifie pas les réglages du poste.</p>` +
+    `<label>Politique machine (facultative) <input type="file" name="policy" accept="application/json,.json" /></label></details>` +
+    `<button class="ds-btn" type="submit">Vérifier la composition</button><div data-pack-output aria-live="polite"></div></form></div></section>`;
+}
+
+function bindWorkProfilePack(root: HTMLElement, ctx: LibraryContext): void {
+  const form = root.querySelector<HTMLFormElement>("[data-pack-preview]");
+  const output = form?.querySelector<HTMLElement>("[data-pack-output]");
+  if (!form || !output) return;
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const read = async (name: string, required: boolean): Promise<unknown> => {
+      const file = form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.files?.[0];
+      if (!file) {
+        if (required) throw new Error("Choisissez un manifeste de pack.");
+        return { opt_in: false, max_concurrent: 1 };
+      }
+      if (file.size > 131072) throw new Error("Chaque fichier doit peser au plus 128 Ko.");
+      return JSON.parse(await file.text()) as unknown;
+    };
+    if (button) button.disabled = true;
+    output.textContent = "Vérification de la composition…";
+    Promise.all([read("pack", true), read("policy", false)]).then(([pack, policy]) =>
+      previewWorkProfilePack(ctx.client, { pack, machine_policy: policy } as WorkProfilePackRequest)
+    ).then((preview) => { output.innerHTML = workProfilePackPreviewHtml(preview); })
+      .catch((error: unknown) => { output.textContent = `Aperçu indisponible : ${describeError(error)}`; })
+      .finally(() => { if (button) button.disabled = false; });
+  });
+}
+
 export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed = false): string {
   const cards = LIBRARY_KIND_FR.map(
     (entry) =>
@@ -514,7 +561,7 @@ export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed
     `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
     `${dsPageHeader("Bibliothèque", "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
-    `<ul class="library-cats">${cards}</ul>`
+    `<ul class="library-cats">${cards}</ul>${workProfilePackFormHtml()}`
   );
 }
 
@@ -641,6 +688,7 @@ export function buildResourcePayload(form: HTMLFormElement, kind: LibraryKind): 
     description: description === "" ? null : description,
     content,
     dependencies: dependencies.value.map((pin) => ({
+      ...(pin.resource_id ? { resource_id: pin.resource_id } : {}),
       kind: pin.kind,
       stable_key: pin.stable_key,
       version: pin.version,
@@ -721,6 +769,11 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
   if (meta === null) {
     const sync = ctx.authed ? await loadLibrarySyncStatus() : null;
     root.innerHTML = `<div class="library">${libraryTabsHtml(null)}${libraryRootHtml(sync?.status, sync?.failed ?? false)}</div>`;
+    if (ctx.authed) bindWorkProfilePack(root, ctx);
+    else {
+      const form = root.querySelector("[data-pack-preview]");
+      if (form) form.textContent = "Connectez-vous pour vérifier un pack métier.";
+    }
     return;
   }
   const fr = kindFr(meta.kind);
@@ -925,6 +978,7 @@ function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value:
       description: description === "" ? null : description,
       content,
       dependencies: dependencies.value.map((pin) => ({
+        ...(pin.resource_id ? { resource_id: pin.resource_id } : {}),
         kind: pin.kind,
         stable_key: pin.stable_key,
         version: pin.version,
@@ -935,6 +989,15 @@ function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value:
 }
 
 /** Page détail complète en HTML pur (DOM-free, testable) : lecture d'abord, technique repliée. */
+export function dependencyUpdatesHtml(preview: DependencyUpdates): string {
+  return `<p>Aperçu en lecture seule. Les dépendances restent épinglées ; toute modification exige une nouvelle version.</p>` +
+    (preview.items.length === 0 ? `<p>Aucune dépendance sur cette page.</p>` : `<ul>${preview.items.map((item) =>
+      `<li>${esc(item.suggested_pin.stable_key)} · ${esc(item.scope)} · épinglée v${item.pinned_version}, active v${item.active_version}` +
+      `${item.deprecated ? " · obsolète" : item.update_available ? " · mise à jour disponible" : " · aucune mise à jour"}` +
+      `<pre>${esc(JSON.stringify(item.suggested_pin, null, 2))}</pre></li>`).join("")}</ul>`) +
+    (preview.additional_available > 0 ? `<button type="button" class="ds-btn" data-dependency-next="${preview.offset + preview.items.length}">Suite (${preview.additional_available})</button>` : "");
+}
+
 export function libraryDetailHtml(
   resource: LibraryResource,
   versions: LibraryVersion[],
@@ -963,7 +1026,9 @@ export function libraryDetailHtml(
         `<div class="library-version-body"><p class="ds-list-sub">${fmtTime(version.created_at)}${version.created_by_user_id ? ` · par ${esc(FALLBACK_LABEL.user)}` : ""}</p>` +
         (version.description ? `<p>${esc(version.description)}</p>` : "") +
         versionContentHtml(resource.kind, version) +
-        `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}</div></details>`
+        `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}` +
+        `<button type="button" class="ds-btn" data-dependency-preview="${version.version}">Vérifier les mises à jour</button>` +
+        `<div data-dependency-output="${version.version}" aria-live="polite"></div></div></details>`
       );
     })
     .join("");
@@ -1074,6 +1139,23 @@ export async function renderLibraryDetail(
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
+  for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {
+    const version = Number(button.dataset["dependencyPreview"]);
+    const output = root.querySelector<HTMLElement>(`[data-dependency-output="${version}"]`);
+    if (output === null) continue;
+    const load = (offset: number): void => {
+      button.disabled = true;
+      output.textContent = "Vérification des versions…";
+      previewDependencyUpdates(ctx.client, resource.id, version, offset).then((preview) => {
+        output.innerHTML = dependencyUpdatesHtml(preview);
+        const next = output.querySelector<HTMLButtonElement>("[data-dependency-next]");
+        next?.addEventListener("click", () => { load(Number(next.dataset["dependencyNext"])); });
+      }).catch((error: unknown) => {
+        output.textContent = `Aperçu indisponible : ${describeError(error)}`;
+      }).finally(() => { button.disabled = false; });
+    };
+    button.addEventListener("click", () => { load(0); });
+  }
   const incomingButton = root.querySelector<HTMLButtonElement>("[data-hook-incoming]");
   incomingButton?.addEventListener("click", () => {
     const output = root.querySelector<HTMLElement>("[data-hook-incoming-output]");

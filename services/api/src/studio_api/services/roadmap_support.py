@@ -74,6 +74,7 @@ from studio_api.services.authz import (
     ProjectAction,
     ensure_can_write,
     ensure_project_access,
+    owns_agent,
 )
 
 
@@ -184,7 +185,7 @@ async def resolve_provenance(
 ) -> ResolvedProvenance:
     if declared.agent_id is not None:
         agent = await session.get(AgentModel, declared.agent_id)
-        if agent is None or agent.machine_id != principal.machine.id:
+        if not owns_agent(agent, principal.machine):
             raise roadmap_error(
                 status.HTTP_409_CONFLICT,
                 RoadmapErrorCode.ACTOR_NOT_OWNED,

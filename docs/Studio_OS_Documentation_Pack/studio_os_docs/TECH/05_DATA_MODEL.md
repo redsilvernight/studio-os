@@ -116,6 +116,16 @@ reversible). `status`
 lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
 ## Agent
+Identité durable additive (0038, DEC-0237 proposée) : `owner_user_id` nullable,
+FK User, et unicité `(owner_user_id, stable_key)`. Les fiches canoniques ont
+une clé `canonical-model-v1:<sha256>` calculée côté serveur depuis le harnais
+logique, le fournisseur observé et l'identifiant exact du modèle effectif.
+Le scope serveur est celui de la base ; le compte vient du credential.
+`machine_id` conserve la machine d'enregistrement, pas une restriction aux
+exécutions : WorkSession et AIWork gardent leur machine effective. Les anciennes
+fiches restent sans owner_user_id et conservent leur ownership par machine.
+Aucune provenance historique ni doublon ancien n'est réécrit ou supprimé.
+
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite
 logique meme sans machine active), `display_name`, `agent_kind` (str libre,
 ex: "build-bot", "local-assistant"), `agent_profile`, `harness`, `provider`,

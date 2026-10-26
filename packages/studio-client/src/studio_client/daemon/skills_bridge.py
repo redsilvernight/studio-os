@@ -51,6 +51,11 @@ from studio_client.drift import (
     load_managed_hashes,
 )
 from studio_client.errors import AuthenticationError, StudioApiError
+from studio_client.projection_backups import (
+    ProjectionBackup,
+    commit_projection_backup,
+    prepare_projection_backup,
+)
 from studio_client.skill_sync import (
     _STABLE_KEY_RE,
     _WINDOWS_RESERVED_NAMES,
@@ -120,6 +125,7 @@ class DefinitionSyncPlan:
     manifest_path: Path
     manifest_text: str
     retired: tuple[DefinitionTargetPlan, ...] = ()
+    manifest_before: str | None = None
 
     @property
     def current(self) -> tuple[DefinitionTargetPlan, ...]:
@@ -294,6 +300,7 @@ def plan_definition_sync(
 ) -> DefinitionSyncPlan:
     root = Path(home).expanduser().resolve()
     manifest_path = root / ".studio-os" / _DEFINITIONS_MANIFEST_NAME
+    manifest_before = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else None
     managed_hashes = load_managed_hashes(manifest_path)
     entries: list[DefinitionPlanEntry] = []
     retired: list[DefinitionTargetPlan] = []
@@ -356,6 +363,7 @@ def plan_definition_sync(
         manifest_path=manifest_path,
         manifest_text=manifest_text,
         retired=tuple(retired),
+        manifest_before=manifest_before,
     )
 
 
@@ -405,6 +413,13 @@ def _plan_retired_definition(
 
 
 def _verify_definition_plan_is_fresh(plan: DefinitionSyncPlan) -> None:
+    if plan.manifest_path.exists() and not plan.manifest_path.is_file():
+        raise SkillSyncConflictError("definition manifest changed since planning")
+    manifest = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
+    )
+    if manifest != plan.manifest_before:
+        raise SkillSyncConflictError("definition manifest changed since planning")
     for target in [*(t for e in plan.entries for t in e.all_targets), *plan.retired]:
         if target.path.exists():
             if not target.path.is_file():
@@ -432,11 +447,10 @@ def _select_definitions(
     if selected - known:
         raise SkillSyncError("unknown definition selection")
     manifest = json.loads(plan.manifest_text)
-    previous = (
-        json.loads(plan.manifest_path.read_text(encoding="utf-8"))
-        if plan.manifest_path.is_file()
-        else {}
+    previous_text = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
     )
+    previous = json.loads(previous_text) if previous_text is not None else {}
     if not isinstance(previous, dict) or not isinstance(previous.get("items", []), list):
         raise SkillSyncError("invalid existing definition manifest")
 
@@ -458,6 +472,7 @@ def _select_definitions(
         ),
         retired=(),
         manifest_text=dump_manifest_v2(items),
+        manifest_before=previous_text,
     )
 
 
@@ -466,6 +481,7 @@ def apply_definition_sync(
     *,
     overwrite: bool = False,
     selected: set[tuple[str, str]] | None = None,
+    journal_sink: list[ProjectionBackup] | None = None,
 ) -> SkillSyncResult:
     if selected is not None:
         if not selected:
@@ -480,6 +496,17 @@ def apply_definition_sync(
             "refusing to overwrite locally modified definition files "
             f"without overwrite=True: {paths}"
         )
+    _verify_definition_plan_is_fresh(plan)
+
+    desired: dict[Path, str | None] = {
+        target.path: target.desired_text
+        for entry in plan.entries
+        for target in entry.all_targets
+        if target.state != "current"
+    }
+    desired.update({target.path: None for target in plan.retired})
+    desired[plan.manifest_path] = plan.manifest_text
+    journal = prepare_projection_backup(plan.home, desired)
     _verify_definition_plan_is_fresh(plan)
 
     backup_root: Path | None = None
@@ -519,6 +546,10 @@ def apply_definition_sync(
             pass
 
     _atomic_write(plan.manifest_path, plan.manifest_text)
+    if journal_sink is None:
+        commit_projection_backup(journal)
+    elif journal is not None:
+        journal_sink.append(journal)
     return SkillSyncResult(
         written=tuple(written),
         backups=tuple(backups),
@@ -532,7 +563,9 @@ def plan_library_sync(
     projections: tuple[LibraryContextItem, ...] | list[LibraryContextItem],
 ) -> tuple[SkillSyncPlan, DefinitionSyncPlan]:
     skills = [
-        item for item in projections if item.library_kind == "skill" and item.scope == "studio"
+        item
+        for item in projections
+        if item.library_kind == "skill" and item.scope in _GLOBAL_SCOPES
     ]
     definitions = [
         item
@@ -923,17 +956,22 @@ def apply_skills(
     enabled = auto_sync_enabled(config, data_root)
 
     snapshot = _sync_paths((plan,) if definitions is None else (plan, definitions))
+    journals: list[ProjectionBackup] = []
     try:
-        result = apply_skill_sync(plan, overwrite=overwrite, selected_keys=selected_keys)
+        result = apply_skill_sync(
+            plan, overwrite=overwrite, selected_keys=selected_keys, journal_sink=journals
+        )
         if definitions is not None:
             definition_result = apply_definition_sync(
-                definitions, overwrite=True, selected=selected_definitions
+                definitions, overwrite=True, selected=selected_definitions, journal_sink=journals
             )
             result = replace(
                 result,
                 written=(*result.written, *definition_result.written),
                 backups=(*result.backups, *definition_result.backups),
             )
+        for journal in journals:
+            commit_projection_backup(journal)
     except SkillSyncConflictError as exc:
         _restore_after_failure(snapshot)
         _LOGGER.warning("skills.apply: conflicts prevented overwrite (%s)", exc)
@@ -1178,11 +1216,20 @@ class _AutoSyncRunner:
 
             backups = 0
             snapshot = _sync_paths(plans)
+            journals: list[ProjectionBackup] = []
             try:
                 if skill_plan.missing or skill_plan.outdated or skill_plan.retired:
-                    backups += len(apply_skill_sync(skill_plan, overwrite=False).backups)
+                    backups += len(
+                        apply_skill_sync(skill_plan, overwrite=False, journal_sink=journals).backups
+                    )
                 if definition_plan.missing or definition_plan.outdated or definition_plan.retired:
-                    backups += len(apply_definition_sync(definition_plan, overwrite=False).backups)
+                    backups += len(
+                        apply_definition_sync(
+                            definition_plan, overwrite=False, journal_sink=journals
+                        ).backups
+                    )
+                for journal in journals:
+                    commit_projection_backup(journal)
             except Exception:
                 try:
                     _restore_paths(snapshot)
