@@ -1384,8 +1384,25 @@ Les variables systeme Windows sont conservees sans distinction de casse
 (`SYSTEMDRIVE` inclus). Le dossier litteral `%SystemDrive%` observe en demo
 n'est pas reproduit par les probes isolees avec ou sans cette variable ;
 sa cause reste non confirmee.
-Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
-`expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
+Expiration serveur (defaut `LAUNCH_DEFAULT_TTL_SECONDS` = 7200 s (2 h), max 86400 s,
+choisi a la creation via `expires_in_seconds`) : `expired_unpulled` si jamais tire,
+`expired_timeout` sinon. Prolongation par activite (tache 63a909ea) : un lancement
+non terminal perime dont la session de travail liee est encore ouverte avec une
+activite plus recente que `STUDIO_LAUNCH_ACTIVITY_GRACE_SECONDS` (defaut 900 s) est
+prolonge de cette fenetre ; `expires_at` est reecrit sans changer `version` (ce
+n'est pas un changement d'etat versionne) et sans evenement, et la prolongation est
+bornee par `created_at + LAUNCH_MAX_TTL_SECONDS` : le max de 86400 s borne la duree
+totale, pas seulement le TTL initial. Sur un appel qui tient deja la ligne sous
+verrou (`report`, `cancel`), la prolongation n'est pas commise separement : leur
+propre commit la persiste et `expected_version` reste valide. Arret propre a
+l'expiration (tache 63a909ea) : quand le serveur expire un lancement
+accepte/preparing/running, il ferme la session de travail liee (`session.ended`,
+acteur `system`, `payload.reason = "launch_expired"`, `machine_id` = machine cible,
+id d'evenement identique a celui d'une fin de session — d'ou jamais un doublon) et
+libere les claims de la tache tenus par la machine cible (`resource.released`,
+acteur `system`, `machine_id` = machine cible, id d'evenement deterministe par
+claim) ; le tout commis atomiquement avec le `task_launch.expired`. Evenements
+(additif) : `task_launch.requested|accepted|rejected|
 cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.
 
 ### GitHub, Builds & Producer (etape 9.1, additif, DEC-0059)

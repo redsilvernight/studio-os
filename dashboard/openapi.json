@@ -17675,7 +17675,7 @@
       "maximum": 86400.0,
       "minimum": 60.0,
       "title": "Expires In Seconds",
-      "default": 900
+      "default": 7200
      }
     },
     "additionalProperties": false,
@@ -30123,7 +30123,7 @@
       "maximum": 86400.0,
       "minimum": 60.0,
       "title": "Expires In Seconds",
-      "default": 900
+      "default": 7200
      }
     },
     "additionalProperties": false,
@@ -30489,7 +30489,7 @@
       "maximum": 86400.0,
       "minimum": 60.0,
       "title": "Expires In Seconds",
-      "default": 900
+      "default": 7200
      },
      "replay": {
       "anyOf": [

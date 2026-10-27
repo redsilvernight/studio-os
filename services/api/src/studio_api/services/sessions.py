@@ -48,6 +48,46 @@ def _derive_session_event_id(session_id: uuid.UUID, event_type: EventType) -> uu
     return uuid.uuid5(_SESSION_EVENT_NAMESPACE, f"{session_id}:{event_type.value}")
 
 
+def derive_session_event_id(session_id: uuid.UUID, event_type: EventType) -> uuid.UUID:
+    """Public seam for other services that close a session server-side (e.g.
+    the launch expiry's server-side handoff) so they reuse the exact same
+    deterministic event id scheme."""
+    return _derive_session_event_id(session_id, event_type)
+
+
+async def close_session_server_side(
+    session: AsyncSession,
+    work_session: WorkSessionModel,
+    *,
+    project_id: uuid.UUID,
+    emitter_machine_id: uuid.UUID,
+    reason: str,
+) -> WorkSessionModel:
+    """Close one open session on the server's behalf (launch expiry, task
+    63a909ea): the session is ended and its `session.ended` staged with the
+    same derived event id as `end_session`, actor `system`, so a concurrent
+    client end or a replayed expiry never emits a second event. The caller
+    commits, keeping the closure atomic with the launch expiry."""
+    now = datetime.now(UTC)
+    work_session.ended_at = now
+    work_session.last_activity_at = now
+    await events_service.stage_event(
+        session,
+        EventCreate(
+            event_id=derive_session_event_id(work_session.id, EventType.SESSION_ENDED),
+            event_type=EventType.SESSION_ENDED,
+            project_id=project_id,
+            task_id=work_session.task_id,
+            machine_id=emitter_machine_id,
+            actor_type="system",
+            actor_id=emitter_machine_id,
+            client_timestamp=now,
+            payload={"session_id": str(work_session.id), "reason": reason},
+        ),
+    )
+    return work_session
+
+
 async def _session_project_id(
     session: AsyncSession, work_session: WorkSessionModel
 ) -> uuid.UUID | None:
