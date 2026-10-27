@@ -59,6 +59,7 @@ from studio_client.projection_backups import (
 from studio_client.skill_sync import (
     _STABLE_KEY_RE,
     _WINDOWS_RESERVED_NAMES,
+    GLOBAL_PROJECTION_SCOPES,
     SkillPlanEntry,
     SkillSyncConflictError,
     SkillSyncError,
@@ -89,7 +90,7 @@ _SETTINGS_FILE_NAME = "skills-sync-settings.json"
 _DEFINITIONS_MANIFEST_NAME = "library-definitions-manifest.json"
 
 _DEFINITION_KINDS = frozenset({"rule", "agent_definition"})
-_GLOBAL_SCOPES = frozenset({"studio", "user"})
+_GLOBAL_SCOPES = GLOBAL_PROJECTION_SCOPES
 
 
 def _status_path(data_root: Path) -> Path:
