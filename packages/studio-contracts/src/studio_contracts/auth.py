@@ -88,7 +88,10 @@ class Agent(VersionedModel):
     is the local stable key set by `agents ensure` (default
     `agents-ensure-{harness}`), unique per owning machine: the idempotent
     lookup key for session-start, never an authorization input, and never
-    `AgentDefinition.stable_key` (a resolution parameter, not an identity)."""
+    `AgentDefinition.stable_key` (a resolution parameter, not an identity).
+    `superseded_by_agent_id` (additive) records an explicit,
+    reversible reconciliation of a former identity into its canonical one:
+    the former row keeps its machine, metadata and history untouched."""
 
     id: UUID
     machine_id: UUID | None = None
@@ -100,6 +103,7 @@ class Agent(VersionedModel):
     model: str | None = None
     stable_key: str | None = None
     owner_user_id: UUID | None = None
+    superseded_by_agent_id: UUID | None = None
 
 
 class AgentCreate(IdempotentCreate):

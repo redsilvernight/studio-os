@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Header, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import and_, or_, select
-from studio_contracts.agent_identity import AgentIdentityRequest, AgentIdentityResult
+from studio_contracts.agent_identity import (
+    AgentIdentityLinkRequest,
+    AgentIdentityRequest,
+    AgentIdentityResult,
+)
 from studio_contracts.auth import Agent, AgentCreate, AgentEnsureResult, Role
 
 from studio_api.db.models.agent import AgentModel
@@ -21,11 +27,13 @@ from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
+_LEGACY_EXCLUDED = {"__all__": {"owner_user_id", "superseded_by_agent_id"}}
+
 
 @router.get(
     "",
     response_model=list[Agent],
-    response_model_exclude={"__all__": {"owner_user_id"}},
+    response_model_exclude=_LEGACY_EXCLUDED,
     description=(
         "List agent provenance identities owned by the caller's user, or legacy rows whose "
         "machine belongs to the "
@@ -34,7 +42,10 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
     responses={**RESP_401_UNAUTHORIZED},
 )
 async def list_agents(
-    session: DbSession, principal: CurrentPrincipal, include_identity_owner: bool = False
+    session: DbSession,
+    principal: CurrentPrincipal,
+    include_identity_owner: bool = False,
+    include_identity_link: bool = False,
 ) -> list[Agent] | JSONResponse:
     stmt = select(AgentModel)
     if principal.role != Role.ADMIN:
@@ -49,8 +60,16 @@ async def list_agents(
         )
     result = await session.execute(stmt)
     agents = [Agent.model_validate(a) for a in result.scalars().all()]
-    if include_identity_owner:
-        return JSONResponse([agent.model_dump(mode="json") for agent in agents])
+    if include_identity_owner or include_identity_link:
+        payload = []
+        for agent in agents:
+            row = agent.model_dump(mode="json")
+            if not include_identity_owner:
+                row.pop("owner_user_id", None)
+            if not include_identity_link:
+                row.pop("superseded_by_agent_id", None)
+            payload.append(row)
+        return JSONResponse(payload)
     return agents
 
 
@@ -80,7 +99,7 @@ async def resolve_identity(
 @router.post(
     "",
     response_model=Agent,
-    response_model_exclude={"owner_user_id"},
+    response_model_exclude={"owner_user_id", "superseded_by_agent_id"},
     status_code=status.HTTP_201_CREATED,
     description=(
         "Register an agent identity for the caller's own authenticated "
@@ -123,7 +142,9 @@ async def register_agent(
 @router.post(
     "/ensure",
     response_model=AgentEnsureResult,
-    response_model_exclude={"agent": {"owner_user_id"}},
+    response_model_exclude={
+        "agent": {"owner_user_id", "superseded_by_agent_id"},
+    },
     description=(
         "Server-side `agents ensure` (AIB-I, additive): find this machine's "
         "agent for `AgentCreate.stable_key` or register it, so a retried "
@@ -158,3 +179,41 @@ async def ensure_agent(
     agent, created = await agents_service.ensure_agent(session, principal, agent_in)
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
     return AgentEnsureResult(agent=Agent.model_validate(agent), created=created)
+
+
+@router.post(
+    "/{agent_id}/supersede",
+    response_model=Agent,
+    status_code=status.HTTP_200_OK,
+    description=(
+        "Explicitly reconcile a former identity with its canonical one "
+        "the former row keeps its machine, metadata, stable key "
+        "and history, and only gains a `superseded_by_agent_id` pointer — "
+        "nothing is merged, renamed or deleted, so clearing the pointer "
+        "restores the previous state. `admin` reconciles any user's rows; "
+        "otherwise the caller must own both the former row's machine and the "
+        "canonical identity. Repeating the same link is refused with `409 "
+        "already_superseded` (never a silent second link), and a canonical "
+        "row must itself be user-scoped and unlinked."
+    ),
+    responses={
+        200: {"model": Agent, "description": "Former identity linked"},
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        404: {"description": "`not_found`: one of the two agents does not exist"},
+        409: {
+            "description": "`invalid_identity_link` (self, or canonical not user-scoped/"
+            "already linked) or `already_superseded`"
+        },
+    },
+)
+async def supersede_identity(
+    agent_id: uuid.UUID,
+    payload: AgentIdentityLinkRequest,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> Agent:
+    linked = await agents_service.supersede_identity(
+        session, principal, agent_id, payload.canonical_agent_id
+    )
+    return Agent.model_validate(linked)

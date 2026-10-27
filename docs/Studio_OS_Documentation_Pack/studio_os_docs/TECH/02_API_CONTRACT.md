@@ -602,6 +602,29 @@ ou annonce. `additional_available` permet la lecture progressive.
   doit resoudre son identite observee ; un modele demande au lancement n'est
   pas une observation. Les anciennes fiches restent intactes et visibles
   comme anciennes identites, sans fusion automatique de provenance.
+  Matrice des interfaces : `codex`, `claude` et `opencode` partagent chacun un
+  harnais logique entre Desktop, CLI et (`claude`) `-code` ; les autres
+  identifiants restent distincts. Un harnais qui n'expose ni fournisseur ni
+  modele donne `state=unknown` avec `reason`, jamais une fiche inventee.
+- POST /agents/{agent_id}/supersede (additif, DEC-0237) — rapprochement
+  explicite d'une ancienne fiche vers sa fiche canonique. Body
+  `AgentIdentityLinkRequest.canonical_agent_id`. La fiche `{agent_id}` ne gagne
+  que `superseded_by_agent_id` : `machine_id`, `stable_key`, metadonnees et
+  historique restent inchanges, aucune ligne n'est fusionnee ni supprimee, et
+  effacer le pointeur restaure l'etat precedent (reversible). `admin` peut lier
+  n'importe quel utilisateur ; sinon l'appelant doit posseder la machine de
+  l'ancienne fiche et la fiche canonique. `404 not_found` si l'une des deux est
+  absente ; `409 invalid_identity_link` si la cible est la fiche elle-meme, une
+  fiche sans `owner_user_id`, ou une fiche canonique deja liee ; `409
+  already_superseded` (avec `superseded_by_agent_id`) si le lien existe deja.
+  `readonly` -> `403 forbidden`. Cote exploitation, `studio-admin
+  reconcile-agents` produit le rapport des doublons historiques, ecrit avec
+  `--apply` et defait avec `--revert <agent_id>`.
+- Session et changement de modele (DEC-0237) : une machine n'a qu'une presence
+  vive par tache. Quand le demarrage resout une autre identite agent que celle
+  de la session ouverte, l'ancienne est fermee explicitement (`session.ended`
+  avec `payload.reason=identity_changed`) et une nouvelle session est creee —
+  jamais deux sessions actives en parallele pour un changement de modele.
 - GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
   canoniques dont `owner_user_id` est le User appelant, ou les anciennes fiches
   sans owner_user_id dont la machine (`Agent.machine_id`) appartient au User appelant
@@ -609,10 +632,12 @@ ou annonce. `additional_available` permet la lecture progressive.
   sans machine n'est visible que de `admin`. Une co-membership ne donne
   jamais acces aux agents d'un co-membre.
   `include_identity_owner=true` (optionnel, defaut false) expose le champ
-  `owner_user_id` aux clients recents. Sans opt-in, la forme JSON historique
+  `owner_user_id` aux clients recents. `include_identity_link=true` (optionnel,
+  defaut false, additif) expose `superseded_by_agent_id` du rapprochement
+  explicite. Sans opt-in, la forme JSON historique
   est conservee pour les lecteurs stricts N-1. POST /agents et /agents/ensure
   conservent aussi leur forme historique ; le nouveau resolve-identity porte
-  l'identite complete. Ce parametre ne change jamais le filtre de visibilite.
+  l'identite complete. Ces parametres ne changent jamais le filtre de visibilite.
 - POST /agents (CC-1, additif) — enregistrement public d'une identite
   Agent de provenance operationnelle pour la machine authentifiee.
   Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel

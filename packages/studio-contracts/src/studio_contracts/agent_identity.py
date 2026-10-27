@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal, Self
+from uuid import UUID
 
 from pydantic import Field, model_validator
 
@@ -39,3 +40,28 @@ class AgentIdentityResult(ContractModel):
         ):
             raise ValueError("unknown identity requires a reason and cannot create an agent")
         return self
+
+
+class AgentIdentityLinkRequest(ContractModel):
+    """Point a former identity at its canonical one: explicit,
+    reversible, and never a merge — the former row is not rewritten."""
+
+    canonical_agent_id: UUID
+
+
+class AgentIdentityLink(ContractModel):
+    legacy_agent_id: UUID
+    canonical_agent_id: UUID
+    owner_user_id: UUID
+    logical_harness: str
+    provider: str
+    model: str
+
+
+class AgentIdentityReconciliationPlan(ContractModel):
+    """Dry-run report of the historical duplicates that an explicit
+    reconciliation would link. Empty `links` means nothing to reconcile."""
+
+    links: list[AgentIdentityLink]
+    already_linked: int = 0
+    unmatched_legacy: int = 0

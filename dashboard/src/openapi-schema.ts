@@ -1309,6 +1309,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/{agent_id}/supersede": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Supersede Identity
+         * @description Explicitly reconcile a former identity with its canonical one the former row keeps its machine, metadata, stable key and history, and only gains a `superseded_by_agent_id` pointer — nothing is merged, renamed or deleted, so clearing the pointer restores the previous state. `admin` reconciles any user's rows; otherwise the caller must own both the former row's machine and the canonical identity. Repeating the same link is refused with `409 already_superseded` (never a silent second link), and a canonical row must itself be user-scoped and unlinked.
+         */
+        post: operations["supersede_identity_api_v1_agents__agent_id__supersede_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai-work": {
         parameters: {
             query?: never;
@@ -3252,6 +3272,9 @@ export interface components {
          *     `agents-ensure-{harness}`), unique per owning machine: the idempotent
          *     lookup key for session-start, never an authorization input, and never
          *     `AgentDefinition.stable_key` (a resolution parameter, not an identity).
+         *     `superseded_by_agent_id` (additive) records an explicit,
+         *     reversible reconciliation of a former identity into its canonical one:
+         *     the former row keeps its machine, metadata and history untouched.
          */
         Agent: {
             /**
@@ -3289,6 +3312,8 @@ export interface components {
             stable_key?: string | null;
             /** Owner User Id */
             owner_user_id?: string | null;
+            /** Superseded By Agent Id */
+            superseded_by_agent_id?: string | null;
         };
         /**
          * AgentCreate
@@ -3332,6 +3357,18 @@ export interface components {
             agent: components["schemas"]["Agent"];
             /** Created */
             created: boolean;
+        };
+        /**
+         * AgentIdentityLinkRequest
+         * @description Point a former identity at its canonical one: explicit,
+         *     reversible, and never a merge — the former row is not rewritten.
+         */
+        AgentIdentityLinkRequest: {
+            /**
+             * Canonical Agent Id
+             * Format: uuid
+             */
+            canonical_agent_id: string;
         };
         /** AgentIdentityRequest */
         AgentIdentityRequest: {
@@ -15960,6 +15997,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_identity_owner?: boolean;
+                include_identity_link?: boolean;
             };
             header?: never;
             path?: never;
@@ -16214,6 +16252,87 @@ export interface operations {
                 };
             };
             /** @description `idempotency_key_payload_mismatch`: same stable key, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    supersede_identity_api_v1_agents__agent_id__supersede_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentIdentityLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Former identity linked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agent"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `not_found`: one of the two agents does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_identity_link` (self, or canonical not user-scoped/already linked) or `already_superseded` */
             409: {
                 headers: {
                     [name: string]: unknown;

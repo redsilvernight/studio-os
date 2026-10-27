@@ -61,6 +61,19 @@ def test_hook_scopes_the_agent_cache_by_server_origin() -> None:
         assert f"{spec.agent_key}:${{originKey}}" in rendered
 
 
+def test_hook_never_invents_a_model_identity_from_a_missing_observation() -> None:
+    """DEC-0237: no observed provider/model -> the harness identity stays, and
+    nothing is cached under a model key. A cached model agent is only written
+    for the exact observed model reference, so a model change cannot reuse it."""
+    for spec in HARNESSES:
+        rendered = render_hook(spec)
+        assert "if ($modelRef) {" in rendered
+        assert f"agent-model-v2:${{originKey}}:{spec.agent_key}:$modelRef" in rendered
+        assert "$ensured -and $ensured.id -and $ensured.model" in rendered
+        assert "$doc[$cacheKey] = $modelAgentId" in rendered
+
+
+
 def test_codex_spec() -> None:
     spec = _SPECS["codex"]
     assert spec.agent_key == "codex"

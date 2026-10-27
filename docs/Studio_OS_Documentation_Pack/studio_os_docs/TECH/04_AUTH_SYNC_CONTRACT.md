@@ -251,6 +251,27 @@ jamais l'event original : la validation ci-dessus s'applique a l'identite de
 l'appelant courant avant `create_event`, dont le court-circuit d'idempotence
 renvoie la ligne existante sans y toucher.
 
+## Identite durable et rapprochement (DEC-0237)
+
+Une identite canonique est scope utilisateur : harnais logique + fournisseur
+observe + modele effectif, jamais l'alias de selection. Le meme compte retrouve
+le meme `Agent.id` sur ses postes autorises ; `machine_id` ne restreint rien a
+l'execution, les sessions et AIWork gardent leur machine effective.
+
+Le rapprochement d'une ancienne fiche vers sa fiche canonique est explicite et
+reversible : `superseded_by_agent_id` est un simple pointeur, aucune
+provenance n'est reattribuee, aucun effacement n'est possible par ce chemin.
+Autorisation : `admin`, ou l'appelant doit posseder la machine de l'ancienne
+fiche et la fiche canonique ; `readonly` est refuse. Une fiche canonique ne
+peut pas etre liee a une autre et un lien deja pose n'est jamais ecrase
+(`409 already_superseded`).
+
+Une machine n'a qu'une presence vive par tache : quand le demarrage resout un
+autre agent que celui de la session ouverte (changement de modele), l'ancienne
+session est fermee (`session.ended`, `payload.reason=identity_changed`) puis
+une nouvelle est creee. Deux sessions actives simultanees pour une meme
+machine et une meme tache sont un bug, pas un etat normal.
+
 ## Autorisation (DEC-0036 amende par DEC-0103 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
 Statut : DEC-0103 acceptee ; enforcement central livre (A0, tache

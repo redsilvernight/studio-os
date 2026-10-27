@@ -114,3 +114,31 @@ def test_observation_preserves_case_and_does_not_infer_a_provider() -> None:
     assert result.provider == "Vendor"
     assert result.effective_model == "CaseSensitiveModel"
     assert observed_identity_request("codex", "gpt-6.1-sol").provider is None
+
+
+def test_logical_harness_matrix_shares_desktop_cli_and_code_per_product() -> None:
+    """DEC-0237 matrix: the interface suffix never splits an identity; distinct
+    products stay distinct."""
+    from studio_contracts.agent_identity import logical_harness
+
+    for product in ("codex", "claude", "opencode"):
+        variants = {logical_harness(product)} | {
+            logical_harness(f"{product}-{suffix}") for suffix in ("desktop", "cli", "code")
+        }
+        assert variants == {product}
+    assert logical_harness(" Codex_Desktop ") == "codex"
+    assert logical_harness("Claude-CLI") == "claude"
+    assert len({logical_harness(name) for name in ("codex", "claude", "opencode", "gemini")}) == 4
+
+
+def test_missing_observation_is_explicit_and_never_a_model_identity() -> None:
+    """A harness that exposes neither provider nor model yields an unknown
+    request (the server answers `state=unknown` and creates nothing), never a
+    guessed model."""
+
+    for harness in ("codex", "claude-code", "opencode-desktop"):
+        request = observed_identity_request(harness, None)
+        assert request.effective_model is None
+        assert request.provider is None
+    assert normalize_model_ref(None) is None
+    assert model_agent_create(None) is None

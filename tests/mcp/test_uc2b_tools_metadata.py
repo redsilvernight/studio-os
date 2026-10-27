@@ -80,6 +80,7 @@ WRITE_TOOLS = {
     "studio_coordinate",
     "studio_register_agent",
     "studio_resolve_agent_identity",
+    "studio_supersede_agent_identity",
     "studio_log_ai_work",
     "studio_emit_event",
     "studio_create_transfer_metadata",
