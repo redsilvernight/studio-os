@@ -394,6 +394,30 @@ def _discover_capabilities(args: argparse.Namespace, config: ClientConfig) -> No
         print(f"{result.additional_available} autres capacités ; --limit 24 ou détail avec --key.")
 
 
+def _adopt_harness_credential(
+    harness: str, config: ClientConfig, *, home: Path | None = None
+) -> None:
+    """Session start (DEC-0104/DEC-0226): authenticate as the machine this
+    harness's own MCP entry uses. The Desktop's credential would register the
+    agent under a machine the harness never talks to, and `studio_start_work`
+    would then refuse it with `actor_not_owned` — one agent per conversation.
+    An explicit STUDIO_CLIENT_MACHINE_TOKEN always wins."""
+    if os.environ.get("STUDIO_CLIENT_MACHINE_TOKEN"):
+        return
+    from studio_client.harness.session_credential import read_session_credential
+
+    credential = read_session_credential(
+        harness,
+        home=Path.home() if home is None else home,
+        origin=origin_of(config.api_base_url),
+        env=os.environ,
+    )
+    if credential is None:
+        return
+    os.environ["STUDIO_CLIENT_MACHINE_TOKEN"] = credential.token
+    os.environ["STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN"] = credential.origin
+
+
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
@@ -401,6 +425,8 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     `studio_log_ai_work`. The default stable key is stable per harness so
     a retried hook never registers a duplicate; changing the metadata with
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
+    if args.harness_credential:
+        _adopt_harness_credential(args.harness, config)
     if args.model_identity:
         identity = _run(
             config,
@@ -1839,6 +1865,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="One agent per machine and model, whatever the harness (DEC-0225); "
         "falls back to the harness agent when the model is unknown.",
+    )
+    agents_ensure.add_argument(
+        "--harness-credential",
+        action="store_true",
+        help="Authenticate with the credential of this harness's own Studi'OS MCP "
+        "entry (DEC-0104), so the ensured agent belongs to the machine the "
+        "harness itself talks to. Ignored when STUDIO_CLIENT_MACHINE_TOKEN is set.",
     )
     _add_json_flag(agents_ensure)
     agents_ensure.set_defaults(func=_agents_ensure)
