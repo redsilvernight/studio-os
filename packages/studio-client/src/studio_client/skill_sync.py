@@ -34,6 +34,7 @@ _WINDOWS_RESERVED_NAMES = {
     *(f"COM{index}" for index in range(1, 10)),
     *(f"LPT{index}" for index in range(1, 10)),
 }
+GLOBAL_PROJECTION_SCOPES = frozenset({"studio", "user"})
 
 
 class SkillSyncError(RuntimeError):
@@ -148,7 +149,7 @@ async def fetch_skill_projections(
     )
     return tuple(
         sorted(
-            (item for item in result.items if item.scope in {"studio", "user"}),
+            (item for item in result.items if item.scope in GLOBAL_PROJECTION_SCOPES),
             key=lambda item: item.stable_key,
         )
     )
@@ -427,7 +428,7 @@ def _validate_projection(projection: LibraryContextItem) -> None:
         raise SkillSyncError(f"unsafe skill stable_key: {key!r}")
     if projection.library_kind != "skill":
         raise SkillSyncError(f"expected a skill projection, got {projection.library_kind!r}")
-    if projection.scope not in {"studio", "user"}:
+    if projection.scope not in GLOBAL_PROJECTION_SCOPES:
         raise SkillSyncError(
             f"refusing to project non-global skill {key!r} with scope {projection.scope!r}"
         )

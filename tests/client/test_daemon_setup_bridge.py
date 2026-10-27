@@ -35,13 +35,15 @@ ORIGIN = "https://studio.example"
 SPECS = {spec.harness: spec for spec in HARNESSES}
 
 
-def _projection(key: str = "studio-git-flow", version: int = 3) -> LibraryContextItem:
+def _projection(
+    key: str = "studio-git-flow", version: int = 3, scope: str = "studio"
+) -> LibraryContextItem:
     return LibraryContextItem(
         library_kind="skill",
         stable_key=key,
         version=version,
         version_origin="active",
-        scope="studio",
+        scope=scope,
         title="Studio Git Flow",
         text="# Git flow\n\nSECRET-BODY-MARKER",
         content_schema="studio.library.skill/v1",
@@ -139,6 +141,31 @@ def test_plan_ignores_rules_and_agent_definitions(tmp_path: Path, monkeypatch) -
     assert plan.skills.state is SetupSkillsState.CHECKED
     assert plan.skills.missing == 2
     assert not (home / ".claude" / "rules").exists()
+
+
+def test_plan_syncs_user_scope_skills_and_skips_project_scope(tmp_path: Path, monkeypatch) -> None:
+    home = _home(tmp_path, "claude-code")
+    _patch_fetch(
+        monkeypatch,
+        [
+            _projection(),
+            _projection("personal-adaptation", scope="user"),
+            _projection("project-only", scope="project"),
+        ],
+    )
+    bridge = _bridge(home)
+
+    plan = bridge.plan()
+
+    assert plan.skills.state is SetupSkillsState.CHECKED
+    assert plan.skills.missing == 4
+
+    applied = bridge.apply(_request(plan))
+
+    assert applied.skills.outcome is SetupSkillsOutcome.SYNCED
+    personal = home / ".claude" / "skills" / "personal-adaptation" / "SKILL.md"
+    assert "scope=user" in personal.read_text(encoding="utf-8")
+    assert not (home / ".claude" / "skills" / "project-only").exists()
 
 
 def test_apply_writes_then_second_run_writes_nothing(tmp_path: Path, monkeypatch) -> None:
