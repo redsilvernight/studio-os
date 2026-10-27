@@ -4,6 +4,7 @@ account configs never touched (DEC-0096 boundary). No DB needed."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -609,10 +610,108 @@ def test_guard_blocks_commit_on_protected_branch(tmp_path: Path) -> None:
     assert run("git commit -m wip") == 0
 
 
-def test_claude_hook_authenticates_ensure_with_the_mcp_credential() -> None:
-    rendered = render_hook(_SPECS["claude-code"])
-    assert ".claude.json" in rendered
-    assert "STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN" in rendered
-    assert '$originKey = "${originKey}#$fp"' in rendered
-    for harness in ("opencode", "codex"):
-        assert "'claude-code' -eq 'claude-code'" not in render_hook(_SPECS[harness])
+def test_every_hook_adopts_the_harness_own_credential() -> None:
+    """DEC-0104/DEC-0226 : chaque harnais s'authentifie avec le credential de
+    son propre outil, sinon l'agent rendu appartient a la machine du poste et
+    `studio_start_work` repond actor_not_owned. Le hook ne lit plus le jeton :
+    il passe `--harness-credential` et ne touche pas STUDIO_CLIENT_MACHINE_TOKEN.
+    """
+    for spec in HARNESSES:
+        rendered = render_hook(spec)
+        assert "'--harness-credential'" in rendered
+        assert "STUDIO_CLIENT_MACHINE_TOKEN" not in rendered
+        assert '$originKey = "${originKey}#$fp"' in rendered
+    assert "(Join-Path $HOME '.claude.json')" in render_hook(_SPECS["claude-code"])
+    assert "(Join-Path $HOME '.config/opencode/opencode.jsonc')" in render_hook(_SPECS["opencode"])
+    assert "(Join-Path $HOME '.codex/config.toml')" in render_hook(_SPECS["codex"])
+
+
+@pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")
+def test_opencode_hook_asks_ensure_for_the_harness_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le hook OpenCode passe `--harness-credential` et cle son cache par
+    l'empreinte du fichier de configuration de l'outil, donc un jeton renouvele
+    (ou remplace par celui d'une autre machine) invalide l'agent memorise."""
+    repo = tmp_path / "Studi'os"
+    repo.mkdir()
+    monkeypatch.delenv("STUDIO_CLIENT_CONFIG_FILE", raising=False)
+    monkeypatch.setenv("STUDIO_CLIENT_CHANNEL", "dev")
+    if os.name == "nt":
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        profile = tmp_path / "StudioOS-Dev"
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        profile = tmp_path / "studio-os-dev"
+
+    project_id = "2a836038-153c-41cf-879a-73bd794760b0"
+    ws_dir = profile / "workspaces"
+    ws_dir.mkdir(parents=True)
+    (ws_dir / f"{project_id}.json").write_text(
+        json.dumps(
+            {
+                "project_id": project_id,
+                "project_slug": "studio-os",
+                "roots": {
+                    "workspace_root": str(repo),
+                    "repo_roots": [{"name": "Studi'os", "path": str(repo)}],
+                },
+                "profile": {"server_origin": "http://example.invalid"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    opencode_config = tmp_path / ".config" / "opencode" / "opencode.jsonc"
+    opencode_config.parent.mkdir(parents=True)
+    opencode_config.write_text('{"mcp": {}}\n', encoding="utf-8")
+
+    agent_id = "33333333-3333-3333-3333-333333333333"
+    calls = tmp_path / "calls.txt"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    if os.name == "nt":
+        (bindir / "studio-client.cmd").write_text(
+            f'@echo %*>>"{calls}"\r\n@echo {{"id": "{agent_id}"}}\r\n', encoding="utf-8"
+        )
+    else:
+        stub = bindir / "studio-client"
+        stub.write_text(
+            f'#!/bin/sh\necho "$@" >> "{calls}"\necho \'{{"id": "{agent_id}"}}\'\n',
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["HOME"] = str(tmp_path)
+    if os.name == "nt":
+        env["USERPROFILE"] = str(tmp_path)
+
+    hook = tmp_path / "hook-opencode.ps1"
+    hook.write_text(render_hook(_SPECS["opencode"]), encoding="utf-8")
+    (tmp_path / ".claude").mkdir(parents=True, exist_ok=True)
+    args = [_PS, "-NoProfile"]
+    if os.name == "nt":
+        args += ["-ExecutionPolicy", "Bypass"]
+    args += ["-File", str(hook)]
+    result = subprocess.run(
+        args,
+        input=json.dumps({"cwd": str(repo)}),
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+        timeout=120,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert agent_id in result.stdout
+
+    recorded = calls.read_text(encoding="utf-8")
+    assert "ensure" in recorded
+    assert "--harness-credential" in recorded
+    assert "--harness opencode" in recorded
+
+    fingerprint = hashlib.sha256(opencode_config.read_bytes()).hexdigest()[:8]
+    store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
+    assert store[f"opencode:http://example.invalid#{fingerprint}"] == agent_id

@@ -101,6 +101,7 @@ def test_cli_resolves_observed_model_with_its_harness(monkeypatch: pytest.Monkey
             model="claude-opus-5-5",
             stable_key=None,
             model_identity=True,
+            harness_credential=False,
             json=True,
         )
         cli._agents_ensure(args, None)  # type: ignore[arg-type]
