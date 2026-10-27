@@ -73,7 +73,6 @@ def test_hook_never_invents_a_model_identity_from_a_missing_observation() -> Non
         assert "$doc[$cacheKey] = $modelAgentId" in rendered
 
 
-
 def test_codex_spec() -> None:
     spec = _SPECS["codex"]
     assert spec.agent_key == "codex"
