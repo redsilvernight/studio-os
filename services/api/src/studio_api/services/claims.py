@@ -196,6 +196,52 @@ async def release_claim(
     )
 
 
+# Deterministic on the claim id: two overlapping server-side releases (lazy
+# expiry racing the sweep) converge on one `resource.released`, never two.
+_CLAIM_RELEASED_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os/claim-released")
+
+
+async def release_claim_server_side(
+    session: AsyncSession,
+    claim: ResourceClaimModel,
+    *,
+    emitter_machine_id: uuid.UUID,
+) -> ResourceClaimModel:
+    """Release one claim on the server's behalf (launch expiry, task 63a909ea):
+    the server, not the claiming machine, closes it — hence no
+    `ensure_machine_owned` — and the event is attributed to the target machine
+    that held the claim (`emitter_machine_id`), actor `system`. The caller
+    commits, so the release stays atomic with the launch expiry."""
+    if claim.status == "released":
+        return claim
+    previous_status = claim.status
+    claim.status = "released"
+    claim.released_at = datetime.now(UTC)
+    await events_service.stage_event(
+        session,
+        EventCreate(
+            event_id=uuid.uuid5(_CLAIM_RELEASED_NAMESPACE, str(claim.id)),
+            event_type=EventType.RESOURCE_RELEASED,
+            project_id=claim.project_id,
+            task_id=claim.task_id,
+            machine_id=emitter_machine_id,
+            actor_type="system",
+            actor_id=emitter_machine_id,
+            client_timestamp=datetime.now(UTC),
+            payload={
+                "claim_id": str(claim.id),
+                "resource_path": claim.resource_path,
+                "resource_type": claim.resource_type,
+                "status": claim.status,
+                "claimed_by_machine_id": str(claim.claimed_by_machine_id),
+                "expires_at": claim.expires_at.isoformat(),
+                "previous_status": previous_status,
+            },
+        ),
+    )
+    return claim
+
+
 async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaimModel:
     claim = await session.get(ResourceClaimModel, claim_id)
     if claim is None:

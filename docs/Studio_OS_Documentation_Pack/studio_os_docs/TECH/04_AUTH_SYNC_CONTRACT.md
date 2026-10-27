@@ -272,6 +272,15 @@ session est fermee (`session.ended`, `payload.reason=identity_changed`) puis
 une nouvelle est creee. Deux sessions actives simultanees pour une meme
 machine et une meme tache sont un bug, pas un etat normal.
 
+Fermeture serveur d'une session (tache 63a909ea, `TECH/02` « Task launches ») :
+a l'expiration d'un lancement `accepted|preparing|running`, le serveur ferme la
+session de travail liee sans passer par `PATCH /sessions/{id}/end` — l'appelant
+n'a pas a posseder la machine, c'est le serveur qui agit. L'evenement
+`session.ended` porte `actor_type="system"`, `payload.reason="launch_expired"`,
+`machine_id` = machine cible du lancement, et le meme `event_id` derive que la
+fin de session correspondante : une fin cliente concurrente et l'expiration
+convergent sur un seul evenement, jamais deux.
+
 ## Autorisation (DEC-0036 amende par DEC-0103 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
 Statut : DEC-0103 acceptee ; enforcement central livre (A0, tache

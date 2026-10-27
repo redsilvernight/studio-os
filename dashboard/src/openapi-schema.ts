@@ -3169,7 +3169,7 @@ export interface components {
             profile_key?: string | null;
             /**
              * Expires In Seconds
-             * @default 900
+             * @default 7200
              */
             expires_in_seconds: number;
         };
@@ -8696,7 +8696,7 @@ export interface components {
             allow_production: boolean;
             /**
              * Expires In Seconds
-             * @default 900
+             * @default 7200
              */
             expires_in_seconds: number;
         };
@@ -8884,7 +8884,7 @@ export interface components {
         TaskLaunchRetry: {
             /**
              * Expires In Seconds
-             * @default 900
+             * @default 7200
              */
             expires_in_seconds: number;
             replay?: components["schemas"]["TaskLaunchReplayConfirmation"] | null;

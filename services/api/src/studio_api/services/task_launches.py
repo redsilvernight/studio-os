@@ -20,6 +20,7 @@ from studio_contracts.profiles import (
 )
 from studio_contracts.task_launch import (
     ALLOWED_TRANSITIONS,
+    LAUNCH_MAX_TTL_SECONDS,
     LAUNCH_POLL_MAX,
     TERMINAL_STATUSES,
     TaskLaunch,
@@ -42,12 +43,14 @@ from studio_contracts.task_launch_replay import TaskLaunchReplayBasis
 from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import budgets as budgets_service
+from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import launch_grants as grants_service
@@ -362,7 +365,13 @@ async def get_launch(
 ) -> TaskLaunchModel | None:
     launch = await session.get(TaskLaunchModel, launch_id)
     if launch is not None:
+        before = launch.expires_at
         await expire_launch_if_overdue(session, principal, launch)
+        if launch.expires_at != before and launch.status not in _TERMINAL_LAUNCH_STATUSES:
+            # A prolongation is a persisted fact, not display state: budgets
+            # and capacity read `expires_at` to free slots.
+            await session.commit()
+            await session.refresh(launch)
         ensure_project_access(principal, launch.project_id)
     return launch
 
@@ -386,8 +395,17 @@ async def list_launches(
         stmt = stmt.where(visible)
     result = await session.execute(stmt)
     launches = list(result.scalars().all())
+    extended = False
     for launch in launches:
+        before = launch.expires_at
         await expire_launch_if_overdue(session, principal, launch)
+        extended = extended or (
+            launch.expires_at != before and launch.status not in _TERMINAL_LAUNCH_STATUSES
+        )
+    if extended:
+        await session.commit()
+        for launch in launches:
+            await session.refresh(launch)
     return launches
 
 
@@ -581,15 +599,45 @@ async def protocol_views(
 
 
 async def expire_launch_if_overdue(
-    session: AsyncSession, principal: Principal, launch: TaskLaunchModel
+    session: AsyncSession,
+    principal: Principal,
+    launch: TaskLaunchModel,
+    *,
+    persist_extension: bool = True,
 ) -> TaskLaunchModel:
     """Server-side expiry (DEC-0173): a non-terminal launch past `expires_at`
     becomes `expired` with the server as actor. `expired_unpulled` when it
-    never left `requested`, `expired_timeout` otherwise."""
+    never left `requested`, `expired_timeout` otherwise.
+
+    Activity prolongation (task 63a909ea): while the linked work session is
+    still open with activity inside `launch_activity_grace_seconds`, the
+    launch is prolonged by that window instead of expiring — an agent that
+    keeps reporting to Studio never times out mid-run. The extension changes
+    `expires_at` only (never `version`), so a caller already holding the row
+    under `with_for_update` (`report`, `cancel`) passes
+    `persist_extension=False`: its own commit persists the extension and its
+    `expected_version` check stays valid. When it does expire, the server also
+    closes the linked session and releases the task's claims held by the
+    target machine, in the same transaction as the expiry."""
+    now = datetime.now(UTC)
     if launch.status in {s.value for s in TERMINAL_STATUSES}:
         return launch
-    if datetime.now(UTC) < launch.expires_at:
+    if now < launch.expires_at:
         return launch
+    settings = get_settings()
+    work_session = await _linked_open_session(session, launch)
+    if work_session is not None:
+        activity = work_session.last_activity_at or work_session.started_at
+        hard_deadline = launch.created_at + timedelta(seconds=LAUNCH_MAX_TTL_SECONDS)
+        if now < hard_deadline and (
+            now - activity <= timedelta(seconds=settings.launch_activity_grace_seconds)
+        ):
+            grace = timedelta(seconds=settings.launch_activity_grace_seconds)
+            launch.expires_at = min(now + grace, hard_deadline)
+            if persist_extension:
+                await session.commit()
+                await session.refresh(launch)
+            return launch
     previous_status = launch.status
     launch.status = TaskLaunchStatus.EXPIRED.value
     launch.reason_code = (
@@ -597,8 +645,10 @@ async def expire_launch_if_overdue(
         if previous_status == TaskLaunchStatus.REQUESTED.value
         else TaskLaunchReasonCode.EXPIRED_TIMEOUT.value
     )
-    launch.finished_at = datetime.now(UTC)
+    launch.finished_at = now
     launch.version += 1
+    await _close_session_of_expired_launch(session, launch)
+    await _release_claims_of_expired_launch(session, launch)
     return await _commit_with_event(
         session,
         principal,
@@ -609,6 +659,65 @@ async def expire_launch_if_overdue(
     )
 
 
+async def _linked_open_session(
+    session: AsyncSession, launch: TaskLaunchModel
+) -> WorkSessionModel | None:
+    """The launch's linked work session, when still open. `None` when no
+    session is linked, unknown, or already ended."""
+    if launch.session_id is None:
+        return None
+    work_session = await session.get(WorkSessionModel, launch.session_id)
+    if work_session is None or work_session.ended_at is not None:
+        return None
+    return work_session
+
+
+async def _close_session_of_expired_launch(
+    session: AsyncSession, launch: TaskLaunchModel
+) -> WorkSessionModel | None:
+    """Server-side handoff of an expiring launch (task 63a909ea): close the
+    linked work session through the sessions service, which stages its
+    replay-safe `session.ended`; the caller's commit makes it atomic with the
+    launch expiry. Events are attributed to the target machine that owned the
+    session, never to whichever caller happened to trigger the expiry."""
+    work_session = await _linked_open_session(session, launch)
+    if work_session is None:
+        return None
+    # Deferred import: `sessions` already imports this module for the
+    # identity-piece link when a session starts.
+    from studio_api.services import sessions as sessions_service
+
+    return await sessions_service.close_session_server_side(
+        session,
+        work_session,
+        project_id=launch.project_id,
+        emitter_machine_id=launch.machine_id,
+        reason="launch_expired",
+    )
+
+
+async def _release_claims_of_expired_launch(session: AsyncSession, launch: TaskLaunchModel) -> int:
+    """Server-side claim release of an expiring launch (task 63a909ea): the
+    active claims of the launch's task held by the target machine go back to
+    `released` through the claims service, one deterministic
+    `resource.released` each, attributed to that machine. The caller's commit
+    keeps them atomic with the launch expiry."""
+
+    if launch.task_id is None:
+        return 0
+    stmt = select(ResourceClaimModel).where(
+        ResourceClaimModel.task_id == launch.task_id,
+        ResourceClaimModel.status == "active",
+        ResourceClaimModel.claimed_by_machine_id == launch.machine_id,
+    )
+    claims = (await session.execute(stmt)).scalars().all()
+    for claim in claims:
+        await claims_service.release_claim_server_side(
+            session, claim, emitter_machine_id=launch.machine_id
+        )
+    return len(claims)
+
+
 async def expire_overdue_launches(session: AsyncSession, principal: Principal) -> int:
     """Sweep every overdue non-terminal launch. Returns the expired count."""
     stmt = select(TaskLaunchModel).where(
@@ -617,10 +726,17 @@ async def expire_overdue_launches(session: AsyncSession, principal: Principal) -
     )
     result = await session.execute(stmt)
     count = 0
+    extended = False
     for launch in result.scalars().all():
         ensure_project_access(principal, launch.project_id)
+        before = launch.expires_at
         await expire_launch_if_overdue(session, principal, launch)
+        extended = extended or (
+            launch.expires_at != before and launch.status not in _TERMINAL_LAUNCH_STATUSES
+        )
         count += 1
+    if extended:
+        await session.commit()
     return count
 
 
@@ -651,8 +767,17 @@ async def pull_pending(
     )
     result = await session.execute(stmt)
     launches = list(result.scalars().all())
+    extended = False
     for launch in launches:
+        before = launch.expires_at
         await expire_launch_if_overdue(session, principal, launch)
+        extended = extended or (
+            launch.expires_at != before and launch.status not in _TERMINAL_LAUNCH_STATUSES
+        )
+    if extended:
+        await session.commit()
+        for launch in launches:
+            await session.refresh(launch)
     capabilities = (
         None
         if machine.capabilities is None
@@ -772,7 +897,7 @@ async def report_launch(
     authorize_report(principal, launch)
     ensure_project_access(principal, launch.project_id)
     await session.refresh(launch, with_for_update=True)
-    await expire_launch_if_overdue(session, principal, launch)
+    await expire_launch_if_overdue(session, principal, launch, persist_extension=False)
     if launch.version != report.expected_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -836,7 +961,7 @@ async def cancel_launch(
             detail={"error_code": "forbidden", "resource": "task_launch", "action": "cancel"},
         )
     await session.refresh(launch, with_for_update=True)
-    await expire_launch_if_overdue(session, principal, launch)
+    await expire_launch_if_overdue(session, principal, launch, persist_extension=False)
     if launch.version != cancel.expected_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,

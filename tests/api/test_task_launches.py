@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task_launch import TaskLaunchModel
+from studio_api.db.models.work_session import WorkSessionModel
 from studio_contracts.task_launch import TaskLaunch, TaskLaunchPull
 
 
@@ -934,3 +935,124 @@ async def test_n_minus_1_client_routes_never_carry_the_protocol(
     assert listed.status_code == 200, listed.text
     item = next(i for i in listed.json()["items"] if i["id"] == launch["id"])
     assert item["protocol"] == {"status": "awaiting", "session_id": None, "task_status": None}
+
+
+async def test_overdue_running_launch_with_active_session_is_prolonged(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    """Activity prolongation (task 63a909ea): a launch past `expires_at` whose
+    linked work session is still open with fresh activity is prolonged, never
+    expired mid-run."""
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    accepted = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    await _open_session(client, auth_headers, task_id, machine_id)
+    running = await _report(client, auth_headers, launch["id"], accepted["version"], "preparing")
+    running = await _report(client, auth_headers, launch["id"], running["version"], "running")
+    row = await db_session.get(TaskLaunchModel, uuid.UUID(launch["id"]))
+    assert row is not None
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    response = await client.get(f"/api/v1/task-launches/{launch['id']}", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "running"
+    assert body["reason_code"] == "none"
+    assert datetime.fromisoformat(body["expires_at"].replace("Z", "+00:00")) > datetime.now(UTC)
+    events = await _events(client, auth_headers, task_id)
+    assert [e["event_type"] for e in events].count("task_launch.expired") == 0
+
+
+async def test_report_after_expiry_with_active_session_is_not_a_version_conflict(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    """The report that keeps the session alive must not 409 itself: the
+    prolongation is persisted by the report's own commit, without touching
+    `version` (task 63a909ea)."""
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    accepted = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    await _open_session(client, auth_headers, task_id, machine_id)
+    row = await db_session.get(TaskLaunchModel, uuid.UUID(launch["id"]))
+    assert row is not None
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    response = await client.post(
+        f"/api/v1/task-launches/{launch['id']}/report",
+        json={"expected_version": accepted["version"], "status": "preparing"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "preparing"
+    assert response.json()["version"] == accepted["version"] + 1
+
+
+async def test_expiry_closes_linked_session_and_releases_claims(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    """Clean stop of an expired launch (task 63a909ea): an open linked session
+    with stale activity is closed, and the task's claims held by the target
+    machine are released, server-side, atomically with the expiry."""
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    claim_response = await client.post(
+        "/api/v1/claims",
+        headers=auth_headers,
+        json={
+            "project_id": project_id,
+            "task_id": task_id,
+            "resource_path": "scenes/level_01.tscn",
+            "resource_type": "file",
+            "ttl_seconds": 600,
+        },
+    )
+    assert claim_response.status_code == 201, claim_response.text
+    accepted = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    session_id = await _open_session(client, auth_headers, task_id, machine_id)
+    preparing = await _report(client, auth_headers, launch["id"], accepted["version"], "preparing")
+    await _report(client, auth_headers, launch["id"], preparing["version"], "running")
+    row = await db_session.get(TaskLaunchModel, uuid.UUID(launch["id"]))
+    assert row is not None
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    work_session = await db_session.get(WorkSessionModel, uuid.UUID(session_id))
+    assert work_session is not None
+    work_session.last_activity_at = datetime.now(UTC) - timedelta(hours=2)
+    await db_session.commit()
+    pull = await client.get(
+        f"/api/v1/machines/{machine_id}/task-launches/pending", headers=auth_headers
+    )
+    assert pull.status_code == 200, pull.text
+    assert pull.json()["items"] == []
+    refreshed = await client.get(f"/api/v1/task-launches/{launch['id']}", headers=auth_headers)
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["status"] == "expired"
+    assert refreshed.json()["reason_code"] == "expired_timeout"
+    ended = await db_session.get(WorkSessionModel, uuid.UUID(session_id))
+    assert ended is not None
+    await db_session.refresh(ended)
+    assert ended.ended_at is not None
+    claims = await client.get(
+        "/api/v1/claims", headers=auth_headers, params={"project_id": project_id}
+    )
+    assert claims.status_code == 200, claims.text
+    released = next(c for c in claims.json() if c["task_id"] == task_id)
+    assert released["status"] == "released"
+    events = await client.get("/api/v1/events", params={"task": task_id}, headers=auth_headers)
+    assert events.status_code == 200, events.text
+    event_types = [e["event_type"] for e in events.json()]
+    assert event_types.count("session.ended") == 1
+    assert (
+        "reason"
+        in (next(e for e in events.json() if e["event_type"] == "session.ended")["payload"])
+    )
+    assert event_types.count("resource.released") == 1

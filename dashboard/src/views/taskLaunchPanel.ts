@@ -16,6 +16,7 @@ import { machineLabel } from "../actorNames";
 import { esc, fmtTime } from "../ui";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
+import { DEFAULT_LAUNCH_TTL_SECONDS, LAUNCH_TTL_CHOICES } from "../taskLaunchesApi";
 import { taskStatusLabel } from "../taskStatus";
 import type { UsageSummary } from "../usageApi";
 import { usageTotalText } from "./usage";
@@ -75,6 +76,8 @@ export interface LaunchPanelState {
   selectedMachineId: string;
   selectedHarnessId: string;
   agentStableKey: string;
+  /** Délai avant expiration envoyé au serveur ; absent = défaut serveur (2 h). */
+  expiresInSeconds?: number;
   allowProduction?: boolean;
   preview: ResolvedAgentDefinition | null;
   previewLoading: boolean;
@@ -285,6 +288,16 @@ function agentOptions(state: LaunchPanelState, data: LaunchPanelData): string {
       `<option value="${esc(agent.stable_key)}"${agent.stable_key === state.agentStableKey ? " selected" : ""}>${esc(agentDisplayName(agent.stable_key))}</option>`,
   );
   return `<option value="">— Aucun agent (facultatif) —</option>${rows.join("")}`;
+}
+
+/** Choix du délai avant expiration : le serveur reste l'autorité, ce select
+ * envoie juste `expires_in_seconds` ; sans choix, le défaut serveur (2 h). */
+export function launchTtlOptions(state: LaunchPanelState): string {
+  const current = state.expiresInSeconds ?? DEFAULT_LAUNCH_TTL_SECONDS;
+  return LAUNCH_TTL_CHOICES.map(
+    (choice) =>
+      `<option value="${choice.seconds}"${choice.seconds === current ? " selected" : ""}>${esc(choice.label)}</option>`,
+  ).join("");
 }
 
 export function previewLines(resolved: ResolvedAgentDefinition): string[] {
@@ -750,8 +763,7 @@ export function replayPreviewHtml(replay: TaskLaunchReplayPreview | null | undef
     `<ul>${limits}</ul>${diffBlock}</div>`;
 }
 
-export function launchPanelHtml(state: LaunchPanelState): string {
-  const header = dsSectionHeader("Lancer sur…");
+export function launchPanelHtml(state: LaunchPanelState): string {  const header = dsSectionHeader("Lancer sur…");
   const intro =
     `<p class="ds-list-sub">Le lancement reste une demande : le poste choisi la récupère dès qu'il est disponible, l'exécute localement, puis rapporte l'état réel.</p>`;
 
@@ -777,6 +789,8 @@ export function launchPanelHtml(state: LaunchPanelState): string {
     dsField("launch-machine", "Poste cible", `<select class="ds-select" id="FIELD">${machineOptions(state, data)}</select>`) +
     dsField("launch-harness", "Harnais", `<select class="ds-select" id="FIELD">${harnessOptions(state, machine)}</select>`) +
     dsField("launch-agent", "Agent à résoudre (facultatif)", `<select class="ds-select" id="FIELD">${agentOptions(state, data)}</select>`) +
+    dsField("launch-ttl", "Délai avant expiration", `<select class="ds-select" id="FIELD">${launchTtlOptions(state)}</select>`) +
+    `<p class="ds-list-sub">Passé ce délai sans activité de la session liée, le lancement expire et le serveur clôt la session et libère ses revendications.</p>` +
     `<label class="ds-checkbox"><input type="checkbox" id="launch-production"${state.allowProduction ? " checked" : ""}> Autoriser les commandes et les actions de production pour ce lancement</label>` +
     `<p class="ds-list-sub">Sans autorisation : édition locale uniquement, sans exécution de commandes. Un agent incompatible avec ce mode est refusé.</p>` +
     `<div class="tasks-footer">` +

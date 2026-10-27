@@ -191,7 +191,7 @@ describe("admissionPanel", () => {
       plan_digest: "abcdef0123456789aabb",
       harness_id: "claude-code",
       items: [{ task_id: "t1", machine_id: "m1" }],
-      expires_in_seconds: 900,
+      expires_in_seconds: 7200,
     });
     await vi.waitFor(() => expect(root.querySelector("[data-admission-result]")?.textContent).toContain("1 lancement"));
   });
@@ -340,7 +340,7 @@ it("propose de reprendre un envoi en attente sans envoi automatique", async () =
       plan_digest: "pending-digest",
       harness_id: "claude-code",
       items: [{ task_id: "t1", machine_id: "m1" }],
-      expires_in_seconds: 900,
+      expires_in_seconds: 7200,
     };
     const key = pendingAdmissionKey("r1", body, storage);
     const GET = vi.fn().mockResolvedValue(ok(dryRun([])));

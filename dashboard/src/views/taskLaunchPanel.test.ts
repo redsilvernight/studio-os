@@ -20,6 +20,7 @@ import {
   launchProtocolStatus,
   launchProtocolTaskLabel,
   launchReasonCodeLabel,
+  launchTtlOptions,
   latestHtml,
   linkedSessionHtml,
   machineOptionLabel,
@@ -694,5 +695,21 @@ describe("production approval", () => {
   it("shows the persisted approval and keeps the user's current choice", () => {
     expect(launchPanelHtml(state({ allowProduction: true }))).toContain('id="launch-production" checked');
     expect(latestHtml(state({ data: { machines: [], agents: [], latest: launch({ allow_production: true }) } }))).toContain("Production autorisée pour ce lancement");
+  });
+});
+
+describe("launch expiry delay", () => {
+  it("offers an explicit delay and defaults to the server's two hours", () => {
+    const html = launchPanelHtml(state());
+    expect(html).toContain('id="launch-ttl"');
+    expect(html).toContain('<option value="7200" selected>2 heures (recommandé)</option>');
+    expect(html).toContain('<option value="1800"');
+    expect(html).toContain('<option value="86400"');
+    expect(html).not.toContain('<option value="900"');
+  });
+  it("keeps the chosen delay selected", () => {
+    const options = launchTtlOptions(state({ expiresInSeconds: 14400 }));
+    expect(options).toContain('<option value="14400" selected>4 heures</option>');
+    expect(options.match(/selected/g)).toHaveLength(1);
   });
 });

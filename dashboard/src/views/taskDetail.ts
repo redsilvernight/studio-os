@@ -70,6 +70,7 @@ import "./tasks.css";
 import {
   cancelTaskLaunch,
   createTaskLaunch,
+  DEFAULT_LAUNCH_TTL_SECONDS,
   getEligibleMachines,
   getTaskLaunch,
   getTaskLaunchSnapshot,
@@ -551,6 +552,7 @@ export function launchSectionHtml(data: TaskDetailData): string {
     selectedMachineId: "",
     selectedHarnessId: "",
     agentStableKey: "",
+    expiresInSeconds: DEFAULT_LAUNCH_TTL_SECONDS,
     allowProduction: false,
     preview: null,
     previewLoading: false,
@@ -816,6 +818,7 @@ function bindLaunchPanel(
     selectedMachineId: "",
     selectedHarnessId: "",
     agentStableKey: "",
+    expiresInSeconds: DEFAULT_LAUNCH_TTL_SECONDS,
     allowProduction: false,
     preview: null,
     previewLoading: false,
@@ -860,6 +863,9 @@ function bindLaunchPanel(
     });
     container.querySelector<HTMLInputElement>("#launch-production")?.addEventListener("change", (event) => {
       state.allowProduction = (event.target as HTMLInputElement).checked;
+    });
+    container.querySelector<HTMLSelectElement>("#launch-ttl")?.addEventListener("change", (event) => {
+      state.expiresInSeconds = Number((event.target as HTMLSelectElement).value);
     });
     container.querySelector("[data-action=launch-preview]")?.addEventListener("click", () => void doPreview());
     container.querySelector("[data-action=launch-submit]")?.addEventListener("click", () => void doLaunch());
@@ -1009,7 +1015,7 @@ function bindLaunchPanel(
           machine_id: machine.machine_id,
           harness_id: state.selectedHarnessId,
           ...(state.agentStableKey === "" ? {} : { agent_stable_key: state.agentStableKey }),
-          expires_in_seconds: 900,
+          expires_in_seconds: state.expiresInSeconds ?? DEFAULT_LAUNCH_TTL_SECONDS,
           allow_production: state.allowProduction === true,
         },
         newIdempotencyKey(),
