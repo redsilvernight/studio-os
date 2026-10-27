@@ -64,6 +64,7 @@ async def _emit_session_event(
     principal: Principal,
     work_session: WorkSessionModel,
     event_type: EventType,
+    reason: str | None = None,
 ) -> None:
     project_id = await _session_project_id(session, work_session)
     if project_id is None:
@@ -74,6 +75,9 @@ async def _emit_session_event(
     else:
         actor_type = "system"
         actor_id = principal.machine.id
+    payload: dict[str, object] = {"session_id": str(work_session.id)}
+    if reason is not None:
+        payload["reason"] = reason
     await events_service.create_event(
         session,
         EventCreate(
@@ -85,7 +89,7 @@ async def _emit_session_event(
             actor_type=actor_type,
             actor_id=actor_id,
             client_timestamp=datetime.now(UTC),
-            payload={"session_id": str(work_session.id)},
+            payload=payload,
         ),
     )
 
@@ -194,6 +198,41 @@ async def authorize_start(
         raise HTTPException(409, detail={"error_code": "actor_not_owned"})
 
 
+async def _close_sessions_for_another_identity(
+    session: AsyncSession,
+    session_in: WorkSessionCreate,
+    now: datetime,
+) -> list[WorkSessionModel]:
+    """A live session on the same task and machine but for another agent
+    identity (DEC-0237): the observed model changed, so the previous presence
+    is closed explicitly (`session.ended` with `reason=identity_changed`)
+    instead of lingering until it expires and leaving two live sessions for
+    one machine on the same task."""
+    if session_in.task_id is None:
+        return []
+    stmt = select(WorkSessionModel).where(
+        WorkSessionModel.task_id == session_in.task_id,
+        WorkSessionModel.machine_id == session_in.machine_id,
+        WorkSessionModel.ended_at.is_(None),
+    )
+    if session_in.agent_id is None:
+        stmt = stmt.where(WorkSessionModel.agent_id.is_not(None))
+    else:
+        stmt = stmt.where(
+            or_(
+                WorkSessionModel.agent_id.is_(None),
+                WorkSessionModel.agent_id != session_in.agent_id,
+            )
+        )
+    closed = list((await session.execute(stmt)).scalars().all())
+    for work_session in closed:
+        work_session.ended_at = now
+        work_session.last_activity_at = now
+    if closed:
+        await session.flush()
+    return closed
+
+
 async def resume_or_start_session(
     session: AsyncSession,
     principal: Principal,
@@ -240,6 +279,7 @@ async def resume_or_start_session(
         existing.ended_at = now
         existing.last_activity_at = now
         await session.flush()
+    superseded = await _close_sessions_for_another_identity(session, session_in, now)
     handoff_cursor = None
     if session_in.task_id is not None:
         task = await tasks_service.get_task(session, session_in.task_id)
@@ -258,6 +298,10 @@ async def resume_or_start_session(
     await session.refresh(work_session)
     if existing is not None:
         await _emit_session_event(session, principal, existing, EventType.SESSION_ENDED)
+    for previous in superseded:
+        await _emit_session_event(
+            session, principal, previous, EventType.SESSION_ENDED, reason="identity_changed"
+        )
     await task_launches_service.link_session_to_launch(
         session, work_session, _scoped_launch_id(principal)
     )
@@ -271,6 +315,7 @@ async def start_session(
     await authorize_start(session, principal, session_in.task_id, session_in.agent_id)
     ensure_machine_owned(principal, session_in.machine_id, "session", "start")
     now = datetime.now(UTC)
+    superseded = await _close_sessions_for_another_identity(session, session_in, now)
     handoff_cursor = None
     if session_in.task_id is not None:
         task = await tasks_service.get_task(session, session_in.task_id)
@@ -290,6 +335,10 @@ async def start_session(
     await task_launches_service.link_session_to_launch(
         session, work_session, _scoped_launch_id(principal)
     )
+    for previous in superseded:
+        await _emit_session_event(
+            session, principal, previous, EventType.SESSION_ENDED, reason="identity_changed"
+        )
     await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
     return work_session
 

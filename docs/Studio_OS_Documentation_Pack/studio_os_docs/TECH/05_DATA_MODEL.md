@@ -116,7 +116,7 @@ reversible). `status`
 lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
 ## Agent
-Identité durable additive (0038, DEC-0237 proposée) : `owner_user_id` nullable,
+Identité durable additive (0038, DEC-0237 acceptée) : `owner_user_id` nullable,
 FK User, et unicité `(owner_user_id, stable_key)`. Les fiches canoniques ont
 une clé `canonical-model-v1:<sha256>` calculée côté serveur depuis le harnais
 logique, le fournisseur observé et l'identifiant exact du modèle effectif.
@@ -125,6 +125,14 @@ Le scope serveur est celui de la base ; le compte vient du credential.
 exécutions : WorkSession et AIWork gardent leur machine effective. Les anciennes
 fiches restent sans owner_user_id et conservent leur ownership par machine.
 Aucune provenance historique ni doublon ancien n'est réécrit ou supprimé.
+
+Rapprochement explicite (0039, DEC-0237) : `superseded_by_agent_id` nullable,
+FK `agents.id`, link vers la fiche canonique. Une ancienne fiche ne gagne que
+ce pointeur : ni `machine_id`, ni `stable_key`, ni métadonnées, ni historique
+ne changent, et aucune ligne n'est supprimée — effacer le pointeur restaure
+l'état précédent. `studio-admin reconcile-agents` ne fait qu'un rapport par
+défaut (`--apply` pour écrire, `--revert <agent_id>` pour défaire) ; une fiche
+canonique ne peut pas être superseded et une fiche déjà liée est refusée.
 
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite
 logique meme sans machine active), `display_name`, `agent_kind` (str libre,

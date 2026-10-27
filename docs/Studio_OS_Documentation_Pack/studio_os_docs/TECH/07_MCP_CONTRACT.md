@@ -40,6 +40,7 @@ studio_sync
 studio_coordinate
 studio_register_agent
 studio_resolve_agent_identity
+studio_supersede_agent_identity
 studio_discover_capabilities
 studio_log_ai_work
 studio_get_ai_work
@@ -413,6 +414,14 @@ Les identites canoniques sont utilisables par les machines autorisees du meme
 utilisateur. Les fiches historiques gardent leur ownership machine ; la machine
 effective reste dans les traces. Le profil session expose cet outil, distinct
 de `studio_resolve_agent` qui resout une definition de bibliotheque.
+
+`studio_supersede_agent_identity(legacy_agent_id, canonical_agent_id)` reutilise
+`agents.supersede_identity`, comme `POST /agents/{agent_id}/supersede` : lien
+explicite et reversible d'une ancienne fiche vers sa fiche canonique, sans
+fusion, sans reattribution de provenance et sans suppression. Admin, ou
+l'appelant doit posseder la machine de l'ancienne fiche et la fiche canonique ;
+`readonly` refuse, lien deja pose refuse (`already_superseded`). Outil ecrivain
+hors profil session, accessible en profil `admin`.
 
 `studio_discover_capabilities(intent?, key?, limit?)` est une lecture du
 catalogue fonctionnel du produit, pas de la bibliotheque. Meme service que

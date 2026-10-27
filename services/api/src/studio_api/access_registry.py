@@ -78,6 +78,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/agents"): "own",
     ("POST", "/api/v1/agents/ensure"): "own",
     ("POST", "/api/v1/agents/resolve-identity"): "own",
+    ("POST", "/api/v1/agents/{agent_id}/supersede"): "own",
     ("GET", "/api/v1/capabilities"): "own",
     ("POST", "/api/v1/heartbeats"): "own",
     ("GET", "/api/v1/machines/{machine_id}/task-launches/pending"): "own",

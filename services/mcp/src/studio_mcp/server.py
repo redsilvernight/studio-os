@@ -9,7 +9,11 @@ from mcp.types import ToolAnnotations
 from studio_mcp.deprecation import deprecated, deprecated_description
 from studio_mcp.strict_args import enforce_strict_arguments
 from studio_mcp.tool_profiles import ToolProfileMiddleware
-from studio_mcp.tools.agents import studio_register_agent, studio_resolve_agent_identity
+from studio_mcp.tools.agents import (
+    studio_register_agent,
+    studio_resolve_agent_identity,
+    studio_supersede_agent_identity,
+)
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
     studio_discover_definitions,
@@ -520,6 +524,18 @@ def create_server() -> MCPServer:
             "share logical harness identity; machine attribution stays on executions. "
             "selection_alias never supplies the effective model. Missing model/provider "
             "returns state=unknown and creates nothing. Requires writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        studio_supersede_agent_identity,
+        name="studio_supersede_agent_identity",
+        description=(
+            "Link a former agent identity to its canonical row: explicit and reversible, "
+            "never a merge — the former row keeps its machine, metadata, stable key and "
+            "history and only gains superseded_by_agent_id. Admin, or the caller must own "
+            "both the former row's machine and the canonical identity. Repeating a link "
+            "fails with already_superseded."
         ),
         annotations=_IDEMPOTENT_WRITE,
     )
