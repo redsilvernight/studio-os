@@ -77,7 +77,12 @@ async def resolve_identity(
             model=model,
             stable_key=key,
         )
-        .on_conflict_do_nothing(constraint="uq_agents_user_stable_key")
+        # No arbiter index on purpose: a canonical row is unique both per user
+        # (`uq_agents_user_stable_key`) and per registering machine
+        # (`uq_agents_machine_stable_key`), and a targeted `ON CONFLICT` only
+        # absorbs the index it names — two concurrent resolutions therefore
+        # raced into a UniqueViolationError on the machine constraint.
+        .on_conflict_do_nothing()
         .returning(AgentModel.id)
     )
     identifier = (await session.execute(statement)).scalar_one_or_none()
@@ -88,7 +93,9 @@ async def resolve_identity(
                 AgentModel.owner_user_id == principal.user.id, AgentModel.stable_key == key
             )
         )
-    ).scalar_one()
+    ).scalar_one_or_none()
+    if agent is None:
+        raise HTTPException(409, detail={"error_code": "identity_resolution_conflict"})
     await session.commit()
     await session.refresh(agent)
     return AgentIdentityResult(
