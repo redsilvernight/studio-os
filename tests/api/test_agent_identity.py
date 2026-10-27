@@ -203,3 +203,34 @@ async def test_legacy_agent_responses_require_opt_in_for_new_identity_fields(
         json={"display_name": "legacy-client"},
     )
     assert "owner_user_id" not in registered.json()
+
+
+async def test_machine_level_collision_fails_explicitly_instead_of_500(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+) -> None:
+    """A canonical key already held by the same machine under another scope is
+    a conflict on `uq_agents_machine_stable_key`, an index a targeted
+    `ON CONFLICT` does not absorb: the call must answer an explicit `409`, never
+    a raw `UniqueViolationError`."""
+    from studio_api.services.agents import _canonical_identity_key
+
+    db_session.add(
+        AgentModel(
+            machine_id=machine[0].id,
+            display_name="legacy-holder",
+            agent_kind="model",
+            harness="codex",
+            provider="openai",
+            model="gpt-6.1-sol",
+            stable_key=_canonical_identity_key("codex", "openai", "gpt-6.1-sol"),
+        )
+    )
+    await db_session.commit()
+
+    result = await client.post(PATH, headers=auth_headers, json=payload())
+
+    assert result.status_code == 409, result.text
+    assert result.json()["detail"]["error_code"] == "identity_resolution_conflict"
