@@ -21,6 +21,7 @@ import {
   launchProtocolTaskLabel,
   launchReasonCodeLabel,
   launchTtlOptions,
+  validLaunchProfile,
   latestHtml,
   linkedSessionHtml,
   machineOptionLabel,
@@ -85,6 +86,37 @@ const state = (overrides: Partial<LaunchPanelState> = {}): LaunchPanelState => (
   notice: "",
   error: "",
   ...overrides,
+});
+
+describe("reference launch profiles", () => {
+  it("offers the existing profiles and keeps the legacy mode available", () => {
+    const html = launchPanelHtml(state());
+    expect(html).toContain('id="launch-profile"');
+    expect(html).toContain('value="coding"');
+    expect(html).toContain('value="architecture-read-only"');
+    expect(html).toContain("sans profil");
+    expect(validLaunchProfile(state())).toBe(true);
+  });
+
+  it.each(["coding", "architecture-read-only"])("requires an agent for %s", (profileKey) => {
+    const html = launchPanelHtml(state({ selectedMachineId: "m1", selectedHarnessId: "claude-code", profileKey }));
+    expect(html).toContain('data-action="launch-submit" disabled');
+    expect(html).toContain("Choisissez un agent pour utiliser un profil");
+    expect(validLaunchProfile(state({ profileKey, agentStableKey: "review-helper" }))).toBe(true);
+  });
+
+  it("refuses an unknown profile even with an agent", () => {
+    expect(validLaunchProfile(state({ profileKey: "personal", agentStableKey: "review-helper" }))).toBe(false);
+  });
+
+  it("shows the requested permissions and confirms the selected profile", () => {
+    const selected = state({ profileKey: "architecture-read-only", agentStableKey: "review-helper", selectedMachineId: "m1", selectedHarnessId: "claude-code" });
+    const html = launchPanelHtml(selected);
+    expect(html).toContain('value="architecture-read-only" selected');
+    expect(html).toContain("Permissions demandées : lecture.");
+    expect(html).not.toContain('data-action="launch-submit" disabled');
+    expect(launchConfirmText(machine(), "claude-code", "review-helper", false, selected.profileKey)).toContain("Architecture en lecture seule");
+  });
 });
 
 /** Empreinte de test : seule son identité compte, jamais sa valeur. */

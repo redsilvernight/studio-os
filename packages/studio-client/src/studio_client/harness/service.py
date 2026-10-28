@@ -34,6 +34,7 @@ from studio_contracts.local.harness import (
     HarnessApplyResult,
     HarnessChange,
     HarnessDetectResult,
+    HarnessLaunchPreview,
     HarnessPlan,
     HarnessPreviewRequest,
     HarnessRollbackRequest,
@@ -324,6 +325,16 @@ class HarnessService:
         info = self._workspace(request.workspace_id, needs_feature=False)
         adapter = self._adapter(request.adapter_id)
         return self._status(adapter, self._detect(adapter, self._context(info), info.origin))
+
+    def launch_preview(self, request: HarnessStatusRequest) -> HarnessLaunchPreview:
+        info = self._workspace(request.workspace_id, needs_feature=False)
+        adapter = self._adapter(request.adapter_id)
+        try:
+            return adapter.launch_preview(self._context(info))
+        except AdapterRefusal as refusal:
+            raise _refusal_error(refusal.reason) from None
+        except OSError:
+            raise _refusal_error("read_failed") from None
 
     def preview(self, request: HarnessPreviewRequest) -> HarnessPlan:
         info = self._workspace(request.workspace_id, needs_feature=True)

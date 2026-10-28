@@ -22,6 +22,7 @@ from studio_contracts.local.harness import (
     HarnessApplyRequest,
     HarnessApplyResult,
     HarnessDetectResult,
+    HarnessLaunchPreview,
     HarnessPlan,
     HarnessPreviewRequest,
     HarnessRollbackRequest,
@@ -83,6 +84,7 @@ FEATURE_CAPABILITIES: tuple[str, ...] = (
     "harness.plan",
     "harness.apply",
     "harness.verify",
+    "harness.launch_preview",
 )
 
 WorkspaceConfigSource = Callable[[ProfileRef], Sequence[LocalWorkspaceConfig]]
@@ -644,6 +646,11 @@ class LocalFeatureRegistry:
 
     def harness_preview(self, request: HarnessPreviewRequest) -> HarnessPlan:
         return self._harness_call(request.workspace_id, lambda: self._harness.preview(request))
+
+    def harness_launch_preview(self, request: HarnessStatusRequest) -> HarnessLaunchPreview:
+        return self._harness_call(
+            request.workspace_id, lambda: self._harness.launch_preview(request)
+        )
 
     def harness_apply(self, request: HarnessApplyRequest) -> HarnessApplyResult:
         return self._harness_call(None, lambda: self._harness.apply(request))

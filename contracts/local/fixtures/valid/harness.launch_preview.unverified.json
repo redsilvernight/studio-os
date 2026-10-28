@@ -1,0 +1,18 @@
+{
+  "data": {
+    "access_modes": [
+      "workspace_write"
+    ],
+    "adapter_id": "harness-alpha-adapter",
+    "exclusions": [],
+    "hooks": [],
+    "isolation": "unverified",
+    "limitations": [
+      "The adapter does not guarantee settings, hooks or MCP isolation."
+    ],
+    "mcp_servers": [],
+    "production_approval_required": true,
+    "settings_sources": []
+  },
+  "model": "HarnessLaunchPreview"
+}

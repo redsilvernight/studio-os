@@ -57,6 +57,7 @@ const MODELS = [
   "HarnessDetectResult",
   "HarnessStatus",
   "HarnessStatusRequest",
+  "HarnessLaunchPreview",
   "HarnessPreviewRequest",
   "HarnessPlan",
   "HarnessApplyRequest",

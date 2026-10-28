@@ -77,6 +77,7 @@ from studio_contracts.local.harness import (
     HarnessApplyResult,
     HarnessChange,
     HarnessDetectResult,
+    HarnessLaunchPreview,
     HarnessPlan,
     HarnessState,
     HarnessStatus,
@@ -197,6 +198,7 @@ DESKTOP_CAPABILITIES = [
     "harness.plan",
     "harness.read",
     "harness.verify",
+    "harness.launch_preview",
     "identity.enroll",
     "identity.view",
     "knowledge.graph",
@@ -222,7 +224,13 @@ KNOWLEDGE_CAPABILITIES = [
     "knowledge.read",
 ]
 CODE_GRAPH_CAPABILITIES = ["code_graph.graph", "code_graph.index", "code_graph.read"]
-HARNESS_CAPABILITIES = ["harness.apply", "harness.plan", "harness.read", "harness.verify"]
+HARNESS_CAPABILITIES = [
+    "harness.apply",
+    "harness.plan",
+    "harness.read",
+    "harness.verify",
+    "harness.launch_preview",
+]
 
 
 def sha(label: str) -> str:
@@ -1436,6 +1444,13 @@ def build_fixtures() -> list[LocalFixture]:
     )
     fixtures["harness.detect.result"] = HarnessDetectResult(
         harnesses=[_harness_status(HarnessState.DETECTED, detected_version="1.2.0")]
+    )
+    fixtures["harness.launch_preview.unverified"] = HarnessLaunchPreview(
+        adapter_id="harness-alpha-adapter",
+        isolation="unverified",
+        production_approval_required=True,
+        limitations=["The adapter does not guarantee settings, hooks or MCP isolation."],
+        access_modes=["workspace_write"],
     )
     plan = _harness_plan()
     fixtures["harness.plan.preview"] = plan

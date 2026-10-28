@@ -44,6 +44,24 @@ un test échoue si l'export diverge des builders Python.
 
 ## Points de conception
 
+- **Aperçu des lancements (additif)** : `harness.launch_preview`, capability
+  optionnelle homonyme, requête `HarnessStatusRequest`, réponse
+  `HarnessLaunchPreview`. Lecture seule sur un workspace connu, même si les
+  intégrations y sont désactivées ; aucun plan, provisioning, renouvellement,
+  exécution, écriture de configuration ou répertoire temporaire. Les réponses
+  existantes de `harness.status` et `harness.detect` restent identiques pour les
+  anciens consommateurs stricts. Un ancien daemon refuse la nouvelle capacité
+  et l’interface indique que cet aperçu est indisponible.
+  Le résultat décrit la préparation prévue sur **ce poste** : sources de
+  réglages, hooks et MCP Studio présents ou manquants, exclusions motivées,
+  modes d’accès et nécessité d’une autorisation de production. Ce n’est ni un
+  journal d’exécution ni une approbation du contenu des hooks. Noms fixes et
+  raisons seules : aucun contenu, chemin absolu, commande, environnement ou
+  credential. Claude réutilise les hooks de `isolation_settings`, indépendants
+  pour identité et garde ; OpenCode copie seulement son plugin Studio ; Codex
+  annonce une isolation non vérifiée. Profil, permissions et politique locale
+  continuent d’être contrôlés au lancement, sans repli permissif.
+
 - **Handshake** : négociation par plage de protocole et capabilities, jamais par
   version de paquet. Résultats : `compatible`, `compatible_degraded`,
   `daemon_too_old`, `desktop_too_old`, `capability_missing`,
