@@ -33,7 +33,11 @@ from tests.integration_wave2.conftest import (
 )
 
 HARNESS_CAPABILITIES = [
-    "harness.read", "harness.plan", "harness.apply", "harness.verify", "harness.launch_preview"
+    "harness.read",
+    "harness.plan",
+    "harness.apply",
+    "harness.verify",
+    "harness.launch_preview",
 ]
 SCOPE = {"workspace_id": str(WORKSPACE_ID)}
 MCP_URL = "https://studio.example/mcp"
