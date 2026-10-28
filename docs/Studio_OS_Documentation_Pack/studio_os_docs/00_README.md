@@ -56,6 +56,10 @@ Studio OS est la couche de coordination commune d'un studio de jeu video de deux
 3. TECH/04_AUTH_SYNC_CONTRACT.md
 4. TECH/07_MCP_CONTRACT.md
 
+### Pour une delegation vers un outil personnel
+- [Interfaces, preuves et responsabilités externes](../../PERSONAL_TOOL_INTERFACES.md)
+  — résultat, timeout, annulation, préflight, lots et contention.
+
 ## Principes non negociables
 - Le serveur central est la source d'etat partagee, pas une machine de developpeur.
 - Pas de dependance LAN, SMB ou IP directe entre les domiciles.
