@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from studio_contracts.local.harness import ChangeKind
+from studio_contracts.local.harness import ChangeKind, HarnessLaunchPreview
 
 from studio_client.config import client_channel
 from studio_client.harness.fsafe import Document, sha256_hex
@@ -259,6 +259,19 @@ class HarnessAdapter(ABC):
         is an empty private directory the caller removes after the run.
         Nothing by default."""
         return {}
+
+    def launch_preview(self, ctx: HarnessContext) -> HarnessLaunchPreview:
+        return HarnessLaunchPreview(
+            adapter_id=self.adapter_id,
+            isolation="unverified",
+            limitations=[
+                "Cet adaptateur ne garantit pas l’isolation des réglages, hooks et MCP personnels.",
+                "Le lancement sans autorisation explicite de production est refusé.",
+                "Les instructions du projet ne sont pas un inventaire des intégrations chargées.",
+            ],
+            access_modes=[mode.value for mode in sorted(self.access_modes)],
+            production_approval_required=True,
+        )
 
 
 def system_env() -> Mapping[str, str]:

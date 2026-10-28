@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "included",
+        "unavailable",
+        "unverified"
+      ],
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "state",
+    "reason"
+  ],
+  "title": "LaunchEnvironmentEntry",
+  "type": "object"
+}

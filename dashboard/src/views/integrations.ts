@@ -51,6 +51,7 @@ import {
   type LaunchSettingsView,
 } from "../launchSettingsApi";
 import { esc } from "../ui";
+import { bindLaunchEnvironmentPreview, launchEnvironmentPreviewHtml } from "./launchEnvironmentPreview";
 import { configTabsHtml } from "./configuration";
 import { bindSetup, setupSectionHtml, type SetupView } from "./machineSetup";
 import { loadOnboardingState } from "../onboarding/state";
@@ -204,6 +205,7 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
     `<div class="settings-row"><dt>MCP Studi'OS</dt><dd>${configured ? "Configuré" : installed ? "Non configuré" : "—"}</dd></div>${files}</dl>` +
     reason +
     check +
+    (installed ? launchEnvironmentPreviewHtml() : "") +
     actions +
     plan +
     confirm +
@@ -381,6 +383,7 @@ function bind(root: HTMLElement, workspaceId: string, platform: Platform, shown:
   bindLaunch(root, platform, draft, again);
   for (const card of root.querySelectorAll<HTMLElement>("[data-harness]")) {
     const adapterId = card.dataset["harness"] ?? "";
+    bindLaunchEnvironmentPreview(card, platform, workspaceId, adapterId);
     card.querySelector("[data-action=preview]")?.addEventListener("click", () => {
       void previewHarness(platform, workspaceId, adapterId).then((outcome) =>
         outcome.ok ? again({ plan: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),

@@ -37,6 +37,7 @@
         "harness.apply",
         "harness.rollback",
         "harness.verify",
+        "harness.launch_preview",
         "skills.check",
         "skills.preview",
         "skills.apply",
