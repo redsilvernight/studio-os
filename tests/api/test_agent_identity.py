@@ -234,3 +234,28 @@ async def test_machine_level_collision_fails_explicitly_instead_of_500(
 
     assert result.status_code == 409, result.text
     assert result.json()["detail"]["error_code"] == "identity_resolution_conflict"
+
+
+async def test_unregistered_harness_suffixes_resolve_to_distinct_identities(
+    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession
+) -> None:
+    harnesses = (
+        "custom",
+        "custom-cli",
+        "custom-desktop",
+        "custom-code",
+        "codex",
+        "codex-code",
+        "opencode",
+        "opencode-code",
+    )
+    identities = set()
+    for harness in harnesses:
+        response = await client.post(PATH, headers=auth_headers, json=payload(harness=harness))
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["logical_harness"] == harness
+        identities.add(body["agent"]["id"])
+    assert len(identities) == len(harnesses)
+    count = (await db_session.execute(select(func.count()).select_from(AgentModel))).scalar_one()
+    assert count == len(harnesses)

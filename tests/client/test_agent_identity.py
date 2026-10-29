@@ -117,18 +117,20 @@ def test_observation_preserves_case_and_does_not_infer_a_provider() -> None:
     assert observed_identity_request("codex", "gpt-6.1-sol").provider is None
 
 
-def test_logical_harness_matrix_shares_desktop_cli_and_code_per_product() -> None:
-    """DEC-0237 matrix: the interface suffix never splits an identity; distinct
-    products stay distinct."""
+def test_logical_harness_matrix_shares_only_documented_interface_aliases() -> None:
     from studio_contracts.agent_identity import logical_harness
 
     for product in ("codex", "claude", "opencode"):
         variants = {logical_harness(product)} | {
-            logical_harness(f"{product}-{suffix}") for suffix in ("desktop", "cli", "code")
+            logical_harness(f"{product}-{suffix}") for suffix in ("desktop", "cli")
         }
         assert variants == {product}
+    assert logical_harness(" Claude_Code ") == "claude"
     assert logical_harness(" Codex_Desktop ") == "codex"
-    assert logical_harness("Claude-CLI") == "claude"
+    assert logical_harness(" OpenCode_CLI ") == "opencode"
+    for product in ("codex", "opencode"):
+        assert logical_harness(f"{product}-code") == f"{product}-code"
+        assert logical_harness(f" {product.upper()}_CODE ") == f"{product}-code"
     assert len({logical_harness(name) for name in ("codex", "claude", "opencode", "gemini")}) == 4
 
 
