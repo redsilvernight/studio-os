@@ -308,6 +308,13 @@ export async function renderIntegrations(
     root.innerHTML = integrationsWebHtml();
     return;
   }
+  const launch = await getLaunchSettings(platform).catch(() => null);
+  const launchView = { ...view, ...(launch?.ok ? { launch: launch.value } : {}) };
+  const machineSettings = (): string => launchView.launch
+    ? launchSettingsHtml(launchView.launch, view.launchDraft, view.launchNotice, view.launchError)
+    : "";
+  const bindMachineSettings = (): void => bindLaunch(root, platform, view.launchDraft,
+    (next = {}) => renderIntegrations(root, workspaceId, platform, { selectedWorkspaceId: view.selectedWorkspaceId, ...next }));
   if (workspaceId === undefined) {
     root.innerHTML = header() + dsStateHtml("loading", { title: "Préparation", message: "Chargement des espaces de travail de ce poste." });
     const [workspaces, identity] = await Promise.all([
@@ -321,7 +328,8 @@ export async function renderIntegrations(
     const selected = available.find((workspace) => workspace.workspace_id === (view.selectedWorkspaceId ?? loadOnboardingState().workspaceId)) ?? available[0];
     const tools = selected ? await detectHarnesses(platform, selected.workspace_id) : null;
     const error = !workspaces.ok ? workspaceErrorMessage(workspaces.error) : tools !== null && !tools.ok ? harnessErrorMessage(tools.error) : undefined;
-    root.innerHTML = integrationsWorkspaceHtml(items, selected?.workspace_id, workstation, error, tools?.ok ? tools.value.harnesses : []);
+    root.innerHTML = integrationsWorkspaceHtml(items, selected?.workspace_id, workstation, error, tools?.ok ? tools.value.harnesses : []) + machineSettings();
+    bindMachineSettings();
     root.querySelector<HTMLSelectElement>("[data-integration-workspace]")?.addEventListener("change", (event) => {
       void renderIntegrations(root, undefined, platform, { selectedWorkspaceId: (event.target as HTMLSelectElement).value });
     });
@@ -337,17 +345,16 @@ export async function renderIntegrations(
     : `<p class="ds-field-error" role="status">Le contexte du dossier ne peut pas être affiché : ${esc(workspaceErrorMessage(workspace.error))}. <a href="#/workspaces">Vérifier l’association locale</a></p>`;
   const detected = await detectHarnesses(platform, workspaceId);
   if (!detected.ok) {
-    root.innerHTML = integrationsHtml([], { ...view, workspaceContext: contextHtml, error: harnessErrorMessage(detected.error) });
+    root.innerHTML = integrationsHtml([], { ...launchView, workspaceContext: contextHtml, error: harnessErrorMessage(detected.error) });
+    bindMachineSettings();
     return;
   }
   // Best effort: an unavailable check never hides the harness list.
   const skills = await checkSkills(platform).catch(() => null);
-  const launch = await getLaunchSettings(platform).catch(() => null);
   const withSkills = {
-    ...view,
+    ...launchView,
     workspaceContext: contextHtml,
     ...(skills?.ok ? { skills: skills.value } : {}),
-    ...(launch?.ok ? { launch: launch.value } : {}),
   };
   root.innerHTML = integrationsHtml(detected.value.harnesses ?? [], withSkills);
   bind(root, workspaceId, platform, view.plan, view.launchDraft);
