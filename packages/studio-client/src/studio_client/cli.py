@@ -21,7 +21,8 @@ from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
-from studio_client.agent_identity import model_agent_create
+from studio_client import machine_setup
+from studio_client.agent_identity import observed_identity_request
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.context import (
@@ -212,6 +213,60 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def versioning(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="studio-client versioning")
+    sub = parser.add_subparsers(dest="action", required=True)
+    status = sub.add_parser("status", help="Diagnose Git without changing anything.")
+    status.add_argument("--path", action="append", default=[])
+    _add_json_flag(status)
+    configure = sub.add_parser(
+        "configure", help="Configure Git identity after explicit confirmation."
+    )
+    configure.add_argument("--scope", choices=("local", "global"), required=True)
+    configure.add_argument("--name", required=True)
+    configure.add_argument("--email", required=True)
+    configure.add_argument("--repo", default=".")
+    configure.add_argument("--home", default=str(Path.home()))
+    configure.add_argument("--confirm", action="store_true")
+    _add_json_flag(configure)
+    init = sub.add_parser("init", help="Initialize a local Git repository after confirmation.")
+    init.add_argument("--path", default=".")
+    init.add_argument("--branch")
+    init.add_argument("--confirm", action="store_true")
+    _add_json_flag(init)
+    args = parser.parse_args(argv)
+    path_dirs = tuple(os.environ.get("PATH", "").split(os.pathsep))
+    result: BaseModel | dict[str, object]
+    if args.action == "status":
+        roots = tuple(Path(value).expanduser() for value in args.path) or (Path.cwd(),)
+        result = machine_setup.probe_versioning(Path.home(), roots, path_dirs)
+    elif args.action == "configure":
+        try:
+            result = machine_setup.configure_versioning(
+                Path(args.home).expanduser(),
+                Path(args.repo).expanduser() if args.scope == "local" else None,
+                scope=args.scope,
+                name=args.name,
+                email=args.email,
+                confirm=args.confirm,
+                path_dirs=path_dirs,
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    else:
+        try:
+            result = machine_setup.init_versioning(
+                Path(args.path), branch=args.branch, confirm=args.confirm, path_dirs=path_dirs
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    payload = result.model_dump(mode="json") if isinstance(result, BaseModel) else result
+    print(json.dumps(payload, indent=2) if args.json else payload)
+    return 0 if payload.get("ok", payload.get("state") == "checked") else 1
+
+
 def _projects_list(args: argparse.Namespace, config: ClientConfig) -> None:
     projects = _run(config, lambda client: client.list_projects())
     _print_models(projects, as_json=args.json)
@@ -306,6 +361,63 @@ def _agents_list(args: argparse.Namespace, config: ClientConfig) -> None:
     _print_models(agents, as_json=args.json)
 
 
+def _discover_capabilities(args: argparse.Namespace, config: ClientConfig) -> None:
+    result = _run(
+        config,
+        lambda client: client.discover_capabilities(
+            intent=args.intent,
+            key=args.key,
+            limit=args.limit,
+        ),
+    )
+    if args.json:
+        _print_model(result, as_json=True)
+        return
+    labels = {
+        "available": "Disponible",
+        "needs_configuration": "À configurer",
+        "not_authorized": "Non autorisé",
+        "unsupported": "Non pris en charge",
+    }
+    print(result.summary)
+    for item in result.capabilities:
+        print(f"{item.key}: {item.title} — {labels[item.state]} — {item.summary}")
+        if item.reason:
+            print(item.reason)
+        if item.example:
+            print(f"Exemple : {item.example}")
+        for detail in item.prerequisites + item.restrictions:
+            print(detail)
+    for step in result.next_steps:
+        print(step)
+    if result.additional_available:
+        print(f"{result.additional_available} autres capacités ; --limit 24 ou détail avec --key.")
+
+
+def _adopt_harness_credential(
+    harness: str, config: ClientConfig, *, home: Path | None = None
+) -> None:
+    """Session start (DEC-0104/DEC-0226): authenticate as the machine this
+    harness's own MCP entry uses. The Desktop's credential would register the
+    agent under a machine the harness never talks to, and `studio_start_work`
+    would then refuse it with `actor_not_owned` — one agent per conversation.
+    An explicit STUDIO_CLIENT_MACHINE_TOKEN always wins."""
+    if os.environ.get("STUDIO_CLIENT_MACHINE_TOKEN"):
+        return
+    from studio_client.harness.session_credential import read_session_credential
+
+    credential = read_session_credential(
+        harness,
+        home=Path.home() if home is None else home,
+        origin=origin_of(config.api_base_url),
+        env=os.environ,
+    )
+    if credential is None:
+        return
+    os.environ["STUDIO_CLIENT_MACHINE_TOKEN"] = credential.token
+    os.environ["STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN"] = credential.origin
+
+
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
@@ -313,14 +425,31 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     `studio_log_ai_work`. The default stable key is stable per harness so
     a retried hook never registers a duplicate; changing the metadata with
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
-    model_agent = model_agent_create(args.model, args.provider) if args.model_identity else None
-    agent_in = model_agent or AgentCreate(
+    if args.harness_credential:
+        _adopt_harness_credential(args.harness, config)
+    if args.model_identity:
+        identity = _run(
+            config,
+            lambda client: client.resolve_agent_identity(
+                observed_identity_request(args.harness, args.model, args.provider)
+            ),
+        )
+        if identity.agent is not None:
+            if args.json:
+                _print_model(identity.agent, as_json=True)
+            else:
+                print(f"Resolved model agent {identity.agent.id} ({identity.logical_harness}).")
+            return
+        print(
+            f"Model identity unknown: {identity.reason}; using harness identity.", file=sys.stderr
+        )
+    agent_in = AgentCreate(
         display_name=args.display_name or f"studio-{args.harness}",
         agent_kind=args.agent_kind,
         agent_profile=args.agent_profile,
         harness=args.harness,
-        provider=args.provider,
-        model=args.model,
+        provider=None if args.model_identity else args.provider,
+        model=None if args.model_identity else args.model,
         stable_key=args.stable_key or f"agents-ensure-{args.harness}",
     )
 
@@ -1229,6 +1358,120 @@ def _worktrees_prune(args: argparse.Namespace, config: ClientConfig | None) -> N
         raise SystemExit(1)
 
 
+def _completion_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_contracts.completion import CompletionEvidence, check_completion
+
+    _ = config
+    try:
+        with Path(args.file).open("rb") as source:
+            raw = source.read(131073)
+        if len(raw) > 131072:
+            raise ValueError("completion evidence too large")
+        evidence = CompletionEvidence.model_validate_json(raw)
+    except (OSError, ValueError):
+        raise SystemExit(
+            "invalid_completion_evidence: check file, format and 128 KiB limit"
+        ) from None
+    report = check_completion(evidence)
+    print(report.model_dump_json(indent=2))
+    if not report.ready:
+        raise SystemExit(1)
+
+
+def _library_restore(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.bootstrap import BootstrapError
+    from studio_client.projection_backups import list_projection_backups, restore_projection_backup
+
+    _ = config
+    try:
+        home = Path(args.home).expanduser().resolve()
+        if args.list:
+            journals = list_projection_backups(home)
+            print(
+                json.dumps(
+                    {
+                        "backups": [
+                            {
+                                "id": item.directory.name,
+                                "created_at": item.created_at,
+                                "status": item.status,
+                                "files": [entry.path for entry in item.entries],
+                            }
+                            for item in journals[:20]
+                        ],
+                        "additional_available": max(0, len(journals) - 20),
+                    },
+                    indent=2,
+                )
+            )
+            return
+        restored = restore_projection_backup(home, args.backup_id)
+        print(json.dumps({"restored": restored}, indent=2))
+    except (BootstrapError, OSError) as exc:
+        print(f"projection_restore_failed: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
+def _library_profile_preview(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_contracts.profiles import MachinePolicy
+    from studio_contracts.work_profile_pack import WorkProfilePack, WorkProfilePackRequest
+
+    try:
+        with Path(args.file).open("rb") as source:
+            raw = source.read(131073)
+        if len(raw) > 131072:
+            raise ValueError("pack too large")
+        pack = WorkProfilePack.model_validate_json(raw)
+        policy_raw = b'{"opt_in":false,"max_concurrent":1}'
+        if args.policy:
+            with Path(args.policy).open("rb") as source:
+                policy_raw = source.read(131073)
+        if len(policy_raw) > 131072:
+            raise ValueError("policy too large")
+        request = WorkProfilePackRequest(
+            pack=pack,
+            machine_policy=MachinePolicy.model_validate_json(policy_raw),
+            project_id=UUID(args.project_id) if args.project_id else None,
+        )
+    except OSError:
+        raise SystemExit("work_profile_pack_unavailable: cannot read the selected files") from None
+    except ValueError:
+        raise SystemExit(
+            "invalid_work_profile_pack: check JSON, format, references and the 128 KiB file limit"
+        ) from None
+    if args.validate_only:
+        print(
+            json.dumps(
+                {
+                    "valid": True,
+                    "format": pack.format,
+                    "mutates": False,
+                    "authoritative": False,
+                    "server_checked": False,
+                }
+            )
+        )
+        return
+    if config is None:
+        raise SystemExit("server_configuration_required")
+
+    async def action(client: StudioApiClient) -> Any:
+        return await client.preview_work_profile_pack(request)
+
+    result = _run(config, action)
+    print(result.model_dump_json(indent=2))
+
+
+def _library_dependency_updates(args: argparse.Namespace, config: ClientConfig) -> None:
+    async def action(client: StudioApiClient) -> Any:
+        return await client.preview_dependency_updates(
+            UUID(args.resource_id), args.version, limit=args.limit, offset=args.offset
+        )
+
+    result = _run(config, action)
+    print(result.model_dump_json(indent=2))
+
+
 def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
     """Publish canonical `.agents/` rules, skills and agent definitions to the
     Library (P4). Reads are always allowed; nothing is written with
@@ -1508,8 +1751,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "setup-hooks",
         help="Deploy Studio OS session-start hooks (`studio-client setup-hooks --help`).",
     )
+    subparsers.add_parser("versioning", help="Diagnose and explicitly configure local Git.")
 
     projects_parser = subparsers.add_parser("projects", help="Projects.")
+    discovery_parser = subparsers.add_parser(
+        "capabilities", help="Découvrir Studi'OS et ses prérequis."
+    )
+    discovery_parser.add_argument(
+        "--intent", choices=("overview", "start_project", "configuration"), default="overview"
+    )
+    discovery_parser.add_argument("--key", help="Détail d'une capacité du résumé.")
+    discovery_parser.add_argument("--limit", type=int, default=6)
+    _add_json_flag(discovery_parser)
+    discovery_parser.set_defaults(func=_discover_capabilities)
     projects_sub = projects_parser.add_subparsers(dest="projects_command", required=True)
     projects_list = projects_sub.add_parser("list", help="List projects.")
     _add_json_flag(projects_list)
@@ -1611,6 +1865,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="One agent per machine and model, whatever the harness (DEC-0225); "
         "falls back to the harness agent when the model is unknown.",
+    )
+    agents_ensure.add_argument(
+        "--harness-credential",
+        action="store_true",
+        help="Authenticate with the credential of this harness's own Studi'OS MCP "
+        "entry (DEC-0104), so the ensured agent belongs to the machine the "
+        "harness itself talks to. Ignored when STUDIO_CLIENT_MACHINE_TOKEN is set.",
     )
     _add_json_flag(agents_ensure)
     agents_ensure.set_defaults(func=_agents_ensure)
@@ -1973,8 +2234,53 @@ def _build_parser() -> argparse.ArgumentParser:
         _add_json_flag(hooks_command)
         hooks_command.set_defaults(func=_hooks_library_command)
 
-    library_parser = subparsers.add_parser("library", help="Library publication (P4).")
+    completion_parser = subparsers.add_parser(
+        "completion", help="Check work-kind completion evidence offline."
+    )
+    completion_sub = completion_parser.add_subparsers(dest="completion_command", required=True)
+    completion_check = completion_sub.add_parser(
+        "check", help="Validate evidence without closing anything."
+    )
+    completion_check.add_argument("file", help="Completion evidence JSON file.")
+    completion_check.set_defaults(func=_completion_check)
+
+    library_parser = subparsers.add_parser(
+        "library", help="Inspect and manage AI library projections."
+    )
     library_sub = library_parser.add_subparsers(dest="library_command", required=True)
+    library_restore = library_sub.add_parser(
+        "restore", help="Restore managed global projections; refuse later local edits."
+    )
+    library_restore.add_argument("--home", default=str(Path.home()), help="Harness home directory.")
+    library_restore.add_argument(
+        "--backup-id", help="Projection backup ID; default latest applied."
+    )
+    library_restore.add_argument(
+        "--list", action="store_true", help="List projection backups without restoring."
+    )
+    library_restore.set_defaults(func=_library_restore)
+    library_profile = library_sub.add_parser(
+        "profile-preview", help="Validate a work-profile pack and preview it without publishing."
+    )
+    library_profile.add_argument("file", help="Versioned work-profile pack JSON file.")
+    library_profile.add_argument(
+        "--policy", help="Read-only machine policy JSON; default grants nothing."
+    )
+    library_profile.add_argument("--project-id", help="Optional project UUID for resolution.")
+    library_profile.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Validate files offline; do not contact the server.",
+    )
+    library_profile.set_defaults(func=_library_profile_preview)
+    library_updates = library_sub.add_parser(
+        "dependency-updates", help="Preview pinned dependency updates without changing them."
+    )
+    library_updates.add_argument("resource_id", help="Source resource UUID.")
+    library_updates.add_argument("version", type=int, help="Pinned source version.")
+    library_updates.add_argument("--limit", type=int, default=20)
+    library_updates.add_argument("--offset", type=int, default=0)
+    library_updates.set_defaults(func=_library_dependency_updates)
     library_publish = library_sub.add_parser(
         "publish",
         help="Publish `.agents/` rules, skills, agents to the Library (drafts unless --activate).",
@@ -2106,6 +2412,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(login(argv[1:]))
     if argv[:1] == ["setup-hooks"]:
         raise SystemExit(setup_hooks(argv[1:]))
+    if argv[:1] == ["versioning"]:
+        raise SystemExit(versioning(argv[1:]))
     if argv[:2] == ["outbox", "legacy"]:
         raise SystemExit(legacy_outbox_main(argv[2:]))
 
@@ -2121,6 +2429,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         or getattr(args, "worktrees_command", None) in ("prune",)
         or getattr(args, "bootstrap_command", None)
         in ("init", "check", "diff", "sync", "rollback", "scan")
+        or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
+        or getattr(args, "library_command", None) == "restore"
+        or getattr(args, "completion_command", None) == "check"
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)

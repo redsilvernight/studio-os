@@ -1,6 +1,36 @@
 # API Contract v1
 
-Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 2` (DEC-0103).
+Version contractuelle 3 (DEC-0235, 2026-10-24) : admission des lancements protégés.
+Chaque création/retry exige `capabilities.launch_safety=true` ; sinon 409
+`launch_safety_unsupported_by_machine`. Le transport reste `/api/v1`. Mettre à jour
+le daemon avant de lancer ; les anciennes machines ne reçoivent aucun lancement.
+
+`TaskLaunchCreate.allow_production` est un booléen optionnel, défaut false. True
+exige un JWT de session utilisateur validé (403 `production_approval_requires_user_session`
+pour les jetons machine, MCP et credentials de lancement). La valeur est persistée,
+immuable et attribuée à `requested_by_user_id`/`created_at` dans TaskLaunch.
+La réponse expose toujours sa valeur, y compris false pour les archives. Le service vérifie cette origine
+avant de créer, même hors HTTP et avant rejeu idempotent. Retry/replay repartent
+toujours avec false, sans héritage d’approbation.
+
+Le daemon impose une édition bornée au dossier sans outil de commandes si false.
+Claude Code utilise `--restricted --tools Read,Edit,Write,Grep,Glob` (>=2.1.248 ;
+une CLI antérieure échoue avant exécution). Les adaptateurs ne garantissant pas
+ce mode refusent avant préparation/lancement ; aucun repli permissif. True ne
+contourne ni le profil lecture seule ni les permissions du poste. Une opération
+nécessitant une commande en mode protégé exige `studio_handoff(task_status=blocked)`
+avec commande et cible ; une nouvelle demande humaine est nécessaire.
+
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 4`.
+
+Version 4 : un claim protege le couple machine/agent. Une autre identite
+d'agent (y compris `null`) ne remplace plus silencieusement le detenteur sur
+la meme machine : `409 already_claimed`. Liberer explicitement avant une
+reprise par un autre agent. Version 3 : DEC-0235. Transport et evenements inchanges.
+Version 4 couvre aussi les bornes MCP explicites et les listes de taches
+actives bornees par defaut (DEC-0242 proposee, TECH/07_MCP_CONTRACT.md).
+
+Historique version 2 (DEC-0103) :
 Statut : **DEC-0103 acceptee ; enforcement projet et `GET /machines` /
 `GET /agents` self/admin livres (A0, tache 00397d8d) ; gestion des membres
 (`/projects/{id}/members`) livree (A0, tache 0324dbb3)**, le serveur annonce la
@@ -287,13 +317,14 @@ public de bootstrap, pas de secret d'environnement dedie.
   DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
   meme machine avec le meme agent, est un no-op (aucun bump de `version`,
   aucun evenement `task.started` duplique) — un appel rejoue reste donc sans
-  effet nouveau, sans cle. Une machine differente garde `409 already_claimed` ;
-  reclamer une tache liberee, bloquee ou terminee, ou avec un `agent_id`
-  different, est une (re)prise reelle (version + `task.started`). Accepte
+  effet nouveau, sans cle. Une machine ou un agent different (y compris
+  `null`) recoit `409 already_claimed`, sans changer le detenteur. Liberer
+  explicitement le claim avant son transfert. Reclamer une tache liberee,
+  ou bloquee/terminee avec le meme detenteur, est une reprise reelle
+  (version + `task.started`). Les claims concurrents sont serialises. Accepte
   `Idempotency-Key` (meme cle + meme corps = claim d'origine, corps
-  different = `409 idempotency_key_payload_mismatch`). Aucun changement de
-  champ, de code HTTP ni d'enveloppe d'evenement : pas de bump de version
-  contractuelle.
+  different = `409 idempotency_key_payload_mismatch`). Rupture de comportement
+  intra-poste annoncee par la version contractuelle 4 ; enveloppe inchangee.
 - POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
   comportement inchange ; present et perime, `409 {"detail": {"error_code":
   "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
@@ -328,10 +359,16 @@ public de bootstrap, pas de secret d'environnement dedie.
   reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
   DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
 - Repli L3 (DEC-0163) : `PATCH /sessions/{id}/end` libere desormais les
-  claims actifs de la tache detenus par la machine appelante, avec un
+  claims actifs de la tache detenus par la machine et l'agent de la session, avec un
   `resource.released` par claim (meme chemin que `release_claim`), avant de
   marquer la session terminee — et aussi sur une session deja terminee, pour
   converger apres un echec partiel.
+  Version 4 (DEC-0240 proposee) : les claims d'un autre agent sont preserves.
+  Les claims sans agent sont liberes seulement si aucun autre agent ne tient
+  la tache. Un ancien handoff sur une tache reprise par un autre agent du
+  poste recoit `409 already_claimed` ; il peut terminer sa propre session via
+  `PATCH /sessions/{id}/end`. Un `agent_id` de handoff different de celui de
+  la session recoit `409 session_agent_mismatch` sans reattribuer l'historique.
 
 ### Start work (L2, additif, DEC-0159)
 - POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
@@ -340,8 +377,8 @@ public de bootstrap, pas de secret d'environnement dedie.
   Composite en un appel (les services composes gardent leurs propres
   commits : ce n'est pas une transaction unique, un echec en cours converge
   au rejeu), sans nouvelle table ni nouvel evenement :
-  avec `task_id`, claim idempotent pour la meme machine (`409
-  already_claimed` si une autre machine tient la tache) + reprise de la
+  avec `task_id`, claim idempotent pour le meme couple machine/agent (`409
+  already_claimed` si un autre couple tient la tache) + reprise de la
   session ouverte du meme agent sur la tache ou creation (AIB-H ; les
   expirees sont closes par L2) + `touch_session` + `prepare_context`
   borne et cadre (`task_id`, `files`, `agent_stable_key`) ; sans `task_id`,
@@ -408,6 +445,40 @@ public de bootstrap, pas de secret d'environnement dedie.
   idempotency_key_payload_mismatch`. Minimal fallback: `end_session`
   releases the task's claims automatically (L3 fallback, DEC-0163). A
   client that does not call the route observes no change.
+
+#### Preuves de clôture optionnelles (additif, proposition DEC-0243)
+
+`HandoffRequest.completion` accepte une preuve déclarative
+`studio.completion/v1`, sans changer la réponse ni imposer de preuve aux
+appels historiques. `kind` vaut `code`, `audit`, `diagnostic` ou `operation`.
+La preuve contient au plus 10 références `artifacts` (1..1000 caractères)
+et 20 `checks` : nom (1..200), nature `command|review|observation|ci`,
+but `validation|finding`, statut
+`passed|failed|not_run|environment_unavailable`, `exit_code` entier strict
+optionnel et référence optionnelle (<=1000 caractères).
+
+Une clôture avec preuve exige un artefact non vide et une validation réussie.
+Chaque validation doit être `passed`, sans code non nul ; une commande exige
+explicitement `exit_code=0`, et un contrôle CI une référence non vide.
+Les constats `finding` restent distincts : un échec observé peut accompagner
+un diagnostic validé, mais `not_run` est refusé et une commande doit avoir
+un code de sortie. Une réussite avec code non nul est incohérente.
+Le code exige `versioned=true` et `revision` non vide (<=200 caractères).
+Si `integration_required=true`, `integrated=true` et `target_branch` non vide
+(<=200) sont requis ; si `ci_required=true`, `ci_verified=true` et un contrôle
+CI de validation sont requis. Aucune branche cible n'est choisie par défaut.
+Une opération exige `effect_verified=true`. `deployed` est un état séparé,
+jamais déduit de la clôture.
+
+Avant toute mutation du handoff, une preuve sans `agent_id` et `summary`
+produit `422 completion_log_required`. Avec `task_status.status=completed`,
+une preuve incohérente produit `409 completion_incomplete` et une liste
+`issues` de codes précis. Un checkpoint non terminal peut conserver une
+preuve incomplète. La preuve et son verdict sont journalisés dans le résumé
+AIWork (`COMPLETION` / `COMPLETION_EVIDENCE`). Le contrôle vérifie la cohérence
+déclarée, pas la réalité d'un Git ou d'une commande sur un poste distant.
+Le rejeu idempotent inclut la preuve lorsqu'elle est fournie ; les empreintes
+des anciens appels sans preuve sont conservées.
 
 ### Sync (C2, additif, DEC-0157)
 - GET /sync — point de resynchronisation unique : « Qu'est-ce qui a changé depuis mon dernier sync et qui concerne mon travail ? », en réponse compacte et bornée. Lecture seule sur les ressources métier ; écrit un curseur de session (distinct de `prepare_context`, qui reste en lecture seule, DEC-0080). Outil MCP `studio_sync` (même contrat, DEC-0046/DEC-0048 : pas de version dans le payload).
@@ -499,12 +570,77 @@ Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
   plafonne titre+resume+extrait cumules (`truncated=true` si coupe) ;
   `snippet` <= 280.
 
+### Decouverte produit (additive)
+`GET /capabilities?intent=overview|start_project|configuration&key=&limit=`
+renvoie `ProductDiscovery` (`studio.capabilities/v1`), sans ecriture. Authentifie,
+lecture autorisee a tous les roles. Resume de 6 capacites, limite 1..24 ; `key`
+(80 caracteres max) charge une capacite avec exemple, prerequis et restrictions.
+Chaque capacite porte `available`, `needs_configuration`, `not_authorized` ou
+`unsupported`, la raison et `write_allowed`. Les droits sont informatifs : ils
+ne remplacent jamais les controles de service. Les projets/CI invisibles ne
+sont ni comptes ni nommes. Les etats utilisent la configuration declaree et les
+rapports machine recents, sans sonde reseau : Git reste verifie localement par
+le setup. Aucun contenu de bibliotheque ni capacite seulement prevue n'est lu
+ou annonce. `additional_available` permet la lecture progressive.
+
 ### Agents and AI work
+
+- `POST /agents/resolve-identity` (additif) : `AgentIdentityRequest` porte
+  `harness`, `provider`, `effective_model`, `selection_alias` facultatif.
+  Writer requis ; `readonly` refuse. Le fournisseur est trim/minuscule, le
+  modele effectif est trim sans fusion de variantes ni changement de casse.
+  `codex[-cli|-desktop]`, `claude[-code|-cli|-desktop]` et
+  `opencode[-cli|-desktop]` partagent chacun un harnais logique ; les autres
+  identifiants restent distincts apres trim/minuscule et `_` -> `-`.
+  Ces alias sont exacts : `custom-cli`, `codex-code` et les suffixes
+  empiles ne sont pas fusionnes. Les anciennes fiches creees avec une
+  normalisation plus large restent intactes ; leur rapprochement est explicite.
+  Alias seul, modele absent/default/auto/unknown ou fournisseur inconnu :
+  `200`, `state=unknown`, `reason`, `agent=null`, aucune creation. Sinon
+  `201` a la creation, `200` a la reutilisation, `AgentIdentityResult` ;
+  `selection_alias` est une trace de selection et ne participe pas a la cle.
+  Unicite utilisateur/harnais/fournisseur/modele garantie en base sous
+  concurrence. La fiche retrouve le meme ID sur les postes autorises du meme
+  compte, les sessions gardent la machine effective. Le changement de modele
+  doit resoudre son identite observee ; un modele demande au lancement n'est
+  pas une observation. Les anciennes fiches restent intactes et visibles
+  comme anciennes identites, sans fusion automatique de provenance.
+  Matrice des interfaces : `codex`, `claude` et `opencode` partagent chacun un
+  harnais logique entre Desktop, CLI et (`claude`) `-code` ; les autres
+  identifiants restent distincts. Un harnais qui n'expose ni fournisseur ni
+  modele donne `state=unknown` avec `reason`, jamais une fiche inventee.
+- POST /agents/{agent_id}/supersede (additif, DEC-0237) — rapprochement
+  explicite d'une ancienne fiche vers sa fiche canonique. Body
+  `AgentIdentityLinkRequest.canonical_agent_id`. La fiche `{agent_id}` ne gagne
+  que `superseded_by_agent_id` : `machine_id`, `stable_key`, metadonnees et
+  historique restent inchanges, aucune ligne n'est fusionnee ni supprimee, et
+  effacer le pointeur restaure l'etat precedent (reversible). `admin` peut lier
+  n'importe quel utilisateur ; sinon l'appelant doit posseder la machine de
+  l'ancienne fiche et la fiche canonique. `404 not_found` si l'une des deux est
+  absente ; `409 invalid_identity_link` si la cible est la fiche elle-meme, une
+  fiche sans `owner_user_id`, ou une fiche canonique deja liee ; `409
+  already_superseded` (avec `superseded_by_agent_id`) si le lien existe deja.
+  `readonly` -> `403 forbidden`. Cote exploitation, `studio-admin
+  reconcile-agents` produit le rapport des doublons historiques, ecrit avec
+  `--apply` et defait avec `--revert <agent_id>`.
+- Session et changement de modele (DEC-0237) : une machine n'a qu'une presence
+  vive par tache. Quand le demarrage resout une autre identite agent que celle
+  de la session ouverte, l'ancienne est fermee explicitement (`session.ended`
+  avec `payload.reason=identity_changed`) et une nouvelle session est creee —
+  jamais deux sessions actives en parallele pour un changement de modele.
 - GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
-  dont la machine (`Agent.machine_id`) appartient au User appelant
+  canoniques dont `owner_user_id` est le User appelant, ou les anciennes fiches
+  sans owner_user_id dont la machine (`Agent.machine_id`) appartient au User appelant
   (`Machine.owner_user_id = principal.user`) ; `admin` voit tout. Un agent
   sans machine n'est visible que de `admin`. Une co-membership ne donne
   jamais acces aux agents d'un co-membre.
+  `include_identity_owner=true` (optionnel, defaut false) expose le champ
+  `owner_user_id` aux clients recents. `include_identity_link=true` (optionnel,
+  defaut false, additif) expose `superseded_by_agent_id` du rapprochement
+  explicite. Sans opt-in, la forme JSON historique
+  est conservee pour les lecteurs stricts N-1. POST /agents et /agents/ensure
+  conservent aussi leur forme historique ; le nouveau resolve-identity porte
+  l'identite complete. Ces parametres ne changent jamais le filtre de visibilite.
 - POST /agents (CC-1, additif) — enregistrement public d'une identite
   Agent de provenance operationnelle pour la machine authentifiee.
   Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel
@@ -704,6 +840,19 @@ les evenements sont inchanges.
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
   epinglee inexistante = `404 pin_version_not_found`, pin
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
+- Les entrees de dependance acceptent aussi `resource_id` (UUID explicite),
+  en plus de `kind`, `stable_key`, `version` et `relation`. L'UUID, le type
+  et la cle doivent correspondre a une ressource visible ; sinon
+  `404 pin_not_found`. Les regles de scope restent appliquees. Les anciennes
+  entrees et sorties `DependencyPin` conservent leur forme.
+- GET /library/{id}/versions/{version}/dependency-updates — lecture seule,
+  `limit` 1..100 (20 par defaut), `offset` >= 0. Retourne `mutates=false`,
+  versions epinglees/actives, scope, statut obsolete et `suggested_pin`
+  portant l'UUID. Une version active plus recente est proposee si la cible
+  n'est pas obsolete. Aucune version, activation, projection ou dependance
+  n'est modifiee. `additional_available` permet de paginer. Meme service
+  via MCP `studio_preview_dependency_updates` et CLI
+  `studio-client library dependency-updates UUID VERSION`.
 - Bindings types (P5, DEC-0067) : chaque dependance porte une `relation`
   (`requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
   `references_workflow`/`refines_skill_rule`/`uses_hook` (DEC-0194 :
@@ -961,6 +1110,15 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   `DELETE .../steps/{key}/links/{task_id}` ; meme projet sinon
   `422 task_project_mismatch` ; aucun `task.roadmap_id`
 - Propositions (**implementees, P8** ; contrats P1 figes) : `POST .../proposals`
+  accepte aussi un `draft` : `base_revision_no` doit correspondre a sa
+  `revision_no` courante (sinon `409 version_conflict`, `server_revision_no`).
+  Le document est reconcilie par cle sur le meme ID, liens conserves ; retirer
+  une etape liee reste refuse (`409 step_has_links`). `submit` optionnel (defaut
+  `true`) soumet le brouillon ; `false` conserve un snapshot draft. La revision
+  augmente dans les deux cas. Sur `proposed`, `409 invalid_state` indique la
+  transition `request_changes` par un reviewer habilite ; commentaires et
+  anciennes revisions restent conserves. Extension additive, aucune permission
+  d'approbation accordee aux agents. Pour une roadmap active, comportement inchange :
   (`ProposalCreate`, `Idempotency-Key`, `201`, roadmap `active` requise) enregistre
   une revision `proposal` `pending` (`base_revision_no` = revision lue) **sans
   modifier la roadmap** ; une proposition `pending` precedente devient `superseded` ;
@@ -1124,6 +1282,31 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
   sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
   rapport perime (R1) = `409` explicite.
+- Pack metier (additif, DEC-0241 proposee) :
+  `POST /resolutions/work-profile-pack` valide et previsualise un document
+  `studio.work-profile-pack/v1`, compose du `WorkProfile` existant, d'une
+  `base` studio et de `adaptations` (0..16 pins UUID/version d'agent_definition,
+  UUID uniques). La derniere adaptation, ou la base seule, est la racine du
+  profil. Pas de texte de definition, de commande ni de secret dans le format.
+  Le corps porte aussi `machine_policy` (non autoritaire) et `project_id?`.
+  Les references sont controlees en visibilite avant la resolution commune ;
+  ressource inconnue/invisible/mauvais type ou cle = `404 pin_not_found`,
+  version absente = `404 pin_version_not_found`, base non studio =
+  `422 pack_base_must_be_studio`, format inconnu = validation 422.
+  La composition effective doit correspondre exactement aux references
+  declarees ; sinon `accepted=false` avec `composition_mismatch`.
+  Plus de 17 agents effectifs = `composition_too_large`, apercu borne.
+  La reponse porte `mutates=false`, `authoritative=false`, le `ProfilePreview`
+  existant et les references observees. Aucune publication, activation,
+  projection ou configuration locale n'est changee. Les permissions restent
+  intersectees avec la politique machine ; l'apercu n'autorise aucun lancement.
+  MCP : `studio_preview_work_profile_pack` (erreurs structurees, entree 128 KiB).
+  CLI : `library profile-preview fichier.json [--policy politique.json]`,
+  `--validate-only` valide hors ligne sans lire les credentials ni contacter
+  le serveur (cela ne verifie pas l'existence des references).
+  Desktop/dashboard : Bibliotheque, Verifier un pack metier ; fichiers limites
+  a 128 KiB, politique restrictive par defaut. Aucun pack metier n'est fourni
+  par ce changement de format.
 - Profil de travail sur un lancement (P04, DEC-0198, additif) : `profile_key?` nomme un profil de
   reference (`REFERENCE_PROFILES` de `studio_contracts.profiles`, ex. `coding`,
   `architecture-read-only`) ; le serveur materialise ce profil pour l'agent demande et l'epingle
@@ -1144,6 +1327,14 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   Library du moment : une version d'element qui bouge change le `digest` au lieu de faire
   tourner le profil d'une tentative fermee. La machine revalide le pin au demarrage et refuse
   le run (`profile_version_changed`) plutot que d'executer un profil que personne n'a vu.
+  Contrat profil v2 : le digest inclut aussi les UUID des ressources resolues (agent,
+  rules, skills, model profile). Deux scopes partageant cle/version/origine ne peuvent
+  plus produire le meme pin. `ProfileElement.resource_id` expose cette identite ; un
+  element v2 sans UUID est refuse. Le daemon v2 relit les pins v1 en recalculant
+  exactement leur ancien digest ; il utilise la version du pin, jamais sa version
+  par defaut. Un daemon v1 refuse un profil v2 avec `profile_version_changed` : mise
+  a jour du daemon requise pour les nouveaux lancements profiles, sans effet sur
+  les lancements sans profil. Aucun pin v1 existant n'est reecrit.
 - GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
 - POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
 - GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de
@@ -1196,8 +1387,25 @@ Les variables systeme Windows sont conservees sans distinction de casse
 (`SYSTEMDRIVE` inclus). Le dossier litteral `%SystemDrive%` observe en demo
 n'est pas reproduit par les probes isolees avec ou sans cette variable ;
 sa cause reste non confirmee.
-Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
-`expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
+Expiration serveur (defaut `LAUNCH_DEFAULT_TTL_SECONDS` = 7200 s (2 h), max 86400 s,
+choisi a la creation via `expires_in_seconds`) : `expired_unpulled` si jamais tire,
+`expired_timeout` sinon. Prolongation par activite (tache 63a909ea) : un lancement
+non terminal perime dont la session de travail liee est encore ouverte avec une
+activite plus recente que `STUDIO_LAUNCH_ACTIVITY_GRACE_SECONDS` (defaut 900 s) est
+prolonge de cette fenetre ; `expires_at` est reecrit sans changer `version` (ce
+n'est pas un changement d'etat versionne) et sans evenement, et la prolongation est
+bornee par `created_at + LAUNCH_MAX_TTL_SECONDS` : le max de 86400 s borne la duree
+totale, pas seulement le TTL initial. Sur un appel qui tient deja la ligne sous
+verrou (`report`, `cancel`), la prolongation n'est pas commise separement : leur
+propre commit la persiste et `expected_version` reste valide. Arret propre a
+l'expiration (tache 63a909ea) : quand le serveur expire un lancement
+accepte/preparing/running, il ferme la session de travail liee (`session.ended`,
+acteur `system`, `payload.reason = "launch_expired"`, `machine_id` = machine cible,
+id d'evenement identique a celui d'une fin de session — d'ou jamais un doublon) et
+libere les claims de la tache tenus par la machine cible (`resource.released`,
+acteur `system`, `machine_id` = machine cible, id d'evenement deterministe par
+claim) ; le tout commis atomiquement avec le `task_launch.expired`. Evenements
+(additif) : `task_launch.requested|accepted|rejected|
 cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.
 
 ### GitHub, Builds & Producer (etape 9.1, additif, DEC-0059)

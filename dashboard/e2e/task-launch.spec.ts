@@ -215,7 +215,7 @@ function apiStub(captured: Captured) {
     if (method === "POST" && url.includes("/task-launches")) {
       captured.idempotencyKeys.push(req.headers()["idempotency-key"] ?? null);
       captured.bodies.push(req.postDataJSON());
-      captured.launch = launchFixture({ id: "l-new", status: "requested", version: 1, agent_stable_key: "review-helper" });
+      captured.launch = launchFixture({ id: "l-new", status: "requested", version: 1, agent_stable_key: "review-helper", allow_production: req.postDataJSON().allow_production === true });
       return json(201, captured.launch);
     }
 
@@ -348,6 +348,7 @@ test("lancement : POST typé avec Idempotency-Key, état rapporté affiché", as
     machine_id: "m-ok",
     harness_id: "claude-code",
     agent_stable_key: "review-helper",
+    allow_production: false,
   });
 
   expect(errors.fatal).toEqual([]);
@@ -524,4 +525,20 @@ test("provenance : 404 du snapshot affiché comme une absence, pas comme une val
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
+});
+
+
+test("production : confirmation explicite et autorisation limitée à un lancement", async ({ page }) => {
+  const captured = newCaptured();
+  await openTaskDetail(page, captured);
+  await page.selectOption("#launch-machine", "m-ok");
+  await page.selectOption("#launch-harness", "claude-code");
+  await expect(page.locator("#launch-production")).not.toBeChecked();
+  await page.locator("#launch-production").check();
+  const confirmation = page.waitForEvent("dialog");
+  await page.locator('[data-action="launch-submit"]').click();
+  expect((await confirmation).message()).toContain("ce lancement uniquement");
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Production autorisée");
+  expect(captured.bodies[0]).toMatchObject({ allow_production: true });
+  await expect(page.locator("#launch-production")).not.toBeChecked();
 });

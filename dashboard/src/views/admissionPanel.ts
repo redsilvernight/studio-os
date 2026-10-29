@@ -11,6 +11,7 @@
 import { dsBadge, dsEmptyState, dsNotify, dsSectionHeader, dsSkeleton } from "../ds/ds";
 import { describeError, esc, fmtTime } from "../ui";
 import type { StudioClient } from "../api";
+import { DEFAULT_LAUNCH_TTL_SECONDS } from "../taskLaunchesApi";
 import type {
   AdmissionBatchItem,
   AdmissionBatchRequest,
@@ -183,7 +184,7 @@ function buildBody(state: PanelState): AdmissionBatchRequest | null {
   if (plan === null || state.harnessId === "") return null;
   const items = buildItems(plan, state);
   if (items.length === 0 || items.length > MAX_BATCH_ITEMS || items.some((item) => item.machine_id === "")) return null;
-  return { plan_digest: plan.plan_digest, harness_id: state.harnessId, items, expires_in_seconds: 900 };
+  return { plan_digest: plan.plan_digest, harness_id: state.harnessId, items, expires_in_seconds: DEFAULT_LAUNCH_TTL_SECONDS };
 }
 
 function harnessOptionsHtml(plan: AdmissionDryRun, selected: string): string {

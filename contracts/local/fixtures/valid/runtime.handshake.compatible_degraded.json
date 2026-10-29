@@ -5,6 +5,7 @@
         "daemon.control",
         "daemon.health",
         "harness.apply",
+        "harness.launch_preview",
         "harness.plan",
         "harness.read",
         "harness.verify",
@@ -48,7 +49,8 @@
             "harness.apply",
             "harness.plan",
             "harness.read",
-            "harness.verify"
+            "harness.verify",
+            "harness.launch_preview"
           ],
           "state": "ready"
         }
@@ -90,6 +92,7 @@
       "daemon.control",
       "daemon.health",
       "harness.apply",
+      "harness.launch_preview",
       "harness.plan",
       "harness.read",
       "harness.verify",

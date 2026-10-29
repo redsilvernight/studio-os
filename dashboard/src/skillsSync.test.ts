@@ -192,6 +192,44 @@ describe("skills sync indicator", () => {
     expect(document.querySelector("#skills-sync-dialog-body")?.textContent).toContain("restent personnalisées");
   });
 
+  it.each(["internal_error", "invalid_request", "secret_revoked"])("reports a failed preview reload (%s) without denying the applied choices and retries only the preview", async (code) => {
+    let previews = 0;
+    let applies = 0;
+    const platform = fakeDesktop({
+      request: async (command: string) => {
+        if (command === "skills.status") return answer(status({ state: "conflicts", conflicts: ["k"] }));
+        if (command === "skills.preview") {
+          previews += 1;
+          if (previews === 2) return { ok: false, error: { code, retryable: true, message: "private" } } as unknown as BridgeAnswer;
+          return answer(previewResult());
+        }
+        if (command === "skills.apply") applies += 1;
+        return answer({});
+      },
+    } as never);
+    mountSkillsSync(platform);
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    choice.value = "local";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    const body = document.getElementById("skills-sync-dialog-body")!;
+    expect(body.textContent).toContain("Choix appliqués");
+    expect(body.querySelector('[role="alert"]')?.textContent).toContain("Impossible de charger les versions");
+    expect(body.textContent).not.toContain("Aucune modification n'a été confirmée");
+    expect(body.textContent).not.toContain("private");
+    body.querySelector<HTMLElement>('.skills-sync-actions [data-skills-action="refresh"]')?.click();
+    await flush();
+    expect(previews).toBe(3);
+    expect(applies).toBe(1);
+    expect(body.querySelector('[role="alert"]')).toBeNull();
+    expect(body.querySelector('[data-skill="skill:delegate"]')).not.toBeNull();
+  });
+
   it("preserves the selection and keyboard focus through an idle status poll", async () => {
     vi.useFakeTimers();
     mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] })));

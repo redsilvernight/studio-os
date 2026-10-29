@@ -81,12 +81,12 @@ describe("createTaskLaunch", () => {
     const created = await createTaskLaunch(
       fakeClient({ POST }),
       "p1",
-      { task_id: "t1", machine_id: "m1", harness_id: "claude-code", expires_in_seconds: 900 },
+      { task_id: "t1", machine_id: "m1", harness_id: "claude-code", expires_in_seconds: 900, allow_production: false },
       "idem-1",
     );
     expect(POST).toHaveBeenCalledWith("/api/v1/projects/{project_id}/task-launches", {
       params: { path: { project_id: "p1" }, header: { "Idempotency-Key": "idem-1" } },
-      body: { task_id: "t1", machine_id: "m1", harness_id: "claude-code", expires_in_seconds: 900 },
+      body: { task_id: "t1", machine_id: "m1", harness_id: "claude-code", expires_in_seconds: 900, allow_production: false },
     });
     expect(created.status).toBe("requested");
   });
@@ -97,7 +97,7 @@ describe("createTaskLaunch", () => {
       createTaskLaunch(
         fakeClient({ POST }),
         "p1",
-        { task_id: "t1", machine_id: "m1", harness_id: "claude-code", expires_in_seconds: 900 },
+        { task_id: "t1", machine_id: "m1", harness_id: "claude-code", expires_in_seconds: 900, allow_production: false },
         "idem-1",
       ),
     ).rejects.toMatchObject({ status: 403, errorCode: "forbidden" });

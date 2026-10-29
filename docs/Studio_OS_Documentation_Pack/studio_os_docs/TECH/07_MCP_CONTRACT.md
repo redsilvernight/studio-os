@@ -1,5 +1,18 @@
 # MCP Contract
 
+Version API 4 (DEC-0242 proposee) : arguments JSON bornes a 1 MiB ; `limit`
+1..500, `offset` >= 0, `max_chars` 1..50000 apres coercition SDK. Les bornes
+plus strictes de chaque outil restent appliquees. Une violation retourne
+`invalid_argument` en donnees structurees, sans echo de la valeur recue.
+Une erreur service depassant 8 KiB est reduite avec `details_truncated=true`,
+code d'erreur et version serveur conserves. Indisponibilite DB/module =
+`service_unavailable`, defaut inattendu = `internal_error`, avec journal
+serveur et sans exception brute envoyee au client.
+`studio_get_active_tasks` retourne au plus 100 taches par defaut (1..100 avec
+`limit`), tri deterministe par titre puis UUID ; `additional_available`
+compte exactement le reliquat. Les anciens appels sans limite ne renvoient
+plus toute la liste. Ces changements de bornes sont declares par la version 4.
+
 ## Outils de base
 studio_get_projects
 studio_get_project_state
@@ -26,6 +39,9 @@ studio_start_work
 studio_sync
 studio_coordinate
 studio_register_agent
+studio_resolve_agent_identity
+studio_supersede_agent_identity
+studio_discover_capabilities
 studio_log_ai_work
 studio_get_ai_work
 studio_get_review_queue
@@ -42,15 +58,23 @@ Demarrer/reprendre en un appel : claim idempotent + reprise ou creation de
 session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
 claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
 (`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
+Version API 4 (DEC-0240 proposee) : un autre agent sur la meme machine
+recoit `already_claimed` comme une autre machine ; liberer explicitement le
+claim avant transfert. Les demarrages simultanes du meme couple reprennent
+une seule session ouverte, y compris apres expiration.
 C4 (additif) : avec `task_id`, la reponse porte aussi `sync`, le bloc
 `studio_sync` initial borne depuis le curseur de la session (herite du dernier
 handoff de la tache), sans ack ; `sync` est `null` sans `task_id`.
 
 ### studio_handoff (L3, additif, DEC-0163)
 Cloture en un appel : met a jour le statut de la tache (`expected_version`,
-requis seulement avec `task_status`), libere tous les claims de la tache
+requis seulement avec `task_status`), libere les claims de l'agent de la session
 (un `resource.released` par claim), journalise `ai_work` (si `agent_id` +
 `summary`, `ai_work_status` type, `session_id` valide), termine la session.
+Version API 4 : les claims d'un autre agent sont preserves ; les claims sans
+agent suivent le detenteur de la tache. Une tache reprise par un autre agent
+du poste refuse l'ancien handoff (`already_claimed`). `agent_id` fourni doit
+correspondre a la session (`session_agent_mismatch` sinon).
 Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 `idempotency_key` optionnel. Autorisation avant le court-circuit
 d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus
@@ -62,6 +86,18 @@ seulement, plus (C4, additif) `sync` (dernier `studio_sync` borne, acquitte),
 optionnellement un `coordination.handoff` sur la tache ; `event_id` derive de
 la session : jamais de doublon au rejeu. Repli minimal : `end_session` libere les claims de la tache
 automatiquement.
+
+`completion` optionnel suit `HandoffRequest.completion` (TECH/02, preuves de
+clôture, proposition DEC-0243) : format `studio.completion/v1`, types
+`code|audit|diagnostic|operation`, au plus 10 artefacts et 20 contrôles.
+La preuve exige `agent_id` et `summary` (`completion_log_required` sinon).
+Pour `task_status=completed`, les validations incohérentes sont refusées
+avant mutation (`completion_incomplete`, avec `issues`). Ces erreurs métier
+sont renvoyées in-band comme les autres erreurs du service. La preuve est
+conservée dans AIWork ; le verdict reste déclaratif, sans vérification du
+poste distant. Aucun défaut de branche, d'intégration, de CI ou de
+déploiement n'est ajouté. Les appels sans preuve et leurs empreintes
+d'idempotence restent compatibles ; une preuve fournie participe à l'empreinte.
 
 ### studio_sync (C2, additif, DEC-0157)
 Resynchronisation en un appel : « quoi de neuf depuis mon dernier sync qui
@@ -99,6 +135,8 @@ note vault `note_type=decision` de meme `readable_id`, lisible par
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
 studio_discover_definitions
+studio_preview_dependency_updates
+studio_preview_work_profile_pack
 studio_publish_definition
 studio_configure_runtime
 studio_register_runtime
@@ -367,6 +405,32 @@ sur les deux chemins. L'enregistrement ne confere aucun droit (CC-1) ;
 `display_name` requis, `agent_kind`/`agent_profile`/`harness`/`provider`/
 `model` optionnels (chaines ouvertes d'observabilite, TECH/02).
 
+`studio_resolve_agent_identity(harness, provider?, effective_model?, selection_alias?)`
+reutilise `agents.resolve_identity`, comme `POST /agents/resolve-identity`.
+Writer requis, compte derive du credential, creation/resolution idempotente
+sous contrainte unique ; harnais logique commun aux variantes Desktop/CLI.
+Un alias seul renvoie `state=unknown`, `agent=null`, sans creer de fiche.
+Les identites canoniques sont utilisables par les machines autorisees du meme
+utilisateur. Les fiches historiques gardent leur ownership machine ; la machine
+effective reste dans les traces. Le profil session expose cet outil, distinct
+de `studio_resolve_agent` qui resout une definition de bibliotheque.
+
+`studio_supersede_agent_identity(legacy_agent_id, canonical_agent_id)` reutilise
+`agents.supersede_identity`, comme `POST /agents/{agent_id}/supersede` : lien
+explicite et reversible d'une ancienne fiche vers sa fiche canonique, sans
+fusion, sans reattribution de provenance et sans suppression. Admin, ou
+l'appelant doit posseder la machine de l'ancienne fiche et la fiche canonique ;
+`readonly` refuse, lien deja pose refuse (`already_superseded`). Outil ecrivain
+hors profil session, accessible en profil `admin`.
+
+`studio_discover_capabilities(intent?, key?, limit?)` est une lecture du
+catalogue fonctionnel du produit, pas de la bibliotheque. Meme service que
+`GET /capabilities`, accessible aux roles readonly inclus, sans modification.
+`intent` : overview, start_project ou configuration ; 6 items par defaut,
+1..24 maximum, detail par `key` (80 caracteres max). Reponse bornee, disponible
+dans le profil session ; les droits, preconditions et rapports absents/perimes
+sont explicites. Les noms de projets, depots et definitions prives sont omis.
+
 **`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
 `ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
 sont appliques a la creation (parite `POST /ai-work`, meme service) ;
@@ -495,6 +559,19 @@ seconde taxonomie ; aucun `version`/`schema_version` en payload
 gagnants selon P4, jamais persists.
 
 Kind `hook` (DEC-0194, additif, schemas d'outils inchanges) :
+`studio_preview_dependency_updates(resource_id, version, limit=20, offset=0)`
+lit les liens epingles, les versions actives et propose des pins UUID/version
+explicites sans modifier ni activer de definition. `limit` 1..100, offset >= 0 ;
+memes gardes de visibilite que l'API. Reponse `DependencyUpdates | McpError`.
+
+`studio_preview_work_profile_pack(pack, machine_policy, project_id?)` valide le
+format `studio.work-profile-pack/v1` et compose le resolver commun avec
+`WorkProfile` (aucun nouveau LibraryKind). Entree bornee a 128 KiB, erreurs
+`invalid_argument` structurees pour un format invalide. References privees
+invisibles = `pin_not_found`. Reponse `WorkProfilePackPreview | McpError`,
+toujours `mutates=false` et `authoritative=false` ; aucune publication,
+activation ou projection. Detail dans TECH/02_API_CONTRACT.md.
+
 `studio_discover_definitions` et `studio_publish_definition` acceptent
 `kind="hook"` (`studio.library.hook/v1`) ; un contenu de hook incoherent
 remonte `invalid_hook` (avec `reason`/`field`, meme vocabulaire que
@@ -549,6 +626,15 @@ Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 1500 caractères par élément puis au budget `max_chars` (`truncated`,
 `omitted_for_budget`) ; ce qui existe sans être retourné est compté dans
 `additional_available`. Le budget compte des caractères, pas des tokens.
+Contexte ciblé : les descriptions des tâches voisines utilisent au plus
+20 % du budget lorsqu'une tâche est demandée. Le handoff lié est sélectionné
+avant l'aperçu de roadmap, sous sa tranche existante. Les DEC acceptées
+pertinentes précèdent les propositions lexicales ; les liens directs restent
+prioritaires. Sur un corpus d'au moins cinq éléments, un terme présent dans
+60 % des éléments cesse de départager les candidats si l'objectif comporte
+un terme attesté dans au plus 20 % du corpus. Une requête portant seulement
+sur le terme commun reste utilisable. Aucun nombre dans `additional_available`
+ou `omitted_for_budget` ne prétend compter des tokens.
 Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
 jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
 outils de lecture composés (Library `user` d'autrui invisible, Library
@@ -651,6 +737,13 @@ nouveau contrat neutre `studio.initialization/v1`.
 - `studio_propose_roadmap(project_id, document, submit?, idempotency_key?,
   agent_id?, roadmap_id?, base_revision_no?, summary?)` — ecriture : cree un
   `draft`, ou le soumet `proposed` si `submit`. Pour modifier une roadmap
+  `draft` existante, passer `roadmap_id` + sa `revision_no` courante dans
+  `base_revision_no` : reconciliation sur le meme ID et nouvelle revision
+  monotone, `submit=false` garde le brouillon. Une base perimee renvoie
+  `version_conflict` avec `server_revision_no`. Une roadmap `proposed` exige
+  d'abord `request_changes` par un reviewer habilite (erreur explicite), puis
+  revision du draft ; historique, commentaires et liens sont conserves.
+  Pour modifier une roadmap
   `active`, passer `roadmap_id` + `base_revision_no` (le `approved_revision_no`
   lu) : la modification devient une revision `pending` a valider par un humain,
   la roadmap n'est pas touchee. Ne cree jamais de Task, n'active jamais,

@@ -78,8 +78,9 @@ class Machine(VersionedModel):
 
 
 class Agent(VersionedModel):
-    """Provenance identity attached to one machine: who did the work, for
-    audit and attribution. Never an authorization input — permissions come
+    """Provenance identity owned by a user, or by one machine for legacy rows.
+    `machine_id` records registration; execution machines stay on sessions.
+    `owner_user_id` marks canonical user identities. Permissions come
     from the machine owner's role alone. `agent_profile`, `harness`,
     `provider` and `model` are optional additive observability metadata:
     open strings, never whitelisted, never a capability or compatibility
@@ -87,7 +88,10 @@ class Agent(VersionedModel):
     is the local stable key set by `agents ensure` (default
     `agents-ensure-{harness}`), unique per owning machine: the idempotent
     lookup key for session-start, never an authorization input, and never
-    `AgentDefinition.stable_key` (a resolution parameter, not an identity)."""
+    `AgentDefinition.stable_key` (a resolution parameter, not an identity).
+    `superseded_by_agent_id` (additive) records an explicit,
+    reversible reconciliation of a former identity into its canonical one:
+    the former row keeps its machine, metadata and history untouched."""
 
     id: UUID
     machine_id: UUID | None = None
@@ -98,6 +102,8 @@ class Agent(VersionedModel):
     provider: str | None = None
     model: str | None = None
     stable_key: str | None = None
+    owner_user_id: UUID | None = None
+    superseded_by_agent_id: UUID | None = None
 
 
 class AgentCreate(IdempotentCreate):
@@ -216,6 +222,7 @@ class MachineCapabilities(ContractModel):
     max_launches: int = Field(default=0, ge=0)
     bootstrap: list[ProjectBootstrapStatus] | None = Field(default=None, max_length=256)
     launch_profiles: bool | None = None
+    launch_safety: bool | None = None
 
 
 class HeartbeatRequest(ContractModel):
@@ -245,6 +252,7 @@ class IneligibilityReason(StrEnum):
     OWNER_NO_PROJECT_ACCESS = "owner_no_project_access"
     PROJECT_NOT_REGISTERED = "project_not_registered"
     LAUNCHES_NOT_ACCEPTED = "launches_not_accepted"
+    LAUNCH_SAFETY_UNSUPPORTED = "launch_safety_unsupported"
     HARNESS_INCOMPATIBLE = "harness_incompatible"
     AT_CAPACITY = "at_capacity"
 

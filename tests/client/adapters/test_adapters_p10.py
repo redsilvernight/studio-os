@@ -44,6 +44,8 @@ from studio_contracts.resolution import (
 )
 from studio_contracts.runtime import RuntimeLevel, RuntimeTarget
 
+from tests.core_neutrality import core_neutrality_source
+
 AGENT = LibraryKind.AGENT_DEFINITION
 
 
@@ -577,7 +579,7 @@ def test_core_stays_free_of_harness_provider_branches() -> None:
     offenders: list[str] = []
     for zone in zones:
         for path in sorted(zone.rglob("*.py")):
-            text = path.read_text(encoding="utf-8").lower()
+            text = core_neutrality_source(path, repo).lower()
             hits = [token for token in forbidden if token in text]
             if hits:
                 offenders.append(f"{path.relative_to(repo)}: {hits}")

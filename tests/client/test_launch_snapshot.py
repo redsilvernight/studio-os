@@ -82,6 +82,7 @@ def _profile(*, resolved_version: int = 1) -> LaunchProfile:
             stable_key="architect",
             version=version,
             origin="library",
+            resource_id=UUID("00000000-0000-0000-0000-000000000001"),
         )
 
     return LaunchProfile(

@@ -214,6 +214,7 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
+        BridgeCommand.HARNESS_LAUNCH_PREVIEW,
         BridgeCommand.SKILLS_CHECK,
         BridgeCommand.SKILLS_PREVIEW,
         BridgeCommand.SKILLS_APPLY,
@@ -247,6 +248,7 @@ _LOCAL_FEATURE_COMMANDS = frozenset(
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
+        BridgeCommand.HARNESS_LAUNCH_PREVIEW,
     }
 )
 _LOGGER = logging.getLogger("studio_client.daemon.service")
@@ -1061,6 +1063,8 @@ class BridgeService:
             return features.harness_detect(WorkspaceScope.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_STATUS:
             return features.harness_status(HarnessStatusRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_LAUNCH_PREVIEW:
+            return features.harness_launch_preview(HarnessStatusRequest.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_PREVIEW:
             return features.harness_preview(HarnessPreviewRequest.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_APPLY:

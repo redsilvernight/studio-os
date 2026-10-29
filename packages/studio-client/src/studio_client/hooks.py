@@ -118,26 +118,33 @@ try {
     # reutilise un id etranger, studio_start_work echoue et l'agent s'enregistre
     # a nouveau a chaque lancement.
     $originKey = if ($wsServerOrigin) { $wsServerOrigin } else { 'default' }
-    # Claude Code : le MCP s'authentifie avec le credential dedie de l'outil
-    # (DEC-0104), ecrit dans ~/.claude.json. L'agent doit appartenir a cette
-    # machine, sinon studio_start_work repond actor_not_owned : `agents ensure`
-    # reprend donc ce credential (environnement du hook seulement), et le cache
-    # est cle par son empreinte pour s'invalider au renouvellement.
-    if ('__HARNESS__' -eq 'claude-code' -and $wsServerOrigin) {
+    # Chaque outil s'authentifie aupres du MCP avec le credential dedie de
+    # l'outil (DEC-0104/DEC-0226) : l'agent rendu par `agents ensure` doit donc
+    # appartenir a la machine de CE credential, pas a celle du poste, sinon
+    # studio_start_work repond actor_not_owned et un agent est cree a chaque
+    # conversation. `agents ensure --harness-credential` reprend ce credential ;
+    # le cache est cle par l'empreinte du fichier de configuration de l'outil
+    # pour s'invalider au renouvellement, sans jamais lire le jeton ici.
+    $credFiles = @()
+    if ('__HARNESS__' -eq 'claude-code') {
+        $credFiles = @((Join-Path $HOME '.claude.json'))
+    } elseif ('__HARNESS__' -eq 'opencode') {
+        $credFiles = @(
+            (Join-Path $HOME '.config/opencode/opencode.jsonc'),
+            (Join-Path $HOME '.config/opencode/opencode.json')
+        )
+    } elseif ('__HARNESS__' -eq 'codex') {
+        $credFiles = @((Join-Path $HOME '.codex/config.toml'))
+    }
+    foreach ($credFile in $credFiles) {
+        if (-not (Test-Path -LiteralPath $credFile)) { continue }
         try {
-            $cjPath = Join-Path $HOME '.claude.json'
-            $cj = Get-Content -LiteralPath $cjPath -Raw -ErrorAction Stop | ConvertFrom-Json
-            $auth = [string]$cj.mcpServers.'studio-os'.headers.Authorization
-            if ($auth -match '^Bearer\\s+(\\S+)$' -and $Matches[1] -notmatch '^\\$\\{') {
-                $mcpToken = $Matches[1]
-                $env:STUDIO_CLIENT_MACHINE_TOKEN = $mcpToken
-                $env:STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN = $wsServerOrigin
-                $sha = [Security.Cryptography.SHA256]::Create()
-                $bytes = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($mcpToken))
-                $fp = [BitConverter]::ToString($bytes).Replace('-', '').Substring(0, 8).ToLower()
-                $originKey = "${originKey}#$fp"
-            }
+            $sha = [Security.Cryptography.SHA256]::Create()
+            $bytes = $sha.ComputeHash([IO.File]::ReadAllBytes($credFile))
+            $fp = [BitConverter]::ToString($bytes).Replace('-', '').Substring(0, 8).ToLower()
+            $originKey = "${originKey}#$fp"
         } catch {}
+        break
     }
     $agentId = $null
     $agentLabel = 'ce harness'
@@ -159,7 +166,13 @@ __MODEL_BLOCK__
                 $haveClient = Get-Command studio-client -ErrorAction SilentlyContinue
                 if ($wsServerOrigin -and $haveClient) {
                     $env:STUDIO_CLIENT_API_BASE_URL = $wsServerOrigin
-                    $cmdOut = (& studio-client agents ensure --harness __HARNESS__ --json 2>$null)
+                    $ensureArgs = @(
+                        'agents', 'ensure',
+                        '--harness', '__HARNESS__',
+                        '--harness-credential',
+                        '--json'
+                    )
+                    $cmdOut = (& studio-client @ensureArgs 2>$null)
                     $ensured = ($cmdOut | ConvertFrom-Json)
                     if ($ensured -and $ensured.id) {
                         $agentId = [string]$ensured.id
@@ -199,20 +212,9 @@ __MODEL_BLOCK__
 """
 
 _MODEL_BLOCK_PS = """
-    # Bloc modele (DEC-0225, toutes sorties) : un agent par modele et par
-    # poste, partage par tous les harnais, jamais l'agent du harnais en plus.
-    # Cache local "agent-model:<origin>:<provider>/<model>" dans
-    # studio-agent.json, resolu via `agents ensure --model-identity`
-    # (POST /agents/ensure, idempotent), fail-open.
     if ($modelRef) {
-        $cacheKey = "agent-model:${originKey}:$($modelRef.Trim().ToLowerInvariant())"
+        $cacheKey = "agent-model-v2:${originKey}:__HARNESS__:$modelRef"
         $modelAgentId = $null
-        try {
-            if (Test-Path -LiteralPath $agentPath) {
-                $stored = Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json
-                $modelAgentId = $stored."$cacheKey"
-            }
-        } catch {}
         if (-not $modelAgentId) {
             try {
                 $haveClient = Get-Command studio-client -ErrorAction SilentlyContinue
@@ -228,13 +230,14 @@ _MODEL_BLOCK_PS = """
                     $ensureArgs = @(
                         'agents', 'ensure',
                         '--harness', '__HARNESS__',
+                        '--harness-credential',
                         '--model', $mid,
                         '--model-identity',
                         '--json'
                     )
                     if ($prov) { $ensureArgs += @('--provider', $prov) }
                     $ensured = (& studio-client @ensureArgs 2>$null | ConvertFrom-Json)
-                    if ($ensured -and $ensured.id) {
+                    if ($ensured -and $ensured.id -and $ensured.model) {
                         $modelAgentId = [string]$ensured.id
                         $doc = @{}
                         try {
@@ -253,7 +256,7 @@ _MODEL_BLOCK_PS = """
         }
         if ($modelAgentId) {
             $agentId = $modelAgentId
-            $agentLabel = "ce modele sur ce poste ($modelRef)"
+            $agentLabel = "ce harnais et ce modele ($modelRef)"
         }
     }
 """

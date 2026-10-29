@@ -7,6 +7,7 @@ from typing import Any, cast
 from uuid import UUID
 
 import httpx
+from studio_contracts.agent_identity import AgentIdentityRequest, AgentIdentityResult
 from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import (
     Agent,
@@ -28,8 +29,11 @@ from studio_contracts.builds import (
 )
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
+from studio_contracts.discovery import DiscoveryIntent, ProductDiscovery
 from studio_contracts.events import EventCreate, EventEnvelope
+from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.library import (
+    DependencyUpdates,
     LibraryActivate,
     LibraryProjectLock,
     LibraryResource,
@@ -56,6 +60,7 @@ from studio_contracts.transfers import (
     UploadPartsRefreshResponse,
 )
 from studio_contracts.version import VersionInfo
+from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
@@ -151,6 +156,7 @@ class StudioApiClient:
         attempt = 1
         while True:
             error: StudioApiError
+            retry_after = 0
             try:
                 response = await self._client.request(
                     method, path, json=json, params=params, headers=headers
@@ -164,6 +170,10 @@ class StudioApiClient:
                     self._note_update_advisory(response)
                     return response
                 error = error_from_response(response)
+                if response.status_code == 429:
+                    value = response.headers.get("retry-after", "").strip()
+                    if value.isascii() and value.isdecimal() and len(value) <= 10:
+                        retry_after = int(value)
 
             if (
                 not can_retry
@@ -171,7 +181,9 @@ class StudioApiClient:
                 or not is_retryable(error)
             ):
                 raise error
-            await sleep(self._retry_policy.delay_for(attempt))
+            if retry_after > self._retry_policy.backoff_max:
+                raise error
+            await sleep(max(retry_after, self._retry_policy.delay_for(attempt)))
             attempt += 1
 
     def _note_update_advisory(self, response: httpx.Response) -> None:
@@ -237,8 +249,33 @@ class StudioApiClient:
         return Machine.model_validate(response.json())
 
     async def list_agents(self) -> list[Agent]:
-        response = await self._request("GET", "/api/v1/agents")
+        response = await self._request(
+            "GET", "/api/v1/agents", params={"include_identity_owner": True}
+        )
         return [Agent.model_validate(item) for item in response.json()]
+
+    async def discover_capabilities(
+        self, *, intent: DiscoveryIntent = "overview", key: str | None = None, limit: int = 6
+    ) -> ProductDiscovery:
+        response = await self._request(
+            "GET",
+            "/api/v1/capabilities",
+            params={
+                "intent": intent,
+                "limit": limit,
+                **({"key": key} if key is not None else {}),
+            },
+        )
+        return ProductDiscovery.model_validate(response.json())
+
+    async def resolve_agent_identity(self, request: AgentIdentityRequest) -> AgentIdentityResult:
+        response = await self._request(
+            "POST",
+            "/api/v1/agents/resolve-identity",
+            json=request.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return AgentIdentityResult.model_validate(response.json())
 
     async def register_agent(self, agent_in: AgentCreate, *, idempotency_key: str) -> Agent:
         response = await self._request(
@@ -673,6 +710,37 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def handoff(self, request: HandoffRequest, *, idempotency_key: str) -> HandoffResult:
+        payload = request.model_dump(mode="json")
+        if request.completion is None:
+            payload.pop("completion")
+        response = await self._request(
+            "POST",
+            "/api/v1/handoff",
+            json=payload,
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return HandoffResult.model_validate(response.json())
+
+    async def preview_work_profile_pack(
+        self, request: WorkProfilePackRequest
+    ) -> WorkProfilePackPreview:
+        response = await self._request(
+            "POST", "/api/v1/resolutions/work-profile-pack", json=request.model_dump(mode="json")
+        )
+        return WorkProfilePackPreview.model_validate(response.json())
+
+    async def preview_dependency_updates(
+        self, resource_id: UUID, version: int, *, limit: int = 20, offset: int = 0
+    ) -> DependencyUpdates:
+        response = await self._request(
+            "GET",
+            f"/api/v1/library/{resource_id}/versions/{version}/dependency-updates",
+            params={"limit": limit, "offset": offset},
+        )
+        return DependencyUpdates.model_validate(response.json())
 
     async def create_library_resource(
         self, resource_in: LibraryResourceCreate, *, idempotency_key: str

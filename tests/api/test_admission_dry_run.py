@@ -107,6 +107,7 @@ async def _heartbeat(
                 ],
                 "project_ids": [project_id],
                 "accepts_launches": True,
+                "launch_safety": True,
                 "running_launches": 0,
                 "max_launches": 2,
             },

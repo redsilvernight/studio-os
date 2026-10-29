@@ -11,6 +11,7 @@ import pytest
 from studio_client.config import ClientConfig
 from studio_client.context.library import LibraryContextItem
 from studio_client.daemon import skills_bridge
+from studio_client.projection_backups import list_projection_backups
 from studio_client.skill_sync import SkillSyncConflictError
 from studio_client.tokens import MemoryTokenStore
 
@@ -65,6 +66,35 @@ def _patch_fetch(monkeypatch: pytest.MonkeyPatch, projections: list[LibraryConte
     monkeypatch.setattr(skills_bridge, "_fetch", fake)
 
 
+def test_definition_failure_rolls_back_skills_without_publishing_successful_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    data_root = tmp_path / "data"
+    _patch_fetch(monkeypatch, [_projection("standard", "skill", "Version one")])
+    _run(home, data_root)
+    path = home / ".agents/skills/standard/SKILL.md"
+    before = path.read_bytes()
+    journals_before = {j.directory.name for j in list_projection_backups(home)}
+    _patch_fetch(
+        monkeypatch,
+        [
+            _projection("standard", "skill", "Version two", version=2),
+            _projection("coding", "rule", "A rule"),
+        ],
+    )
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("injected definition write failure")
+
+    monkeypatch.setattr(skills_bridge, "apply_definition_sync", fail)
+    _run(home, data_root)
+    assert path.read_bytes() == before
+    assert {j.directory.name for j in list_projection_backups(home)} == journals_before
+    assert not (home / ".agents/rules/coding.md").exists()
+
+
 def _snapshot(root: Path) -> dict[str, tuple[bytes, int]]:
     return {
         str(path.relative_to(root)): (path.read_bytes(), path.stat().st_mtime_ns)
@@ -100,6 +130,28 @@ def test_auto_sync_projects_skills_rules_and_agents(tmp_path: Path, monkeypatch)
     assert status is not None
     assert status.state.value == "updated"
     assert status.conflicts == []
+
+
+def test_auto_sync_includes_user_skills_and_excludes_project_skills(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    _patch_fetch(
+        monkeypatch,
+        [
+            _projection("personal", "skill", "Personal skill", scope="user"),
+            _projection("project-only", "skill", "Project skill", scope="project"),
+        ],
+    )
+
+    _run(home, tmp_path / "data")
+
+    for harness in ("agents", "claude"):
+        assert "Personal skill" in (
+            home / f".{harness}" / "skills" / "personal" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        assert not (home / f".{harness}" / "skills" / "project-only").exists()
 
 
 def test_local_conflict_blocks_every_kind_and_stays_visible(tmp_path: Path, monkeypatch) -> None:

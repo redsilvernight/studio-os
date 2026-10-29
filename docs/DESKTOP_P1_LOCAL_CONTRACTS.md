@@ -44,6 +44,24 @@ un test échoue si l'export diverge des builders Python.
 
 ## Points de conception
 
+- **Aperçu des lancements (additif)** : `harness.launch_preview`, capability
+  optionnelle homonyme, requête `HarnessStatusRequest`, réponse
+  `HarnessLaunchPreview`. Lecture seule sur un workspace connu, même si les
+  intégrations y sont désactivées ; aucun plan, provisioning, renouvellement,
+  exécution, écriture de configuration ou répertoire temporaire. Les réponses
+  existantes de `harness.status` et `harness.detect` restent identiques pour les
+  anciens consommateurs stricts. Un ancien daemon refuse la nouvelle capacité
+  et l’interface indique que cet aperçu est indisponible.
+  Le résultat décrit la préparation prévue sur **ce poste** : sources de
+  réglages, hooks et MCP Studio présents ou manquants, exclusions motivées,
+  modes d’accès et nécessité d’une autorisation de production. Ce n’est ni un
+  journal d’exécution ni une approbation du contenu des hooks. Noms fixes et
+  raisons seules : aucun contenu, chemin absolu, commande, environnement ou
+  credential. Claude réutilise les hooks de `isolation_settings`, indépendants
+  pour identité et garde ; OpenCode copie seulement son plugin Studio ; Codex
+  annonce une isolation non vérifiée. Profil, permissions et politique locale
+  continuent d’être contrôlés au lancement, sans repli permissif.
+
 - **Handshake** : négociation par plage de protocole et capabilities, jamais par
   version de paquet. Résultats : `compatible`, `compatible_degraded`,
   `daemon_too_old`, `desktop_too_old`, `capability_missing`,
@@ -105,6 +123,15 @@ un test échoue si l'export diverge des builders Python.
   `written` ; une seconde exécution n'écrit rien (`unchanged`). Les skills
   `locally_modified` ne sont jamais écrasées. L'enregistrement des hooks
   Claude/Codex reste manuel (DEC-0096).
+  `SetupPlan.versioning` optionnel ajoute un diagnostic Git en lecture seule :
+  absent, inexécutable ou vérifié, identité globale configurée, nombre de dépôts
+  parmi les workspaces, identité effective par dépôt et présence d'un distant
+  comptées séparément. Ni noms/e-mails, ni chemins, ni URL distantes ne sont
+  exposés. Les commandes ont un timeout ; un contrôle incomplet reste visible.
+  Le parcours manuel explique l'installation, l'initialisation et la différence
+  `--local` / `--global`, puis demande de refaire l'aperçu. `setup.apply` n'installe
+  pas Git, ne change pas son identité, n'initialise pas de dépôt et n'ajoute aucun
+  distant. Un dépôt local fonctionnel n'exige ni GitHub ni une branche nommée `dev`.
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).

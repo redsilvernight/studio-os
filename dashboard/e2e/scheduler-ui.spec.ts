@@ -122,6 +122,7 @@ function launch(taskId: string, machineId: string, index: number): TaskLaunch {
     expires_at: "2026-10-16T09:45:00Z",
     finished_at: null,
     profile: null,
+    allow_production: false,
   };
 }
 

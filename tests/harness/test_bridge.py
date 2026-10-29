@@ -32,7 +32,13 @@ from tests.integration_wave2.conftest import (
     negotiate,
 )
 
-HARNESS_CAPABILITIES = ["harness.read", "harness.plan", "harness.apply", "harness.verify"]
+HARNESS_CAPABILITIES = [
+    "harness.read",
+    "harness.plan",
+    "harness.apply",
+    "harness.verify",
+    "harness.launch_preview",
+]
 SCOPE = {"workspace_id": str(WORKSPACE_ID)}
 MCP_URL = "https://studio.example/mcp"
 
@@ -170,8 +176,26 @@ def test_harness_commands_need_their_capability(tmp_path: Path) -> None:
         )
         assert refused["kind"] == "error"
         assert refused["error"]["code"] == "capability_missing"
+        launch_refused = service.handle_line(
+            bridge_request("harness.launch_preview", {**SCOPE, "adapter_id": "claude-code"})
+        )
+        assert launch_refused["kind"] == "error"
+        assert launch_refused["error"]["code"] == "capability_missing"
     finally:
         registry.stop()
+
+
+def test_launch_preview_crosses_the_bridge_without_enabling_integrations(tmp_path: Path) -> None:
+    with _make_bridge(tmp_path, harness=False) as bridge:
+        before = {p: p.read_bytes() for p in bridge.home.rglob("*") if p.is_file()}
+        payload = bridge.ok("harness.launch_preview", {**SCOPE, "adapter_id": "claude-code"})
+        assert payload["isolation"] == "isolated"
+        assert payload["mcp_servers"][0]["state"] == "unavailable"
+        assert payload["hooks"][0]["state"] == "unavailable"
+        assert {p: p.read_bytes() for p in bridge.home.rglob("*") if p.is_file()} == before
+        assert bridge.provisioner.created == []
+        assert bridge.probes == []
+        assert not bridge.backups.exists()
 
 
 def test_a_daemon_without_local_features_does_not_serve_the_harness_commands(

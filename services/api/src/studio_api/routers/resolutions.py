@@ -7,6 +7,7 @@ from studio_contracts.resolution import (
     ResolvedAgentDefinition,
 )
 from studio_contracts.runtime import RuntimeTarget
+from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
@@ -17,8 +18,23 @@ from studio_api.openapi_meta import (
     RESP_422_RESOLUTION,
 )
 from studio_api.services import resolution as resolution_service
+from studio_api.services import work_profile_pack as pack_service
 
 router = APIRouter(prefix="/api/v1/resolutions", tags=["resolutions"])
+
+
+@router.post(
+    "/work-profile-pack",
+    response_model=WorkProfilePackPreview,
+    description="Validate and preview a versioned work profile pack. Read-only: no import, "
+    "publication, activation or projection; the machine retains final authority.",
+)
+async def preview_work_profile_pack(
+    request: WorkProfilePackRequest,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> WorkProfilePackPreview:
+    return await pack_service.preview_work_profile_pack(session, principal, request)
 
 
 @router.post(

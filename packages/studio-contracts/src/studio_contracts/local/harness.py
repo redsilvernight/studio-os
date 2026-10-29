@@ -91,6 +91,24 @@ class HarnessStatusRequest(LocalContractModel):
     adapter_id: Identifier
 
 
+class LaunchEnvironmentEntry(LocalContractModel):
+    name: ShortText
+    state: Literal["included", "unavailable", "unverified"]
+    reason: ShortText
+
+
+class HarnessLaunchPreview(LocalContractModel):
+    adapter_id: Identifier
+    isolation: Literal["isolated", "unverified"]
+    settings_sources: list[ShortText] = Field(default=[], max_length=8)
+    hooks: list[LaunchEnvironmentEntry] = Field(default=[], max_length=8)
+    mcp_servers: list[LaunchEnvironmentEntry] = Field(default=[], max_length=8)
+    exclusions: list[ShortText] = Field(default=[], max_length=8)
+    limitations: list[ShortText] = Field(default=[], max_length=8)
+    access_modes: list[Literal["read_only", "workspace_write"]] = Field(default=[], max_length=2)
+    production_approval_required: bool
+
+
 PROTECTED_TARGET_SEGMENTS = frozenset({".git", ".ssh", ".gnupg", ".aws", ".kube"})
 
 

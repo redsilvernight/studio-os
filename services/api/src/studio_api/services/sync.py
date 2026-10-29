@@ -48,6 +48,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_machine_owned,
+    owns_agent,
 )
 
 _DECISION_EVENT_TYPES = frozenset(
@@ -254,7 +255,7 @@ async def sync(
     else:
         ensure_can_write(principal, "sync")
         agent = await session.get(AgentModel, agent_id)
-        if agent is None or agent.machine_id != principal.machine.id:
+        if not owns_agent(agent, principal.machine):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail={

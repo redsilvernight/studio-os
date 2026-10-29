@@ -6,6 +6,7 @@
  * goes through the Dashboard's real validation (`buildRequest`/`parseAnswer`).
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const WS = "11111111-2222-4333-8444-555555555555";
 const CSP_RE = /content security policy|securitypolicyviolation/i;
@@ -32,9 +33,9 @@ async function login(page: Page, hash: string): Promise<void> {
 }
 
 /** A local bridge in the page: the harness commands only, with a small state machine. */
-async function installDesktop(page: Page, options: { rollbackConflict?: boolean; folder?: string } = {}): Promise<void> {
+async function installDesktop(page: Page, options: { rollbackConflict?: boolean; folder?: string; launchPreviewUnsupported?: boolean; workspaceListError?: boolean } = {}): Promise<void> {
   await page.addInitScript(
-    ({ ws, rollbackConflict, folder }) => {
+    ({ ws, rollbackConflict, folder, launchPreviewUnsupported, workspaceListError }) => {
       // P11: past the first run, so the setup assistant never intercepts the
       // tested page. The onboarding state itself is covered by onboarding-p11.
       window.localStorage.setItem(
@@ -44,6 +45,11 @@ async function installDesktop(page: Page, options: { rollbackConflict?: boolean;
       const states: Record<string, string> = { "claude-code": "detected", opencode: "not_detected" };
       const log: string[] = [];
       (window as unknown as { __harnessLog: string[] }).__harnessLog = log;
+      const launchSaves: Record<string, unknown>[] = [];
+      (window as unknown as { __launchSaves: Record<string, unknown>[] }).__launchSaves = launchSaves;
+      let launchSettings = JSON.parse(window.localStorage.getItem("e2e.launch-settings") ?? "null") ?? {
+        opt_in: false, max_concurrent: 2, allowed_harnesses: [], detected_harnesses: ["claude-code"],
+      };
       const status = (id: string) => ({
         adapter_id: id,
         harness_id: id,
@@ -62,7 +68,7 @@ async function installDesktop(page: Page, options: { rollbackConflict?: boolean;
         sent_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
         error: { code, component: "harness", message: "refused", retryable: false, correlation_id: null, details: { reason } },
       });
-      const invoke = async (name: string, args?: { request?: { command: string; message_id: string; correlation_id: string; payload: Record<string, string> } }) => {
+      const invoke = async (name: string, args?: { request?: { command: string; message_id: string; correlation_id: string; payload: Record<string, unknown> } }) => {
         if (name === "desktop_info") {
           return { product: "Studi'OS Desktop", desktop_version: "0.1.0", mode: "desktop", protocol: "studio.local/v1", sidecar: { state: "not_started" } };
         }
@@ -80,12 +86,32 @@ async function installDesktop(page: Page, options: { rollbackConflict?: boolean;
           command: req.command,
           payload,
         });
+        if (req.command === "launch.get_settings") return answer(launchSettings);
+        if (req.command === "launch.save_settings") {
+          if (req.payload["confirmed"] !== true) return error(req, "invalid_request", "confirmation_required");
+          launchSaves.push(req.payload);
+          launchSettings = { ...launchSettings, opt_in: req.payload["opt_in"], max_concurrent: req.payload["max_concurrent"], allowed_harnesses: req.payload["allowed_harnesses"] };
+          window.localStorage.setItem("e2e.launch-settings", JSON.stringify(launchSettings));
+          return answer(launchSettings);
+        }
         if (req.command === "workspace.list") {
+          if (workspaceListError) return error(req, "internal_error", "workspace_list_failed");
           const at = "2026-09-22T10:00:00Z";
           const config = { workspace_id: ws, profile: { profile_id: "default", server_origin: location.origin }, project_id: "22222222-2222-4222-8222-222222222222", project_slug: "mon-jeu", roots: { workspace_root: `C:/Projects/${folder}` }, created_at: at, updated_at: at };
           return answer({ items: folder === null ? [] : [{ workspace_id: ws, health: "valid", action: "none", config }] });
         }
         if (req.command === "harness.detect") return answer({ harnesses: Object.keys(states).map(status) });
+        if (req.command === "harness.launch_preview") {
+          if (launchPreviewUnsupported) return error(req, "not_supported", "unsupported");
+          return answer({
+            adapter_id: req.payload["adapter_id"], isolation: "isolated",
+            settings_sources: ["Sources personnelles désactivées"],
+            hooks: [{ name: "Identité Studio", state: "included", reason: "Présent" }, { name: "Garde Git Studio", state: "unavailable", reason: "Absent" }],
+            mcp_servers: [{ name: "studio-os", state: "unavailable", reason: "Non configuré" }],
+            exclusions: ["Hooks personnels exclus"], limitations: ["Contenu et exécution non vérifiés"],
+            access_modes: ["read_only", "workspace_write"], production_approval_required: false,
+          });
+        }
         if (req.command === "harness.preview") {
           return answer({
             plan_id: "plan-e2e",
@@ -111,7 +137,7 @@ async function installDesktop(page: Page, options: { rollbackConflict?: boolean;
       };
       (window as unknown as { __TAURI__: unknown }).__TAURI__ = { core: { invoke } };
     },
-    { ws: WS, rollbackConflict: options.rollbackConflict ?? false, folder: options.folder ?? null },
+    { ws: WS, rollbackConflict: options.rollbackConflict ?? false, folder: options.folder ?? null, launchPreviewUnsupported: options.launchPreviewUnsupported ?? false, workspaceListError: options.workspaceListError ?? false },
   );
 }
 
@@ -134,6 +160,67 @@ test.describe("integrations (web)", () => {
 });
 
 test.describe("integrations (Desktop)", () => {
+  for (const workspaceListError of [false, true]) {
+    test(`saves machine launch settings after confirmation without a folder (list error: ${workspaceListError})`, async ({ page }) => {
+      await installDesktop(page, { workspaceListError });
+      await login(page, "#/configuration/integrations");
+      await expect(page.getByTestId("launch-settings")).toHaveCount(1);
+      await expect(page.getByTestId("launch-settings")).toBeVisible();
+      expect((await new AxeBuilder({ page }).include('[data-testid="launch-settings"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()).violations).toEqual([]);
+      await page.locator('[data-launch-field="opt_in"]').check();
+      await page.locator('[data-launch-field="max_concurrent"]').fill("3");
+      await page.locator('[data-launch-harness="claude-code"]').check();
+      await page.locator('[data-action="save-launch"]').click();
+      await expect(page.getByTestId("launch-confirm")).toBeVisible();
+      expect((await new AxeBuilder({ page }).include('[data-testid="launch-settings"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()).violations).toEqual([]);
+      const saves = () => page.evaluate(() => (window as unknown as { __launchSaves: Record<string, unknown>[] }).__launchSaves);
+      expect(await saves()).toEqual([]);
+      await page.locator('[data-action="confirm-launch"]').click();
+      await expect(page.getByTestId("launch-notice")).toBeVisible();
+      expect(await saves()).toEqual([{ opt_in: true, max_concurrent: 3, allowed_harnesses: ["claude-code"], confirmed: true }]);
+      await page.reload();
+      await expect(page.locator("#login-form")).toBeVisible();
+      await page.fill("#login-email", "e2e@example.test");
+      await page.fill("#login-password", "e2e-secret");
+      await page.locator("#login-form button[type=submit]").click();
+      await expect(page.locator(".app-sidebar")).toBeVisible();
+      await expect(page.locator('[data-launch-field="opt_in"]')).toBeChecked();
+      await expect(page.locator('[data-launch-field="max_concurrent"]')).toHaveValue("3");
+      await expect(page.locator('[data-launch-harness="claude-code"]')).toBeChecked();
+      await expect(page.getByTestId("launch-settings")).toHaveCount(1);
+    });
+  }
+
+  test("reads launch preparation by keyboard through the validated bridge, without configuring", async ({ page }) => {
+    await installDesktop(page);
+    await login(page, `#/configuration/integrations/${WS}`);
+    const claude = page.locator('[data-harness="claude-code"]');
+    const button = claude.getByRole("button", { name: "Voir la préparation des lancements" });
+    expect(await harnessCalls(page)).not.toContain("harness.launch_preview");
+    await button.focus();
+    await page.keyboard.press("Enter");
+    const preview = claude.locator("[data-launch-environment]");
+    await expect(preview).toContainText("Préparation locale des lancements");
+    await expect(preview).toContainText("Garde Git Studio — Absent");
+    await expect(preview).toContainText("studio-os — Absent");
+    await expect(preview).toContainText("Contenu et exécution non vérifiés");
+    await expect(claude).toContainText("Installé · non configuré");
+    await expect(button).toBeEnabled();
+    await expect(button).toBeFocused();
+    expect((await harnessCalls(page)).filter((name) => name !== "harness.detect")).toEqual(["harness.launch_preview"]);
+    await claude.screenshot({ path: "test-results/launch-environment-preview.png" });
+  });
+
+  test("keeps an older daemon usable when launch preparation is unavailable", async ({ page }) => {
+    await installDesktop(page, { launchPreviewUnsupported: true });
+    await login(page, `#/configuration/integrations/${WS}`);
+    const claude = page.locator('[data-harness="claude-code"]');
+    await claude.getByRole("button", { name: "Voir la préparation des lancements" }).click();
+    await expect(claude.locator("[data-launch-environment]")).toContainText("Aperçu indisponible");
+    await expect(claude.locator("[data-action=preview]")).toBeEnabled();
+    expect(await harnessCalls(page)).not.toContain("harness.apply");
+  });
+
   test("preview, apply, then restore — nothing is shown applied before it succeeded", async ({ page }) => {
     await installDesktop(page);
     await login(page, `#/configuration/integrations/${WS}`);

@@ -201,6 +201,52 @@ def locate_embedded_claude_code(
     return max(ranked, key=lambda item: item[0])[1]
 
 
+_BUNDLED_CODEX_DIRS = ("OpenAI", "Codex", "bin")
+_BUNDLED_CODEX_NAMES = ("codex.exe", "codex")
+
+
+def locate_bundled_codex(
+    local_appdata: str | os.PathLike[str] | None,
+    *,
+    excluded_dirs: Sequence[Path] = (),
+) -> Path | None:
+    """The Codex CLI shipped with the Codex app, under
+    `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<build>\\codex.exe`. The app names each
+    build with an opaque id and only exports that directory on the PATH of its
+    own child processes, so a Desktop started from Explorer or another terminal
+    never sees it. The most recently written build wins; a symlinked tree, a
+    workspace path and an unreadable root are all refused, because a repository
+    must never choose what Studi'OS launches."""
+    if not local_appdata:
+        return None
+    root = Path(local_appdata).joinpath(*_BUNDLED_CODEX_DIRS)
+    try:
+        directories = [
+            child for child in root.iterdir() if child.is_dir() and not child.is_symlink()
+        ]
+    except OSError:
+        return None
+    excluded = [directory.resolve() for directory in excluded_dirs if directory.exists()]
+    ranked: list[tuple[float, Path]] = []
+    for directory in directories:
+        for name in _BUNDLED_CODEX_NAMES:
+            candidate = directory / name
+            try:
+                if not candidate.is_file() or candidate.is_symlink():
+                    continue
+                stamp = candidate.stat().st_mtime
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            if any(_is_within(resolved, block) for block in excluded):
+                continue
+            ranked.append((stamp, resolved))
+            break
+    if not ranked:
+        return None
+    return max(ranked, key=lambda item: item[0])[1]
+
+
 def launch_environment(source: Mapping[str, str]) -> dict[str, str]:
     """Allowlisted environment for a remotely launched harness: only what it
     needs to start and find its own login, never the daemon's other secrets

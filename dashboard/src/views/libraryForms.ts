@@ -107,13 +107,14 @@ export function buildContent(kind: LibraryKind, read: FormReader): BuildResult<R
 }
 
 export interface DependencyInput {
+  resource_id?: string;
   kind: string;
   stable_key: string;
   version: string;
   relation: string;
 }
 
-export type DependencyPinInput = { kind: LibraryKind; stable_key: string; version: number; relation?: string };
+export type DependencyPinInput = { kind: LibraryKind; stable_key: string; version: number; relation?: string; resource_id?: string };
 
 export function dependencyRowHtml(values: Partial<DependencyInput> = {}): string {
   const kindOptions = LIBRARY_KINDS.map(
@@ -123,6 +124,7 @@ export function dependencyRowHtml(values: Partial<DependencyInput> = {}): string
     `<span class="repeat-row" data-row="dependency">` +
     `<label class="cell">Type <select data-field="kind">${kindOptions}</select></label>` +
     `<label class="cell">Clé stable <input data-field="stable_key" value="${esc(values.stable_key ?? "")}" placeholder="clé stable" /></label>` +
+    `<label class="cell">Identifiant de la définition (facultatif) <input data-field="resource_id" value="${esc(values.resource_id ?? "")}" placeholder="UUID pour distinguer studio et personnel" /></label>` +
     `<label class="cell">Version <input data-field="version" type="number" min="1" value="${esc(values.version ?? "")}" placeholder="1" /></label>` +
     `<label class="cell">Relation <input data-field="relation" value="${esc(values.relation ?? "")}" placeholder="déduite si vide" /></label>` +
     `<button type="button" data-remove-row aria-label="Retirer la dépendance">Retirer</button>` +
@@ -135,7 +137,8 @@ export function buildDependencies(rows: DependencyInput[]): BuildResult<Dependen
   for (const row of rows) {
     const stableKey = row.stable_key.trim();
     const versionRaw = row.version.trim();
-    if (stableKey === "" && versionRaw === "") continue;
+    const resourceId = (row.resource_id ?? "").trim();
+    if (stableKey === "" && versionRaw === "" && resourceId === "") continue;
     const meta = LIBRARY_KINDS.find((candidate) => candidate.kind === row.kind);
     if (meta === undefined) return { ok: false, error: `Type de dépendance inconnu : ${row.kind}` };
     if (stableKey === "") return { ok: false, error: "La clé stable de la dépendance est obligatoire." };
@@ -143,6 +146,12 @@ export function buildDependencies(rows: DependencyInput[]): BuildResult<Dependen
     if (!Number.isInteger(version) || version < 1) return { ok: false, error: `La dépendance ${stableKey} exige une version ≥ 1.` };
     const relation = row.relation.trim();
     const pin: DependencyPinInput = { kind: meta.kind, stable_key: stableKey, version };
+    if (resourceId !== "") {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resourceId)) {
+        return { ok: false, error: "L'identifiant de la définition doit être un UUID." };
+      }
+      pin.resource_id = resourceId;
+    }
     if (relation !== "") pin.relation = relation;
     pins.push(pin);
   }
@@ -325,6 +334,7 @@ export function readRows(scope: ParentNode, rowKind: string): Record<string, str
 
 export function asDependencyInputs(rows: Record<string, string>[]): DependencyInput[] {
   return rows.map((row) => ({
+    ...(row["resource_id"] ? { resource_id: row["resource_id"] } : {}),
     kind: row["kind"] ?? "",
     stable_key: row["stable_key"] ?? "",
     version: row["version"] ?? "",

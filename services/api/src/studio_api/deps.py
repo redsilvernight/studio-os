@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -110,11 +111,16 @@ async def get_current_machine(
 CurrentMachine = Annotated[MachineModel, Depends(get_current_machine)]
 
 
-async def get_current_principal(machine: CurrentMachine, session: DbSession) -> Principal:
+async def get_current_principal(
+    request: Request, machine: CurrentMachine, session: DbSession
+) -> Principal:
     """Transverse role + resource ownership both start here (TECH/04
     Autorisation, DEC-0036) — the owner of the authenticated machine, loaded
     once per request."""
-    return await load_principal(session, machine)
+    return replace(
+        await load_principal(session, machine),
+        human_authenticated=hasattr(request.state, JWT_AUTH_VERSION_STATE),
+    )
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

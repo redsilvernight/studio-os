@@ -356,7 +356,10 @@ async def get_revision(
     response_model=RoadmapRevision,
     status_code=status.HTTP_201_CREATED,
     description=(
-        "Propose a change to an `active` roadmap: records a pending `proposal` revision "
+        "Revise a draft in place (current `revision_no` as `base_revision_no`; "
+        "`submit=false` keeps a draft snapshot, otherwise submits it). A proposed roadmap "
+        "requires an authorized `request_changes` transition first. "
+        "For an `active` roadmap, records a pending `proposal` revision "
         "(`base_revision_no` is the revision the author read). The roadmap content is NOT "
         "modified — a proposal only becomes a mutation once a reviewer approves it. Requires a "
         "writer role; a superseded pending proposal is left as history. Accepts "

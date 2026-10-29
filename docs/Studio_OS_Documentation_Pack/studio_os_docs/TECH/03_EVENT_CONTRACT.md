@@ -131,7 +131,12 @@ une seconde liberation d'une reservation deja liberee n'ecrit ni n'emet rien).
 `resource.conflict` reste emis en plus de `resource.claimed` lors d'un
 chevauchement. Un refus (403, 404) n'emet rien. `task_id` = celui de la
 reservation. `actor_type="agent"` si l'agent de la reservation est rattache a
-la machine appelante, sinon `user`. Cles `payload` documentees (ignorables) :
+la machine appelante, sinon `user`. Exception serveur (expiration de lancement,
+tache 63a909ea) : la liberation d'office emet `resource.released` avec
+`actor_type="system"` et `machine_id`/`actor_id` = machine cible qui tenait la
+reservation, jamais la machine de l'appelant qui a declenche l'expiration ;
+l'`event_id` est deterministe par reservation, donc deux declencheurs d'expiration
+concurrents convergent sur un seul evenement. Cles `payload` documentees (ignorables) :
 `claim_id`, `resource_path`, `resource_type`, `status`,
 `claimed_by_machine_id`, `expires_at`, `previous_status` (sur `released`).
 
@@ -146,3 +151,9 @@ ancien client). Un refus (403, 409) n'emet rien ; un tirage n'emet rien. `task_i
 lancement ; `actor_type="user"` pour `requested`/`cancelled`, `agent` pour les rapports de la
 machine, `system` pour `expired`. `payload` (ignorables) : `launch_id`, `machine_id`,
 `harness_id`, `status`, `previous_status`, `reason_code` ; jamais de texte libre ni de sortie.
+L'expiration serveur peut aussi fermer la session liee et liberer les claims
+tenus par la machine cible (tache 63a909ea) : `session.ended`
+(`payload.reason = "launch_expired"`, `actor_type="system"`, `machine_id` = machine
+cible, meme `event_id` derive que la fin de session correspondante) et
+`resource.released` (voir « Emission serveur Claims »), commis dans la meme
+transaction que `task_launch.expired`.

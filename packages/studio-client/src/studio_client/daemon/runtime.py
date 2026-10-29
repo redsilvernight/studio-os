@@ -201,7 +201,9 @@ async def resolve_launch_profile(
         return _unresolved_profile(expected)
     try:
         definition = await client.resolve_agent(agent_key, project_id=launch.project_id)
-        work = reference_work_profile(expected.stable_key, agent_key)
+        work = reference_work_profile(
+            expected.stable_key, agent_key, contract_version=expected.contract_version
+        )
         resolved = pin_profile(work, profile_elements(definition))
     except KeyError:
         _LOGGER.warning("unknown work profile %r; refusing closed", expected.stable_key)

@@ -148,6 +148,30 @@ def test_extra_argv_isolates_hooks_to_the_studio_ones(tmp_path: Path) -> None:
     assert "studio-git-guard.ps1" in guard["hooks"][0]["command"]
 
 
+@pytest.mark.parametrize("session_present", [False, True])
+@pytest.mark.parametrize("guard_present", [False, True])
+def test_extra_argv_keeps_each_deployed_hook_independently(
+    tmp_path: Path, session_present: bool, guard_present: bool
+) -> None:
+    adapter = ClaudeCodeAdapter()
+    ctx = make_ctx(tmp_path)
+    _deploy_studio_hooks(ctx.home)
+    scripts = ctx.home / ".claude" / "scripts"
+    if not session_present:
+        (scripts / "studio-session-start.ps1").unlink()
+    if not guard_present:
+        (scripts / "studio-git-guard.ps1").unlink()
+
+    extra = adapter.headless_extra_argv(ctx, model=None, isolation_dir=tmp_path / "isolation")
+
+    if not session_present and not guard_present:
+        assert "--settings" not in extra
+        return
+    hooks = json.loads(extra[extra.index("--settings") + 1])["hooks"]
+    assert ("SessionStart" in hooks) is session_present
+    assert ("PreToolUse" in hooks) is guard_present
+
+
 def test_extra_argv_without_deployed_hooks_still_drops_every_settings_source(
     tmp_path: Path,
 ) -> None:
@@ -185,3 +209,18 @@ def test_tool_restrictions_keep_studio_mcp_and_isolation(tmp_path: Path, mode: A
         assert "--disallowedTools" not in argv + extra
         assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
         assert allowed == {"Read", "Edit", "Write", "Bash", "Grep", "Glob", "mcp__studio-os"}
+
+
+@pytest.mark.parametrize("mode", [AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE])
+def test_protected_launch_removes_execution_tools_and_bounds_file_access(mode: AccessMode) -> None:
+    adapter = ClaudeCodeAdapter()
+    argv = adapter.headless_safety_argv(allow_production=False, mode=mode)
+    assert "--restricted" in argv
+    tools = set(argv[argv.index("--tools") + 1].split(","))
+    assert not tools & {"Bash", "PowerShell", "Agent", "Task", "WebFetch", "NotebookEdit"}
+    assert tools == (
+        {"Read", "Grep", "Glob"}
+        if mode is AccessMode.READ_ONLY
+        else {"Read", "Edit", "Write", "Grep", "Glob"}
+    )
+    assert adapter.headless_safety_argv(allow_production=True, mode=mode) == ()

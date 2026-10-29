@@ -23,6 +23,7 @@ import hashlib
 import json
 from collections.abc import Sequence
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, field_validator
 
@@ -152,12 +153,18 @@ REFERENCE_PROFILES: dict[str, ReferenceProfile] = {
 }
 
 
-def reference_work_profile(stable_key: str, agent_stable_key: str) -> WorkProfile:
+def reference_work_profile(
+    stable_key: str,
+    agent_stable_key: str,
+    *,
+    contract_version: int = PROFILE_CONTRACT_VERSION,
+) -> WorkProfile:
     """Materializes a reference profile for one agent definition.
     Raises `KeyError` for an unknown reference key (never a silent default)."""
 
     ref = REFERENCE_PROFILES[stable_key]
     return WorkProfile(
+        contract_version=contract_version,
         stable_key=ref.stable_key,
         title=ref.title,
         agent_stable_key=agent_stable_key,
@@ -171,6 +178,7 @@ class ProfileElement(ContractModel):
     stable_key: str
     version: int
     origin: ValueOrigin
+    resource_id: UUID | None = None
 
 
 class PermissionDecision(ContractModel):
@@ -219,18 +227,30 @@ def profile_elements(definition: ResolvedAgentDefinition) -> list[ProfileElement
     agent = definition.agent
     elements = [
         ProfileElement(
-            kind=agent.kind, stable_key=agent.stable_key, version=agent.version, origin="library"
+            kind=agent.kind,
+            stable_key=agent.stable_key,
+            version=agent.version,
+            origin="library",
+            resource_id=agent.resource_id,
         )
     ]
     elements += [
         ProfileElement(
-            kind=LibraryKind.RULE, stable_key=r.stable_key, version=r.version, origin="library"
+            kind=LibraryKind.RULE,
+            stable_key=r.stable_key,
+            version=r.version,
+            origin="library",
+            resource_id=r.resource_id,
         )
         for r in definition.rules
     ]
     elements += [
         ProfileElement(
-            kind=LibraryKind.SKILL, stable_key=s.stable_key, version=s.version, origin="library"
+            kind=LibraryKind.SKILL,
+            stable_key=s.stable_key,
+            version=s.version,
+            origin="library",
+            resource_id=s.resource_id,
         )
         for s in definition.skills
     ]
@@ -242,6 +262,7 @@ def profile_elements(definition: ResolvedAgentDefinition) -> list[ProfileElement
                 stable_key=mp.stable_key,
                 version=mp.version,
                 origin="model_profile",
+                resource_id=mp.resource_id,
             )
         )
     return elements
@@ -324,9 +345,16 @@ def profile_digest(profile: WorkProfile, elements: Sequence[ProfileElement] = ()
     """Deterministic digest of a profile and the resolved element versions it
     composes, so a Library version bump changes it as much as a profile edit."""
 
+    entries = [[e.kind.value, e.stable_key, e.version, e.origin] for e in elements]
+    if profile.contract_version >= 2:
+        if any(e.resource_id is None for e in elements):
+            raise ValueError("profile v2 requires resolved resource identities")
+        entries = [
+            [e.kind.value, e.stable_key, e.version, e.origin, str(e.resource_id)] for e in elements
+        ]
     body = {
         "profile": profile.model_dump(mode="json"),
-        "elements": sorted([e.kind.value, e.stable_key, e.version, e.origin] for e in elements),
+        "elements": sorted(entries),
     }
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()

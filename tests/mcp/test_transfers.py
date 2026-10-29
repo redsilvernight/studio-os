@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -120,7 +121,33 @@ async def test_delete_transfer_preserves_history_and_permissions(
     other_auth_ctx: FakeContext,
     readonly_auth_ctx: FakeContext,
     admin_ctx: FakeContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    storage_errors: list[dict[str, Any]] = []
+
+    def observe_storage(method_name: str) -> None:
+        original = getattr(StorageProvider, method_name)
+
+        async def observed(self: StorageProvider, *args: Any, **kwargs: Any) -> Any:
+            try:
+                return await original(self, *args, **kwargs)
+            except Exception as error:
+                response = getattr(error, "response", {})
+                storage_errors.append(
+                    {
+                        "method": method_name,
+                        "exception": type(error).__name__,
+                        "operation": getattr(error, "operation_name", None),
+                        "code": response.get("Error", {}).get("Code"),
+                        "http_status": response.get("ResponseMetadata", {}).get("HTTPStatusCode"),
+                    }
+                )
+                raise
+
+        monkeypatch.setattr(StorageProvider, method_name, observed)
+
+    for method_name in ("list_multipart_uploads", "abort_multipart_upload", "delete_object"):
+        observe_storage(method_name)
     created = await studio_create_transfer_metadata(
         "report.bin",
         "application/octet-stream",
@@ -133,7 +160,7 @@ async def test_delete_transfer_preserves_history_and_permissions(
         refused = await studio_delete_transfer(created["id"], caller)
         assert refused["error_code"] == "forbidden"
     deleted = await studio_delete_transfer(created["id"], auth_ctx)
-    assert deleted.get("status") == "deleted", deleted
+    assert deleted.get("status") == "deleted", (deleted, storage_errors)
     assert deleted["already_deleted"] is False
     assert deleted["deleted_at"] is not None
     replay = await studio_delete_transfer(created["id"], admin_ctx)
