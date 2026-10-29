@@ -128,6 +128,14 @@ class ClientConfig(BaseSettings):
     # Automatic synchronization of Library skills at daemon startup.
     # When disabled, the user must manually trigger sync via the bridge.
     skills_auto_sync: bool = True
+    # Local usage collection: read the desktop harness stores (Claude Code,
+    # Codex, OpenCode) and enqueue one ledger entry per session/task/model/day
+    # bucket. Opt-out, never opt-in: a missing store simply yields nothing.
+    usage_scan_enabled: bool = True
+    usage_scan_interval_seconds: float = 120.0
+    # Sessions whose store was touched within this window are read; older ones
+    # are left to the launch pipeline.
+    usage_scan_lookback_days: float = 7.0
 
     @model_validator(mode="before")
     @classmethod
