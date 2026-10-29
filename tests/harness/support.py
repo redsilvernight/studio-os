@@ -55,7 +55,8 @@ def install_fake(
 
 def base_env(*bin_dirs: Path) -> dict[str, str]:
     """An environment whose PATH holds only `bin_dirs` (plus what a process
-    needs to start), so a test never sees the real machine's harnesses."""
+    needs to start), so a test never sees the real machine's harnesses —
+    including the CLIs a desktop app bundles under the user profile."""
     env = {key: value for key, value in os.environ.items() if key.upper() != "PATH"}
     system = os.environ.get("SystemRoot", "")
     entries = [str(directory) for directory in bin_dirs]
@@ -65,6 +66,8 @@ def base_env(*bin_dirs: Path) -> dict[str, str]:
     for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "STUDIO_MCP_MACHINE_TOKEN"):
         env.pop(name, None)
     for key in [key for key in env if key.upper() == "XDG_CONFIG_HOME"]:
+        del env[key]
+    for key in [key for key in env if key.upper() in {"APPDATA", "LOCALAPPDATA"}]:
         del env[key]
     return env
 

@@ -33,6 +33,7 @@ from studio_client.harness.fsafe import (
     resolve_target,
 )
 from studio_client.harness.json_mcp import JsonMcpAdapter
+from studio_client.harness.probe import locate_bundled_codex
 
 _CONFIG_NAME = "config.toml"
 _CONTAINER = "mcp_servers"
@@ -165,6 +166,20 @@ class CodexAdapter(JsonMcpAdapter):
     supported_major = 0
     project_files = ()
     container_path = (_CONTAINER,)
+
+    def resolve_executable(self, ctx: HarnessContext) -> Path:
+        """PATH first; when the CLI is not installed there, fall back to the
+        copy bundled with the Codex app, still refusing the workspace."""
+        try:
+            return super().resolve_executable(ctx)
+        except AdapterRefusal as refusal:
+            if refusal.reason != "executable_not_found":
+                raise
+        local = ctx.env_value("LOCALAPPDATA") or str(ctx.home / "AppData" / "Local")
+        bundled = locate_bundled_codex(local, excluded_dirs=[ctx.workspace_root])
+        if bundled is None:
+            raise AdapterRefusal("executable_not_found")
+        return bundled
 
     def _config_dir(self, ctx: HarnessContext) -> str:
         raw = ctx.env_value("CODEX_HOME")
