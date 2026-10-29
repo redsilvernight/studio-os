@@ -564,11 +564,13 @@ describe("skills.check section", () => {
 describe("launch settings section", () => {
   const view = { opt_in: false, max_concurrent: 2, allowed_harnesses: [] as string[], detected_harnesses: ["harness-a", "harness-b"] };
 
-  function withLaunch(onSave?: (payload: Record<string, unknown>) => BridgeAnswer) {
+  function withLaunch(onSave?: (payload: Record<string, unknown>) => BridgeAnswer, options: { workspaceListError?: boolean; detectError?: boolean } = {}) {
     const { platform, state } = rig();
     const base = platform.request;
     const saved: Record<string, unknown>[] = [];
     (platform as { request: unknown }).request = async (command: string, payload: Record<string, unknown> = {}) => {
+      if (command === "workspace.list" && options.workspaceListError) return refused("internal_error");
+      if (command === "harness.detect" && options.detectError) return refused("internal_error");
       if (command === "launch.get_settings") return ok(view);
       if (command === "launch.save_settings") {
         saved.push(payload);
@@ -596,6 +598,35 @@ describe("launch settings section", () => {
     expect(section?.getAttribute("data-opt-in")).toBe("false");
     expect(root.querySelectorAll("[data-launch-harness]").length).toBe(2);
     expect(root.querySelector<HTMLInputElement>("[data-launch-harness]")?.checked).toBe(false);
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+  });
+
+  it.each([false, true])("confirms and saves machine settings without a workspace (list error: %s)", async (workspaceListError) => {
+    const { platform, state, saved } = withLaunch(undefined, { workspaceListError });
+    state.workspaceItems = [];
+    const root = await mount(platform, null);
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+    setField(root, "opt_in", true);
+    setField(root, "max_concurrent", "3");
+    (root.querySelector('[data-launch-harness="harness-a"]') as HTMLInputElement).checked = true;
+    await click(root, "[data-action=save-launch]");
+    expect(saved).toHaveLength(0);
+    expect(root.querySelector('[data-testid="launch-confirm"]')).not.toBeNull();
+    await click(root, "[data-action=confirm-launch]");
+    expect(saved).toEqual([{ opt_in: true, max_concurrent: 3, allowed_harnesses: ["harness-a"], confirmed: true }]);
+    expect(root.querySelector('[data-testid="launch-notice"]')).not.toBeNull();
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+  });
+
+  it.each([null, WS])("keeps machine settings when harness detection fails (workspace: %s)", async (workspaceId) => {
+    const { platform, saved } = withLaunch(undefined, { detectError: true });
+    const root = await mount(platform, workspaceId);
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+    setField(root, "opt_in", true);
+    await click(root, "[data-action=save-launch]");
+    expect(saved).toHaveLength(0);
+    await click(root, "[data-action=confirm-launch]");
+    expect(saved).toEqual([{ opt_in: true, max_concurrent: 2, allowed_harnesses: [], confirmed: true }]);
   });
 
   it("saves nothing before the explicit confirmation, then sends confirmed=true", async () => {
