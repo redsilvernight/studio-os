@@ -8,12 +8,20 @@ from pydantic import Field, model_validator
 from studio_contracts.auth import Agent
 from studio_contracts.common import ContractModel
 
+HARNESS_IDENTITY_ALIASES = {
+    "codex-cli": "codex",
+    "codex-desktop": "codex",
+    "claude-code": "claude",
+    "claude-cli": "claude",
+    "claude-desktop": "claude",
+    "opencode-cli": "opencode",
+    "opencode-desktop": "opencode",
+}
+
 
 def logical_harness(value: str) -> str:
     normalized = value.strip().lower().replace("_", "-")
-    for suffix in ("-cli", "-desktop", "-code"):
-        normalized = normalized.removesuffix(suffix)
-    return normalized
+    return HARNESS_IDENTITY_ALIASES.get(normalized, normalized)
 
 
 class AgentIdentityRequest(ContractModel):

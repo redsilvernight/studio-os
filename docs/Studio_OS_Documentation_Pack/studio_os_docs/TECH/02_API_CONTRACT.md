@@ -592,6 +592,9 @@ ou annonce. `additional_available` permet la lecture progressive.
   `codex[-cli|-desktop]`, `claude[-code|-cli|-desktop]` et
   `opencode[-cli|-desktop]` partagent chacun un harnais logique ; les autres
   identifiants restent distincts apres trim/minuscule et `_` -> `-`.
+  Ces alias sont exacts : `custom-cli`, `codex-code` et les suffixes
+  empiles ne sont pas fusionnes. Les anciennes fiches creees avec une
+  normalisation plus large restent intactes ; leur rapprochement est explicite.
   Alias seul, modele absent/default/auto/unknown ou fournisseur inconnu :
   `200`, `state=unknown`, `reason`, `agent=null`, aucune creation. Sinon
   `201` a la creation, `200` a la reutilisation, `AgentIdentityResult` ;
