@@ -1,20 +1,18 @@
-# Studio OS v0.9.0 — 29/10/2026
+# Studio OS v0.9.1 — 29/10/2026
 
 ## Nouveautés
 
-- Lancement distant : réglages machine de lancement exposés sans workspace (#203), preview des hooks et de l'isolation MCP, profils de référence dans les lancements (#201)
-- Identités : identités agent durables et réversibles par harnais/utilisateur/modèle (#195, #196, #199), résolution des races d'identité (#196)
-- Lancements : expiration à 2 h avec prolongation par activité et arrêt propre (#198), application de l'accès production approuvé par un humain (#192)
-- Library : sélection des dépendances, preview des mises à jour épinglées, fondations d'acceptance (#193, #202), journals de projection avec restauration sans écraser les éditions
-- Skills de scope user projetés dans le plan du poste (#197)
+- Consommation des tâches exécutées hors lancement : les sessions ouvertes depuis l'application desktop de Claude Code, de Codex ou d'OpenCode alimentent la fiche tâche (durée, jetons, coût estimé en euros) et la vue projet (#206).
+- Rattachement automatique à la tâche déclarée par la session (`studio_start_work`/`studio_claim_task` enregistré dans le transcript) ; repli sur le projet du workspace, « Sans tâche » à défaut (#206).
+- Coût estimé sur une grille datée (`PricingRef`, couverture `estimated`) ; un modèle non tarifé reste « inconnu », jamais un montant inventé. Grille surchargeable par `<data_root>/pricing.json` (#206).
 
 ## Corrections
 
-- Détection du CLI Codex embarqué dans l'app Codex ; CLI retiré (bonsai) et pile desktop sans redémarrage auto (#194)
-- Plugin OpenCode en API V2 ; guards d'intégration et restauration de l'isolation MCP locale
-- Diagnostiques Git locaux au setup ; rate limit et erreurs de preview library plus claires
+- Les tâches travaillées manuellement n'affichent plus « Aucune mesure de consommation » (#206).
+- Aucun changement pour les lancements Mission Control ; aucune migration, aucun changement de contrat serveur (#206).
 
 ## Notes de mise à jour
 
-- Migrations ajoutées uniquement (aucun downgrade en prod) — le VPS les applique seul via `deploy-poll.sh`
-- Déploiement : pousser `deploy/ovh-vps` (merge de `master`) suffit ; revient à la révision précédente en cas d'échec
+- Web : merge de `master` dans `deploy/ovh-vps` poussé (déploiement continu du VPS, retour automatique en cas d'échec).
+- Desktop : canal prod reconstruit automatiquement depuis `deploy/ovh-vps` — `0.9.1-prod.287`, servi par l'updater `desktop-prod`.
+- Tag de release : `v0.9.1` sur le merge `master` (#207). DEC-0251 proposée.
