@@ -1,3 +1,5 @@
+> Archive historique — ne décrit pas l’état courant. Référence : [index canonique](../Studio_OS_Documentation_Pack/studio_os_docs/00_README.md).
+
 # DESKTOP WAVE 2 — Knowledge × Code Graph × Visualizers (`desktop/integration-wave2`)
 
 Baseline : `origin/desktop/integration` `b49ae5dfd3c32eb7efeb2f3563e526504ca2b911`.

@@ -1497,7 +1497,7 @@
       "task_id": "76ba7e87-b807-46d7-9cb1-b11c19564541",
       "supersedes": [],
       "superseded_by": [],
-      "body": "Serveur : `2f654121-eb10-40c5-b834-cefa8ec1b5c2` (accepted).\nTâche : `76ba7e87-b807-46d7-9cb1-b11c19564541`.\nComplète [DU0-B](DU0-B-session-revocation.md) (DEC-0110), sans la remplacer.\n\n## Contexte\n\nDEC-0110 impose un JWT d'accès de 15 minutes maximum, gardé en mémoire et sans\nrefresh token (l'option 2, « refresh rotatif », avait été différée). Résultat\npour l'application desktop : l'utilisateur est déconnecté au bout de\n15 minutes et à chaque redémarrage.\n\n## Décision\n\nLe report de l'option 2 de DEC-0110 est levé. Tout le reste de DEC-0110 reste\nen vigueur : JWT d'accès ≤ 15 min, en mémoire, claims minimaux, `auth_version`,\nrevalidation SSE, fail-closed.\n\n- **Refresh token** : secret opaque aléatoire, stocké uniquement sous forme\n  de hash côté serveur, rattaché à `user`, `machine`, `session_id` et à une\n  `family_id`.\n- **Rotation** : chaque `POST /auth/refresh` consomme le jeton et renvoie un\n  nouveau couple (JWT d'accès et refresh token). Un jeton déjà consommé qui\n  revient révoque toute la famille, car c'est un signe de vol.\n- **Durée** : 30 jours d'expiration glissante et 90 jours d'expiration\n  absolue ; au-delà, le mot de passe est redemandé.\n- **Révocation** : logout, « révoquer toutes les sessions », disable, reset\n  et changement de rôle (toute incrémentation d'`auth_version`) révoquent les\n  refresh tokens concernés. Un refresh vérifie `auth_version` et l'état du\n  compte comme un accès normal.\n- **Desktop (Bloc B)** : le refresh token est stocké dans le coffre de l'OS\n  (Windows Credential Manager/DPAPI) via le shell Tauri, jamais dans\n  `localStorage` ni en clair. Renouvellement silencieux avant `exp` ou après\n  un 401 (un seul retry, refresh concurrents mutualisés). Restauration de la\n  session au démarrage. En cas d'échec, retour à l'écran de login actuel.\n- **Navigateur hors desktop** : pas de persistance, comportement de DEC-0110\n  inchangé.\n- **Contrat** : changement du contrat Auth/Sync et de l'OpenAPI, via le skill\n  `contract-change`, avec régénération des clients.\n\n## Conséquences\n\n- Nouvelle famille de secrets persistés : une table, une migration et le\n  nettoyage des jetons expirés.\n- Une personne qui accède à la session Windows de l'utilisateur accède aussi\n  à Studio OS pendant 90 jours au plus. C'est un risque accepté, comparable\n  aux autres clients desktop.\n- Tests requis : rotation, réutilisation, expirations glissante et absolue,\n  révocation par `auth_version`, refresh concurrents, e2e du redémarrage\n  desktop.",
+      "body": "Serveur : `2f654121-eb10-40c5-b834-cefa8ec1b5c2` (accepted).\nTâche : `76ba7e87-b807-46d7-9cb1-b11c19564541`.\nComplète [DU0-B](DEC-0110-du-0-b-jwt-court-et-version-de-revocation.md) (DEC-0110), sans la remplacer.\n\n## Contexte\n\nDEC-0110 impose un JWT d'accès de 15 minutes maximum, gardé en mémoire et sans\nrefresh token (l'option 2, « refresh rotatif », avait été différée). Résultat\npour l'application desktop : l'utilisateur est déconnecté au bout de\n15 minutes et à chaque redémarrage.\n\n## Décision\n\nLe report de l'option 2 de DEC-0110 est levé. Tout le reste de DEC-0110 reste\nen vigueur : JWT d'accès ≤ 15 min, en mémoire, claims minimaux, `auth_version`,\nrevalidation SSE, fail-closed.\n\n- **Refresh token** : secret opaque aléatoire, stocké uniquement sous forme\n  de hash côté serveur, rattaché à `user`, `machine`, `session_id` et à une\n  `family_id`.\n- **Rotation** : chaque `POST /auth/refresh` consomme le jeton et renvoie un\n  nouveau couple (JWT d'accès et refresh token). Un jeton déjà consommé qui\n  revient révoque toute la famille, car c'est un signe de vol.\n- **Durée** : 30 jours d'expiration glissante et 90 jours d'expiration\n  absolue ; au-delà, le mot de passe est redemandé.\n- **Révocation** : logout, « révoquer toutes les sessions », disable, reset\n  et changement de rôle (toute incrémentation d'`auth_version`) révoquent les\n  refresh tokens concernés. Un refresh vérifie `auth_version` et l'état du\n  compte comme un accès normal.\n- **Desktop (Bloc B)** : le refresh token est stocké dans le coffre de l'OS\n  (Windows Credential Manager/DPAPI) via le shell Tauri, jamais dans\n  `localStorage` ni en clair. Renouvellement silencieux avant `exp` ou après\n  un 401 (un seul retry, refresh concurrents mutualisés). Restauration de la\n  session au démarrage. En cas d'échec, retour à l'écran de login actuel.\n- **Navigateur hors desktop** : pas de persistance, comportement de DEC-0110\n  inchangé.\n- **Contrat** : changement du contrat Auth/Sync et de l'OpenAPI, via le skill\n  `contract-change`, avec régénération des clients.\n\n## Conséquences\n\n- Nouvelle famille de secrets persistés : une table, une migration et le\n  nettoyage des jetons expirés.\n- Une personne qui accède à la session Windows de l'utilisateur accède aussi\n  à Studio OS pendant 90 jours au plus. C'est un risque accepté, comparable\n  aux autres clients desktop.\n- Tests requis : rotation, réutilisation, expirations glissante et absolue,\n  révocation par `auth_version`, refresh concurrents, e2e du redémarrage\n  desktop.",
       "body_source": "vault"
     },
     {
@@ -1508,7 +1508,7 @@
       "task_id": null,
       "supersedes": [],
       "superseded_by": [],
-      "body": "Gate P0 (tâche `6b3d2782`). Proposition issue de l'audit §6 et §10 (ID provisoire\nAIB-A). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).\n\n## Proposition\n\nLe bootstrap d'un projet est une **composition** des primitives existantes\n(locks Library `resources` + bindings du plan d'initialisation + Resolution),\nplus un **manifest minimal versionné `studio.bootstrap/v1`** commis dans le dépôt :\nidentité du projet (slug), harnesses ciblés (vocabulaire ouvert), politique de\ngénération. Aucune copie de contenu de ressource, aucun secret, aucun chemin\nabsolu. Le contenu reste dans la Library ; le manifest ne référence que des clés\nstables.\n\nUne politique de lecture complémentaire est proposée par\n[DEC-0181](DEC-0181-compatibilite-manifest-bootstrap-v1.md). Elle reste en attente\nd'acceptation et ne modifie pas le statut de cette Decision.\n\nUn preset (ex. Godot) est un `ProjectInitializationPlan` de départ, pas une\nnouvelle abstraction.\n\n## Alternatives rejetées\n\n- Colonne `Project.metadata` : migration + changement de Data Model, état non\n  versionné avec le code.\n- Nouvelle ressource Library : les harnesses ne sont pas une ressource partagée.\n- État 100 % local : non reproductible sur une seconde machine après `git clone`.\n\n## Pourquoi une DEC\n\nNouveau contrat versionné ; aucune primitive existante ne survit à un clone\n(seul le TOML local relie aujourd'hui un dépôt à un projet, et `Project` n'a ni\nmetadata, ni chemin, ni harness).\n\n## Détail restant\n\n`studio_prepare_context` prend un `project_id` UUID ; le bloc généré porte le\n**slug** et invite à résoudre l'id via `studio_get_projects`.",
+      "body": "Gate P0 (tâche `6b3d2782`). Proposition issue de l'audit §6 et §10 (ID provisoire\nAIB-A). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).\n\n## Proposition\n\nLe bootstrap d'un projet est une **composition** des primitives existantes\n(locks Library `resources` + bindings du plan d'initialisation + Resolution),\nplus un **manifest minimal versionné `studio.bootstrap/v1`** commis dans le dépôt :\nidentité du projet (slug), harnesses ciblés (vocabulaire ouvert), politique de\ngénération. Aucune copie de contenu de ressource, aucun secret, aucun chemin\nabsolu. Le contenu reste dans la Library ; le manifest ne référence que des clés\nstables.\n\nUne politique de lecture complémentaire est proposée par\n[DEC-0181](DEC-0181-compatibilite-du-manifest-bootstrap-lecture-v1-uniquement.md).\nElle reste en attente\nd'acceptation et ne modifie pas le statut de cette Decision.\n\nUn preset (ex. Godot) est un `ProjectInitializationPlan` de départ, pas une\nnouvelle abstraction.\n\n## Alternatives rejetées\n\n- Colonne `Project.metadata` : migration + changement de Data Model, état non\n  versionné avec le code.\n- Nouvelle ressource Library : les harnesses ne sont pas une ressource partagée.\n- État 100 % local : non reproductible sur une seconde machine après `git clone`.\n\n## Pourquoi une DEC\n\nNouveau contrat versionné ; aucune primitive existante ne survit à un clone\n(seul le TOML local relie aujourd'hui un dépôt à un projet, et `Project` n'a ni\nmetadata, ni chemin, ni harness).\n\n## Détail restant\n\n`studio_prepare_context` prend un `project_id` UUID ; le bloc généré porte le\n**slug** et invite à résoudre l'id via `studio_get_projects`.\n",
       "body_source": "vault"
     },
     {
@@ -1701,11 +1701,13 @@
     {
       "readable_id": "DEC-0162",
       "title": "Desktop : deux builds Prod/Dev distincts et serveur local Dev",
-      "status": "accepted",
+      "status": "superseded",
       "date": "2026-10-08",
       "task_id": null,
       "supersedes": [],
-      "superseded_by": [],
+      "superseded_by": [
+        "DEC-0206"
+      ],
       "body": "## Contexte\n\nLa promotion beta vers stable de DEC-0137 republiait les mêmes octets sous\n`desktop-dev` et `desktop-prod`. L'installeur stable gardait donc l'identité\nTauri Dev et son origine API. Cette propriété empêche d'installer une vraie Prod\net une vraie Dev côte à côte lorsque Dev doit parler à une instance locale et\nProd à l'instance Flo-laptop.\n\n## Décision\n\n1. Un push sur `dev` construit `desktop-dev` avec `--channel dev`, l'identité\n   `dev.studio-os.desktop-dev`, les données `StudioOS-Dev` et une origine\n   loopback.\n2. Un push sur `deploy/flo-laptop` construit `desktop-prod` avec\n   `--channel prod`, l'identité `stable.studio-os.desktop`, les données `StudioOS`\n   et l'origine HTTPS configurée dans l'environnement GitHub `desktop-prod`.\n   L'origine compilée de chaque canal est fixe ; les anciens overrides locaux\n   ne peuvent pas reconnecter Dev à Prod ni Prod à une autre instance.\n3. Les deux releases vivantes conservent la publication non destructive : le\n   tag est déplacé avant l'édition de la release, et l'ancienne release reste\n   téléchargeable si la publication échoue.\n4. Une restauration réutilise uniquement un artefact antérieur du même canal.\n   Toute promotion croisée Dev/Prod est refusée.\n5. Le Desktop Dev démarre une stack locale isolée en réutilisant les services et\n   images Docker Studio OS. Les ports sont liés au loopback et Prod ne démarre\n   jamais cette stack.\n\n## Conséquences\n\n- Les artefacts Dev et Prod ont volontairement des SHA-256 différents.\n- Chaque canal possède son propre flux updater et sa propre suite de versions.\n- Le changement abandonne `REBUILD_NEVER_TRUSTED` entre les canaux vivants : la\n  confiance vient désormais d'un build reproductible, signé et rattaché au SHA\n  exact de la branche source.\n- Docker Desktop est une dépendance explicite de la distribution Dev locale,\n  jamais de la distribution Prod.\n- L'identité Prod est `stable.studio-os.desktop` (service de coffre\n  `stable.studio-os.desktop.session`), et non plus `dev.studio-os.desktop` qui\n  prêtait à confusion avec Dev. Les installations Prod héritées de DEC-0137\n  (0.1.0) ne migrent pas leurs réglages ni leur session : réinstallation et\n  reconnexion. La première release Prod native est la 0.5.0.\n- DEC-0137 reste l'historique du mécanisme remplacé et est supersédée.",
       "body_source": "vault"
     },
@@ -1921,7 +1923,7 @@
     {
       "readable_id": "DEC-0187",
       "title": "Vault serveur à deux portées (studio / projet) et DEC unifiées",
-      "status": "accepted",
+      "status": "superseded",
       "date": "2026-10-08",
       "task_id": null,
       "supersedes": [],
@@ -1973,6 +1975,463 @@
       "supersedes": [],
       "superseded_by": [],
       "body": "Contexte : roadmap 63a26536, étape P09-dec-compat (DEC-0187).\nChoix :\n1. create_decision crée, dans la même transaction, une note vault `decision` portant le même readable_id (un seul nextval de decisions_readable_id_seq) : portée projet si project_id, sinon studio ; slug `decisions/dec-NNNN-<titre>` ; statut `proposed`. Deux sessions concurrentes obtiennent deux numéros distincts par la séquence.\n2. accept -> note `validated` ; supersede -> note `superseded` ; chaque transition ajoute une version de note. Une DEC sans note (antérieure à l'import P08) reçoit sa note à la première transition.\n3. supersede gagne un paramètre OPTIONNEL `superseded_by` (UUID de la décision remplaçante) sur service, API (corps JSON optionnel) et MCP : la note remplaçante reçoit un lien `supersedes` vers l'ancienne. Changement additif : appels existants inchangés.\n4. La table decisions reste la source du contrat public (ids, statuts) ; la note vault en est le miroir lisible et recherchable. Plus de fiche ADR manuelle dans docs/decisions/ pour une nouvelle décision.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0194",
+      "title": "AI Library : kind « hook » (studio.library.hook/v1), relation uses_hook, consentement par machine",
+      "status": "accepted",
+      "date": "2026-10-08",
+      "task_id": "b9cd20b3-299e-424a-ba10-f5278e3d414e",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Changement additif : LibraryKind.HOOK, BindingRelation.USES_HOOK (agent_definition→hook, workflow→hook ; hook ne source aucun binding). Contenu `studio.library.hook/v1` : event abstrait fermé (session_start, session_end, user_prompt, pre_tool, post_tool, stop, subagent_stop, notification, pre_compact), matcher (seulement pre_tool/post_tool), mode blocking|advisory (blocking seulement pre_tool/user_prompt/stop), timeout 1–600 s, 1–8 scripts inline {os, shell, body} uniques par (os, shell), aucun secret (422 invalid_hook). Pas de migration (kind/relation en chaînes). Côté client : projection par harnais (Claude settings.json, plugin OpenCode ; événement non exprimable → ignoré et signalé, jamais approximé), fusion sans toucher aux hooks non gérés, manifeste, dry-run/diff, et exécution soumise à un consentement explicite par machine sur l'empreinte sha256 du contenu (nouvelle version = nouveau consentement) ; désactivation locale possible ; version dépréciée/inactive retirée à la synchro.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0195",
+      "title": "Mission Control P01 — baseline mesurée et seuils pilote",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "40148cc2-060e-4e8d-8a5c-37acf89f1ac9",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Seuils approuvés par l'humain le 2026-10-10, comparés à la baseline de docs/mission-control/metrics.md (dev 56778a17, PR #124). Inconnu reste « inconnu », jamais 0.\n\n- ai_work avec durée positive : 5,2 % → ≥ 90 % des runs TaskLaunch (P03-collector).\n- ai_work rattachées à une session : 55 % → ≥ 95 % (P02-protocol-proof).\n- Runs avec tokens mesurés, par harness pilote : inconnu → ≥ 95 %, inconnu affiché (P03-gate).\n- Taille start_work avec tâche : ≈ 3 021 tokens → ≤ 3 021 à scénario égal (P02-noise).\n- p95 start_work avec tâche : 165 ms en processus → ≤ 250 ms (P02-read-model).\n- Événements par ai_work_id : 2,0 → ≤ 1,1 (P02-noise).\n- Budget UI : éléments max 6 / UUID 0 / connexion 1 → ≤ 7 / 0 / 1 après Mission Control (P02-mission-ui).\n- JS initial gzip : 74,70 kB → ≤ 60 kB (tâche f39aad38) ; Mission Control n'ajoute rien au chargement initial.\n\nReproduction : scripts.mission_metrics --apply ; P01_METRICS_WRITE=1 playwright e2e/p01-metrics.spec.ts. Contrôle humain chronométré non réalisé (P05/P06).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0196",
+      "title": "Mission Control D1 — read model projet additif sur les sources existantes",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Gate P01-architecture-gate, acceptée par l'humain le 2026-10-10. Source : docs/mission-control/baseline.md §A.\nDécision : projection de lecture additive (Bloc A) réunissant TaskLaunch, WorkSession, AIWork, claims, Review Queue et événements ; aucune nouvelle entité de session. Accès par projet, pagination, fraîcheur et états de données incomplètes explicites. Fin du processus distincte de la clôture protocolaire (session + handoff).\nCommun D1–D6 : état partagé/droits Bloc A ; capture/outbox/politique finale Bloc B ; HTTP et MCP appellent les mêmes services ; UI lit les verdicts ; garde-fous DEC-0049/0157/0162/0173/0176/0179/0186 ; changements de contrat via contract-change + contract-guardian, versions et migrations réversibles.\nÉtapes dépendantes : P02-read-model, P02-mission-ui, P02-noise, P02-inbox, P02-recovery.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0197",
+      "title": "Mission Control D2 — usage ledger serveur, collecteurs locaux versionnés, budgets non stricts",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Gate P01-architecture-gate, acceptée par l'humain le 2026-10-10. Source : docs/mission-control/baseline.md §C.\nDécision : ledger d'usage côté serveur (Bloc A) relié à TaskLaunch/session/AIWork ; collecteurs locaux versionnés par harness (Bloc B). Chaque mesure porte provenance, unité/devise, période, statut mesuré/estimé/inconnu ; ingestion dédupliquée, retards et corrections gérés ; tarification datée. Un coût absent reste « inconnu », jamais 0. Pas de budget strict tant que la télémétrie est postérieure au run : alertes et admission sous budget seulement. Migration additive réversible.\nCommun D1–D6 : voir D1 (Bloc A/B, mêmes services HTTP/MCP, garde-fous, contract-change).\nÉtapes dépendantes : P03-ledger-contract, P03-ingest, P03-collector, P03-budgets, P03-usage-ui, P03-gate.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0198",
+      "title": "Mission Control D3 — profils d'exécution composés, autorité locale finale",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Gate P01-architecture-gate, acceptée par l'humain le 2026-10-10. Source : docs/mission-control/baseline.md §F.\nDécision : un profil d'exécution compose les primitives existantes (Library, RuntimeBinding, ModelProfile, overrides de session) via le resolver commun ; aucune nouvelle couche indépendante de configuration ou d'autorisation. Précédence et versioning explicites, prévisualisation des valeurs effectives et de leur origine. Un profil serveur ne peut jamais étendre l'opt-in, l'allowlist ni les permissions locales : la machine (Bloc B) décide en dernier et échoue fermé.\nCommun D1–D6 : voir D1.\nÉtapes dépendantes : P04-profile-contract, P04-profile-enforce, P04-gate.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0199",
+      "title": "Mission Control D4 — snapshot d'exécution immuable par références et empreintes",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Gate P01-architecture-gate, acceptée par l'humain le 2026-10-10. Source : docs/mission-control/baseline.md §D.\nDécision : capturer le résultat du resolver et les paramètres réellement appliqués par Bloc B (version harness, références/digests de projections, Git SHA, politique locale), lié immuablement au run ; pas de second resolver. Références et empreintes uniquement : ni prompts ni secrets par défaut ; redaction obligatoire. Erreurs de capture explicites ; rétention et règles de lecture/export définies au contrat. Rejouer les paramètres ne garantit pas la même sortie IA (replay conditionnel).\nCommun D1–D6 : voir D1.\nÉtapes dépendantes : P04-snapshot-contract, P04-snapshot-capture, P04-provenance-ui, P04-replay-option, P04-gate.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0200",
+      "title": "Mission Control D5 — admission batch par composition, après les gates P02–P04",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Gate P01-architecture-gate, acceptée par l'humain le 2026-10-10. Source : docs/mission-control/baseline.md §B.\nDécision : l'exécution assistée compose le DAG de roadmap, eligibility.evaluate et les TaskLaunch unitaires ; aucun nouveau DAG ni moteur de résolution. Preview groupée déterministe et expliquée, admission atomique avec réévaluation des préconditions, clé de rejeu stable, droits par machine, traitement explicite de l'état périmé, arrêt/annulation. free_slots (heartbeat) n'est pas une réservation ; les claims restent des avertissements ; garanties de concurrence documentées et testées. Implémentation seulement après P02-gate, P03-gate et P04-gate. MVP = observabilité + usage + profils/snapshots ; replay et historique conditionnels.\nCommun D1–D6 : voir D1.\nÉtapes dépendantes : P05-eligibility, P05-batch-admission, P05-scheduler-ui, P05-two-machine-gate.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0201",
+      "title": "Mission Control D6 — preuve de protocole par session et handoff, sortie structurée validée par version",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Gate P01-architecture-gate, acceptée par l'humain le 2026-10-10. Source : docs/mission-control/baseline.md « Compatibilité des sorties et preuve de protocole ».\nDécision : le succès d'un lancement ne se déduit plus du seul exit_code == 0 (launch_executor) ; la conformité exige la preuve de start_work/session et du handoff, avec un statut distinct du résultat processus. Les sorties structurées des harness (Claude --output-format json|stream-json, OpenCode --format json, Codex --json) ne sont branchées qu'après validation par version, en préservant stdout structuré, redaction et bases de compatibilité. Une option d'aide n'est pas une preuve de collecte.\nCommun D1–D6 : voir D1.\nÉtapes dépendantes : P02-protocol-proof, P02-gate, P03-collector.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0202",
+      "title": "P02-protocol-proof — preuve de protocole dérivée en lecture, hors TaskLaunch",
+      "status": "accepted",
+      "date": "2026-10-10",
+      "task_id": "5d987416-82c8-4a6a-81d0-8634697adc75",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte : un exit 0 (`succeeded`) était présenté comme travail IA terminé.\n\nDécision :\n- Nouveau `TaskLaunchProtocolStatus` (not_applicable | awaiting | unverified | handed_off) + `TaskLaunchProtocol{status, session_id, task_status}`, dérivé à la lecture depuis la session liée (`task_launches.session_id`), jamais stocké, jamais déduit du code de sortie. Pas de migration.\n- `handed_off` = session liée fermée, quel que soit le statut du lancement : un report terminal différé ou un handoff blocked/in_progress n'est jamais un échec. `unverified` = lancement terminal sans session liée ou session jamais fermée.\n- Exposé uniquement via `TaskLaunchView(TaskLaunch)` sur la liste projet (dashboard, MCP). `TaskLaunch` (pull, GET par id, report) reste inchangé : les daemons N-1 le parsent en `extra=\"forbid\"`.\n- Aucune auto-approbation : `handed_off` ne change ni le statut ni la revue de la tâche ; l'UI ne dit plus « succès » pour un exit 0.\n- Convergence : dérivation pure, donc indépendante de l'ordre et des rejeux handoff/report.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0205",
+      "title": "Production Studio OS migrée de Flo-laptop vers le VPS OVH (flosrent.fr)",
+      "status": "accepted",
+      "date": "2026-10-11",
+      "task_id": null,
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Statut : proposed.\n\nContexte : la production Studio OS tournait sur Flo-laptop (Docker Desktop, exposée par Tailscale sur flo-laptop.tailf61f85.ts.net, déployée par la tâche StudioOS-DeployPoll depuis deploy/flo-laptop).\n\nDécision : la production passe sur le VPS OVH ubuntu@57.131.136.131 (Ubuntu 26.04, 4 vCPU, 7,6 Go).\n- Branche de déploiement deploy/ovh-vps = master + couche VPS : Caddy avec TLS Let's Encrypt (ACME_EMAIL=contact@binaweb.fr), sans les écouteurs Tailscale :80 et :9000.\n- Domaines : api.flosrent.fr, mcp.flosrent.fr, storage.flosrent.fr, studio.flosrent.fr (enregistrements A dans la zone OVH).\n- Pare-feu ufw : ports 22, 80 et 443 seulement.\n- Données migrées le 2026-10-11 : pg_dump -Fc et archive MinIO finaux pris après l'arrêt du laptop, sha256 vérifiés, Alembic 0029. STUDIO_JWT_SECRET et la configuration SMTP sont repris, donc les jetons existants restent valides.\n\nRollback : la stack du laptop est arrêtée mais pas supprimée et DeployPoll est désactivé. Pour revenir : `docker compose -p studio-os start`, puis réactiver la tâche, puis repointer les clients.\n\nConséquences : les clients pointent sur https://studio.flosrent.fr et https://mcp.flosrent.fr/mcp. L'installeur Desktop flo-laptop (storage :8443) est obsolète. deploy/flo-laptop n'est plus la cible de production.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0206",
+      "title": "Desktop Prod construit depuis deploy/ovh-vps (remplace DEC-0162)",
+      "status": "accepted",
+      "date": "2026-10-11",
+      "task_id": null,
+      "supersedes": [
+        "DEC-0162"
+      ],
+      "superseded_by": [],
+      "body": "Décision utilisateur du 2026-10-11, suite à la migration de production vers le VPS OVH (DEC-0205). Reprend DEC-0162 à l'identique, sauf pour la branche et l'origine Prod.\n\n- desktop-dev : construit depuis dev, identité Studi'OS Desktop Dev, origine locale loopback (inchangé).\n- desktop-prod : construit depuis deploy/ovh-vps (au lieu de deploy/flo-laptop), identité Studi'OS Desktop, origines HTTPS https://studio.flosrent.fr (API) et https://storage.flosrent.fr (stockage), lues depuis les variables de l'environnement GitHub desktop-prod.\n- Les deux tags/releases restent vivants et publiés sans suppression préalable ; pas de promotion croisée d'artefact entre canaux (DEC-0137 reste remplacée pour les canaux vivants) ; les rollbacks réutilisent uniquement un artefact antérieur du même canal.\n\nMise en œuvre : redsilvernight/studio-os#129 (desktop-channels.yml, ci.yml, build-policy.test.mjs).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0209",
+      "title": "Hooks Claude Code versionnés : projections et artefacts générés protégés en écriture",
+      "status": "accepted",
+      "date": "2026-10-11",
+      "task_id": "12bdc227-8892-43fb-805f-e9076949f37c",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "## Contexte\nLes projections (`.claude|.codex|.opencode/{agents,rules,skills}`), les artefacts OpenAPI du dashboard et l'export des décisions sont générés. Quand un agent les édite à la main, cela crée une dérive que seul `adapters check` ou la CI détecte, après coup.\n\n## Décision\n- `.claude/settings.json` est versionné, hors projection gérée. Il branche deux hooks pwsh, placés dans `scripts/claude-hooks/` :\n  - `protect-files.ps1` (PreToolUse) bloque l'édition de ces fichiers et de `.env*`, et indique la commande de régénération ;\n  - `ruff-on-edit.ps1` (PostToolUse) formate et corrige les fichiers Python édités.\n- Les MCP restent en scope local, car `.mcp.json` est ignoré par Git.\n\n## Conséquences\n- Pour changer une projection, il faut passer par la source canonique dans `.agents/`.\n- Un hook qui reçoit une entrée invalide laisse passer (fail-open).\n- Les autres harnais (Codex, OpenCode) ne sont pas couverts.\n\nSource : PR #137.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0210",
+      "title": "Budgets de lancement : alertes par défaut, enforce approuvé par un admin, garantie admission_only",
+      "status": "accepted",
+      "date": "2026-10-13",
+      "task_id": "e79b2304-86fe-460a-8c40-d749541b4d59",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "PROPOSED (P03-budgets, accord humain requis). 1) Une politique par projet (budget_policies), mode par défaut alert_only : aucune politique ou alert_only ne refuse jamais un lancement. 2) Le mode enforce n'est effectif qu'après approbation par un admin du projet, liée à expected_version ; toute réécriture de la politique annule l'approbation. 3) L'admission se fait côté serveur sous verrou FOR UPDATE sur la politique ; il y a une réservation unique par TaskLaunch ; un refus renvoie 409 budget_refused avec une raison stable. 4) La seule garantie affichée est admission_only, et seulement en enforce approuvé ; elle vaut none sinon. Aucun plafond strict n'est promis sur l'usage tardif ni sur le coût inconnu. 5) Point à trancher : un admin peut approuver sa propre proposition (aujourd'hui autorisé). Docs : TECH/02 §Budgets, TECH/05 BudgetPolicy/BudgetReservation (migration 0033).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0211",
+      "title": "Budgets : un admin peut approuver sa propre politique enforce (DEC-0210 point 5)",
+      "status": "accepted",
+      "date": "2026-10-13",
+      "task_id": "e79b2304-86fe-460a-8c40-d749541b4d59",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Tranche le point 5 de DEC-0210, validé par l'utilisateur le 2026-10-13 : l'admin du projet qui propose une politique de budget en mode enforce peut l'approuver lui-même. Le comportement actuel est conservé. L'approbation reste explicite, liée à expected_version et annulée par toute réécriture de la politique ; proposed_by_user_id et approved_by_user_id restent tracés pour l'audit.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0212",
+      "title": "Gates P02/P03/P04 : démonstration réelle acceptée sur une pile locale",
+      "status": "accepted",
+      "date": "2026-10-14",
+      "task_id": "7cfd9c38-9669-447d-8820-fb1eef5f987f",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte : la pipeline de déploiement rend difficile une démonstration sur le VPS ; P02-gate était bloquée par l'absence de Mission Control déployé et l'autorisation des lancements.\n\nDécision proposée : pour P02-gate, P03-gate et P04-gate, une « démonstration réelle » peut être faite sur une pile locale complète (API, PostgreSQL, MinIO, dashboard et daemon locaux, base dédiée distincte de studio_os_test), avec un vrai harness lancé depuis le navigateur : navigateur → TaskLaunch → machine → worktree → harness → start_work → sync → handoff → AIWork. Les preuves (captures, journaux, mesures) sont archivées et le commit testé est cité.\n\nLimites : la revue humaine de lisibilité reste requise ; la readiness VPS/publique reste exigée par P06-ops-evidence et P06-final-gate ; P05-two-machine-gate exige deux machines réelles.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0213",
+      "title": "Mission Control : annulation avec session ouverte visible dans À vérifier",
+      "status": "accepted",
+      "date": "2026-10-14",
+      "task_id": "6db3817b-a650-48c6-a282-f3bfe73f7a89",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Correctif de la démo P02 du 14/10. La demande d'annulation conserve TaskLaunch.status=cancelled et ne clôt ni session ni tâche ni claims automatiquement : elle ne prouve pas un handoff. Le read model Mission Control rend needs_attention avec raison launch_cancelled_session_open si la session liée est active, idle ou expired ; sinon cancelled. Les raisons launch_cancelled et les autres discordances restent visibles. Révision explicite de la table de verdict Mission Control v2 dans TECH/02_API_CONTRACT.md et docs/mission-control/read-model.md ; enveloppe, routes, authentification et protocole TaskLaunch inchangés. Usage absent après annulation reste déclaré absent, jamais fabriqué.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0214",
+      "title": "Rejeu P04 : aperçu en lecture seule + retry P02 confirmé, sans re-épinglage",
+      "status": "accepted",
+      "date": "2026-10-14",
+      "task_id": "b076f9e9-dbfe-4375-afbf-8dc7c9f92b7b",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte : P04-replay-option. Le retry P02 revalide déjà droits et politique (authorize_create) mais utilise la résolution courante et la branche task/* actuelle ; rien ne montrait l'écart avec le snapshot DEC-0199.\n\nDécision : pas de rejeu « à l'identique ». On ajoute (additif) :\n- GET /api/v1/task-launches/{id}/replay-preview -> TaskLaunchReplayPreview : lecture seule, compare le snapshot (harness, ressources Library par (role, stable_key), runtime) à ce que le retry utiliserait aujourd'hui ; verdict ready|limited|refused ; vocabulaire fermé de limitations (refus : launch_not_terminal, already_retried, snapshot_missing, snapshot_capture_failed, not_authorized, target_not_admissible, agent_unresolvable ; limitations : resolution_unrecorded, library_version_unavailable, source_worktree_dirty, source_git_unrecorded, git_state_not_pinned, profile_rechecked_on_machine, output_not_reproducible). preview_digest sha256 sur tout sauf generated_at.\n- POST /retry accepte `replay: {snapshot_content_hash, preview_digest}` optionnel : le serveur recalcule l'aperçu ; refus -> 409 replay_refused (codes), digest/hash différent -> 409 replay_preview_stale (digest courant) ; sinon la nouvelle tentative porte replay_basis (source, hash, digest, verdict, substitutions != unchanged, codes). Snapshot source jamais réécrit.\n- Migration 0034 : colonne JSONB nullable task_launches.replay_basis.\n\nHors périmètre : épinglage du git_sha / worktree neuf au snapshot, budget (toujours vérifié à la création), profil recalculé côté daemon seulement.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0215",
+      "title": "Profil de travail porté par le lancement réel (TaskLaunch.profile_key / profile pin)",
+      "status": "accepted",
+      "date": "2026-10-15",
+      "task_id": "f33a3c2d-59bf-4e76-a5e0-ac485817421a",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte : P04-gate bloquée, aucun lancement réel ne porte de profil (resolver daemon sans profile, TaskLaunchCreate sans champ) ; enforce_profile et la capture de pin ne servent qu'en tests.\n\nDécision (additive) :\n- TaskLaunchCreate.profile_key optionnel (clé de REFERENCE_PROFILES), exige agent_stable_key ; clé inconnue → 422 ; machine cible sans capacité launch_profiles → refus explicite.\n- Le serveur calcule à la création le pin LaunchProfilePin (reference_work_profile + profile_elements de la définition résolue) et le stocke ; TaskLaunch.profile omis de la sérialisation quand absent (daemon N-1 inchangé pour un lancement sans profil).\n- MachineCapabilities.launch_profiles : le daemon l'annonce ; le serveur ne cible un lancement profilé que vers une machine qui l'annonce.\n- Le daemon recalcule le pin au démarrage via le resolver commun, construit LaunchProfile et applique enforce_profile (autorité locale, échec fermé) ; le snapshot enregistre preview/applied.\n- Retry : hérite de profile_key, pin recalculé à la création de la nouvelle tentative.\nOrdre de déploiement : Bloc A avant Bloc B (extra=forbid sur les capacités).\nHors périmètre : sélecteur de profil dans le dashboard, profils éditables (seuls les profils de référence).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0216",
+      "title": "MC P05 : dry-run d'admission en lecture seule, déterministe, avec plan_digest",
+      "status": "accepted",
+      "date": "2026-10-16",
+      "task_id": "9b3ecc2b-0e68-4151-bf0a-2c191b57fac4",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "## Contexte\nP05-eligibility : retourner tâches lançables d'une roadmap, machines compatibles et raisons d'exclusion, sans créer de TaskLaunch ni réserver.\n\n## Proposition\n- `GET /api/v1/roadmaps/{id}/admission/dry-run?harness_id=` → `AdmissionDryRun` (contrat additif `studio_contracts.admission`). GET : aucune écriture, aucun commit.\n- Cœur pur `admission_rules.compose_dry_run(AdmissionSnapshot)` ; le chargement DB réutilise `load_tree`, `eligibility.eligible_machines`, `claims.active_claims` (pas de nouveau DAG ni moteur).\n- Raisons fermées, cumulées dans l'ordre de déclaration : roadmap_not_active, dependency_pending, task_data_missing, task_completed, task_blocked, review_pending (AIWork review_requested ou Decision proposed sur la tâche), launch_active, task_claimed_elsewhere, claims_held_elsewhere, no_eligible_machine.\n- Étapes done/skipped ignorées ; étape sans tâche liée listée dans `steps_without_tasks`, jamais candidate.\n- Claims expirés ignorés ; tâche déjà réclamée par une machine éligible → candidate restreinte à cette machine.\n- `plan_digest` = sha256 du plan canonique (hors `evaluated_at`) : P05-batch-admission pourra exiger le digest pour admettre seulement un plan inchangé (même schéma que `worktrees prune --confirm`).\n\n## Conséquences\nAdditif côté Bloc A ; aucun impact Bloc B tant que le scheduler UI ne le consomme pas.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0217",
+      "title": "MC P05 : admission batch transactionnelle et rejeu atomique sans nouvelle table",
+      "status": "superseded",
+      "date": "2026-10-16",
+      "task_id": "f1ddc8b9-0dc2-43c6-97f4-aba21475aaa9",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition d'implémentation de DEC-0200 (composition existante, pas nouveau moteur). POST /api/v1/roadmaps/{roadmap_id}/admission/batches additif, header Idempotency-Key obligatoire ; AdmissionBatchCreate(plan_digest,harness_id?,items TaskLaunchCreate uniques) ; 201 AdmissionBatch(batch_id,roadmap_id,project_id,launches). Droits actuels projet et machines vérifiés avant rejeu. Une transaction PostgreSQL réunit insertion clé idempotente, revalidation du dry-run/digest, contrôles tasks/machines/capacité et budgets, TaskLaunch unitaires, événements persistés et réponse. Réutiliser IdempotencyKeyModel et son unicité (clé,endpoint) : ON CONFLICT attend commit/rollback ; aucun pending durable ou récupération TTL ; hash canonique corps + demandeur interdit collision cross-user. Aucun nouveau modèle ni migration. Extraction staging sans commit de TaskLaunch ; publication événements après commit global. Sous verrous ordonnés tasks puis machines puis budget policy, la capacité machine se calcule tous projets à partir des requested vivants + max(running heartbeat, accepted/preparing/running DB), et pas du free_slots du heartbeat seul. Tout refus annule le lot entier, avec error_code explicite ; plan périmé409. Les routes existantes conservent leur contrat et participent au verrouillage commun. La garantie forte d'admission en lot ne rend pas le heartbeat ni les claims des réservations fermes ; elle ne transforme pas les anciens appels unitaires en scheduler. Validation requise : concurrence réelle PostgreSQL, rejeu et conflits, dernier slot/budget, rollback, crash avant/après commit et report retardé.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0218",
+      "title": "MC P05 : admission batch tout-ou-rien sous verrous consultatifs, plan_digest exigé",
+      "status": "accepted",
+      "date": "2026-10-16",
+      "task_id": "f1ddc8b9-0dc2-43c6-97f4-aba21475aaa9",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "## Contexte\nP05-batch-admission (DEC-0200 D5, DEC-0216) : admettre un lot sans double lancement sous concurrence, replay et crash.\n\n## Proposition\n- `POST /api/v1/roadmaps/{id}/admission` (`AdmissionBatchRequest` → `201 AdmissionBatchResult`, `409 AdmissionBatchRefused`), contrat additif `studio_contracts.admission`, `Idempotency-Key`.\n- Tout-ou-rien, une seule transaction : TaskLaunch + réservations budget + événements `task_launch.requested`, publiés après commit.\n- Sérialisation par `pg_advisory_xact_lock` : `admission:<roadmap_id>` puis `task-launch:<task_id>` triés ; le lancement unitaire prend aussi le verrou tâche. Dry-run recalculé sous verrou ; digest différent → `admission_plan_changed` + plan frais.\n- Refus par item : duplicate_item, not_launchable (+exclusion_reasons), machine_not_eligible, budget_refused (+détail) ; budget via `decide_admission` (politique verrouillée FOR UPDATE).\n- Aucune migration, aucun index unique nouveau.\n\n## Conséquences\nAdditif Bloc A ; le scheduler UI (P05-scheduler-ui) consommera dry-run puis admission avec le digest affiché. Le lancement unitaire ne vérifie toujours pas `launch_active` (hors périmètre).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0219",
+      "title": "P06 — no-go provisoire sur l’historique des configurations",
+      "status": "superseded",
+      "date": "2026-10-16",
+      "task_id": "db685418-bfd4-4d2e-85d2-2a0867b2e1e7",
+      "supersedes": [],
+      "superseded_by": [
+        "DEC-0221"
+      ],
+      "body": "Décision humaine confirmée dans le chat Codex le 16 octobre 2026 (« oui je valide »), après présentation du rapport P06 et demande explicite de validation du no-go provisoire.\nDifférer P06-history-option : l’export serveur contient 56 AIWork dans la fenêtre descriptive (55 sessions, 12 agents), mais ne fournit aucun dénominateur TaskLaunch ; champs runtime refusés via MCP et routes HTTP Usage/Mission Control en 404, malgré contrôle projets en 200. Tokens, coûts et conformité du protocole restent inconnus ; UX/bruit/collisions non mesurés dans cette fenêtre. Les trois runs P03 archivés ne sont pas ajoutés à la population de production.\nReprise conditionnée à des sources réelles disponibles, à une fenêtre publiée et à des effectifs par configuration cadrés humainement. La proposition de sept jours reste à confirmer ; aucun calendrier ni minimum arbitraire n’est approuvé. Ce no-go n’autorise ni l’activation de l’historique ni la clôture technique des gates manquantes. L’accord de publication donné dans le même chat couvre le push et l’ouverture d’une PR vers dev ; il ne vaut pas fusion.\nPreuve : docs/mission-control/pilot-data.md et pilot-sample.json, branche codex/db685418-pilot-data (commit initial 39b3f6aa).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0220",
+      "title": "Admission : free_slots déduit les lancements admis non encore rapportés (précise DEC-0200)",
+      "status": "accepted",
+      "date": "2026-10-19",
+      "task_id": "78f9a1f3-63fd-4fa0-b677-33ba958058b6",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte : free_slots = max_launches - running_launches du dernier heartbeat (services/api/src/studio_api/services/eligibility.py:58). Deux batches, ou un lancement unitaire puis un batch, commités avant le heartbeat suivant (~30 s) passaient chacun ce contrôle, car les lancements requested/accepted créés côté serveur n'étaient pas comptés (constaté pendant la démo P05 deux machines ; PR #163 ne bornait qu'un batch).\n\nDécision proposée : free_slots reste sans ligne de réservation (DEC-0200 tient), mais eligibility.evaluate en déduit les lancements que le heartbeat ne peut pas avoir comptés : tout `requested` non expiré (pas encore pris par le daemon) et tout `accepted|preparing|running` créé après capabilities_reported_at. Une requête groupée par machine (unreported_launch_counts). admit_batch prend en plus `machine-slots:<machine_id>` (trié, après les verrous de tâche) ; stage_launch prend le même verrou après celui de la tâche, donc un lancement unitaire concurrent sérialise avec le décompte du batch. Ordre des verrous : admission → task-launch → machine-slots.\n\nLimites : la route unitaire ne refuse toujours pas à capacité (pas de nouveau code d'erreur, contrat inchangé) ; un lancement créé avant le rapport, encore requested à ce moment et accepté juste après, peut être sous-compté jusqu'au heartbeat suivant. Aucun double comptage : un lancement démarré créé avant le rapport est laissé au daemon.\n\nPreuves : tests/api/test_admission_batch_concurrency.py (deux batches séquentiels sur 1 slot → second refusé ; unitaire puis batch → refusé ; pas de double comptage après heartbeat).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0221",
+      "title": "P06 — lever le no-go sur l'historique des configurations (remplace DEC-0219)",
+      "status": "accepted",
+      "date": "2026-10-19",
+      "task_id": "fead405d-a26d-4941-bc55-61024d24a78f",
+      "supersedes": [
+        "DEC-0219"
+      ],
+      "superseded_by": [],
+      "body": "Le 19 octobre 2026, l'utilisateur a choisi dans le chat Claude « Lever le no-go » face au report de DEC-0219.\nLivrer P06-history-option comme une vue descriptive. La population est TaskLaunch sur la période. La configuration combine harness_id, profile_key, profile_contract_version et profile_digest du lancement, ainsi que harness_version, provider et model tirés du ledger lié par task_launch_id. Une valeur absente s'affiche « inconnu » ; plusieurs valeurs distinctes s'affichent « mixte ».\nChaque taux porte n, période, définition et couverture. Les groupes ne sont jamais classés : ordre de clé stable et marquage comparable=false.\nLe rapprochement ledger/AIWork compte les entrées liées et non attribuées. La mention « tests réussis ≠ garantie qualité » est toujours affichée.\nAucun minimum d'effectif n'est fixé. Le critère d'échantillon réel ne sera coché que sur des données de production effectivement relevées.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0222",
+      "title": "P04-gate et P05-gate acceptées au vu des redémonstrations du 19 octobre 2026",
+      "status": "accepted",
+      "date": "2026-10-19",
+      "task_id": "6285bd00-379d-45a1-8a54-2e6f503c95f4",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Acceptation humaine (redsilvernight, dans le chat, 2026-10-19) : « J'accepte les gates P04 et P05 au vu des redémonstrations du 19 octobre ». Base : docs/mission-control/p04-gate.md et p05-gate.md, section Redémonstration (dev à c80ce25f, PR #167). Limites acceptées en l'état : P04, --tools/--disallowedTools couverts par tests et non observés sur la ligne de commande réelle ; P05, coupure du daemon sur Flo-laptop et correctif du sélecteur de harness du dashboard non démontrés. Reste pour P06-final-gate : arbitrage du critère 2 de P06-history-option (données de production), neuf questions, promotion et rollback.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0223",
+      "title": "P06-history-option : critère 2 accepté comme limite documentée",
+      "status": "accepted",
+      "date": "2026-10-19",
+      "task_id": "6285bd00-379d-45a1-8a54-2e6f503c95f4",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Acceptation humaine (redsilvernight, dans le chat, 2026-10-19) : « J'accepte le critère 2 de P06-history-option (rapprochement ledger/AIWork sur données de production) comme limite documentée ». L'étape reste done ; le rapprochement sur données de production est à faire après promotion, non bloquant pour P06-final-gate. Source : docs/mission-control/pilot-data.md, DEC-0221, PR #165.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0224",
+      "title": "P06-final-gate acceptée ; promotion dev → master approuvée",
+      "status": "accepted",
+      "date": "2026-10-19",
+      "task_id": "6285bd00-379d-45a1-8a54-2e6f503c95f4",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Acceptation humaine (redsilvernight, dans le chat, 2026-10-19) : « j'accepte continue », en réponse à la PR #170 (dev → master, da2c83f5, preflight aligned/promotable). Les critères 1 à 3 de p06-gate.md sont acceptés, avec les limites listées dans « Non démontré » (parcours réel sur le VPS de production, restauration de même canal en production, rapprochement ledger/AIWork : DEC-0223). La fusion de master dans deploy/ovh-vps reste un geste distinct, à confirmer.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0225",
+      "title": "Identité agent : une fiche par (poste, provider, modèle), indépendante du harnais (remplace DEC-0180)",
+      "status": "accepted",
+      "date": "2026-10-20",
+      "task_id": "e08ddb91-9373-4ba1-970a-082494ee09a8",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte : Retours 13. Choix utilisateur : une fiche par modèle et par PC, réutilisée entre projets et outils. DEC-0180 incluait le harnais dans la clé (`agents-ensure-<harnais>:<provider>/<modele>`), d'où une fiche par outil pour un même modèle ; le lanceur daemon utilise une troisième clé (`launch-agent-<sha>`).\n\nDécide :\n- Clé unique, construite par un seul helper client : `agent-model:<provider|unknown>/<modele normalisé>`, scopée par la machine authentifiée (contrainte existante `(machine_id, stable_key)`). Hooks (tous harnais) et lanceur daemon l'utilisent.\n- Métadonnées de la fiche identiques pour tous les appelants : `display_name` = modèle normalisé, `harness` = null, `provider`, `model`. Le harnais/outil reste attribué à l'exécution (`ai_work.harness`, déjà au contrat), jamais à la fiche.\n- Normalisation minimale et explicite : trim, minuscules, séparation `provider/modele` ; aucune fusion de variantes (dates, tailles) : des modèles différents gardent des fiches différentes. Modèle inconnu : pas de fiche modèle, repli explicite sur l'agent du harnais (DEC-0099), libellé « modèle inconnu ».\n- Concurrence : l'identité est la fiche, l'exécution est la session ; deux sessions simultanées du même modèle restent deux sessions distinctes.\n- Doublons existants (clés DEC-0180 et `launch-agent-*`) : conservés intacts (historique, autorisations, provenance) ; le dashboard les regroupe par (poste, modèle) et les marque « ancienne identité ». Aucune suppression ni réécriture de provenance.\n- Aucun changement de contrat versionné : `stable_key` et `POST /agents/ensure` sont déjà additifs.\n\nConséquences : une seule fiche par modèle et par PC pour les nouvelles sessions ; l'autre PC a sa propre fiche (scope machine). Écarté : migration de données fusionnant les fiches (perte de provenance).",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0235",
+      "title": "Lancements : édition protégée par défaut et autorisation de production par session humaine",
+      "status": "accepted",
+      "date": "2026-10-24",
+      "task_id": "fa864f0d-e0c9-44f0-894f-148f7548b31c",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition d'implémentation du ticket fa864f0d : chaque nouveau lancement exige une machine annonçant launch_safety=true ; allow_production=false par défaut, persisté dans TaskLaunch. L'activation true exige une authentification dashboard JWT (jamais un jeton machine/MCP/credential de lancement) et une confirmation UI pour ce lancement seulement. Retry/replay ne réutilisent jamais une autorisation production. Le daemon retire les outils d'exécution et borne l'édition au workspace (Claude --restricted et whitelist --tools ; un harnais ne garantissant pas ce mode refuse avant démarrage). Le profil lecture seule reste plus restrictif, même avec autorisation. L'autorisation ne contourne jamais les autres garde-fous/profils/sandbox locaux. Les anciennes machines ne reçoivent pas les lancements protégés ; il faut mettre à jour leur daemon. La nouvelle exigence de capability est une évolution explicitement versionnée de l'admission du contrat API v1. Tests attendus : défaut sûr, aucune production via MCP, persistance/idempotence, retry sans héritage, commande adversariale non exécutée et handoff blocked. Raison : un prompt ou une blacklist shell n'est pas une frontière d'exécution.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0237",
+      "title": "Amendement proposé DEC-0225 : identité durable par utilisateur, harnais logique et modèle effectif",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "e7435500-0e52-4398-9453-483b0b160c7b",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Nouvelle exigence explicite utilisateur du 25/10/2026 : même harnais/modèle doit retrouver son ID, entre conversations/tâches/rôles/redémarrages et postes autorisés du même utilisateur. DEC-0225 accepted est vérifiée : elle impose machine+provider+model et harness=null ; elle doit donc être amendée, pas interprétée comme satisfaisant cette demande.\nProposition : identité canonique unique serveur/utilisateur/harnais logique/provider/modèle effectif ; interfaces Desktop/CLI partagent le harnais logique lorsque le produit sait qu'elles sont équivalentes (codex, claude, opencode). Alias de sélection conservé en trace séparée, jamais présumé modèle effectif. Modèle/provider non observables => état explicite inconnu, aucune nouvelle fiche modèle inventée. Sessions et AIWork conservent machine exécutante et interface. Les identités historiques restent immuables ; rapprochement explicite réversible sans réattribution de provenance, et aucun effacement aveugle. Resolution/create sérialisée par contrainte unique et transaction. Ownership doit vérifier utilisateur courant + machine autorisée, pas exiger que la fiche soit créée par la machine courante.\nÀ valider avant intégration : contrats API/Auth/Data, mapping interfaces exact, migration additive et tests concurrence, cross-user/cross-machine, changement modèle et historiques. Cette proposition ne donne aucun droit supplémentaire à un agent et n'est pas une acceptation de DEC.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0238",
+      "title": "Révision roadmap : brouillon sur même ID, proposed via request_changes",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "3782414f-3980-459e-bd48-f6f178fd7c49",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition : étendre POST /roadmaps/{id}/proposals et studio_propose_roadmap aux brouillons, via moteur reconcile_document existant (conserve IDs et liens des étapes retenues, refuse suppression étape liée). base_revision_no contrôlé sous verrou ; nouvelle révision monotone snapshot si submit=false, proposal si submit=true. Commentaires des révisions antérieures inchangés. Sur proposed, aucun auteur ne peut modifier le contenu gelé directement : message invalid_state indique request_changes par rôle habilité puis révision draft. Active conserve pending proposal sans application jusqu'à revue humaine. Champ optionnel submit dans ProposalCreate, défaut true ; aucun agent ne gagne pouvoir d'approbation.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0239",
+      "title": "Découverte produit : catalogue canonique de service, progressif et adapté aux droits",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "364e29f4-74ea-4bd4-a1fb-8e3f778c320a",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition : une source de capacités produit dans le service A, consommée via GET /capabilities par CLI/Desktop et directement par le handler MCP fin studio_discover_capabilities. Distincte des définitions de bibliothèque : aucun texte de définition chargé, aucune publication. Catalogue limité aux fonctions réellement exposées (test de correspondance aux endpoints). Résumé6capacités, limite24, détail par clé avec exemple/prérequis/restrictions ; intents overview/start_project/configuration. Disponibilité = droits, projets/CI accessibles et dernier rapport machine, jamais une promesse de connectivité testée ; données locales Git renvoyées au diagnostic du setup, rapport absent/périmé explicite. Quatre états available/needs_configuration/not_authorized/unsupported. Les autorisations effectives restent dans les services ; lecture seule ne gagne aucun droit. Le profil MCP session expose un seul outil de découverte, pas tout le catalogue d'outils. Accueil charge uniquement au clic ; CLI capabilities et détail via --key.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0240",
+      "title": "Claims : détenteur machine + agent et démarrage concurrent sérialisé",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "a7c519ab-453c-44de-98cb-c70011e632b6",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition pour la demande utilisateur d'adaptation des bibliothèques. Une tâche déjà réclamée appartient au couple machine/agent ; un autre agent, même sur le même poste, reçoit 409 already_claimed, y compris agent=None. La reprise exacte reste idempotente. Le transfert utilise la libération explicite existante puis un nouveau démarrage, sans bloquer Git ni les fichiers. Les claims sont sérialisés sur la ligne tâche ; resume-or-start sérialise la sélection/création pour éviter deux sessions ouvertes du même couple. Les sessions historiques restent attribuées à leur agent et machine. Ce changement remplace l'ancien comportement documenté de reprise silencieuse intra-poste : API_CONTRACT_VERSION passe localement de 3 à 4, transport /api/v1 et enveloppe des événements inchangés. Aucun déploiement autorisé par cette proposition ; revue contractuelle requise avant intégration.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0241",
+      "title": "Pack métier : manifeste de références autour du WorkProfile existant",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "4bb37a1c-7507-4a09-af5d-126adc1a2169",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition locale pour la demande d'adaptation. Réutiliser WorkProfile (DEC-0198), pas model_profile et pas un nouveau LibraryKind. Un manifeste studio.work-profile-pack/v1 contient le WorkProfile, une base studio UUID/version et les adaptations UUID/version explicitement déclarées ; aucun texte de bibliothèque, contenu métier, commande ou autorisation supplémentaire. Un import de fichier signifie validation et preview en lecture seule : les références doivent déjà exister et être visibles, la composition effective du resolver commun doit correspondre exactement, les permissions restent intersectées avec MachinePolicy et le résultat non autoritaire. Aucun import ne publie ni n'active de définition. Formats inconnus ou références incompatibles refusés explicitement. Publication future hors périmètre de cette unité.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0242",
+      "title": "Bornes MCP et priorité du contexte de reprise",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "f22be6be-d2fd-41a3-89c2-804b3bfa0ef8",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition locale liée à l'adaptation des bibliothèques. Sous le contrat API 4, les appels MCP bornent les arguments JSON à 1 MiB, limit à 1..500 (chaque outil conserve ses bornes plus strictes), offset >= 0 et max_chars <= 50000, après coercition SDK. Les tâches actives sont plafonnées à 100 par défaut et leur reliquat reste explicite. Les erreurs de validation deviennent invalid_argument sans valeur d'entrée ; les erreurs service surdimensionnées sont bornées à 8 KiB avec details_truncated, code et version serveur conservés. Le contexte garde le budget partagé : descriptions de tâches voisines limitées à 20 % si tâche demandée ; handoff avant aperçu roadmap ; DEC acceptées pertinentes avant propositions lexicales. Les termes très communs ne départagent plus les candidats en présence d'un terme rare attesté. Même vocabulaire de raisons, aucun LLM ni changement d'autorisation ; seules les sélection/bornes changent. Aucun déploiement dans cette unité.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0243",
+      "title": "Clôture typée par nature du travail, preuves et étapes séparées",
+      "status": "accepted",
+      "date": "2026-10-25",
+      "task_id": "c68fb57b-cc19-40fa-acb4-c5c013ff6a89",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition locale pour remplacer l'obligation générique completed=merge dev+CI. Réutiliser handoff, AIWork et statuts existants ; preuve optionnelle typée studio.completion/v1 (code, audit, diagnostic, opération), sans nouvelle table. Une clôture nouvelle avec preuve exige un livrable et des validations cohérentes ; commande de validation non nulle, non exécutée ou environnement indisponible interdit completed. Un échec diagnostiqué peut rester une constatation séparée avec revue du livrable réussie. Code : versionnement/révision, intégration et CI selon critères du dépôt, branche cible explicite si intégration exigée ; aucune branche nommée dev imposée. Audit/diagnostic : artefact et validation, sans Git/CI automatiques. Opération : résultat vérifié, déploiement séparé. La preuve reste déclarative et non autoritaire ; le serveur vérifie sa cohérence, pas la vérité d'un Git local inaccessible. Elle est journalisée dans l'AIWork, et le rejeu idempotent conserve les anciens appels sans preuve. Aucun contenu de bibliothèque de production modifié.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0244",
+      "title": "Profils de lancement v2 : épingler les identités de ressources et relire les pins v1",
+      "status": "accepted",
+      "date": "2026-10-26",
+      "task_id": "c68fb57b-cc19-40fa-acb4-c5c013ff6a89",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Correction de collision vérifiée : deux définitions de scopes différents avec kind/stable_key/version/origin identiques produisaient le même digest. PROFILE_CONTRACT_VERSION=2 ajoute les UUID des éléments résolus au digest et refuse les éléments sans identité. Le daemon v2 recalcule un pin v1 selon sa version explicite et conserve les octets historiques ; les nouveaux pins v2 échouent fermés sur un daemon v1. Aucun pin existant réécrit, aucun contenu de bibliothèque production modifié. Contrat TECH/02 mis à jour et tests de collision, ordre stable et v1/v2 ajoutés. Proposition seulement ; déploiement et adoption indépendants.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0248",
+      "title": "Expiration des lancements : TTL par défaut 2 h, prolongation par activité et arrêt propre côté serveur",
+      "status": "accepted",
+      "date": "2026-10-27",
+      "task_id": "63a909ea-3d0f-490b-bd3e-5f64ce242a3e",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "AMEND DEC-0173 (expiration serveur des TaskLaunch). Statut proposé.\n\nConstat (tâche 63a909ea, NEXUS launch 7b29930a) : un TTL de 15 min tuait un agent en plein travail (`expired_timeout`) sans handoff, en laissant une session active et un claim tenu.\n\n1. `LAUNCH_DEFAULT_TTL_SECONDS` passe de 900 à 7200 s (2 h). Bornes inchangées (60..86400), client N-1 inchangé : seul le défaut du champ optionnel `expires_in_seconds` bouge.\n2. Prolongation par activité : un lancement non terminal périmé dont la session de travail liée est encore ouverte et dont la dernière activité est < `STUDIO_LAUNCH_ACTIVITY_GRACE_SECONDS` (défaut 900 s) voit `expires_at` repoussé de cette fenêtre, sans changer `version` ni émettre d'événement ; plafond dur `created_at + 86400 s`.\n3. Le report/cancel qui tient déjà la ligne sous `with_for_update` ne commite pas la prolongation : son propre commit la persiste et `expected_version` reste valide (pas de 409 auto-infligé). Les lectures (GET/list/pull) et le sweep la persistent quand la prolongation survient.\n4. Arrêt propre à l'expiration réelle : fermeture de la session liée (`session.ended`, `reason=launch_expired`, acteur system, `machine_id` = machine cible, event_id dérivé) et libération des claims de la tâche tenus par la machine cible (`resource.released`, acteur system, `machine_id` = machine cible, event_id déterministe par claim), le tout dans la même transaction que `task_launch.expired`.\n5. Contrats mis à jour dans le même changement : TECH/02 (expiration et arrêt propre), TECH/03 (acteur system et attribution machine sur resource.released/session.ended), TECH/04 (fermeture serveur de session) ; openapi.json et openapi-schema.ts régénérés (défaut 7200).\n6. Dashboard : choix explicite du délai dans le panneau de lancement (30 min à 24 h), défaut 2 h, plus de 900 codé en dur ; le lancement par lot de roadmap utilise le défaut de 2 h.\n\nHors périmètre : le timeout local du daemon (`launch_timeout_seconds`, 1 h) reste indépendant du TTL serveur et n'est pas modifié ici.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0249",
+      "title": "L'agent de session est assure avec le credential du harnais, pas celui du poste",
+      "status": "accepted",
+      "date": "2026-10-27",
+      "task_id": "e5bd13c9-93dd-4b19-a3fb-402c614916d0",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Contexte. DEC-0104 §2 / DEC-0226 : chaque couple (poste, outil) possede sa propre machine Studio OS, et le Desktop ecrit ce credential dans l'entree MCP de l'outil. Le hook de demarrage n'adoptait ce credential que pour Claude Code.\n\nConstat mesure (27/10/2026). `agents ensure --harness opencode` rendait un agent de la machine du poste (269dc2bf) alors que le MCP OpenCode s'authentifie comme la machine de l'outil (4d0e6441) : studio_start_work repondait actor_not_owned, et un agent etait cree a chaque conversation.\n\nDecision. `studio-client agents ensure --harness-credential` lit l'entree MCP studio de l'outil (claude/opencode/codex) et authentifie la requete avec ce credential, strictement pour l'origine du workspace ; un STUDIO_CLIENT_MACHINE_TOKEN explicite (lancement Studio OS) l'emporte toujours ; aucune autre source de jeton n'est essayee.\n\nConsequences. Les trois harnais suivent le meme chemin (aucune branche par harnais dans le hook) ; le hook ne lit plus aucun jeton et cle son cache d'agent par l'empreinte du fichier de configuration de l'outil ; un poste qui garde un hook deja deploye conserve l'ancien comportement jusqu'a `studio-client setup-hooks`.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0250",
+      "title": "Frontière identité : alias exacts documentés et exception AST bornée aux gardes de neutralité",
+      "status": "accepted",
+      "date": "2026-10-29",
+      "task_id": "80863e44-96f1-42bd-92f7-fbe465f7bf59",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Proposition issue de l’acceptation intégrée et revues contract-guardian/studio-architect du 29/10/2026. TECH/02 impose les seuls alias codex[-cli|-desktop], claude[-code|-cli|-desktop], opencode[-cli|-desktop]. La suppression générique des suffixes fusionnait indûment custom-cli/custom, codex-code/codex et des suffixes empilés. Garder logical_harness à la frontière partagée studio_contracts.agent_identity ; table déclarative exacte de sept paires, fallback trim/minuscule/_→- sans fusion. Les gardes historiques du cœur autorisent par AST uniquement cette affectation dans ce seul module, après vérification égalité complète des sept paires ; ils continuent de scanner tout le code restant, branches/catalogues/littéraux inchangés. Pas d’exclusion globale de module ni déplacement client qui ferait varier l’identité selon entrée. Correction de dérive vis-à-vis du contrat existant, sans changement de forme HTTP. Anciennes fiches et historique conservés ; aucun rapprochement/migration automatique : l’identifiant brut ancien ayant été perdu, un harnais personnalisé précédemment fusionné pourra obtenir un nouvel UUID à sa prochaine résolution. Cette proposition ne vaut ni approbation ni déploiement.",
+      "body_source": "vault"
+    },
+    {
+      "readable_id": "DEC-0251",
+      "title": "DEC — Collecte locale agnostique de la consommation des sessions desktop, par tâche",
+      "status": "proposed",
+      "date": "2026-10-29",
+      "task_id": "3467d2e6-a386-45f0-8ace-943cd9116159",
+      "supersedes": [],
+      "superseded_by": [],
+      "body": "Statut : proposed (implémentée côté client, à accepter).\n\n## Contexte\nLe ledger d'usage n'était alimenté que par les lancements Mission Control : les sessions exécutées manuellement depuis les apps desktop (Claude Code, Codex, OpenCode) ne produisaient aucune entrée, donc aucune consommation par tâche. Le contrat d'usage acceptait déjà une entrée sans `task_launch_id` (task_id/session_id optionnels), et l'ingestion est idempotente sur (machine_id, source_event_id).\n\n## Décision\n- Le daemon lit en lecture seule les stockages natifs des trois harnais (transcripts JSONL Claude Code, rollouts JSONL Codex, SQLite OpenCode) et produit des entrées `usage.create` par bucket (session, tâche ou projet, modèle, jour UTC), corrigées par `usage.correct` quand la session continue.\n- Rattachement agnostique : la tâche est celle déclarée par l'appel `studio_start_work`/`studio_claim_task` enregistré dans le transcript de la session ; sans appel, le projet du workspace qui contient le répertoire de travail ; hors workspace, rien n'est envoyé.\n- Le coût est une estimation EUR sur une grille datée et versionnée (`PricingRef`), couverture `estimated` ; un modèle inconnu reste `unknown`, jamais un prix par défaut inventé. Grille surchargeable par `<data_root>/pricing.json`.\n- Aucun changement cassant : contrats API/Event/Data Model inchangés, aucune migration.\n\n## Conséquences\n- Les tâches exécutées hors lancement affichent enfin jetons et coût estimé (couverture estimated).\n- Une session longue peut être comptée en plusieurs entrées/corrections ; chaque écriture porte une clé d'idempotence stable.\n- Limites : formats internes certifiés par version, dégradation honnête en `unknown` ; pas de `session_id`/`task_launch_id` pour ces sessions ; devises non additionnées entre estimation EUR et coût mesuré USD des lancements.",
       "body_source": "vault"
     }
   ]

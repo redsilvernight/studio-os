@@ -1,8 +1,12 @@
-# Studi'OS Dashboard — V0 (DASH-0 → DASH-5, P12) + refonte UI/UX terminée (UI-1 → UI-16)
+# Studi'OS Dashboard
 
-Human read-only client of the canonical Studi'OS HTTP API + SSE.
+Human client of the canonical Studi'OS HTTP API + SSE.
 No direct Postgres, no MCP-for-REST, no duplicated business logic,
 no local memory, no AI-provider dependency.
+
+Start with the [canonical documentation index](../docs/Studio_OS_Documentation_Pack/studio_os_docs/00_README.md).
+This file covers component development; historical measurements below are not
+validation of the current release.
 
 Contract sources: the backend OpenAPI document (`dashboard/openapi.json`
 + generated `src/openapi-schema.ts`) for the API surface
@@ -16,22 +20,21 @@ server (`studio_add_decision`, mirrored as vault notes, DEC-0193);
 
 ## Location
 
-`dashboard/` (repo root). Nothing outside this directory was changed
-for DASH-0/1 — backend, contracts and migrations are untouched.
+`dashboard/` (repo root), shared by the web deployment and Desktop shell.
 
 ## Prerequisites
 
-- Node.js ≥ 20, npm ≥ 10.
-- A running Studi'OS API (see backend docs) + a machine token
-  (`studio-admin` / `POST /machines`, admin).
+- Node.js 22.18+ and npm (aligned with Desktop and CI).
+- A running Studi'OS API and a human user account for dashboard login.
+  Machine tokens belong to client/agent integrations, not the human login form.
 
 ## Install / dev / build
 
 ```bash
 cd dashboard
-npm install        # clean-checkout install
+npm ci             # reproducible clean-checkout install
 npm run dev        # vite dev server :5173
-npm test           # vitest (100 unit tests, dont 5 csp-static)
+npm test           # vitest
 npm run build      # tsc --noEmit + vite build → dist/
 npm run preview    # serve dist/ locally
 npm run test:e2e   # Playwright CSP browser test (needs dist/ built)

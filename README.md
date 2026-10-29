@@ -1,114 +1,144 @@
-# Studio OS
+# Studi'OS
 
-Plateforme de coordination pour studio de jeu vidéo à distance.
+Plateforme de coordination entre humains et agents IA : projets, tâches,
+sessions, décisions, mémoire partagée et transferts de fichiers. Studi'OS relie
+les outils de travail et les postes locaux à un serveur central ; son usage
+s'étend au développement logiciel et aux activités d'un studio, au-delà du jeu vidéo.
 
-## Statut du projet
+Le projet est en **pré-production**. La présence d'une fonctionnalité dans le
+dépôt ne constitue pas une validation de son exploitation en production.
+L'inscription publique reste fermée par défaut
+(`STUDIO_PUBLIC_REGISTRATION_ENABLED=false`). La préparation à une ouverture
+publique est suivie dans le [dossier de préparation à la publication](docs/Studio_OS_Documentation_Pack/studio_os_docs/IMPLEMENTATION/05_PUBLIC_RELEASE_READINESS.md).
 
-Bloc A (Cloud/Core) en place. Bloc B (Local Client) : étape 6 entièrement
-close (DEC-0024 à DEC-0033) — `StudioApiClient`, daemon/heartbeat, outbox SQLite,
-replay ordonné, CLI minimale, watchers Git/Godot (6.6) et `TransferClient` (6.7).
-Étape 8 en cours : dashboard DASH-0/1/2/4 livrés (login JWT humain, CORS prod,
-Docker/Caddy), DASH-3/5 restants ; adaptateurs mémoire/Graphify locaux et outils
-MCP read-only livrés (DEC-0042/DEC-0047, ce dernier superseded par DEC-0191).
+## Architecture et documentation
 
-Mémoire et décisions (flux courant) : vault serveur à deux portées studio/projet
-(DEC-0191), le client ne garde qu'un miroir local en lecture seule ;
-`studio_add_decision` alloue le numéro `DEC-XXXX` côté serveur et crée la note
-vault miroir (DEC-0193). `docs/decisions/` et `docs/DECISIONS.md` sont un export
-généré par `scripts/dec_export.py`, jamais édité à la main.
+Le Cloud/Core expose une API HTTP et un serveur MCP pour les agents. PostgreSQL
+porte l'état partagé ; MinIO/S3 reçoit les fichiers directement depuis les
+clients via des URL présignées. Le client Python assure le daemon local, les
+watchers, la file hors ligne et la CLI. Le dashboard fournit l'interface humaine ;
+l'application Desktop Tauri réutilise cette interface et supervise le daemon.
 
-## Architecture
+La [documentation canonique](docs/Studio_OS_Documentation_Pack/studio_os_docs/00_README.md)
+est le point d'entrée pour l'architecture, les contrats, les guides humains et
+l'état d'implémentation. Pour intégrer un outil externe, consulter le
+[guide d'intégration](docs/Studio_OS_Documentation_Pack/studio_os_docs/INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md).
 
-Studio OS est une couche de coordination qui relie les outils existants (humains, agents IA — quel que soit leur harness, provider ou modèle —, Git/GitHub, Godot, graphe de connaissance, notes, enregistrements de sessions, builds, marketing et transferts de fichiers) autour d'un VPS central. L'architecture est décrite dans [docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/01_ARCHITECTURE.md](docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/01_ARCHITECTURE.md).
-
-Un développeur tiers peut intégrer Studio OS en suivant le [guide d'intégration externe](docs/Studio_OS_Documentation_Pack/studio_os_docs/INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md).
+Les décisions sont gérées côté serveur, avec un miroir vault. Les fichiers
+`docs/decisions/` et `docs/DECISIONS.md` sont des exports générés par
+`scripts/dec_export.py` ; ils ne s'éditent pas à la main.
 
 ## Structure du dépôt
 
-- `packages/studio-contracts/` : schémas Pydantic v2 des 4 contrats (API, Event, Auth/Sync, Data Model)
-- `packages/studio-client/` : Bloc B (Local Client) — `StudioApiClient`, daemon/heartbeat, outbox SQLite, replay, CLI `studio-client`
-- `services/api/` : FastAPI + SQLAlchemy async + Alembic — endpoints projects/tasks/sessions/claims/decisions/agents/ai-work/heartbeats/events/transfers/provisioning
-- `services/mcp/` : serveur MCP (25/29 outils cibles implémentés, écart documenté dans `TECH/07_MCP_CONTRACT.md`)
-- `docker/` : compose Caddy/API/MCP/Postgres/MinIO
-- `contracts/fixtures/` : mocks partagés
-- `tests/` : tests contrats + `tests/api/` (contre un vrai Postgres) + `tests/mcp/` + `tests/client/` (Bloc B, contre `StudioApiClient` mocké, l'app réelle, et le binaire `studio-client` lui-même)
+Le dépôt combine un workspace Python géré par `uv` et deux projets Node :
 
-## Prérequis et installation dev
+| Chemin | Rôle |
+| --- | --- |
+| `packages/studio-contracts/` | Schémas Pydantic des contrats partagés |
+| `packages/studio-client/` | Client API, daemon, synchronisation hors ligne et CLI |
+| `packages/studio-workspaces/` | Gestion des workspaces locaux |
+| `packages/studio-code-graph/` | Intégration du graphe de code |
+| `services/api/` | FastAPI, services métier, SQLAlchemy async et migrations Alembic |
+| `services/mcp/` | Interface MCP pour les agents |
+| `dashboard/` | Interface web TypeScript/Vite |
+| `desktop/` | Application Tauri 2, sidecar et packaging |
+| `docker/` | Stack serveur et scripts d'exploitation |
+| `contracts/fixtures/`, `tests/` | Fixtures de contrats et tests Python |
 
-- Python 3.12+
-- uv
-- PostgreSQL local
+## Développement local
 
-Pour lancer les tests : `uv run pytest`
+Prérequis : Python 3.12+, `uv`, Node.js 22.18+ et npm. Les tests d'intégration
+utilisent PostgreSQL et MinIO. Pour Desktop sous Windows, prévoir aussi Rust
+stable MSVC, Visual Studio Build Tools avec C++ et WebView2 ; le
+[guide Desktop](desktop/README.md) détaille les prérequis et le packaging.
 
-Pour démarrer l'API : se placer dans `services/api/` et exécuter `uv run studio-api`
+Depuis la racine :
 
-## Création du premier admin/machine
-
-Le provisioning est implémenté via la CLI serveur `studio-admin`.
-
-En local : se placer dans `services/api/` et exécuter `uv run studio-admin bootstrap-admin --display-name ... --email ... --password ...`.
-
-En production (Docker) : `cd docker && ./bootstrap.sh --create-machine "premier-poste"`.
-
-## Utilisateurs suivants
-
-`bootstrap-admin` reste réservé au tout premier administrateur. Pour chaque
-utilisateur suivant, depuis la racine du dépôt :
-
-```bash
-./register-user.sh
+```powershell
+uv sync --all-packages
+npm --prefix dashboard ci
+npm --prefix desktop ci
 ```
 
-Le script demande nom affiché, email, rôle, mot de passe (saisi sans écho ou
-généré) puis propose de créer une machine. Il délègue toute la logique à la CLI
-`studio-admin` exécutée dans le conteneur `api` (`user create`,
-`set-password --password-stdin`, `machine create`). Si l'email existe déjà, il
-l'indique sans écraser le rôle ni le mot de passe, et propose seulement la
-création facultative d'une nouvelle machine. À la fin, il écrit les identifiants
-utiles (mot de passe dashboard, UUID et token machine) dans un fichier
-`studi-os-credentials-*.txt` sur le bureau (répertoire surchargeable via
-`STUDIO_CREDENTIALS_DIR`), car un terminal peut se fermer avant lecture. L'UUID
-machine est nécessaire au client (`STUDIO_CLIENT_MACHINE_ID`) et n'est pas
-déductible du token : `studio-admin machine list [--owner-email ...]` liste les
-machines, et `studio-admin machine show` (token lu sur stdin) résout un token
-vers son UUID, son nom et son propriétaire. Le script affiche aussi **toutes les
-URLs du serveur** (Dashboard, API, MCP, Santé, OpenAPI, Stockage) et les
-enregistre dans le fichier de credentials. L'origine est auto-détectée (nom
-Tailscale ou nom d'hôte), surchargeable via `STUDIO_PUBLIC_BASE_URL`.
+Configurer la base de données, le stockage et l'authentification selon le
+[guide de déploiement](docs/Studio_OS_Documentation_Pack/studio_os_docs/HUMAN/04_DEPLOIEMENT_OVH.md).
+Après configuration, les commandes suivantes donnent accès aux composants ;
+lancer les serveurs dans des terminaux distincts :
 
-### User, mot de passe, Machine, token
+```powershell
+uv run --package studio-api uvicorn studio_api.main:app --reload
+uv run --package studio-mcp python -m studio_mcp.server
+uv run --package studio-client studio-client --help
+npm --prefix dashboard run dev
+npm --prefix desktop run dev
+```
 
-- **`User`** : identité humaine (`email` unique, rôle `admin|developer|agent|readonly`).
-- **mot de passe** : authentification du dashboard humain (JWT) ; ce n'est pas
-  un token machine ni un secret partagé.
-- **`Machine`** : identité technique appartenant à un `User` ; son **token**
-  opaque n'est affiché qu'une seule fois, à sa création.
-- **bootstrap** : le tout premier admin est créé hors-bande (`bootstrap.sh`) ;
-  `register-user.sh` ne le remplace pas et n'ouvre aucune inscription publique.
+La CLI nécessite ensuite l'identité de la machine et la configuration de son
+serveur pour travailler sur un projet. Le mode Desktop supervise son propre
+daemon ; consulter son guide avant de lancer plusieurs instances.
 
-### Inscription publique et récupération de compte (A4, DEC-0109)
+## Provisioning et accès
 
-- **Fermée par défaut** : `STUDIO_PUBLIC_REGISTRATION_ENABLED=false`, et OFF sur
-  toute instance exposée jusqu'au gate C4. Ouverte, elle ne crée que des comptes
-  `readonly`, en attente de vérification e-mail, sans aucun accès projet : un
-  admin accorde ensuite les memberships. La fermer n'affecte aucun compte existant.
-- **E-mails** : `STUDIO_EMAIL_BACKEND` = `disabled` (défaut), `file` (dev local,
-  fichiers `.eml` dans `STUDIO_EMAIL_FILE_DIR`) ou `smtp` (`STUDIO_EMAIL_FROM`,
-  `STUDIO_SMTP_*`, secrets uniquement dans `.env`). Les liens pointent vers
-  `STUDIO_PUBLIC_BASE_URL`. L'API refuse de démarrer sur une configuration
-  incohérente (inscription sans backend, `file` en production, base URL non HTTPS).
-- **Mot de passe** : oublié/réinitialisation dès qu'un backend e-mail existe,
-  changement authentifié toujours ; les deux révoquent toutes les sessions.
-  Contrat : `TECH/02_API_CONTRACT.md`, section Inscription publique.
+Le premier administrateur est créé hors bande via `studio-admin` :
 
+```powershell
+uv run --package studio-api studio-admin bootstrap-admin --display-name ... --email ... --password ...
+```
 
-## Tests
+Sur le serveur Docker, depuis `docker/`, `./bootstrap.sh --create-machine "premier-poste"`
+effectue le bootstrap. Pour les utilisateurs suivants, lancer
+`./register-user.sh` depuis la racine dans un shell POSIX sur le serveur : ce
+script appelle `studio-admin` dans le conteneur API et peut créer une machine.
+Il produit un fichier de credentials contenant des secrets à conserver en lieu sûr.
 
-- Backend : `uv run pytest` (500 passed, 3 skipped au 2026-09-15).
-- Dashboard : `cd dashboard && npm test` (64 passed au 2026-09-15).
-- Lint/format : `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy ...`.
+Un `User` représente l'identité humaine ; son mot de passe sert à la connexion
+au dashboard. Une `Machine` appartient à un utilisateur et possède un token
+technique affiché une seule fois à sa création. Le client a besoin de son UUID
+(`STUDIO_CLIENT_MACHINE_ID`) et de son token. `studio-admin machine list` permet
+de retrouver les UUID ; `machine show` résout un token lu sur l'entrée standard.
 
-## Documentation
+L'ajout par un administrateur n'ouvre pas l'inscription publique. Son activation,
+les e-mails et la récupération de compte doivent être configurés et validés
+selon le [guide de déploiement](docs/Studio_OS_Documentation_Pack/studio_os_docs/HUMAN/04_DEPLOIEMENT_OVH.md).
 
-La documentation complète se trouve dans `docs/Studio_OS_Documentation_Pack/studio_os_docs/`. L'ordre de lecture recommandé pour une IA ou un humain est indiqué dans le fichier d'index.
+## Vérifications
+
+Avant les tests Python, vérifier l'environnement de test :
+
+```powershell
+pwsh scripts/test-env.ps1
+uv run pytest -n 6 -q
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy packages/studio-contracts/src packages/studio-client/src packages/studio-workspaces/src packages/studio-code-graph/src services/api/src services/mcp/src
+uv run --package studio-client studio-client adapters check --repo-root .
+```
+
+`test-env.ps1` vérifie PostgreSQL migré à la dernière révision et MinIO. Il ne
+démarre aucun service et n'applique aucune migration par défaut ; les options
+`-StartServices` et `-Migrate` sont explicites et limitées à une base de test locale.
+Pendant une modification, privilégier les tests ciblés avant la suite complète.
+
+```powershell
+npm --prefix dashboard test
+npm --prefix dashboard run build
+npm --prefix dashboard run check:bundle
+npm --prefix dashboard run test:e2e
+npm --prefix desktop run prereqs
+npm --prefix desktop run test:scripts
+npm --prefix desktop run test:rust
+```
+
+Les tests navigateur du dashboard nécessitent Chromium Playwright
+(`npx playwright install chromium` depuis `dashboard/`). La CI définit ses
+vérifications dans [ci.yml](.github/workflows/ci.yml) ; les commandes ci-dessus
+ne préjugent pas de leur résultat sur une révision donnée.
+
+## Livraison
+
+Le [contrat de release](RELEASE.md) décrit le canal web, les contrôles CI,
+la préparation des notes de version et le déploiement OVH. La version produit
+est portée par `desktop/package.json` ; les versions des paquets Python et du
+dashboard ont une portée distincte. Le guide Desktop décrit ses validations et
+artefacts propres. L'état de préparation publique reste suivi dans le dossier
+canonique de préparation à la publication.

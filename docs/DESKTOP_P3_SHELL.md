@@ -48,5 +48,5 @@ L'état du daemon vient de `daemon.status` (P1, `DaemonRunState` + codes d'erreu
 
 - Les dialogues natifs (`choose_folder`/`choose_file`) ne sont pas automatisables en E2E ; couverts par tests unitaires Rust/TS et par le refus ACL/typage.
 - P1 n'expose aucune commande de diagnostic/journaux : l'entrée « Ouvrir les journaux » est visible mais désactivée (« Non disponible dans cette version ») — P4.
-- `local-contracts.generated.ts` : la dérive CRLF observée sous Windows est résolue en Wave 1 (`.gitattributes` + comparaison canonique LF), voir `DESKTOP_WAVE1_INTEGRATION.md`.
+- `local-contracts.generated.ts` : la dérive CRLF observée sous Windows est résolue en Wave 1 (`.gitattributes` + comparaison canonique LF), voir `archive/DESKTOP_WAVE1_INTEGRATION.md`.
 - E2E `scripts/e2e.mjs` (P2, avec Postgres + sidecar) non rejoué dans ce lot.
