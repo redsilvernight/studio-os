@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
 
+    # Launch expiry (DEC-0173 base). An overdue non-terminal launch whose
+    # linked work session is still open with activity newer than this window
+    # is prolonged by this window instead of being expired; past it, the
+    # server expires the launch and closes the session + releases claims.
+    launch_activity_grace_seconds: int = Field(default=900, ge=60, le=86400)
+
     # Session presence (C1, DEC-0157): derived at read from last_activity_at,
     # never stored, never a heartbeat. A session with no activity past the
     # idle threshold reads `idle`; past the expire threshold it reads

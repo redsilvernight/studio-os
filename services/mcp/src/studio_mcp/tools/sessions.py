@@ -107,7 +107,7 @@ async def studio_start_session(
             parsed_agent_id = parsed
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
-        await sessions_service.authorize_start(session, principal, parsed_task_id)
+        await sessions_service.authorize_start(session, principal, parsed_task_id, parsed_agent_id)
 
         async def _create() -> dict[str, Any]:
             work_session = await sessions_service.start_session(

@@ -19,6 +19,9 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     # Own: user-private runtime registry and the caller's own machine agents.
     "studio_register_runtime": "own",
     "studio_register_agent": "own",
+    "studio_resolve_agent_identity": "own",
+    "studio_supersede_agent_identity": "own",
+    "studio_discover_capabilities": "own",
     "studio_pull_pending_launches": "own",
     # Project: every other tool reads or writes project data (lists filtered).
     "studio_get_projects": _P,
@@ -74,6 +77,8 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_delete_transfer": _P,
     "studio_resolve_agent": _P,
     "studio_discover_definitions": _P,
+    "studio_preview_dependency_updates": _P,
+    "studio_preview_work_profile_pack": _P,
     "studio_publish_definition": _P,
     "studio_configure_runtime": _P,
 }

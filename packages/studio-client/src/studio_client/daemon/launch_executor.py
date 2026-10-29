@@ -29,8 +29,8 @@ from studio_contracts.task_launch import (
     TaskLaunchStatus,
 )
 
-from studio_client.agent_identity import model_agent_create
 from studio_client.api_client import StudioApiClient
+from studio_client.daemon.execution_evidence import collect_execution_evidence
 from studio_client.daemon.launch_policy import LaunchProfile, enforce_profile, run_diagnostics
 from studio_client.daemon.launch_prepare import (
     LaunchPreparer,
@@ -50,7 +50,7 @@ from studio_client.daemon.launch_runner import (
 )
 from studio_client.daemon.launch_snapshot import SnapshotInputs, build_snapshot_payload
 from studio_client.errors import StudioApiError
-from studio_client.harness.base import AccessMode, HarnessAdapter, HarnessContext
+from studio_client.harness.base import AccessMode, AdapterRefusal, HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
 from studio_client.usage.collectors import RunObservation
@@ -215,6 +215,16 @@ class LaunchExecutor:
                 )
                 return
             mode = enforcement.mode
+            safety_argv = resolved.adapter.headless_safety_argv(
+                allow_production=(
+                    launch.allow_production
+                    and (
+                        resolved.profile is None
+                        or {"execute", "network"}.issubset(resolved.profile.permissions)
+                    )
+                ),
+                mode=mode,
+            )
             self._reporter.report(launch, TaskLaunchStatus.PREPARING)
             prepared = await asyncio.to_thread(
                 self._preparer.prepare,
@@ -241,6 +251,7 @@ class LaunchExecutor:
                 task_id=launch.task_id,
                 agent_id=agent_id,
                 agent_stable_key=launch.agent_stable_key,
+                allow_production=launch.allow_production,
             )
             credential = await self._client.issue_launch_credential(launch.id)
             with tempfile.TemporaryDirectory(
@@ -262,6 +273,7 @@ class LaunchExecutor:
                         ctx, model=model, isolation_dir=isolation_dir, mode=mode
                     ),
                 )
+                argv += safety_argv
                 self._reporter.report(launch, TaskLaunchStatus.RUNNING)
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running
@@ -286,6 +298,13 @@ class LaunchExecutor:
                     else None
                 ),
             )
+        except AdapterRefusal as error:
+            self._reporter.report(
+                launch,
+                TaskLaunchStatus.FAILED,
+                reason_code=TaskLaunchReasonCode.PREPARATION_FAILED,
+                output_excerpt=f"[studio:safety_refused] reason={error.reason}",
+            )
         except LaunchError as error:
             logger.warning("launch could not start: %s", error.reason)
             self._reporter.report(
@@ -307,7 +326,7 @@ class LaunchExecutor:
             self._tasks.pop(launch.id, None)
 
     async def _ensure_launch_agent(self, harness_id: str, model: str | None) -> UUID:
-        agent_in = model_agent_create(model) or AgentCreate(
+        agent_in = AgentCreate(
             display_name=f"studio-{harness_id}",
             harness=harness_id,
             stable_key=f"agents-ensure-{harness_id}",
@@ -438,10 +457,16 @@ class LaunchExecutor:
         # Diagnostics read the raw harness output (JSON included); the excerpt
         # shows the collector's readable result when there is one.
         diagnostics = run_diagnostics(result.output)
+        evidence = collect_execution_evidence(
+            result.output, exit_code=result.exit_code, truncated=result.truncated
+        )
+        command_codes = ",".join(str(code) for code in evidence.command_exit_codes) or "none"
         header = (
-            f"[studio:launch_diagnostics] mode={mode.value} {' '.join(diagnostics)}\n"
-            if diagnostics
-            else ""
+            f"[studio:launch_diagnostics] mode={mode.value} exit_code={result.exit_code} "
+            f"validation={evidence.validation} observed_commands={evidence.observed_commands} "
+            f"failed_commands={evidence.failed_commands} failed_tools={evidence.failed_tools} "
+            f"command_exit_codes={command_codes} "
+            f"evidence_truncated={str(evidence.truncated).lower()} {' '.join(diagnostics)}\n"
         )
         body = self._excerpt(result.output if display is None else display, extra_secrets)
         excerpt = (header + body)[: self._max_chars]
@@ -454,7 +479,11 @@ class LaunchExecutor:
             )
         elif result.cancelled:
             return
-        elif result.exit_code == 0 and "forbidden_operation" not in diagnostics:
+        elif (
+            result.exit_code == 0
+            and not evidence.failed
+            and "forbidden_operation" not in diagnostics
+        ):
             self._reporter.report(launch, TaskLaunchStatus.SUCCEEDED, output_excerpt=excerpt)
         else:
             self._reporter.report(

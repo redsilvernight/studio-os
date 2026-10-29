@@ -9,10 +9,16 @@ from mcp.types import ToolAnnotations
 from studio_mcp.deprecation import deprecated, deprecated_description
 from studio_mcp.strict_args import enforce_strict_arguments
 from studio_mcp.tool_profiles import ToolProfileMiddleware
-from studio_mcp.tools.agents import studio_register_agent
+from studio_mcp.tools.agents import (
+    studio_register_agent,
+    studio_resolve_agent_identity,
+    studio_supersede_agent_identity,
+)
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
     studio_discover_definitions,
+    studio_preview_dependency_updates,
+    studio_preview_work_profile_pack,
     studio_publish_definition,
     studio_register_runtime,
     studio_resolve_agent,
@@ -33,6 +39,7 @@ from studio_mcp.tools.decisions import (
     studio_get_decisions,
     studio_supersede_decision,
 )
+from studio_mcp.tools.discovery import studio_discover_capabilities
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.initialization import (
@@ -138,7 +145,8 @@ def create_server() -> MCPServer:
         name="studio_get_active_tasks",
         description=(
             "List active (created/in_progress/blocked) tasks for a project_id (UUID string) — "
-            "read-only."
+            "read-only. Up to 100 by default, with returned/additional_available counts; "
+            "optional limit, title_prefix and fields narrow the response."
         ),
         annotations=_READ_ONLY,
     )
@@ -371,7 +379,8 @@ def create_server() -> MCPServer:
             "task_id: claims the task (idempotent) + resumes or creates the agent's open "
             "session on it + returns the scoped project context. Without task_id: the project "
             "context plus candidate tasks (current-step linked first, then other unclaimed), "
-            "claiming nothing. agent_id must belong to the caller's machine (actor_not_owned "
+            "claiming nothing. agent_id must belong to the caller's user or legacy machine "
+            "(actor_not_owned "
             "otherwise). Requires a writer role. Pass idempotency_key when retrying a call "
             "that may have already succeeded — replaying the same key+arguments returns the "
             "original result, never a duplicate claim nor a duplicate session; the same key "
@@ -382,17 +391,22 @@ def create_server() -> MCPServer:
         studio_handoff,
         name="studio_handoff",
         description=(
-            "Close a work session in one call (L3 handoff). project_id, session_id (UUID "
-            "strings) and expected_version are required. task_status (e.g. completed, blocked) "
+            "Close a work session in one call (L3 handoff). project_id and session_id (UUID "
+            "strings) are required; expected_version is required when changing task_status. "
+            "task_status (e.g. completed, blocked) "
             "optionally updates the task. agent_id + summary optionally logs an AI work entry "
-            "linked to the session. agent_id must belong to the caller's machine. Caller-generated "
+            "linked to the session. agent_id must belong to the caller's user or legacy machine. "
+            "Caller-generated "
             "idempotency_key makes the call replay-safe: the same key returns the original result "
             "instead of running the composite again — a duplicate call returns the original result "
             "without a second status update, duplicate claim releases, duplicate AI work entry, or "
             "second session end. coordination_text (<=280 chars) optionally emits a "
             "coordination.handoff signal on the task for its next session (delivered via "
             "studio_sync, never re-emitted on replay). The response also carries the last bounded "
-            "sync block and the task's handoff_cursor_seq. Requires a writer role."
+            "sync block and the task's handoff_cursor_seq. Optional completion evidence separates "
+            "code, audit, diagnostic and operation checks; incomplete validation refuses completed "
+            "with completion_incomplete. Evidence requires agent_id and summary for its work log. "
+            "Requires a writer role."
         ),
         annotations=_IDEMPOTENT_WRITE,
     )
@@ -488,6 +502,42 @@ def create_server() -> MCPServer:
             "the original agent instead of a duplicate; the same key with different "
             "arguments fails with idempotency_key_payload_mismatch."
         ),
+    )
+    server.add_tool(
+        studio_discover_capabilities,
+        name="studio_discover_capabilities",
+        description=(
+            "Que peux-tu faire avec Studi'OS ? Comment démarrer mon projet ? "
+            "Qu'est-ce qui manque dans ma configuration ? Read-only product discovery "
+            "adapted to caller rights and machine reports. intent: overview, start_project "
+            "or configuration. Compact first (limit1..24, default6); pass key for examples, "
+            "prerequisites and restrictions. Product features, not library definitions."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_resolve_agent_identity,
+        name="studio_resolve_agent_identity",
+        description=(
+            "Resolve or create the authenticated user's durable provenance identity for "
+            "a logical harness, provider and observed effective_model. Desktop/CLI aliases "
+            "share logical harness identity; machine attribution stays on executions. "
+            "selection_alias never supplies the effective model. Missing model/provider "
+            "returns state=unknown and creates nothing. Requires writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        studio_supersede_agent_identity,
+        name="studio_supersede_agent_identity",
+        description=(
+            "Link a former agent identity to its canonical row: explicit and reversible, "
+            "never a merge — the former row keeps its machine, metadata, stable key and "
+            "history and only gains superseded_by_agent_id. Admin, or the caller must own "
+            "both the former row's machine and the canonical identity. Repeating a link "
+            "fails with already_superseded."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_log_ai_work,
@@ -678,7 +728,7 @@ def create_server() -> MCPServer:
             "fail with invalid_event_type. Identity is validated against the caller's "
             "authenticated machine: omit machine_id (derived automatically), use actor_type user "
             "with the machine "
-            "owner's user id, agent with an agent attached to the caller's own machine, or system "
+            "owner's user id, agent owned by the caller's user or legacy machine, or system "
             "with the machine's own id — anything else fails with machine_id_mismatch, "
             "actor_id_mismatch or actor_not_owned. No agent identity is needed: user and system "
             "actors are fully supported. Pass a stable event_id (UUID string) when this call might "
@@ -767,6 +817,16 @@ def create_server() -> MCPServer:
             "private definitions are silently omitted and fail with definition_not_found, "
             "never forbidden."
         ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_preview_work_profile_pack,
+        name="studio_preview_work_profile_pack",
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_preview_dependency_updates,
+        name="studio_preview_dependency_updates",
         annotations=_READ_ONLY,
     )
     server.add_tool(

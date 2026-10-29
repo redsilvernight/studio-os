@@ -138,7 +138,7 @@ export function agentDisplayName(agent: Agent): string {
  * intactes pour l'historique, jamais réécrites. */
 export function isLegacyAgentIdentity(agent: Agent): boolean {
   const key = agent.stable_key ?? "";
-  return key.startsWith("launch-agent-") || (key.startsWith("agents-ensure-") && key.includes(":"));
+  return key.startsWith("launch-agent-") || key.startsWith("agent-model:") || (key.startsWith("agents-ensure-") && key.includes(":"));
 }
 
 /** Rapprochement contrôlé : nombre d'autres fiches du même modèle sur le
@@ -153,11 +153,12 @@ export function agentDuplicateCount(agent: Agent, all: Agent[]): number {
 
 /** Mention d'identité pour la liste et la fiche ; null quand rien à signaler. */
 export function agentIdentityNote(agent: Agent, all: Agent[]): string | null {
+  if (agent.owner_user_id) return `Identité durable · ${agent.harness ?? "harnais"}`;
   const duplicates = agentDuplicateCount(agent, all);
   if (isLegacyAgentIdentity(agent)) {
     return duplicates > 0
       ? `Ancienne identité · ${duplicates} autre(s) fiche(s) de ce modèle sur ce poste`
-      : "Ancienne identité (par outil)";
+      : "Ancienne identité";
   }
   if (agentModelName(agent) === null && (agent.harness ?? "").trim() !== "") return "Modèle inconnu";
   return duplicates > 0 ? `${duplicates} autre(s) fiche(s) de ce modèle sur ce poste` : null;
@@ -620,7 +621,9 @@ export function agentDetailHtml(
       : `<ul class="ds-list">${ownSessions.map((session) => sessionRowHtml(session, names)).join("")}</ul>`) +
     `</div></section>` +
     `<section class="ds-panel" aria-label="Environnement"><header><h2>Environnement</h2></header><div class="body">` +
-    `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>` +
+    (agent.owner_user_id
+      ? `<p>Identité réutilisable sur les postes autorisés de cet utilisateur. La machine d'exécution figure dans chaque session.</p>`
+      : `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>`) +
     `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
     `<p class="ds-list-sub">Aucune définition d'agent n'est associée : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Bibliothèque</a>. Aucune configuration runtime détaillée ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
     `</div></section>` +

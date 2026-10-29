@@ -8,6 +8,50 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+it.each(["", "coding", "architecture-read-only"])("transmet le profil choisi %s sans élargir l'autorisation de production", async (profileKey) => {
+  const task = { id: "task", project_id: "project", title: "Profil", status: "created", version: 1,
+    description: "", claimed_by_machine_id: null, claimed_by_agent_id: null,
+    created_at: "2026-10-28T10:00:00Z", updated_at: "2026-10-28T10:00:00Z" };
+  const ok = (data: unknown) => ({ data, response: new Response(null, { status: 200 }) });
+  const get = vi.fn(async (path: string) => {
+    if (path === "/api/v1/tasks/{task_id}") return ok(task);
+    if (path.includes("eligible-machines")) return ok({ machines: [{ machine_id: "machine", display_name: "Poste", eligible: true, status: "online", free_slots: 1,
+      harnesses: [{ harness_id: "claude-code", detected: true, configured: true }] }] });
+    if (path === "/api/v1/library") return ok([{ stable_key: "review-helper", deprecated: false }]);
+    if (path === "/api/v1/projects/{project_id}/task-launches") return ok({ items: [] });
+    if (path.includes("usage") || path.includes("snapshot")) return { response: new Response(null, { status: 404 }) };
+    return ok([]);
+  });
+  const post = vi.fn(async () => ({ response: new Response(null, { status: 403 }) }));
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  const root = document.createElement("div");
+  document.body.append(root);
+  await renderTaskDetail(root, { client: { GET: get, POST: post } as unknown as StudioClient, authed: true, identity: null }, task.id);
+  const choose = (id: string, value: string) => {
+    const select = root.querySelector<HTMLSelectElement>(`#${id}`)!;
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  choose("launch-machine", "machine");
+  choose("launch-harness", "claude-code");
+  const production = root.querySelector<HTMLInputElement>("#launch-production")!;
+  production.checked = true;
+  production.dispatchEvent(new Event("change", { bubbles: true }));
+  choose("launch-profile", profileKey);
+  expect(root.querySelector<HTMLInputElement>("#launch-production")!.checked).toBe(false);
+  if (profileKey) expect(root.querySelector<HTMLButtonElement>("[data-action=launch-submit]")!.disabled).toBe(true);
+  choose("launch-agent", "review-helper");
+  root.querySelector<HTMLButtonElement>("[data-action=launch-submit]")!.click();
+  await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  const call = post.mock.calls[0] as unknown as [string, { body: Record<string, unknown> }];
+  expect(call[0]).toBe("/api/v1/projects/{project_id}/task-launches");
+  expect(call[1].body.allow_production).toBe(false);
+  expect(call[1].body.agent_stable_key).toBe("review-helper");
+  if (profileKey) expect(call[1].body.profile_key).toBe(profileKey);
+  else expect(call[1].body).not.toHaveProperty("profile_key");
+  expect(confirm).toHaveBeenCalledTimes(1);
+});
+
 it("Actualiser l'état recharge la tâche, le protocole, les sessions et le handoff", async () => {
   let handedOff = false;
   const task = { id: "task", project_id: "project", title: "Tâche initiale", status: "in_progress", version: 1,

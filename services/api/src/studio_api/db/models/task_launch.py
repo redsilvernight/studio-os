@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -61,6 +61,7 @@ class TaskLaunchModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     replay_basis: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), default=None
     )
+    allow_production: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     profile_key: Mapped[str | None] = mapped_column(String(64), default=None)
     profile_contract_version: Mapped[int | None] = mapped_column(Integer, default=None)
     profile_digest: Mapped[str | None] = mapped_column(String(71), default=None)

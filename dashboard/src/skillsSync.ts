@@ -13,6 +13,7 @@ import {
   configureSkillsSync,
   getSkillsSyncStatus,
   previewSkills,
+  skillsPreviewErrorMessage,
   SYNC_STATE_LABELS,
   SYNC_STATE_LEVELS,
   SYNC_STATE_MESSAGES,
@@ -229,7 +230,7 @@ async function loadPreview(platform: Platform): Promise<void> {
   } else {
     preview = null;
     choices.clear();
-    previewIssue = outcome ? harnessErrorMessage(outcome.error) : "Impossible de charger les versions. Vérifiez la connexion puis réessayez.";
+    previewIssue = outcome ? skillsPreviewErrorMessage(outcome.error) : "Impossible de charger les versions. Vérifiez la connexion puis réessayez.";
   }
   confirming = false;
   renderDetail(platform);

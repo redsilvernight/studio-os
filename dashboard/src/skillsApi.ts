@@ -14,8 +14,9 @@ import type {
   SkillsPreviewResult,
   SkillsSyncStatus,
   SkillResolution,
+  LocalError,
 } from "./platform/generated/local-contracts.generated";
-import { call, type HarnessOutcome } from "./harnessApi";
+import { call, harnessErrorMessage, type HarnessOutcome } from "./harnessApi";
 
 export type { SkillHarnessTarget, SkillSyncState, SkillsCheckResult };
 
@@ -50,6 +51,21 @@ export function getSkillsSyncStatus(platform: Platform): Promise<HarnessOutcome<
 
 export function previewSkills(platform: Platform): Promise<HarnessOutcome<SkillsPreviewResult>> {
   return call(platform, "skills.preview", {});
+}
+
+export function skillsPreviewErrorMessage(error: LocalError): string {
+  if (error.code === "secret_absent" || error.code === "secret_revoked") {
+    return "Impossible de charger les versions : reconnectez ce poste à Studi'OS.";
+  }
+  if (error.code === "internal_error") {
+    return error.retryable
+      ? "Impossible de charger les versions de la Library : le serveur est temporairement indisponible ou trop sollicité. Patientez un instant puis réessayez."
+      : "Impossible de charger les versions de la Library. Réessayez ; si le problème persiste, consultez les diagnostics de l'assistant local.";
+  }
+  if (["daemon_unavailable", "capability_missing", "not_supported", "permission_denied"].includes(error.code)) {
+    return `Impossible de charger les versions. ${harnessErrorMessage(error)}`;
+  }
+  return "Impossible de charger les versions. Vérifiez la connexion puis réessayez.";
 }
 
 export function applySkills(platform: Platform, selection: boolean | readonly SkillResolution[] = false): Promise<HarnessOutcome<SkillsApplyResult>> {

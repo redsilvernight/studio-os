@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -14,14 +15,18 @@ from studio_contracts.events import EventCreate, EventType
 from studio_contracts.library import (
     BindingRelation,
     DependencyPin,
+    DependencyUpdate,
+    DependencyUpdates,
     LibraryKind,
     LibraryLockCreate,
     LibraryProjectLock,
     LibraryResolution,
     LibraryResourceCreate,
     LibraryScope,
+    LibraryStatus,
     LibraryVersion,
     LibraryVersionCreate,
+    ResourceDependencyPin,
     VersionOrigin,
     binding_relation_for,
     binding_scope_allows,
@@ -179,6 +184,8 @@ async def _resolve_pin(
         LibraryResourceModel.kind == pin.kind.value,
         LibraryResourceModel.stable_key == pin.stable_key,
     )
+    if isinstance(pin, ResourceDependencyPin):
+        stmt = stmt.where(LibraryResourceModel.id == pin.resource_id)
     rows = (await session.execute(stmt)).scalars().all()
     candidates = [r for r in rows if _can_read(principal, r)]
     if not candidates:
@@ -233,7 +240,7 @@ async def _create_version_row(
     title: str,
     description: str | None,
     content: dict[str, Any],
-    dependencies: list[DependencyPin],
+    dependencies: Sequence[DependencyPin],
 ) -> LibraryResourceVersionModel:
     # P3/DEC-0066: per-kind semantic validation, applied identically to the
     # initial version and every later one. Both callers (`create_resource`,
@@ -590,6 +597,76 @@ async def deprecate_resource(
             {"version": resource.active_version},
         )
     return resource
+
+
+async def preview_dependency_updates(
+    session: AsyncSession,
+    principal: Principal,
+    resource_id: UUID,
+    version: int,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+) -> DependencyUpdates:
+    if not 1 <= limit <= 100 or offset < 0:
+        raise HTTPException(422, detail={"error_code": "invalid_argument"})
+    resource = await get_resource(session, principal, resource_id)
+    if resource is None:
+        raise HTTPException(404, detail={"error_code": "resource_not_found"})
+    source = await _version_row(session, resource.id, version)
+    if source is None:
+        raise HTTPException(404, detail={"error_code": "version_not_found"})
+    total = (
+        await session.execute(
+            select(func.count())
+            .select_from(LibraryResourceLinkModel)
+            .where(LibraryResourceLinkModel.from_version_id == source.id)
+        )
+    ).scalar_one()
+    links = (
+        (
+            await session.execute(
+                select(LibraryResourceLinkModel)
+                .where(LibraryResourceLinkModel.from_version_id == source.id)
+                .order_by(LibraryResourceLinkModel.to_resource_id)
+                .offset(offset)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    items = []
+    for link in links:
+        target = await session.get(LibraryResourceModel, link.to_resource_id)
+        if target is None or not _can_read(principal, target):
+            raise HTTPException(404, detail={"error_code": "pin_not_found"})
+        deprecated = target.status == LibraryStatus.DEPRECATED.value
+        available = not deprecated and target.active_version > link.to_version
+        items.append(
+            DependencyUpdate(
+                resource_id=target.id,
+                scope=LibraryScope(target.scope),
+                pinned_version=link.to_version,
+                active_version=target.active_version,
+                deprecated=deprecated,
+                update_available=available,
+                suggested_pin=ResourceDependencyPin(
+                    resource_id=target.id,
+                    kind=LibraryKind(target.kind),
+                    stable_key=target.stable_key,
+                    version=target.active_version if available else link.to_version,
+                    relation=BindingRelation(link.relation),
+                ),
+            )
+        )
+    return DependencyUpdates(
+        resource_id=resource.id,
+        version=version,
+        items=items,
+        offset=offset,
+        additional_available=max(0, total - offset - len(items)),
+    )
 
 
 async def list_versions(

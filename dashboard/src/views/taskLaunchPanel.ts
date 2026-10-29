@@ -16,6 +16,7 @@ import { machineLabel } from "../actorNames";
 import { esc, fmtTime } from "../ui";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
+import { DEFAULT_LAUNCH_TTL_SECONDS, LAUNCH_TTL_CHOICES } from "../taskLaunchesApi";
 import { taskStatusLabel } from "../taskStatus";
 import type { UsageSummary } from "../usageApi";
 import { usageTotalText } from "./usage";
@@ -75,6 +76,10 @@ export interface LaunchPanelState {
   selectedMachineId: string;
   selectedHarnessId: string;
   agentStableKey: string;
+  profileKey?: string;
+  /** Délai avant expiration envoyé au serveur ; absent = défaut serveur (2 h). */
+  expiresInSeconds?: number;
+  allowProduction?: boolean;
   preview: ResolvedAgentDefinition | null;
   previewLoading: boolean;
   previewError: string;
@@ -209,6 +214,7 @@ const REASON_FR: Record<IneligibilityReason, string> = {
   owner_no_project_access: "propriétaire sans accès au projet",
   project_not_registered: "projet non enregistré sur le poste",
   launches_not_accepted: "lancements non acceptés sur le poste",
+  launch_safety_unsupported: "mise à jour du poste requise pour les lancements protégés",
   harness_incompatible: "harnais incompatible",
   at_capacity: "capacité atteinte",
 };
@@ -285,6 +291,35 @@ function agentOptions(state: LaunchPanelState, data: LaunchPanelData): string {
   return `<option value="">— Aucun agent (facultatif) —</option>${rows.join("")}`;
 }
 
+/** Choix du délai avant expiration : le serveur reste l'autorité, ce select
+ * envoie juste `expires_in_seconds` ; sans choix, le défaut serveur (2 h). */
+export function launchTtlOptions(state: LaunchPanelState): string {
+  const current = state.expiresInSeconds ?? DEFAULT_LAUNCH_TTL_SECONDS;
+  return LAUNCH_TTL_CHOICES.map(
+    (choice) =>
+      `<option value="${choice.seconds}"${choice.seconds === current ? " selected" : ""}>${esc(choice.label)}</option>`,
+  ).join("");
+}
+
+export const LAUNCH_PROFILES = [
+  { key: "coding", label: "Développement", permissions: "lecture, écriture, commandes, lancement" },
+  { key: "architecture-read-only", label: "Architecture en lecture seule", permissions: "lecture" },
+] as const;
+
+export function validLaunchProfile(state: Pick<LaunchPanelState, "profileKey" | "agentStableKey">): boolean {
+  return !state.profileKey || (state.agentStableKey !== "" && LAUNCH_PROFILES.some((profile) => profile.key === state.profileKey));
+}
+
+function launchProfileHtml(state: LaunchPanelState): string {
+  const profile = LAUNCH_PROFILES.find((item) => item.key === state.profileKey);
+  const options = `<option value="">— Mode actuel (sans profil) —</option>` + LAUNCH_PROFILES.map((item) =>
+    `<option value="${item.key}"${item.key === state.profileKey ? " selected" : ""}>${item.label}</option>`,
+  ).join("");
+  return dsField("launch-profile", "Profil de travail", `<select class="ds-select" id="FIELD">${options}</select>`) +
+    (profile ? `<p class="ds-list-sub">Permissions demandées : ${profile.permissions}. Le poste cible applique sa politique locale et peut refuser le lancement.</p>` : "") +
+    (state.profileKey && state.agentStableKey === "" ? `<p class="ds-notice ds-notice--warning" role="status">Choisissez un agent pour utiliser un profil.</p>` : "");
+}
+
 export function previewLines(resolved: ResolvedAgentDefinition): string[] {
   const lines: string[] = [];
   lines.push(`Agent ${resolved.agent.stable_key} v${resolved.agent.version}${resolved.agent.deprecated ? " (obsolète)" : ""}`);
@@ -319,7 +354,7 @@ function previewHtml(state: LaunchPanelState): string {
     return `<p class="ds-list-sub">Choisissez un agent puis affichez la configuration de lancement avant de lancer.</p>`;
   }
   const lines = previewLines(state.preview);
-  return `<ul class="ds-list" data-testid="launch-preview-list">${lines
+  return `<p class="ds-list-sub">Résolution côté serveur. Les fichiers, hooks et serveurs MCP effectivement chargés dépendent du poste cible et ne sont pas vérifiés par cet aperçu.</p><ul class="ds-list" data-testid="launch-preview-list">${lines
     .map((line) => `<li class="ds-list-item"><div class="grow">${esc(line)}</div></li>`)
     .join("")}</ul>`;
 }
@@ -350,6 +385,7 @@ export function latestHtml(state: LaunchPanelState): string {
   const details = [
     `Poste ${esc(latest.machine_id)}`,
     `Harnais ${esc(latest.harness_id)}`,
+    latest.allow_production ? "Production autorisée pour ce lancement" : "Mode protégé",
     latest.agent_stable_key ? `Agent ${esc(latest.agent_stable_key)}` : "Sans agent",
   ];
   if (latest.reason_code !== "none") details.push(`Motif ${esc(launchReasonCodeLabel(latest.reason_code))}`);
@@ -380,10 +416,19 @@ export function launchConfirmText(
   machine: MachineEligibility | null,
   harnessId: string,
   agentStableKey: string,
+  allowProduction = false,
+  profileKey = "",
 ): string {
   const agent = agentStableKey === "" ? "sans agent résolu" : `avec l'agent « ${agentStableKey} »`;
+  const profile = LAUNCH_PROFILES.find((item) => item.key === profileKey);
   return (
     `Lancer cette tâche sur « ${machine?.display_name ?? "?"} » (harnais ${harnessId || "?"}, ${agent}) ? ` +
+    (profile ? `Profil « ${profile.label} » : permissions demandées ${profile.permissions}. ` : "") +
+    (profileKey === "architecture-read-only"
+      ? `Le profil demande uniquement la lecture ; les permissions effectives restent limitées par le poste cible. `
+      : allowProduction
+      ? `Vous autorisez explicitement les commandes et les actions de production pour ce lancement uniquement. `
+      : `Mode protégé : édition locale uniquement, sans exécution de commandes. `) +
     `Le poste cible décide localement (opt-in, projet enregistré) et rapporte l'exécution ; le statut affiché ne vient que de lui.`
   );
 }
@@ -743,8 +788,7 @@ export function replayPreviewHtml(replay: TaskLaunchReplayPreview | null | undef
     `<ul>${limits}</ul>${diffBlock}</div>`;
 }
 
-export function launchPanelHtml(state: LaunchPanelState): string {
-  const header = dsSectionHeader("Lancer sur…");
+export function launchPanelHtml(state: LaunchPanelState): string {  const header = dsSectionHeader("Lancer sur…");
   const intro =
     `<p class="ds-list-sub">Le lancement reste une demande : le poste choisi la récupère dès qu'il est disponible, l'exécute localement, puis rapporte l'état réel.</p>`;
 
@@ -761,7 +805,7 @@ export function launchPanelHtml(state: LaunchPanelState): string {
   const data = state.data;
   const machine = selectedMachine(state);
   const canPreview = state.agentStableKey !== "" && !state.previewLoading;
-  const canLaunch = machine !== null && machine.eligible && state.selectedHarnessId !== "";
+  const canLaunch = machine !== null && machine.eligible && state.selectedHarnessId !== "" && validLaunchProfile(state);
   const notice = state.notice === "" ? "" : `<p class="ds-notice ds-notice--info" role="status">${esc(state.notice)}</p>`;
   const error = state.error === "" ? "" : `<p class="ds-notice ds-notice--danger" role="alert">${esc(state.error)}</p>`;
 
@@ -770,6 +814,11 @@ export function launchPanelHtml(state: LaunchPanelState): string {
     dsField("launch-machine", "Poste cible", `<select class="ds-select" id="FIELD">${machineOptions(state, data)}</select>`) +
     dsField("launch-harness", "Harnais", `<select class="ds-select" id="FIELD">${harnessOptions(state, machine)}</select>`) +
     dsField("launch-agent", "Agent à résoudre (facultatif)", `<select class="ds-select" id="FIELD">${agentOptions(state, data)}</select>`) +
+    launchProfileHtml(state) +
+    dsField("launch-ttl", "Délai avant expiration", `<select class="ds-select" id="FIELD">${launchTtlOptions(state)}</select>`) +
+    `<p class="ds-list-sub">Passé ce délai sans activité de la session liée, le lancement expire et le serveur clôt la session et libère ses revendications.</p>` +
+    `<label class="ds-checkbox"><input type="checkbox" id="launch-production"${state.allowProduction ? " checked" : ""}> Autoriser les commandes et les actions de production pour ce lancement</label>` +
+    `<p class="ds-list-sub">Sans autorisation : édition locale uniquement, sans exécution de commandes. Un agent incompatible avec ce mode est refusé.</p>` +
     `<div class="tasks-footer">` +
     `<button class="ds-btn" type="button" data-action="launch-preview"${canPreview ? "" : " disabled"}>Afficher la configuration de lancement</button>` +
     `<button class="ds-btn ds-btn--primary" type="button" data-action="launch-submit"${canLaunch ? "" : " disabled"}>Lancer sur cette machine</button>` +

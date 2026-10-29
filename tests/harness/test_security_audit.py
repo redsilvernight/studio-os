@@ -77,7 +77,7 @@ def test_39_network_confidentiality_no_config_files_in_mcp_calls(tmp_path: Path)
 def test_40_bridge_security_allowlist_only():
     """§40: Bridge must only allow allowlisted commands.
 
-    Verified by: allowlist.json only contains 37 commands, none are generic primitives.
+    Verified by: allowlist.json contains explicit commands, none are generic primitives.
     Bridge validates every request against allowlist before dispatch.
     """
     from studio_contracts.local.bridge import (
@@ -86,11 +86,7 @@ def test_40_bridge_security_allowlist_only():
         BridgeCommand,
     )
 
-    # All commands must be in allowlist
-    # 31 original + knowledge.init_vault + harness.verify + identity.enroll (DEC-0130)
-    # + setup.plan / setup.apply (Configurer ce poste) + outbox.legacy_status
-    # + identity.forget + hooks.check + skills.preview / apply / status / configure
-    assert len(BRIDGE_COMMANDS) == 47
+    assert len(BRIDGE_COMMANDS) == 48
 
     # No command should contain forbidden primitives
     for cmd in BridgeCommand:

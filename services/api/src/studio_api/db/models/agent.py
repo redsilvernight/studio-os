@@ -13,10 +13,20 @@ class AgentModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     __tablename__ = "agents"
     __table_args__ = (
         UniqueConstraint("machine_id", "stable_key", name="uq_agents_machine_stable_key"),
+        UniqueConstraint("owner_user_id", "stable_key", name="uq_agents_user_stable_key"),
     )
 
     machine_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("machines.id"), default=None
+    )
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", name="fk_agents_identity_owner"), default=None
+    )
+    superseded_by_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("agents.id", name="fk_agents_superseded_by"),
+        index=True,
+        default=None,
     )
     display_name: Mapped[str]
     agent_kind: Mapped[str]

@@ -15,6 +15,21 @@ import type { components } from "./openapi-schema";
 
 export type TaskLaunch = components["schemas"]["TaskLaunch"];
 export type TaskLaunchCreate = components["schemas"]["TaskLaunchCreate"];
+
+/**
+ * Délai avant expiration d'un lancement (tâche 63a909ea). Le serveur applique
+ * `LAUNCH_DEFAULT_TTL_SECONDS` (2 h) quand le client n'envoie rien ; l'UI
+ * propose un choix explicite plutôt que de coder une valeur en dur.
+ */
+export const LAUNCH_TTL_CHOICES: ReadonlyArray<{ seconds: number; label: string }> = [
+  { seconds: 1800, label: "30 minutes" },
+  { seconds: 3600, label: "1 heure" },
+  { seconds: 7200, label: "2 heures (recommandé)" },
+  { seconds: 14400, label: "4 heures" },
+  { seconds: 28800, label: "8 heures" },
+  { seconds: 86400, label: "24 heures (maximum)" },
+];
+export const DEFAULT_LAUNCH_TTL_SECONDS = 7200;
 export type TaskLaunchStatus = components["schemas"]["TaskLaunchStatus"];
 export type TaskLaunchReasonCode = components["schemas"]["TaskLaunchReasonCode"];
 export type TaskLaunchProtocol = components["schemas"]["TaskLaunchProtocol"];

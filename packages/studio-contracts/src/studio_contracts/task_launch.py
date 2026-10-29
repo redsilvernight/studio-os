@@ -25,7 +25,9 @@ from studio_contracts.profiles import LaunchProfilePin
 from studio_contracts.task_launch_replay import TaskLaunchReplayBasis, TaskLaunchReplayConfirmation
 from studio_contracts.tasks import TaskStatus
 
-LAUNCH_DEFAULT_TTL_SECONDS = 900
+LAUNCH_DEFAULT_TTL_SECONDS = 7200
+"""Default expiry (task 63a909ea): 2 h — 15 min killed real work sessions
+mid-run. Still bounded by LAUNCH_MAX_TTL_SECONDS; see TECH/02."""
 LAUNCH_MAX_TTL_SECONDS = 86400
 LAUNCH_MAX_OUTPUT_CHARS = 4000
 LAUNCH_POLL_MAX = 20
@@ -118,6 +120,7 @@ class TaskLaunchCreate(IdempotentCreate):
     harness_id: HarnessId
     agent_stable_key: StableKey | None = None
     profile_key: StableKey | None = None
+    allow_production: bool = False
     expires_in_seconds: int = Field(
         default=LAUNCH_DEFAULT_TTL_SECONDS, ge=60, le=LAUNCH_MAX_TTL_SECONDS
     )
@@ -148,6 +151,7 @@ class TaskLaunch(VersionedModel):
     expires_at: datetime
     finished_at: datetime | None = None
     profile: LaunchProfilePin | None = Field(default=None, exclude_if=lambda v: v is None)
+    allow_production: bool = False
 
 
 class TaskLaunchProtocolStatus(StrEnum):

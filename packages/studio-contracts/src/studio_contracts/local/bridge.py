@@ -42,6 +42,7 @@ from studio_contracts.local.harness import (
     HarnessApplyRequest,
     HarnessApplyResult,
     HarnessDetectResult,
+    HarnessLaunchPreview,
     HarnessPlan,
     HarnessPreviewRequest,
     HarnessRollbackRequest,
@@ -176,6 +177,7 @@ class BridgeCommand(StrEnum):
     HARNESS_APPLY = "harness.apply"
     HARNESS_ROLLBACK = "harness.rollback"
     HARNESS_VERIFY = "harness.verify"
+    HARNESS_LAUNCH_PREVIEW = "harness.launch_preview"
     SKILLS_CHECK = "skills.check"
     SKILLS_PREVIEW = "skills.preview"
     SKILLS_APPLY = "skills.apply"
@@ -370,6 +372,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
         ),
         _spec(BridgeCommand.HARNESS_DETECT, WorkspaceScope, HarnessDetectResult, "harness.read"),
         _spec(BridgeCommand.HARNESS_STATUS, HarnessStatusRequest, HarnessStatus, "harness.read"),
+        _spec(
+            BridgeCommand.HARNESS_LAUNCH_PREVIEW,
+            HarnessStatusRequest,
+            HarnessLaunchPreview,
+            "harness.launch_preview",
+        ),
         _spec(BridgeCommand.HARNESS_PREVIEW, HarnessPreviewRequest, HarnessPlan, "harness.plan"),
         _spec(
             BridgeCommand.HARNESS_APPLY,

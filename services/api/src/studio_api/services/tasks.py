@@ -20,6 +20,7 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    owns_agent,
     project_visibility_clause,
 )
 
@@ -93,7 +94,7 @@ async def event_actor(
     to the calling machine, otherwise the machine's user."""
     if agent_id is not None:
         agent = await session.get(AgentModel, agent_id)
-        if agent is not None and agent.machine_id == principal.machine.id:
+        if owns_agent(agent, principal.machine):
             return "agent", agent.id
     return "user", principal.user.id
 
@@ -208,10 +209,13 @@ async def claim_task(
     returned untouched — no version bump, no duplicate `task.started` — so a
     replayed start is safe even without an `Idempotency-Key`. A differing
     holder fails with `already_claimed`; re-claiming a released, blocked or
-    completed task (or with a different `agent_id`) is a real (re)claim
+    completed task with the same holder is a real (re)claim
     (version bump + `task.started`)."""
     authorize_claim(principal, task)
-    if task.claimed_by_machine_id is not None and task.claimed_by_machine_id != machine_id:
+    await session.refresh(task, with_for_update=True)
+    if task.claimed_by_machine_id is not None and (
+        task.claimed_by_machine_id != machine_id or task.claimed_by_agent_id != agent_id
+    ):
         raise HTTPException(status.HTTP_409_CONFLICT, detail={"error_code": "already_claimed"})
     if (
         task.status == "in_progress"
@@ -244,6 +248,8 @@ async def release_task(
     with `version_conflict` (like `update_task`) instead of releasing a claim
     taken since the caller's read."""
     ensure_project_access(principal, task.project_id, "write")
+    ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
+    await session.refresh(task, with_for_update=True)
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
     if expected_version is not None and task.version != expected_version:
         raise HTTPException(

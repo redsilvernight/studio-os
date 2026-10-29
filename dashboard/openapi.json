@@ -1846,7 +1846,7 @@
      "task-launches"
     ],
     "summary": "Create Task Launch",
-    "description": "Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Optional `profile_key`: the work profile the agent runs under, named against the reference profiles. It needs `agent_stable_key`, and the server pins it (`profile`: stable key, contract version, content digest) after resolving that agent \u2014 a profiled launch only targets a machine whose latest capabilities report `launch_profiles: true`, and an unprofiled launch simply omits `profile`. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.",
+    "description": "Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Optional `profile_key`: the work profile the agent runs under, named against the reference profiles. It needs `agent_stable_key`, and the server pins it (`profile`: stable key, contract version, content digest) after resolving that agent \u2014 a profiled launch only targets a machine whose latest capabilities report `launch_profiles: true`, and an unprofiled launch simply omits `profile`. `allow_production` defaults to false. True requires an authenticated dashboard user session; machine/MCP credentials cannot approve production. The target must report `launch_safety: true`; otherwise admission fails with `launch_safety_unsupported_by_machine`. Retries never inherit production approval. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.",
     "operationId": "create_task_launch_api_v1_projects__project_id__task_launches_post",
     "security": [
      {
@@ -3309,7 +3309,7 @@
      "start-work"
     ],
     "summary": "Start Work",
-    "description": "Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.",
+    "description": "Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim for the caller's machine and agent (idempotent; another holder, including another agent on this machine, gets 409 already_claimed) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.",
     "operationId": "start_work_api_v1_start_work_post",
     "security": [
      {
@@ -4537,6 +4537,88 @@
     }
    }
   },
+  "/api/v1/capabilities": {
+   "get": {
+    "tags": [
+     "discovery"
+    ],
+    "summary": "Capabilities",
+    "operationId": "capabilities_api_v1_capabilities_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "intent",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "enum": [
+        "overview",
+        "start_project",
+        "configuration"
+       ],
+       "type": "string",
+       "default": "overview",
+       "title": "Intent"
+      }
+     },
+     {
+      "name": "key",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 80
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Key"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 24,
+       "minimum": 1,
+       "default": 6,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProductDiscovery"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/library": {
    "get": {
     "tags": [
@@ -5057,6 +5139,88 @@
            }
           ]
          }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Dependency Updates",
+    "description": "Preview active-version changes of pinned dependencies without changing versions, activation or projection. Suggested pins carry explicit resource UUIDs.",
+    "operationId": "dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "version",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Version"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 100,
+       "minimum": 1,
+       "default": 20,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DependencyUpdates"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
         }
        }
       }
@@ -6469,6 +6633,53 @@
     }
    }
   },
+  "/api/v1/resolutions/work-profile-pack": {
+   "post": {
+    "tags": [
+     "resolutions"
+    ],
+    "summary": "Preview Work Profile Pack",
+    "description": "Validate and preview a versioned work profile pack. Read-only: no import, publication, activation or projection; the machine retains final authority.",
+    "operationId": "preview_work_profile_pack_api_v1_resolutions_work_profile_pack_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WorkProfilePackRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WorkProfilePackPreview"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/resolutions": {
    "post": {
     "tags": [
@@ -6655,11 +6866,33 @@
      "agents"
     ],
     "summary": "List Agents",
-    "description": "List agent provenance identities: those whose machine belongs to the caller's User, every agent for `admin` (contract version 2).",
+    "description": "List agent provenance identities owned by the caller's user, or legacy rows whose machine belongs to the caller's User, every agent for `admin` (contract version 2).",
     "operationId": "list_agents_api_v1_agents_get",
     "security": [
      {
       "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "include_identity_owner",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Include Identity Owner"
+      }
+     },
+     {
+      "name": "include_identity_link",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Include Identity Link"
+      }
      }
     ],
     "responses": {
@@ -6683,6 +6916,16 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
         }
        }
       }
@@ -6791,6 +7034,87 @@
     }
    }
   },
+  "/api/v1/agents/resolve-identity": {
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Resolve Identity",
+    "description": "Resolve the authenticated user's durable logical harness/provider/observed-model identity across authorized machines. An alias alone returns unknown without creation.",
+    "operationId": "resolve_identity_api_v1_agents_resolve_identity_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentIdentityRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentIdentityResult"
+        }
+       }
+      }
+     },
+     "201": {
+      "description": "Identity created",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentIdentityResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/agents/ensure": {
    "post": {
     "tags": [
@@ -6863,6 +7187,95 @@
       "MachineBearer": []
      }
     ]
+   }
+  },
+  "/api/v1/agents/{agent_id}/supersede": {
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Supersede Identity",
+    "description": "Explicitly reconcile a former identity with its canonical one the former row keeps its machine, metadata, stable key and history, and only gains a `superseded_by_agent_id` pointer \u2014 nothing is merged, renamed or deleted, so clearing the pointer restores the previous state. `admin` reconciles any user's rows; otherwise the caller must own both the former row's machine and the canonical identity. Repeating the same link is refused with `409 already_superseded` (never a silent second link), and a canonical row must itself be user-scoped and unlinked.",
+    "operationId": "supersede_identity_api_v1_agents__agent_id__supersede_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "agent_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Agent Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentIdentityLinkRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Former identity linked",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Agent"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "`not_found`: one of the two agents does not exist"
+     },
+     "409": {
+      "description": "`invalid_identity_link` (self, or canonical not user-scoped/already linked) or `already_superseded`"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
    }
   },
   "/api/v1/ai-work": {
@@ -13292,7 +13705,7 @@
      "roadmaps"
     ],
     "summary": "Create Proposal",
-    "description": "Propose a change to an `active` roadmap: records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified \u2014 a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.",
+    "description": "Revise a draft in place (current `revision_no` as `base_revision_no`; `submit=false` keeps a draft snapshot, otherwise submits it). A proposed roadmap requires an authorized `request_changes` transition first. For an `active` roadmap, records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified \u2014 a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.",
     "operationId": "create_proposal_api_v1_roadmaps__roadmap_id__proposals_post",
     "security": [
      {
@@ -17262,7 +17675,7 @@
       "maximum": 86400.0,
       "minimum": 60.0,
       "title": "Expires In Seconds",
-      "default": 900
+      "default": 7200
      }
     },
     "additionalProperties": false,
@@ -17587,6 +18000,30 @@
        }
       ],
       "title": "Stable Key"
+     },
+     "owner_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner User Id"
+     },
+     "superseded_by_agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Superseded By Agent Id"
      }
     },
     "additionalProperties": false,
@@ -17600,7 +18037,7 @@
      "agent_kind"
     ],
     "title": "Agent",
-    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity)."
+    "description": "Provenance identity owned by a user, or by one machine for legacy rows.\n`machine_id` records registration; execution machines stay on sessions.\n`owner_user_id` marks canonical user identities. Permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity).\n`superseded_by_agent_id` (additive) records an explicit,\nreversible reconciliation of a former identity into its canonical one:\nthe former row keeps its machine, metadata and history untouched."
    },
    "AgentCreate": {
     "properties": {
@@ -17695,6 +18132,138 @@
     ],
     "title": "AgentEnsureResult",
     "description": "Result of `POST /agents/ensure` (AIB-I, additive): the caller's own\nmachine's agent for `stable_key`, plus whether this call created it."
+   },
+   "AgentIdentityLinkRequest": {
+    "properties": {
+     "canonical_agent_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Canonical Agent Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "canonical_agent_id"
+    ],
+    "title": "AgentIdentityLinkRequest",
+    "description": "Point a former identity at its canonical one: explicit,\nreversible, and never a merge \u2014 the former row is not rewritten."
+   },
+   "AgentIdentityRequest": {
+    "properties": {
+     "harness": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "effective_model": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effective Model"
+     },
+     "selection_alias": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Selection Alias"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "harness"
+    ],
+    "title": "AgentIdentityRequest"
+   },
+   "AgentIdentityResult": {
+    "properties": {
+     "state": {
+      "type": "string",
+      "enum": [
+       "resolved",
+       "unknown"
+      ],
+      "title": "State"
+     },
+     "logical_harness": {
+      "type": "string",
+      "title": "Logical Harness"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "unknown_model",
+         "unknown_provider"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "selection_alias": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Selection Alias"
+     },
+     "agent": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Agent"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "created": {
+      "type": "boolean",
+      "title": "Created",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "state",
+     "logical_harness"
+    ],
+    "title": "AgentIdentityResult"
    },
    "AgentResolutionRequest": {
     "properties": {
@@ -19000,6 +19569,179 @@
     "title": "ClaimStatus",
     "description": "A claim past `expires_at` is not active regardless of stored status.\nA claim is a soft lock: it warns, it never blocks a Git operation or a\nfile write."
    },
+   "CompletionCheck": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "command",
+       "review",
+       "observation",
+       "ci"
+      ],
+      "title": "Kind",
+      "default": "command"
+     },
+     "purpose": {
+      "type": "string",
+      "enum": [
+       "validation",
+       "finding"
+      ],
+      "title": "Purpose",
+      "default": "validation"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "passed",
+       "failed",
+       "not_run",
+       "environment_unavailable"
+      ],
+      "title": "Status"
+     },
+     "exit_code": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exit Code"
+     },
+     "reference": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 1000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reference"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name",
+     "status"
+    ],
+    "title": "CompletionCheck"
+   },
+   "CompletionEvidence": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.completion/v1",
+      "title": "Format",
+      "default": "studio.completion/v1"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "code",
+       "audit",
+       "diagnostic",
+       "operation"
+      ],
+      "title": "Kind"
+     },
+     "artifacts": {
+      "items": {
+       "type": "string",
+       "maxLength": 1000,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 10,
+      "title": "Artifacts"
+     },
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/CompletionCheck"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Checks"
+     },
+     "versioned": {
+      "type": "boolean",
+      "title": "Versioned",
+      "default": false
+     },
+     "revision": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Revision"
+     },
+     "target_branch": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Target Branch"
+     },
+     "integration_required": {
+      "type": "boolean",
+      "title": "Integration Required",
+      "default": false
+     },
+     "integrated": {
+      "type": "boolean",
+      "title": "Integrated",
+      "default": false
+     },
+     "ci_required": {
+      "type": "boolean",
+      "title": "Ci Required",
+      "default": false
+     },
+     "ci_verified": {
+      "type": "boolean",
+      "title": "Ci Verified",
+      "default": false
+     },
+     "effect_verified": {
+      "type": "boolean",
+      "title": "Effect Verified",
+      "default": false
+     },
+     "deployed": {
+      "type": "boolean",
+      "title": "Deployed",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind"
+    ],
+    "title": "CompletionEvidence"
+   },
    "ConfigurationHistory": {
     "properties": {
      "project_id": {
@@ -19895,6 +20637,96 @@
     ],
     "title": "DependencyPin",
     "description": "A version-pinned reference to another library resource version.\n\n`relation` names the Library Binding type. When omitted it\nis inferred server-side from the unique matrix mapping for the\n`(source kind, target kind)` couple; an explicitly wrong relation for an\notherwise allowed couple is rejected with `422 invalid_binding`."
+   },
+   "DependencyUpdate": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "pinned_version": {
+      "type": "integer",
+      "title": "Pinned Version"
+     },
+     "active_version": {
+      "type": "integer",
+      "title": "Active Version"
+     },
+     "deprecated": {
+      "type": "boolean",
+      "title": "Deprecated"
+     },
+     "update_available": {
+      "type": "boolean",
+      "title": "Update Available"
+     },
+     "suggested_pin": {
+      "$ref": "#/components/schemas/ResourceDependencyPin"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "scope",
+     "pinned_version",
+     "active_version",
+     "deprecated",
+     "update_available",
+     "suggested_pin"
+    ],
+    "title": "DependencyUpdate"
+   },
+   "DependencyUpdates": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "mutates": {
+      "type": "boolean",
+      "const": false,
+      "title": "Mutates",
+      "default": false
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/DependencyUpdate"
+      },
+      "type": "array",
+      "maxItems": 100,
+      "title": "Items"
+     },
+     "additional_available": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Additional Available",
+      "default": 0
+     },
+     "offset": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Offset",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "version",
+     "items"
+    ],
+    "title": "DependencyUpdates"
    },
    "DesiredIntegration": {
     "properties": {
@@ -20836,6 +21668,16 @@
         "type": "null"
        }
       ]
+     },
+     "completion": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CompletionEvidence"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -21264,6 +22106,7 @@
      "owner_no_project_access",
      "project_not_registered",
      "launches_not_accepted",
+     "launch_safety_unsupported",
      "harness_incompatible",
      "at_capacity"
     ],
@@ -22109,7 +22952,14 @@
      },
      "dependencies": {
       "items": {
-       "$ref": "#/components/schemas/DependencyPin"
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/ResourceDependencyPin"
+        },
+        {
+         "$ref": "#/components/schemas/DependencyPin"
+        }
+       ]
       },
       "type": "array",
       "title": "Dependencies",
@@ -22246,7 +23096,14 @@
      },
      "dependencies": {
       "items": {
-       "$ref": "#/components/schemas/DependencyPin"
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/ResourceDependencyPin"
+        },
+        {
+         "$ref": "#/components/schemas/DependencyPin"
+        }
+       ]
       },
       "type": "array",
       "title": "Dependencies",
@@ -22442,6 +23299,17 @@
        }
       ],
       "title": "Launch Profiles"
+     },
+     "launch_safety": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Launch Safety"
      }
     },
     "additionalProperties": false,
@@ -22716,6 +23584,59 @@
     "type": "object",
     "title": "MachineLaunchGrantCreate",
     "description": "Body of `PUT /machines/{machine_id}/launch-grants/{user_id}`. Both\nbounds are optional: no `project_id` = any project the grantee is a\nmember of, no `expires_at` = until revoked."
+   },
+   "MachinePolicy": {
+    "properties": {
+     "opt_in": {
+      "type": "boolean",
+      "title": "Opt In"
+     },
+     "max_concurrent": {
+      "type": "integer",
+      "maximum": 8.0,
+      "minimum": 1.0,
+      "title": "Max Concurrent"
+     },
+     "allowed_harnesses": {
+      "items": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "title": "Allowed Harnesses",
+      "default": []
+     },
+     "permissions": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "enum": [
+          "read",
+          "write",
+          "execute",
+          "network",
+          "launch"
+         ]
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Permissions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "opt_in",
+     "max_concurrent"
+    ],
+    "title": "MachinePolicy",
+    "description": "The local launch settings plus optional permissions (additive).\n`None` (absent) authorizes nothing: fail closed. Never persisted to\n`launch.json` nor sent to a daemon without a negotiated capability: an\nN-1 `LaunchSettings` forbids the extra field."
    },
    "MachineStatus": {
     "type": "string",
@@ -23176,6 +24097,38 @@
     ],
     "title": "Page[TaskLaunchView]"
    },
+   "PermissionDecision": {
+    "properties": {
+     "permission": {
+      "type": "string",
+      "enum": [
+       "read",
+       "write",
+       "execute",
+       "network",
+       "launch"
+      ],
+      "title": "Permission"
+     },
+     "granted": {
+      "type": "boolean",
+      "title": "Granted"
+     },
+     "origin": {
+      "type": "string",
+      "const": "machine_policy",
+      "title": "Origin",
+      "default": "machine_policy"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "permission",
+     "granted"
+    ],
+    "title": "PermissionDecision"
+   },
    "Phase": {
     "properties": {
      "created_at": {
@@ -23577,6 +24530,313 @@
      "failed"
     ],
     "title": "ProducerJobStatus"
+   },
+   "ProductCapability": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "state": {
+      "type": "string",
+      "enum": [
+       "available",
+       "needs_configuration",
+       "not_authorized",
+       "unsupported"
+      ],
+      "title": "State"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "write_allowed": {
+      "type": "boolean",
+      "title": "Write Allowed"
+     },
+     "example": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Example"
+     },
+     "prerequisites": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 8,
+      "title": "Prerequisites"
+     },
+     "restrictions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 8,
+      "title": "Restrictions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "summary",
+     "state",
+     "write_allowed"
+    ],
+    "title": "ProductCapability"
+   },
+   "ProductDiscovery": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.capabilities/v1",
+      "title": "Format",
+      "default": "studio.capabilities/v1"
+     },
+     "intent": {
+      "type": "string",
+      "enum": [
+       "overview",
+       "start_project",
+       "configuration"
+      ],
+      "title": "Intent"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "capabilities": {
+      "items": {
+       "$ref": "#/components/schemas/ProductCapability"
+      },
+      "type": "array",
+      "maxItems": 24,
+      "title": "Capabilities"
+     },
+     "additional_available": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Additional Available",
+      "default": 0
+     },
+     "next_steps": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 6,
+      "title": "Next Steps"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "intent",
+     "summary"
+    ],
+    "title": "ProductDiscovery"
+   },
+   "ProfileElement": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "origin": {
+      "type": "string",
+      "enum": [
+       "library",
+       "runtime_binding",
+       "model_profile",
+       "session_override",
+       "machine_policy"
+      ],
+      "title": "Origin"
+     },
+     "resource_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resource Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "version",
+     "origin"
+    ],
+    "title": "ProfileElement"
+   },
+   "ProfilePreview": {
+    "properties": {
+     "contract_version": {
+      "type": "integer",
+      "title": "Contract Version",
+      "default": 2
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "authoritative": {
+      "type": "boolean",
+      "const": false,
+      "title": "Authoritative",
+      "default": false
+     },
+     "accepted": {
+      "type": "boolean",
+      "title": "Accepted"
+     },
+     "elements": {
+      "items": {
+       "$ref": "#/components/schemas/ProfileElement"
+      },
+      "type": "array",
+      "title": "Elements"
+     },
+     "runtime": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ResolvedRuntime"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "runtime_origin": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "library",
+         "runtime_binding",
+         "model_profile",
+         "session_override",
+         "machine_policy"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Origin"
+     },
+     "permissions": {
+      "items": {
+       "$ref": "#/components/schemas/PermissionDecision"
+      },
+      "type": "array",
+      "title": "Permissions"
+     },
+     "effective_permissions": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "read",
+        "write",
+        "execute",
+        "network",
+        "launch"
+       ]
+      },
+      "type": "array",
+      "title": "Effective Permissions"
+     },
+     "refusals": {
+      "items": {
+       "$ref": "#/components/schemas/ProfileRefusal"
+      },
+      "type": "array",
+      "title": "Refusals",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "stable_key",
+     "accepted",
+     "elements",
+     "permissions",
+     "effective_permissions"
+    ],
+    "title": "ProfilePreview",
+    "description": "Explanatory preview: every effective value with its origin, every\nrefusal. `authoritative` is always false \u2014 the machine decides."
+   },
+   "ProfileRefusal": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "enum": [
+       "capability_incompatible",
+       "no_runtime_selected",
+       "machine_opt_in_off",
+       "permission_denied",
+       "harness_not_allowed"
+      ],
+      "title": "Code"
+     },
+     "subject": {
+      "type": "string",
+      "title": "Subject"
+     },
+     "details": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Details",
+      "default": {}
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "code",
+     "subject"
+    ],
+    "title": "ProfileRefusal"
    },
    "Progress": {
     "properties": {
@@ -24005,6 +25265,11 @@
      "document": {
       "$ref": "#/components/schemas/RoadmapDocument"
      },
+     "submit": {
+      "type": "boolean",
+      "title": "Submit",
+      "default": true
+     },
      "summary": {
       "anyOf": [
        {
@@ -24028,7 +25293,7 @@
      "document"
     ],
     "title": "ProposalCreate",
-    "description": "A structured change to an approved roadmap. `base_revision_no` is the\nrevision the author read; if it is no longer current when reviewed, the\napproval fails `409 base_revision_stale`."
+    "description": "Draft replacement or pending change to an active roadmap.\n\nDrafts check the current revision before writing. Active proposals check\nthe approved base at review; `submit` only controls draft submission."
    },
    "ProposalReview": {
     "properties": {
@@ -24874,6 +26139,45 @@
      "ttl_seconds"
     ],
     "title": "ResourceClaimCreate"
+   },
+   "ResourceDependencyPin": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "relation": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BindingRelation"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "version",
+     "resource_id"
+    ],
+    "title": "ResourceDependencyPin"
    },
    "ResourceType": {
     "type": "string",
@@ -28727,6 +30031,11 @@
         "type": "null"
        }
       ]
+     },
+     "allow_production": {
+      "type": "boolean",
+      "title": "Allow Production",
+      "default": false
      }
     },
     "additionalProperties": false,
@@ -28804,12 +30113,17 @@
       ],
       "title": "Profile Key"
      },
+     "allow_production": {
+      "type": "boolean",
+      "title": "Allow Production",
+      "default": false
+     },
      "expires_in_seconds": {
       "type": "integer",
       "maximum": 86400.0,
       "minimum": 60.0,
       "title": "Expires In Seconds",
-      "default": 900
+      "default": 7200
      }
     },
     "additionalProperties": false,
@@ -29175,7 +30489,7 @@
       "maximum": 86400.0,
       "minimum": 60.0,
       "title": "Expires In Seconds",
-      "default": 900
+      "default": 7200
      },
      "replay": {
       "anyOf": [
@@ -29326,6 +30640,11 @@
         "type": "null"
        }
       ]
+     },
+     "allow_production": {
+      "type": "boolean",
+      "title": "Allow Production",
+      "default": false
      },
      "protocol": {
       "$ref": "#/components/schemas/TaskLaunchProtocol"
@@ -32184,6 +33503,182 @@
     ],
     "title": "Why",
     "description": "Why an item was selected \u2014 the only relations Studi'OS knows how to\nestablish: a structural link, or an exact-token overlap with the objective."
+   },
+   "WorkProfile": {
+    "properties": {
+     "contract_version": {
+      "type": "integer",
+      "title": "Contract Version",
+      "default": 2
+     },
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "agent_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Agent Stable Key"
+     },
+     "required_capabilities": {
+      "$ref": "#/components/schemas/CapabilityRequirement",
+      "default": {
+       "coding": false,
+       "tools_required": [],
+       "local_compatible": false
+      }
+     },
+     "permissions": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "read",
+        "write",
+        "execute",
+        "network",
+        "launch"
+       ]
+      },
+      "type": "array",
+      "title": "Permissions",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "stable_key",
+     "title",
+     "agent_stable_key"
+    ],
+    "title": "WorkProfile",
+    "description": "What a profile asks for: an agent definition (by stable key, resolved by\nthe common resolver), the capabilities the work needs, and permissions it\nrequests. It declares no rule text and grants nothing by itself."
+   },
+   "WorkProfilePack": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.work-profile-pack/v1",
+      "title": "Format"
+     },
+     "profile": {
+      "$ref": "#/components/schemas/WorkProfile"
+     },
+     "base": {
+      "$ref": "#/components/schemas/ResourceDependencyPin"
+     },
+     "adaptations": {
+      "items": {
+       "$ref": "#/components/schemas/ResourceDependencyPin"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "title": "Adaptations"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "format",
+     "profile",
+     "base"
+    ],
+    "title": "WorkProfilePack"
+   },
+   "WorkProfilePackPreview": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.work-profile-pack-preview/v1",
+      "title": "Format",
+      "default": "studio.work-profile-pack-preview/v1"
+     },
+     "authoritative": {
+      "type": "boolean",
+      "const": false,
+      "title": "Authoritative",
+      "default": false
+     },
+     "mutates": {
+      "type": "boolean",
+      "const": false,
+      "title": "Mutates",
+      "default": false
+     },
+     "accepted": {
+      "type": "boolean",
+      "title": "Accepted"
+     },
+     "profile": {
+      "$ref": "#/components/schemas/ProfilePreview"
+     },
+     "observed": {
+      "items": {
+       "$ref": "#/components/schemas/ResourceDependencyPin"
+      },
+      "type": "array",
+      "maxItems": 17,
+      "title": "Observed"
+     },
+     "issues": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "composition_mismatch",
+        "composition_too_large"
+       ]
+      },
+      "type": "array",
+      "title": "Issues",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "accepted",
+     "profile",
+     "observed"
+    ],
+    "title": "WorkProfilePackPreview"
+   },
+   "WorkProfilePackRequest": {
+    "properties": {
+     "pack": {
+      "$ref": "#/components/schemas/WorkProfilePack"
+     },
+     "machine_policy": {
+      "$ref": "#/components/schemas/MachinePolicy"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "pack",
+     "machine_policy"
+    ],
+    "title": "WorkProfilePackRequest"
    },
    "WorkSession": {
     "properties": {

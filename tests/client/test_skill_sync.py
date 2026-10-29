@@ -94,13 +94,15 @@ def _target(home: Path, harness: str, key: str = "studio-git-flow") -> Path:
 
 
 @pytest.mark.asyncio
-async def test_fetch_uses_effective_library_selection_and_keeps_only_studio_scope() -> None:
+async def test_fetch_uses_effective_selection_and_keeps_only_global_scopes() -> None:
     project_id = uuid4()
     retained = _Resource(uuid4(), "retained", "studio")
     shadowed = _Resource(uuid4(), "shadowed", "studio")
     project_override = _Resource(uuid4(), "shadowed", "project", project_id)
     project_only = _Resource(uuid4(), "project-only", "project", project_id)
-    resources = [project_only, shadowed, retained, project_override]
+    user_override = _Resource(uuid4(), "retained", "user")
+    user_only = _Resource(uuid4(), "user-only", "user")
+    resources = [project_only, shadowed, retained, project_override, user_override, user_only]
     versions = [
         _Version(resource.id, 1, resource.stable_key, f"body:{resource.scope}")
         for resource in resources
@@ -109,7 +111,11 @@ async def test_fetch_uses_effective_library_selection_and_keeps_only_studio_scop
 
     result = await fetch_skill_projections(api, project_id, limit=12)
 
-    assert [item.stable_key for item in result] == ["retained"]
+    assert [(item.stable_key, item.scope) for item in result] == [
+        ("retained", "user"),
+        ("user-only", "user"),
+    ]
+    assert all(item.text == "body:user" for item in result)
     assert api.calls[0] == ("resources", 12)
     assert ("locks", project_id) in api.calls
 
@@ -299,9 +305,51 @@ def test_traversal_and_ambiguous_stable_keys_are_rejected(
         plan_skill_sync(tmp_path, [_projection(stable_key)])
 
 
-def test_non_studio_projection_is_rejected(tmp_path: Path) -> None:
-    with pytest.raises(SkillSyncError, match="non-studio"):
+def test_non_global_projection_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(SkillSyncError, match="non-global"):
         plan_skill_sync(tmp_path, [_projection(scope="project")])
+
+
+def test_user_projection_preview_and_local_edits_are_protected(tmp_path: Path) -> None:
+    projection = _projection(scope="user", text="Personal adaptation")
+    plan = plan_skill_sync(tmp_path, [projection], include_opencode=True)
+
+    assert "Personal adaptation" in diff_skill_plan(plan)
+    assert not plan.manifest_path.exists()
+    apply_skill_sync(plan)
+    for target in plan.entries[0].all_targets:
+        assert "scope=user" in target.path.read_text(encoding="utf-8")
+
+    edited = _target(tmp_path, "claude")
+    edited.write_text("Local edit\n", encoding="utf-8")
+    updated = plan_skill_sync(
+        tmp_path, [_projection(scope="user", text="Updated adaptation")], include_opencode=True
+    )
+    with pytest.raises(SkillSyncConflictError):
+        apply_skill_sync(updated)
+    assert edited.read_text(encoding="utf-8") == "Local edit\n"
+    assert "Personal adaptation" in _target(tmp_path, "agents").read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_two_users_project_only_their_visible_effective_skills(tmp_path: Path) -> None:
+    base = _Resource(uuid4(), "shared", "studio")
+    for username in ("alice", "bob"):
+        personal = _Resource(uuid4(), "shared", "user")
+        api = _FakeApi(
+            [base, personal],
+            [
+                _Version(base.id, 1, "Shared", "Common base"),
+                _Version(personal.id, 1, "Personal", f"Private {username}"),
+            ],
+        )
+        projections = await fetch_skill_projections(api, None)
+        plan = plan_skill_sync(tmp_path / username, projections, include_opencode=True)
+        apply_skill_sync(plan)
+        for target in plan.entries[0].all_targets:
+            text = target.path.read_text(encoding="utf-8")
+            assert f"Private {username}" in text
+            assert ("Private bob" if username == "alice" else "Private alice") not in text
 
 
 def test_diff_is_deterministic_for_missing_and_drifted_targets(tmp_path: Path) -> None:

@@ -15,6 +15,7 @@ from pydantic import Field
 
 from studio_contracts.ai_work import AIWorkStatus
 from studio_contracts.common import ContractModel, IdempotentCreate
+from studio_contracts.completion import CompletionEvidence
 from studio_contracts.coordination import COORDINATION_TEXT_MAX, CoordinationRefs
 from studio_contracts.sync import SyncResult
 from studio_contracts.tasks import TaskStatus, TaskUpdate
@@ -52,6 +53,7 @@ class HandoffRequest(IdempotentCreate):
     changed_files: list[str] | None = Field(default=None, max_length=100)
     tests_run: list[str] | None = Field(default=None, max_length=100)
     coordination: HandoffCoordination | None = None
+    completion: CompletionEvidence | None = None
 
 
 class HandoffResult(ContractModel):

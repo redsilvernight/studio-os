@@ -100,6 +100,8 @@ async def test_pull_pending_returns_own_launches_only(
     other_machine: tuple[MachineModel, str],
     db_session: AsyncSession,
 ) -> None:
+    machine[0].capabilities = {"launch_safety": True}
+    await db_session.flush()
     mine = await _row(db_session, project, machine)
     await _row(db_session, project, other_machine)
     result = await studio_pull_pending_launches(auth_ctx)

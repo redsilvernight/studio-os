@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime
 
 import pytest
 from studio_client import cli
@@ -10,7 +11,9 @@ from studio_client.agent_identity import (
     is_legacy_model_key,
     model_agent_create,
     normalize_model_ref,
+    observed_identity_request,
 )
+from studio_contracts.agent_identity import AgentIdentityResult
 
 
 def test_same_model_from_two_harnesses_yields_identical_registration() -> None:
@@ -53,18 +56,34 @@ def test_legacy_keys_are_recognized_not_rewritten() -> None:
     assert is_legacy_model_key("agents-ensure-opencode:opencode-go/deepseek")
     assert is_legacy_model_key("launch-agent-" + "a" * 64)
     assert not is_legacy_model_key("agents-ensure-opencode")
-    assert not is_legacy_model_key("agent-model:anthropic/claude-opus-5-5")
+    assert is_legacy_model_key("agent-model:anthropic/claude-opus-5-5")
+    assert not is_legacy_model_key("canonical-model-v1:" + "a" * 64)
     assert not is_legacy_model_key(None)
 
 
-def test_cli_model_identity_ignores_harness(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_resolves_observed_model_with_its_harness(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = []
 
     def fake_run(config, action):  # noqa: ANN001
         class Client:
-            async def ensure_agent(self, agent_in):  # noqa: ANN001
-                seen.append(agent_in)
-                return agent_in, True
+            async def resolve_agent_identity(self, request):  # noqa: ANN001
+                seen.append(request)
+                from uuid import uuid4
+
+                from studio_contracts.auth import Agent
+
+                return AgentIdentityResult(
+                    state="resolved",
+                    logical_harness=request.harness,
+                    agent=Agent(
+                        id=uuid4(),
+                        display_name="model",
+                        agent_kind="model",
+                        created_at=datetime.now(UTC),
+                        updated_at=datetime.now(UTC),
+                        version=1,
+                    ),
+                )
 
         import asyncio
 
@@ -82,8 +101,47 @@ def test_cli_model_identity_ignores_harness(monkeypatch: pytest.MonkeyPatch) -> 
             model="claude-opus-5-5",
             stable_key=None,
             model_identity=True,
+            harness_credential=False,
             json=True,
         )
         cli._agents_ensure(args, None)  # type: ignore[arg-type]
-    assert seen[0] == seen[1]
-    assert seen[0].stable_key == "agent-model:anthropic/claude-opus-5-5"
+    assert [request.harness for request in seen] == ["claude-code", "codex"]
+    assert all(request.effective_model == "claude-opus-5-5" for request in seen)
+    assert all(request.provider == "anthropic" for request in seen)
+
+
+def test_observation_preserves_case_and_does_not_infer_a_provider() -> None:
+    result = observed_identity_request("opencode", "Vendor/CaseSensitiveModel")
+    assert result.provider == "Vendor"
+    assert result.effective_model == "CaseSensitiveModel"
+    assert observed_identity_request("codex", "gpt-6.1-sol").provider is None
+
+
+def test_logical_harness_matrix_shares_only_documented_interface_aliases() -> None:
+    from studio_contracts.agent_identity import logical_harness
+
+    for product in ("codex", "claude", "opencode"):
+        variants = {logical_harness(product)} | {
+            logical_harness(f"{product}-{suffix}") for suffix in ("desktop", "cli")
+        }
+        assert variants == {product}
+    assert logical_harness(" Claude_Code ") == "claude"
+    assert logical_harness(" Codex_Desktop ") == "codex"
+    assert logical_harness(" OpenCode_CLI ") == "opencode"
+    for product in ("codex", "opencode"):
+        assert logical_harness(f"{product}-code") == f"{product}-code"
+        assert logical_harness(f" {product.upper()}_CODE ") == f"{product}-code"
+    assert len({logical_harness(name) for name in ("codex", "claude", "opencode", "gemini")}) == 4
+
+
+def test_missing_observation_is_explicit_and_never_a_model_identity() -> None:
+    """A harness that exposes neither provider nor model yields an unknown
+    request (the server answers `state=unknown` and creates nothing), never a
+    guessed model."""
+
+    for harness in ("codex", "claude-code", "opencode-desktop"):
+        request = observed_identity_request(harness, None)
+        assert request.effective_model is None
+        assert request.provider is None
+    assert normalize_model_ref(None) is None
+    assert model_agent_create(None) is None

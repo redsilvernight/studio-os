@@ -100,7 +100,7 @@ function payload(opts: { agentsFail?: boolean; secondaryFail?: boolean; empty?: 
       await json(200, { access_token: "e2e-token", token_type: "bearer" });
       return;
     }
-    if (url.endsWith("/api/v1/agents")) {
+    if (url.includes("/api/v1/agents")) {
       if (opts.agentsFail === true) {
         await json(500, { detail: "boom" });
         return;

@@ -196,6 +196,52 @@ async def release_claim(
     )
 
 
+# Deterministic on the claim id: two overlapping server-side releases (lazy
+# expiry racing the sweep) converge on one `resource.released`, never two.
+_CLAIM_RELEASED_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os/claim-released")
+
+
+async def release_claim_server_side(
+    session: AsyncSession,
+    claim: ResourceClaimModel,
+    *,
+    emitter_machine_id: uuid.UUID,
+) -> ResourceClaimModel:
+    """Release one claim on the server's behalf (launch expiry, task 63a909ea):
+    the server, not the claiming machine, closes it — hence no
+    `ensure_machine_owned` — and the event is attributed to the target machine
+    that held the claim (`emitter_machine_id`), actor `system`. The caller
+    commits, so the release stays atomic with the launch expiry."""
+    if claim.status == "released":
+        return claim
+    previous_status = claim.status
+    claim.status = "released"
+    claim.released_at = datetime.now(UTC)
+    await events_service.stage_event(
+        session,
+        EventCreate(
+            event_id=uuid.uuid5(_CLAIM_RELEASED_NAMESPACE, str(claim.id)),
+            event_type=EventType.RESOURCE_RELEASED,
+            project_id=claim.project_id,
+            task_id=claim.task_id,
+            machine_id=emitter_machine_id,
+            actor_type="system",
+            actor_id=emitter_machine_id,
+            client_timestamp=datetime.now(UTC),
+            payload={
+                "claim_id": str(claim.id),
+                "resource_path": claim.resource_path,
+                "resource_type": claim.resource_type,
+                "status": claim.status,
+                "claimed_by_machine_id": str(claim.claimed_by_machine_id),
+                "expires_at": claim.expires_at.isoformat(),
+                "previous_status": previous_status,
+            },
+        ),
+    )
+    return claim
+
+
 async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaimModel:
     claim = await session.get(ResourceClaimModel, claim_id)
     if claim is None:
@@ -204,13 +250,18 @@ async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaim
 
 
 async def release_task_claims_by_task(
-    session: AsyncSession, principal: Principal, task: TaskModel
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    *,
+    agent_id: uuid.UUID | None,
 ) -> list[ResourceClaimModel]:
-    """Release all active claims for a given task. Used by L3 handoff and
+    """Release the session agent's active claims for a task. Used by L3 handoff and
     the `end_session` fallback. Each release goes through `release_claim`
     so a `resource.released` event is emitted per claim, exactly like a
     single release. Idempotent: already-released claims are skipped
-    without error; claims held by another machine are never touched."""
+    without error; another machine or agent's claims are never touched.
+    Unattributed claims follow the task holder when no different agent holds it."""
     ensure_project_access(principal, task.project_id, "write")
     result = await session.execute(
         select(ResourceClaimModel).where(
@@ -223,6 +274,11 @@ async def release_task_claims_by_task(
     for claim in claims:
         # Ownership check per claim: only the holding machine can release.
         if claim.claimed_by_machine_id != principal.machine.id:
+            continue
+        if claim.claimed_by_agent_id != agent_id and (
+            claim.claimed_by_agent_id is not None
+            or task.claimed_by_agent_id not in (None, agent_id)
+        ):
             continue
         released.append(await release_claim(session, principal, claim))
     return released

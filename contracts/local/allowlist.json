@@ -145,6 +145,17 @@
     },
     {
       "cancellable": false,
+      "capability": "harness.launch_preview",
+      "command": "harness.launch_preview",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "HarnessStatusRequest",
+      "response": "HarnessLaunchPreview",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "harness.plan",
       "command": "harness.preview",
       "max_request_bytes": 65536,

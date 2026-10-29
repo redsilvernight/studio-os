@@ -44,6 +44,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     forbidden,
     get_launch_scope,
+    owns_agent,
     project_visibility_clause,
 )
 
@@ -121,7 +122,7 @@ async def validate_identity(
         if (
             work.machine_id not in (None, entry.machine_id)
             or agent is None
-            or agent.machine_id != entry.machine_id
+            or not owns_agent(agent, principal.machine)
         ):
             raise forbidden("ai_work", "link")
         if work.project_id != entry.project_id:

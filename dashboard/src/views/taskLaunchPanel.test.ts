@@ -20,6 +20,8 @@ import {
   launchProtocolStatus,
   launchProtocolTaskLabel,
   launchReasonCodeLabel,
+  launchTtlOptions,
+  validLaunchProfile,
   latestHtml,
   linkedSessionHtml,
   machineOptionLabel,
@@ -84,6 +86,37 @@ const state = (overrides: Partial<LaunchPanelState> = {}): LaunchPanelState => (
   notice: "",
   error: "",
   ...overrides,
+});
+
+describe("reference launch profiles", () => {
+  it("offers the existing profiles and keeps the legacy mode available", () => {
+    const html = launchPanelHtml(state());
+    expect(html).toContain('id="launch-profile"');
+    expect(html).toContain('value="coding"');
+    expect(html).toContain('value="architecture-read-only"');
+    expect(html).toContain("sans profil");
+    expect(validLaunchProfile(state())).toBe(true);
+  });
+
+  it.each(["coding", "architecture-read-only"])("requires an agent for %s", (profileKey) => {
+    const html = launchPanelHtml(state({ selectedMachineId: "m1", selectedHarnessId: "claude-code", profileKey }));
+    expect(html).toContain('data-action="launch-submit" disabled');
+    expect(html).toContain("Choisissez un agent pour utiliser un profil");
+    expect(validLaunchProfile(state({ profileKey, agentStableKey: "review-helper" }))).toBe(true);
+  });
+
+  it("refuses an unknown profile even with an agent", () => {
+    expect(validLaunchProfile(state({ profileKey: "personal", agentStableKey: "review-helper" }))).toBe(false);
+  });
+
+  it("shows the requested permissions and confirms the selected profile", () => {
+    const selected = state({ profileKey: "architecture-read-only", agentStableKey: "review-helper", selectedMachineId: "m1", selectedHarnessId: "claude-code" });
+    const html = launchPanelHtml(selected);
+    expect(html).toContain('value="architecture-read-only" selected');
+    expect(html).toContain("Permissions demandées : lecture.");
+    expect(html).not.toContain('data-action="launch-submit" disabled');
+    expect(launchConfirmText(machine(), "claude-code", "review-helper", false, selected.profileKey)).toContain("Architecture en lecture seule");
+  });
 });
 
 /** Empreinte de test : seule son identité compte, jamais sa valeur. */
@@ -678,5 +711,37 @@ describe("provenance (DEC-0199)", () => {
   it("une empreinte reste une empreinte, même sans préfixe", () => {
     expect(shortDigest(digest("1"))).toBe(`sha256:${"1".repeat(12)}…`);
     expect(shortDigest("court")).toBe("court");
+  });
+});
+
+
+describe("production approval", () => {
+  it("starts unchecked and is explicit in the launch confirmation", () => {
+    const html = launchPanelHtml(state());
+    expect(html).toContain('id="launch-production"');
+    expect(html).not.toContain('id="launch-production" checked');
+    expect(launchConfirmText(machine(), "claude-code", "", false)).toContain("Mode protégé");
+    expect(launchConfirmText(machine(), "claude-code", "", true)).toContain("explicitement");
+    expect(launchConfirmText(machine(), "claude-code", "", true)).toContain("ce lancement uniquement");
+  });
+  it("shows the persisted approval and keeps the user's current choice", () => {
+    expect(launchPanelHtml(state({ allowProduction: true }))).toContain('id="launch-production" checked');
+    expect(latestHtml(state({ data: { machines: [], agents: [], latest: launch({ allow_production: true }) } }))).toContain("Production autorisée pour ce lancement");
+  });
+});
+
+describe("launch expiry delay", () => {
+  it("offers an explicit delay and defaults to the server's two hours", () => {
+    const html = launchPanelHtml(state());
+    expect(html).toContain('id="launch-ttl"');
+    expect(html).toContain('<option value="7200" selected>2 heures (recommandé)</option>');
+    expect(html).toContain('<option value="1800"');
+    expect(html).toContain('<option value="86400"');
+    expect(html).not.toContain('<option value="900"');
+  });
+  it("keeps the chosen delay selected", () => {
+    const options = launchTtlOptions(state({ expiresInSeconds: 14400 }));
+    expect(options).toContain('<option value="14400" selected>4 heures</option>');
+    expect(options.match(/selected/g)).toHaveLength(1);
   });
 });

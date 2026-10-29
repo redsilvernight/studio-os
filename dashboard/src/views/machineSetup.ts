@@ -96,6 +96,16 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
     harnesses.length === 0
       ? "Aucun outil IA chargé."
       : `${plural(harnesses.length, "outil IA chargé", "outils IA chargés")} : le raccordement de chacun se fait dans sa carte ci-dessous.`;
+  const versioning = plan.versioning;
+  const versioningBody = !versioning
+    ? "Ce client ne fournit pas encore le diagnostic Git."
+    : versioning.state === "missing"
+      ? "Git est absent. Il conserve l’historique et permet de revenir sur vos changements. Parcours manuel : installez Git avec votre accord, vérifiez git --version, puis relancez cet aperçu."
+      : versioning.state === "unavailable"
+        ? "Git est présent mais sa vérification a échoué. Vérifiez git --version dans votre terminal puis relancez cet aperçu."
+        : `${versioning.repositories} dépôt(s) local(aux) sur ${versioning.workspaces} projet(s) enregistré(s), ${versioning.with_identity} avec une identité de commit, ${versioning.with_remote} avec un distant. ${versioning.unavailable ? `${versioning.unavailable} vérification(s) incomplète(s). ` : ""}` +
+          `${versioning.identity_configured ? "Identité globale configurée. " : "Aucune identité globale complète détectée ; une identité locale au projet suffit. "}` +
+          "Un dépôt distant est facultatif pour versionner localement. Depuis le dossier du projet : git init si nécessaire, puis git config --local user.name et git config --local user.email avec les valeurs de votre choix. --global concerne tous vos projets : ne l’utilisez que si vous le souhaitez. Relancez cet aperçu après configuration.";
   const hooks = (plan.hooks ?? []).map((item) => itemHtml(item, chosen.has(item.item_id))).join("");
   const kept = (plan.hooks ?? []).filter((item) => item.state === "differs" && !chosen.has(item.item_id)).length;
   const keptSummary =
@@ -113,8 +123,9 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
     `<h4>3. Skills de la bibliothèque</h4><p class="settings-intro" data-testid="setup-skills">${skillsBody}</p>` +
     `<h4>4. Adapters</h4><p class="settings-intro" data-testid="setup-adapters">${adaptersBody}</p>` +
     `<h4>5. Connexion MCP</h4><p class="settings-intro" data-testid="setup-mcp">${mcp} Chaque raccordement se fait avec sa propre confirmation : il n'est jamais déclaré configuré ici.</p>` +
+    `<h4>6. Versionnement Git</h4><p class="settings-intro" data-testid="setup-versioning">${esc(versioningBody)}</p>` +
     (nothing
-      ? `<p class="settings-notice" role="status" data-testid="setup-nothing">Ce poste est déjà configuré : rien à écrire.</p>`
+      ? `<p class="settings-notice" role="status" data-testid="setup-nothing">Fichiers gérés à jour : rien à écrire. Consultez les vérifications ci-dessus pour les autres étapes.</p>`
       : keptSummary + `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-setup">Confirmer et appliquer</button> `) +
     `<button class="ds-btn" type="button" data-action="cancel-setup">${nothing ? "Fermer" : "Annuler"}</button>` +
     `</div>`

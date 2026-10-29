@@ -20,10 +20,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
+from studio_api.services import agents as agents_service
 from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
@@ -287,6 +289,67 @@ def _parse_machine_uuid(value: str, flag: str) -> UUID:
         raise SystemExit(2) from None
 
 
+def _parse_agent_uuid(value: str, flag: str) -> UUID:
+    try:
+        return UUID(value)
+    except ValueError:
+        print(f"error: {flag} is not a valid agent id: {value}", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
+async def _reconcile_agents(
+    owner_email: str | None,
+    revert_ref: str | None,
+    apply: bool,
+) -> None:
+    """Explicit, reversible reconciliation of former agent identities towards
+    their canonical row (DEC-0237). Dry run unless `apply`: nothing is merged
+    or deleted, a former row only gains `superseded_by_agent_id`."""
+    async with get_session_factory()() as session:
+        mode = "apply" if apply else "dry-run"
+        print(f"reconcile-agents ({mode})")
+        if revert_ref is not None:
+            agent_id = _parse_agent_uuid(revert_ref, "--revert")
+            legacy = await session.get(AgentModel, agent_id)
+            if legacy is None:
+                print(f"no agent {revert_ref}", file=sys.stderr)
+                raise SystemExit(1)
+            if legacy.superseded_by_agent_id is None:
+                print(f"agent {agent_id} is not linked")
+                return
+            previous = legacy.superseded_by_agent_id
+            if not apply:
+                print(f"  {agent_id}: would clear link to {previous}")
+                print("dry-run: no change written (pass --apply to execute)")
+                return
+            legacy.superseded_by_agent_id = None
+            legacy.version += 1
+            await session.commit()
+            print(f"  {agent_id}: link to {previous} cleared")
+            return
+
+        owner_user_id: UUID | None = None
+        if owner_email is not None:
+            owner = await _resolve_user(session, owner_email)
+            owner_user_id = owner.id
+        plan = await agents_service.plan_identity_reconciliation(session, owner_user_id)
+        for link in plan.links:
+            print(
+                f"  legacy {link.legacy_agent_id} "
+                f"({link.logical_harness}/{link.provider}/{link.model}) "
+                f"-> {link.canonical_agent_id}"
+            )
+        print(f"{len(plan.links)} link(s) {'written' if apply else 'would be created'}")
+        print(f"{plan.already_linked} legacy identity/identities already linked")
+        print(f"{plan.unmatched_legacy} legacy identity/identities without a canonical match")
+        if not apply:
+            print("dry-run: no change written (pass --apply to execute)")
+            return
+        written = await agents_service.apply_identity_reconciliation(session, plan)
+        await session.commit()
+        print(f"{written} link(s) committed")
+
+
 async def _merge_machines(source_ref: str, target_ref: str, apply: bool) -> None:
     """Reassign every reference of one machine to another, in a single
     transaction, then delete the source. Dry run unless `apply`: the operator
@@ -507,6 +570,24 @@ def main() -> None:
         "--dry-run", action="store_true", help="Report only, write nothing (default)"
     )
 
+    reconcile_agents = sub.add_parser(
+        "reconcile-agents",
+        help="Link former agent identities to their canonical row (DEC-0237)",
+    )
+    reconcile_agents.add_argument(
+        "--owner-email", help="Restrict the report to one user (admin reports everyone)"
+    )
+    reconcile_agents.add_argument(
+        "--revert", dest="revert_ref", help="Clear the link of one former agent UUID"
+    )
+    reconcile_mode = reconcile_agents.add_mutually_exclusive_group()
+    reconcile_mode.add_argument(
+        "--apply", action="store_true", help="Write the links (default is a dry run)"
+    )
+    reconcile_mode.add_argument(
+        "--dry-run", action="store_true", help="Report only, write nothing (default)"
+    )
+
     vault_parser = sub.add_parser("vault", help="Manage the server vault")
     vault_sub = vault_parser.add_subparsers(dest="vault_command", required=True)
     import_parser = vault_sub.add_parser(
@@ -571,6 +652,8 @@ def main() -> None:
             asyncio.run(_reconcile_builds())
         elif args.command == "merge-machines":
             asyncio.run(_merge_machines(args.source, args.target, args.apply))
+        elif args.command == "reconcile-agents":
+            asyncio.run(_reconcile_agents(args.owner_email, args.revert_ref, args.apply))
         elif args.command == "vault" and args.vault_command == "import-decisions":
             if args.apply and args.server_snapshot is not None:
                 print("error: --server-snapshot is dry-run only", file=sys.stderr)

@@ -426,11 +426,17 @@ describe("identité par modèle et par poste (DEC-0225)", () => {
 
   it("marque l'ancienne identité et compte les fiches du même modèle sur le même poste", () => {
     expect(isLegacyAgentIdentity(legacy)).toBe(true);
-    expect(isLegacyAgentIdentity(canonical)).toBe(false);
+    expect(isLegacyAgentIdentity(canonical)).toBe(true);
     const all = [canonical, legacy, otherPc];
     expect(agentIdentityNote(legacy, all)).toBe("Ancienne identité · 1 autre(s) fiche(s) de ce modèle sur ce poste");
-    expect(agentIdentityNote(canonical, all)).toBe("1 autre(s) fiche(s) de ce modèle sur ce poste");
-    expect(agentIdentityNote(otherPc, all)).toBeNull();
+    expect(agentIdentityNote(canonical, all)).toBe("Ancienne identité · 1 autre(s) fiche(s) de ce modèle sur ce poste");
+    expect(agentIdentityNote(otherPc, all)).toBe("Ancienne identité");
+  });
+
+  it("distingue une identité durable de sa machine d'enregistrement", () => {
+    const durable = agentOf({ owner_user_id: "user-one", harness: "codex", stable_key: "canonical-model-v1:key", model: "gpt-6.1-sol" });
+    expect(isLegacyAgentIdentity(durable)).toBe(false);
+    expect(agentIdentityNote(durable, [durable])).toBe("Identité durable · codex");
   });
 
   it("signale explicitement le modèle inconnu", () => {

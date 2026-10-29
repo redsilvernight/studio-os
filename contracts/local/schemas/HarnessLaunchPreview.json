@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "LaunchEnvironmentEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "included",
+            "unavailable",
+            "unverified"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "state",
+        "reason"
+      ],
+      "title": "LaunchEnvironmentEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "access_modes": {
+      "default": [],
+      "items": {
+        "enum": [
+          "read_only",
+          "workspace_write"
+        ],
+        "type": "string"
+      },
+      "maxItems": 2,
+      "title": "Access Modes",
+      "type": "array"
+    },
+    "adapter_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Adapter Id",
+      "type": "string"
+    },
+    "exclusions": {
+      "default": [],
+      "items": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "hooks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LaunchEnvironmentEntry"
+      },
+      "maxItems": 8,
+      "title": "Hooks",
+      "type": "array"
+    },
+    "isolation": {
+      "enum": [
+        "isolated",
+        "unverified"
+      ],
+      "title": "Isolation",
+      "type": "string"
+    },
+    "limitations": {
+      "default": [],
+      "items": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "mcp_servers": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LaunchEnvironmentEntry"
+      },
+      "maxItems": 8,
+      "title": "Mcp Servers",
+      "type": "array"
+    },
+    "production_approval_required": {
+      "title": "Production Approval Required",
+      "type": "boolean"
+    },
+    "settings_sources": {
+      "default": [],
+      "items": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Settings Sources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "adapter_id",
+    "isolation",
+    "production_approval_required"
+  ],
+  "title": "HarnessLaunchPreview",
+  "type": "object"
+}

@@ -542,11 +542,22 @@ async def get_revision(
 async def create_proposal(
     session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID, payload: ProposalCreate
 ) -> RoadmapRevision:
-    """Record a pending `proposal` revision against an `active` roadmap. The
-    roadmap content is untouched (a proposal is not a mutation until approved);
-    a previous pending proposal is superseded. Any writer may propose; only a
-    reviewer may approve (see `review_proposal`)."""
+    """Revise a draft in place or propose an active roadmap's next revision.
+
+    Active content stays unchanged until review; proposed content is frozen
+    until an authorized reviewer requests changes. Any writer may revise a draft.
+    """
     roadmap = await lock_roadmap(session, roadmap_id)
+    if roadmap.status == RoadmapStatus.PROPOSED.value:
+        ensure_project_access(principal, roadmap.project_id, "write")
+        ensure_can_write(principal, "roadmap")
+        raise invalid_state(
+            RoadmapStatus.PROPOSED,
+            "request_changes by an authorized reviewer is required before revising "
+            "a proposed roadmap; then revise the draft with its current revision_no",
+        )
+    if roadmap.status == RoadmapStatus.DRAFT.value:
+        return await _revise_draft(session, principal, roadmap, payload)
     guard_write(principal, roadmap, WriteKind.PROPOSAL, payload.provenance)
     prov = await resolve_provenance(session, principal, payload.provenance)
     errors = roadmap_document_errors(payload.document)
@@ -588,6 +599,60 @@ async def create_proposal(
             "scope": "revision",
         },
     )
+    await finish_result(session, principal, roadmap, prov, [event])
+    await session.refresh(revision)
+    return revision_view(revision)
+
+
+async def _revise_draft(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap: RoadmapModel,
+    payload: ProposalCreate,
+) -> RoadmapRevision:
+    guard_write(principal, roadmap, WriteKind.CONTENT, payload.provenance)
+    if payload.base_revision_no != roadmap.revision_no:
+        raise roadmap_error(
+            status.HTTP_409_CONFLICT,
+            RoadmapErrorCode.VERSION_CONFLICT,
+            server_revision_no=roadmap.revision_no,
+        )
+    errors = roadmap_document_errors(payload.document)
+    if errors:
+        raise invalid_roadmap(errors[0]["reason"], errors[0]["field"])
+    prov = await resolve_provenance(session, principal, payload.provenance)
+    await reconcile_document(session, await load_tree(session, roadmap), payload.document, prov)
+    roadmap.title = payload.document.title
+    roadmap.objective = text_or_none(payload.document.objective)
+    roadmap.context = text_or_none(payload.document.context)
+    roadmap.roadmap_metadata = dict(payload.document.metadata)
+    roadmap.version += 1
+    if payload.submit:
+        event = await _submit(session, roadmap, prov)
+        revision = await _pending_proposal(session, roadmap)
+        assert revision is not None
+        revision.summary = payload.summary
+    else:
+        roadmap.revision_no = await next_revision_no(session, roadmap)
+        revision = add_revision(
+            session,
+            roadmap,
+            prov,
+            kind=RevisionKind.SNAPSHOT.value,
+            revision_no=roadmap.revision_no,
+            document=payload.document,
+            base_revision_no=payload.base_revision_no,
+            summary=payload.summary,
+        )
+        event = PendingEvent(
+            EventType.ROADMAP_UPDATED,
+            {
+                "roadmap_id": str(roadmap.id),
+                "revision_no": roadmap.revision_no,
+                "status": roadmap.status,
+                "entity": "document",
+            },
+        )
     await finish_result(session, principal, roadmap, prov, [event])
     await session.refresh(revision)
     return revision_view(revision)
