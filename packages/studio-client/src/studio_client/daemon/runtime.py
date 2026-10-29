@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import TracebackType
 from typing import Any, BinaryIO
@@ -51,6 +51,7 @@ from studio_client.daemon.launch_settings_bridge import (
     load_machine_policy,
 )
 from studio_client.daemon.skills_bridge import start_auto_sync
+from studio_client.daemon.usage_scan import UsageScanLoop
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
@@ -76,6 +77,14 @@ from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import KeyringTokenStore, TokenStore
 from studio_client.usage import UsageWriteQueue
+from studio_client.usage.local import (
+    ClaudeCodeLocalReader,
+    CodexLocalReader,
+    LocalUsageScanner,
+    OpenCodeLocalReader,
+    WorkspaceRoot,
+    load_price_table,
+)
 from studio_client.usage.recorder import LaunchUsageRecorder
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
@@ -417,6 +426,36 @@ class DaemonRuntime:
                 return Path(paths[0])
         return None
 
+    def _usage_roots(self) -> tuple[WorkspaceRoot, ...]:
+        return tuple(
+            WorkspaceRoot(path=Path(path), project_id=watch.project_id)
+            for watch in self._workspace_inputs
+            for path in watch.plan.repo_paths
+        )
+
+    def _build_usage_scan(self, store: OutboxStore) -> UsageScanLoop | None:
+        """Background scanner of the desktop harness stores; disabled, it
+        returns None and the daemon runs exactly as before."""
+        if not self.config.usage_scan_enabled or self.config.usage_scan_lookback_days <= 0:
+            return None
+        stop_event = self._stop_event
+        if stop_event is None:
+            return None
+        scanner = LocalUsageScanner(
+            store=store,
+            machine_id=self.binding.machine_id,
+            readers=(ClaudeCodeLocalReader(), CodexLocalReader(), OpenCodeLocalReader()),
+            workspace_roots=self._usage_roots,
+            price_table=load_price_table(self.data_root / "pricing.json"),
+            lookback=timedelta(days=self.config.usage_scan_lookback_days),
+        )
+        return UsageScanLoop(
+            scanner,
+            self.config.usage_scan_interval_seconds,
+            stop_event=stop_event,
+            stopped=lambda: self._stop_requested,
+        )
+
     async def _workspace_sync_loop(self) -> None:
         stop = self._stop_event
         if stop is None or (self._workspace_source is None and self._git_watch_source is None):
@@ -500,6 +539,7 @@ class DaemonRuntime:
                     interval_seconds=self.config.git_watch_interval_seconds,
                     change_listener=self._git_change_listener,
                 )
+                usage_loop = self._build_usage_scan(store)
                 if not self._stop_requested:
                     await self.refresh_workspace_watchers()
                 if self._stop_requested:
@@ -517,6 +557,7 @@ class DaemonRuntime:
                     self._heartbeat.run(),
                     self._workspace_sync_loop(),
                     *(watcher.run() for watcher in self._watchers),
+                    *([usage_loop.run()] if usage_loop is not None else []),
                 )
         finally:
             self.request_stop()
