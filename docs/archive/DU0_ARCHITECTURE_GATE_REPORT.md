@@ -1,3 +1,5 @@
+> Archive historique — ne décrit pas l’état courant. Référence : [index canonique](../Studio_OS_Documentation_Pack/studio_os_docs/00_README.md).
+
 # DU-0 — Architecture Gate Report
 
 Date : 2026-09-24  

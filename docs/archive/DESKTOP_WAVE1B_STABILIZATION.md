@@ -1,3 +1,5 @@
+> Archive historique — ne décrit pas l’état courant. Référence : [index canonique](../Studio_OS_Documentation_Pack/studio_os_docs/00_README.md).
+
 # Desktop — Wave 1b : stabilisation des frontières P3/P4/P5
 
 Lot de stabilisation. Ce n'est pas P6. Aucun contrat `studio.local/v1` ni P1/P4
