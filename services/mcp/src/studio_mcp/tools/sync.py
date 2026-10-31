@@ -12,6 +12,7 @@ from studio_contracts.sync import (
 )
 
 from studio_mcp.errors import McpError, run_tool
+from studio_mcp.response_budget import fit_sync
 from studio_mcp.util import parse_uuid
 
 
@@ -33,7 +34,7 @@ async def studio_sync(
     stored cursor advances monotonically to it (a stale replay changes
     nothing), and `next_cursor` in the answer is what to ack next. `files`
     scopes claim overlap to declared paths. `limit`/`max_chars` bound the
-    answer (same budget as `prepare_context`); the remainder surfaces as
+    answer (`max_chars` covers the whole serialized answer); the remainder surfaces as
     per-`why` `overflow` counters, and a truncated scan sets `resync` (see
     `prepare_context` — raw history is never dumped). Replay-safe by cursor:
     the same `ack` returns the same answer, never a duplicate effect."""
@@ -57,7 +58,7 @@ async def studio_sync(
             if isinstance(parsed, dict):
                 return McpError.model_validate(parsed)
             parsed_task = parsed
-        return await sync_service.sync(
+        result = await sync_service.sync(
             session,
             principal,
             session_id=parsed_session,
@@ -68,6 +69,7 @@ async def studio_sync(
             limit=limit,
             max_chars=max_chars,
         )
+        return SyncResult.model_validate(fit_sync(result.model_dump(mode="json"), max_chars))
 
     raw = await run_tool(ctx, _handler)
     if isinstance(raw, dict):  # auth / HTTPException / IntegrityError envelopes

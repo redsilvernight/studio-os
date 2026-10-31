@@ -149,6 +149,7 @@ async def test_handoff_emits_one_coordination_signal_and_sets_the_cursor(
         expected_version=current["version"],
         task_status="blocked",
         coordination_text="reprendre a l etape 3",
+        verbose=True,
     )
     assert "error_code" not in first
     assert first["sync"]["next_cursor"] >= 0
@@ -167,7 +168,7 @@ async def test_handoff_without_coordination_emits_nothing(
     auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
 ) -> None:
     task, started = await _task_with_session(auth_ctx, project, agent)
-    result = await studio_handoff(str(project.id), started["id"], auth_ctx)
+    result = await studio_handoff(str(project.id), started["id"], auth_ctx, verbose=True)
     assert result["coordination_event_id"] is None
     assert result["handoff_cursor_seq"] == result["sync"]["next_cursor"]
 

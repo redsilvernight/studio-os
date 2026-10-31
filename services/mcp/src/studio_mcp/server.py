@@ -384,7 +384,11 @@ def create_server() -> MCPServer:
             "otherwise). Requires a writer role. Pass idempotency_key when retrying a call "
             "that may have already succeeded — replaying the same key+arguments returns the "
             "original result, never a duplicate claim nor a duplicate session; the same key "
-            "with different arguments fails with idempotency_key_payload_mismatch."
+            "with different arguments fails with idempotency_key_payload_mismatch. max_chars "
+            "bounds the whole serialized response (envelope included): lowest-priority items "
+            "are trimmed first and counted in trimmed_for_budget. task/session are compact "
+            "by default (the task description is in prepared_context.task); verbose=true "
+            "returns the full objects, still within max_chars."
         ),
     )
     server.add_tool(
@@ -402,8 +406,11 @@ def create_server() -> MCPServer:
             "without a second status update, duplicate claim releases, duplicate AI work entry, or "
             "second session end. coordination_text (<=280 chars) optionally emits a "
             "coordination.handoff signal on the task for its next session (delivered via "
-            "studio_sync, never re-emitted on replay). The response also carries the last bounded "
-            "sync block and the task's handoff_cursor_seq. Optional completion evidence separates "
+            "studio_sync, never re-emitted on replay). By default the response is a minimal "
+            "acknowledgement (<=1000 chars): ids, task status/version, released claim count, "
+            "handoff_cursor_seq and warnings summarizing the acknowledged last sync; "
+            "verbose=true returns the full answer (claim ids, last bounded sync block). "
+            "Optional completion evidence separates "
             "code, audit, diagnostic and operation checks; incomplete validation refuses completed "
             "with completion_incomplete. Evidence requires agent_id and summary for its work log. "
             "Requires a writer role."
@@ -420,7 +427,8 @@ def create_server() -> MCPServer:
             "start); without it, agent_id + task_id is a stateless lookup. "
             "ack advances the stored cursor monotonically (a stale replay "
             "changes nothing); next_cursor is what to ack next. files scopes "
-            "claim overlap; limit/max_chars bound the answer, the remainder "
+            "claim overlap; limit/max_chars bound the answer (max_chars covers the whole "
+            "serialized response), the remainder "
             "surfacing as per-why overflow counters with resync referring to "
             "prepare_context. Replay-safe by cursor. Requires a writer role."
         ),
@@ -613,7 +621,8 @@ def create_server() -> MCPServer:
             "summaries (id, title, status, progress, current step) and, for the active "
             "roadmap, the current step plus the next available steps — read-only. Required "
             "project_id (UUID string); optional status filter, limit (1..100, default 20) and "
-            "max_chars budget for free text. A project with no roadmap returns an empty list "
+            "max_chars bounding the whole serialized response (trimmed units counted in "
+            "trimmed_for_budget). A project with no roadmap returns an empty list "
             "and a null active position: that is a normal state, never an error. Any "
             "authenticated caller may read."
         ),
