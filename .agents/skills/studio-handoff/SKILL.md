@@ -22,7 +22,7 @@ description: Close a unit of work in one call (L3 studio_handoff) so a zero-hist
 }
 ```
 
-Composes: task status update + releases the session agent's eligible claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Emits one `coordination.handoff` signal when `coordination_text` is set (never re-emitted on replay). Compact response: ids + statuses + last bounded `sync` block + `handoff_cursor_seq`.
+Composes: task status update + releases the session agent's eligible claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Emits one `coordination.handoff` signal when `coordination_text` is set (never re-emitted on replay). Default response is a minimal ack (<= 1000 chars): ids, task status/version, released claim count, `handoff_cursor_seq`, `ai_work_id`, `coordination_event_id` and `warnings` summarizing the acknowledged last sync. Pass `verbose=true` only if you need the claim ids or the full last `sync` block.
 
 ## Completion by work kind
 

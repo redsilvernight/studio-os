@@ -7,7 +7,7 @@ description: Run a unit of work through Studi'OS primitives using L2/L3 composit
 
 ## Composition (L2/L3 composites)
 
-1. **Find/start work**: `studio_start_work(project_id, agent_id, task_id?, objective?, agent_stable_key?, files?, limit?, max_chars?, idempotency_key?)`
+1. **Find/start work**: `studio_start_work(project_id, agent_id, task_id?, objective?, agent_stable_key?, files?, limit?, max_chars?, idempotency_key?, verbose?)` — `max_chars` bounds the whole serialized answer (trimmed units counted in `trimmed_for_budget`)
    - With `task_id`: claims task (idempotent), resumes/creates session, returns scoped context.
    - Without `task_id`: returns context + candidate tasks (current roadmap step first), no claim.
    - Agent identity from harness hook (`agent_id` + `agent_stable_key`).

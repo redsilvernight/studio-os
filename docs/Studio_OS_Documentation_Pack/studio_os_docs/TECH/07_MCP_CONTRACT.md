@@ -65,6 +65,23 @@ une seule session ouverte, y compris apres expiration.
 C4 (additif) : avec `task_id`, la reponse porte aussi `sync`, le bloc
 `studio_sync` initial borne depuis le curseur de la session (herite du dernier
 handoff de la tache), sans ack ; `sync` est `null` sans `task_id`.
+Budget de reponse (2026-10-31) : `max_chars` borne la reponse MCP serialisee
+complete (texte emis par le SDK, JSON `indent=2`, enveloppe, ids et
+metadonnees compris), plus seulement le texte libre de `prepared_context`.
+Au-dela, le serveur retire de facon deterministe, du moins prioritaire au plus
+prioritaire : `skills`, `rules`, `notes`, `roadmap_overview`, `ai_work`,
+`related_tasks`, `decisions`, `candidates`, `claims`, `roadmap`, items `sync`
+(curseur `next_cursor` abaisse sous tout evenement retire, `overflow`
+incremente), puis raccourcit les descriptions. Chaque unite retiree est
+comptee dans `trimmed_for_budget` (et, pour les sections de contexte, dans
+`prepared_context.omitted_for_budget` / `returned`). En dernier recours la
+reponse se reduit a `claimed`, `resumed`, `task{id,status,version}`,
+`session{id}` avec `prepared_context: null`. `task`/`session` sont compacts
+par defaut (`task` : `id`, `readable_id`, `title`, `status`, `version`,
+`claimed_by_*` ; la description est dans `prepared_context.task` ;
+`session` : `id`, `task_id`, `agent_id`, `status`, `expires_at`) ;
+`verbose=true` renvoie les objets complets, toujours dans `max_chars`, et
+ajoute `verbose=true` a l'empreinte d'idempotence.
 
 ### studio_handoff (L3, additif, DEC-0163)
 Cloture en un appel : met a jour le statut de la tache (`expected_version`,
@@ -79,10 +96,17 @@ Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 `idempotency_key` optionnel. Autorisation avant le court-circuit
 d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus
 repondent in-band (pas de 422 en MCP) : `invalid_task_status` /
-`invalid_ai_work_status`, meme vocabulaire que les services. Reponse compacte : ids + statuts
-seulement, plus (C4, additif) `sync` (dernier `studio_sync` borne, acquitte),
-`handoff_cursor_seq` (curseur que la prochaine session de la tache herite) et
-`coordination_event_id`. `coordination_text` (<= 280 caracteres) emet
+`invalid_ai_work_status`, meme vocabulaire que les services. Reponse par
+defaut (2026-10-31) : accuse minimal <= 1 000 caracteres serialises —
+`task_id`, `task_status`, `task_version`, `session_id`, `released_claims`
+(nombre), `handoff_cursor_seq` (curseur que la prochaine session de la tache
+herite), `ai_work_id`, `coordination_event_id` et, si besoin, `warnings`
+resumant le dernier `studio_sync` acquitte (`coordination_signals_received:N`,
+`sync_items_acknowledged:N`, `sync_overflow:N`, `sync_resync`).
+`verbose=true` renvoie la reponse composite complete (ids des claims liberes,
+bloc C4 `sync` borne et acquitte) et ajoute `verbose=true` a l'empreinte
+d'idempotence. Une cle enregistree avant ce changement rejoue le resultat
+stocke tel quel. `coordination_text` (<= 280 caracteres) emet
 optionnellement un `coordination.handoff` sur la tache ; `event_id` derive de
 la session : jamais de doublon au rejeu. Repli minimal : `end_session` libere les claims de la tache
 automatiquement.
@@ -105,7 +129,9 @@ concerne mon travail ? », en reponse compacte et bornee. Meme contrat que
 `GET /sync` (`TECH/02_API_CONTRACT.md` § Sync) : `session_id` (ou
 `agent_id` + `task_id`, sans etat), `ack` du curseur, `files?`, `limit`,
 `max_chars`. Rejeu sans effet par curseur (pas de `idempotency_key`) :
-le meme `ack` renvoie la meme reponse.
+le meme `ack` renvoie la meme reponse. En MCP, `max_chars` borne aussi la
+reponse serialisee complete : les derniers items sont retires (comptes dans
+`overflow`, `next_cursor` abaisse sous tout evenement retire, donc relivre).
 
 ### studio_coordinate (C3, additif, DEC-0157)
 Emet un signal inter-sessions structure. Meme contrat que
@@ -178,6 +204,13 @@ trois outils Task renvoient uniquement `id`, `status`, `version` et
 l'empreinte d'idempotence anterieure ; le mode compact ajoute explicitement
 `verbose=false`, donc une meme cle utilisee avec les deux formes est rejetee
 comme payload different.
+
+`studio_start_work` et `studio_handoff` sont compacts par defaut
+(`verbose=false`) : `studio_handoff` renvoie un accuse minimal, `studio_start_work`
+des `task`/`session` reduits ; `verbose=true` restaure la forme detaillee et
+entre dans l'empreinte d'idempotence. Pour `studio_start_work`, `studio_sync`
+et `studio_get_roadmap`, `max_chars` borne le texte reellement emis par le
+SDK MCP (JSON `indent=2`), enveloppe comprise (voir leurs sections).
 
 `studio_prepare_context` accepte un `objective` optionnel lorsqu'un `task_id`
 est fourni : le serveur derive alors les termes depuis le titre et la
@@ -733,7 +766,10 @@ nouveau contrat neutre `studio.initialization/v1`.
   (revisions `proposal` `pending` de la roadmap `active`, statut de la
   proposition). Absence de roadmap =
   liste vide + position nulle (etat normal). Textes tronques (`truncated`),
-  items bornes (`omitted_for_budget`).
+  items bornes (`omitted_for_budget`). `max_chars` borne la reponse
+  serialisee complete (2026-10-31) : propositions, roadmaps, etapes a venir,
+  criteres puis objectifs sont retires ou raccourcis dans cet ordre, comptes
+  dans `trimmed_for_budget`.
 - `studio_propose_roadmap(project_id, document, submit?, idempotency_key?,
   agent_id?, roadmap_id?, base_revision_no?, summary?)` — ecriture : cree un
   `draft`, ou le soumet `proposed` si `submit`. Pour modifier une roadmap

@@ -15,6 +15,7 @@ from studio_contracts.handoff import HandoffCoordination, HandoffRequest
 from studio_contracts.tasks import TaskStatus, TaskUpdate
 
 from studio_mcp.errors import run_tool
+from studio_mcp.response_budget import handoff_ack
 from studio_mcp.util import parse_uuid
 
 
@@ -32,6 +33,7 @@ async def studio_handoff(
     coordination_text: str | None = None,
     idempotency_key: str | None = None,
     completion: CompletionEvidence | None = None,
+    verbose: bool = False,
 ) -> dict[str, Any]:
     """Close a work session in one call (L3 handoff). `project_id` and
     `session_id` (UUID strings) are required. `task_status` (e.g.
@@ -45,8 +47,11 @@ async def studio_handoff(
     status update, duplicate claim releases, duplicate AI work entry, or
     second session end. `coordination_text` (<=280 chars) optionally emits a
     `coordination.handoff` signal on the task for its next session (delivered
-    through `studio_sync`, never re-emitted on replay). The response also
-    carries the last bounded `sync` block and the task's `handoff_cursor_seq`.
+    through `studio_sync`, never re-emitted on replay). By default the
+    response is a minimal acknowledgement (<= 1000 characters): ids, task
+    status/version, released claim count, `handoff_cursor_seq` and
+    `warnings` summarizing the acknowledged last sync. `verbose=true` returns
+    the full composite answer (claim ids, last bounded `sync` block).
     Requires a writer role."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
@@ -114,7 +119,8 @@ async def studio_handoff(
 
         async def _create() -> dict[str, Any]:
             result = await handoff_service.handoff(session, principal, request)
-            return result.model_dump(mode="json")
+            body = result.model_dump(mode="json")
+            return body if verbose else handoff_ack(body)
 
         request_hash = idempotency_service.hash_request(
             json.dumps(
@@ -129,6 +135,7 @@ async def studio_handoff(
                     "changed_files": changed_files,
                     "tests_run": tests_run,
                     "coordination_text": coordination_text,
+                    **({"verbose": True} if verbose else {}),
                     **(
                         {"completion": request.completion.model_dump(mode="json")}
                         if request.completion is not None
