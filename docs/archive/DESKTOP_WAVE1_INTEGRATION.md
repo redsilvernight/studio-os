@@ -1,3 +1,5 @@
+> Archive historique — ne décrit pas l’état courant. Référence : [index canonique](../Studio_OS_Documentation_Pack/studio_os_docs/00_README.md).
+
 # Desktop — Wave 1 : réconciliation P3 shell × P4 daemon × P5 workspaces
 
 Lot d'intégration (pas une nouvelle phase). Branche de travail

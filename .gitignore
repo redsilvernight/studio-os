@@ -55,3 +55,7 @@ docker/backups/
 
 # DEC-0147 : cablage MCP machine-local, jamais versionne
 .mcp.json
+
+# Disposable local checkouts and provisioning secrets
+/.worktrees/
+studi-os-credentials-*.txt
