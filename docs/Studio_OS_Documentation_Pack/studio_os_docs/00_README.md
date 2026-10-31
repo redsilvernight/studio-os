@@ -28,7 +28,6 @@ rapport de chantier ne prouve pas la validation de la révision actuelle.
 - [Gate de production publique et incidents](../../DESKTOP_C4_PRODUCTION_GATE.md).
 - [Clés Desktop : rotation et révocation](../../DESKTOP_B4_KEY_RUNBOOK.md).
 - [Préflight du dépôt](../../DEV_PREFLIGHT.md).
-- [Interfaces des outils personnels](../../PERSONAL_TOOL_INTERFACES.md).
 - [Restauration des projections IA](../../LIBRARY_PROJECTION_RESTORE.md).
 
 ## Développer et intégrer
