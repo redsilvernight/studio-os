@@ -1,3 +1,20 @@
+# Studio OS v0.9.2 — 31/10/2026
+
+## Nouveautés
+
+- Documentation consolidée pour la distribution publique : index canonique unique, README racine, composants et release actualisés, rapports anciens archivés dans `docs/archive/` (#209).
+- Export des décisions resynchronisé depuis la production : DEC-0194 à DEC-0251 ajoutées, statuts de DEC-0162 et DEC-0187 alignés (#209).
+
+## Corrections
+
+- Liens cassés de DEC-0142 et DEC-0143 corrigés à la source ; quatre manuels PDF/DOCX obsolètes retirés (#209).
+- Note d'interfaces des outils personnels retirée du dépôt (#210) ; patch note v0.9.1 ajoutée (#208).
+- Exclusions Git, Docker et Graphify complétées (worktrees, état client, vault, sorties, identifiants) (#209).
+
+## Notes de mise à jour
+
+- Aucun code produit, contrat, migration ni configuration de déploiement modifié.
+
 # Studio OS v0.9.1 — 29/10/2026
 
 ## Nouveautés
