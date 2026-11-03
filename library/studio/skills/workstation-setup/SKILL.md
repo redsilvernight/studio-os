@@ -26,13 +26,14 @@ Rendre un poste opérationnel avec Studio OS et un seul agent IA. Toute modifica
 4. Vérifier : `git-guard` actif bloque `git push --force` dans un dépôt de test ; `session-start` affiche `project_id` dans un dépôt suivi.
 
 ## 3. Dépôts
-1. Lier chaque dépôt : `studio-client workspaces register --path <dépôt> --project-id <id>`.
-2. Projections de projet (`.claude/`, `.codex/`, `.opencode/`) : régénérées puis vérifiées par `studio-client adapters check` ; jamais éditées à la main.
+1. Lien automatique : demander l'accord de l'utilisateur, puis `studio-client workspaces auto-link-consent grant --yes` (une fois par poste ; origine d'API déduite de l'URL du serveur MCP `studio-os`, `config.toml` créé s'il manque ; `revoke` retire le consentement). Ensuite `session-start` lie seul tout dépôt dont `AGENTS.md` porte `Projet Studio OS : <id>` (DEC-0285).
+2. Dépôt sans ce `AGENTS.md`, ou lien manuel : `studio-client workspaces register --path <dépôt> --project-id <id>`.
+3. Projections de projet (`.claude/`, `.codex/`, `.opencode/`) : régénérées puis vérifiées par `studio-client adapters check` ; jamais éditées à la main.
 
 ## Diagnostic
 | Symptôme | Cause probable |
 |---|---|
 | Hooks muets | empreinte non consentie, `pwsh` absent du `PATH` |
-| `project_id` vide | dépôt non lié, worktree hors racine déclarée |
+| `project_id` vide | dépôt non lié (`session-start` indique `lien auto: <statut>` : `no_consent`, `conflict`, `config_unavailable`, `config_mismatch`), worktree hors racine déclarée |
 | Skills absents | `skills sync` non lancé, daemon arrêté |
 | 401 | jeton expiré : relancer `studio-client login` |

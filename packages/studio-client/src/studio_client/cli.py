@@ -1238,6 +1238,59 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
         print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
 
 
+def _workspaces_auto_link(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.auto_link import AutoLinkStatus, auto_link
+
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    result = auto_link(Path(args.path).resolve(), registry_dir)
+    summary = {
+        "status": result.status.value,
+        "project_id": str(result.project_id) if result.project_id else None,
+        "server_origin": result.server_origin,
+        "config_written": result.config_written,
+        "detail": result.detail,
+    }
+    print(json.dumps(summary) if args.json else f"{summary['status']}	{result.detail}")
+    ok = (AutoLinkStatus.LINKED, AutoLinkStatus.ALREADY_LINKED)
+    if result.status not in ok and result.status is not AutoLinkStatus.NO_PROJECT_ID:
+        raise SystemExit(1)
+
+
+def _workspaces_auto_link_consent(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client import auto_link
+
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    if args.action == "revoke":
+        print("revoked" if auto_link.revoke_consent(registry_dir) else "no consent recorded")
+        return
+    if args.action == "status":
+        print(auto_link.read_consent(registry_dir) or "none")
+        return
+    origin = (
+        origin_of(args.api_base_url)
+        if args.api_base_url
+        else auto_link.mcp_origin(Path.cwd(), Path.home())
+    )
+    if origin is None:
+        print("error: no studio-os MCP url found; pass --api-base-url", file=sys.stderr)
+        raise SystemExit(1)
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print(
+                "error: confirmation needed; rerun with --yes after the user agrees",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        answer = input(
+            f"Link repos declaring a Studio OS project automatically, API {origin}? [y/N] "
+        )
+        if answer.strip().lower() not in ("y", "yes", "o", "oui"):
+            print("refused")
+            raise SystemExit(1)
+    auto_link.grant_consent(registry_dir, origin)
+    print(f"granted	{origin}")
+
+
 def _optional_config() -> ClientConfig | None:
     """This machine's configuration when it has one, without failing the
     command: a prune must stay runnable on a machine that never enrolled, with
@@ -1960,6 +2013,25 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(workspaces_register)
     workspaces_register.set_defaults(func=_workspaces_register)
 
+    workspaces_auto = workspaces_sub.add_parser(
+        "auto-link",
+        help="Link a folder to the project its AGENTS.md declares (needs consent; DEC-0285).",
+    )
+    workspaces_auto.add_argument("--path", required=True, help="Repository root.")
+    workspaces_auto.add_argument("--registry-dir", help="Workspace registry directory.")
+    _add_json_flag(workspaces_auto)
+    workspaces_auto.set_defaults(func=_workspaces_auto_link)
+    workspaces_consent = workspaces_sub.add_parser(
+        "auto-link-consent", help="Grant, revoke or show the one-time auto-link consent."
+    )
+    workspaces_consent.add_argument("action", choices=("grant", "revoke", "status"))
+    workspaces_consent.add_argument(
+        "--api-base-url", help="Studio OS API (default: from the MCP url)."
+    )
+    workspaces_consent.add_argument("--yes", action="store_true", help="Skip the prompt.")
+    workspaces_consent.add_argument("--registry-dir", help="Workspace registry directory.")
+    workspaces_consent.set_defaults(func=_workspaces_auto_link_consent)
+
     worktrees_parser = subparsers.add_parser(
         "worktrees",
         help="Task worktrees created for a launch (`studio-client worktrees prune --help`).",
@@ -2427,6 +2499,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         or getattr(args, "rules_command", None) in ("sync",)
         or getattr(args, "worktrees_command", None) in ("prune",)
+        or getattr(args, "workspaces_command", None) in ("auto-link", "auto-link-consent")
         or getattr(args, "bootstrap_command", None)
         in ("init", "check", "diff", "sync", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
