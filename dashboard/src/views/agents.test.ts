@@ -24,6 +24,7 @@ import {
   agentsLoadingHtml,
   agentDetailHtml,
   buildAgentNames,
+  workSummaryHtml,
 } from "./agents";
 import type { AgentActivity } from "../agentsApi";
 
@@ -396,6 +397,26 @@ describe("agents.css (liste compacte, pas de remplissage artificiel)", () => {
   it("aucun tableau technique, aucun remplissage viewport", () => {
     expect(css).not.toContain("<table");
     expect(css).not.toMatch(/100vh|100vw/);
+  });
+});
+
+describe("hotfix : inactifs par projet, travail réalisé lisible", () => {
+  it("inactifs rangés en cartes repliables par projet, « Sans projet » en dernier", () => {
+    const a2 = agentOf({ id: "aaaaaaaa-0000-4111-8111-000000000002", display_name: "Sans nom projet" });
+    const a2id = "aaaaaaaa-0000-4111-8111-000000000002";
+    const acts = new Map([[A1, activityOf("none")], [a2id, activityOf("none")]]);
+    const html = agentsListHtml([agentOf(), a2], acts, { sessions: [], aiWork: [], tasks: [] }, names, "", true);
+    expect(html).toContain('<details class="agents-project">');
+    expect(html).toContain("Sans projet");
+    expect(html).not.toContain('class="agents-project" open');
+  });
+
+  it("résumé long : tronqué, preuves JSON repliées", () => {
+    const html = workSummaryHtml(`${"x".repeat(300)} COMPLETION_EVIDENCE {"a": 1}`);
+    expect(html).toContain("<details");
+    expect(html).toContain("…");
+    expect(html).toContain("Preuves techniques");
+    expect(workSummaryHtml("court")).toBe('<span class="ds-list-title">court</span>');
   });
 });
 
