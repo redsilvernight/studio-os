@@ -172,3 +172,60 @@
     transition: none;
   }
 }
+
+/* Inactifs : une carte repliable par projet. */
+.agents-projects {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.agents-project {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.agents-project > summary {
+  cursor: pointer;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  font-weight: 600;
+}
+
+.agents-project > .agents-list {
+  border: 0;
+  border-top: 1px solid var(--ds-border);
+  border-radius: 0;
+}
+
+/* Travail réalisé : résumé tronqué, preuves repliées, anciennes entrées à la demande. */
+.work-summary > summary {
+  cursor: pointer;
+}
+
+.work-summary p {
+  margin: var(--ds-space-2) 0 0;
+}
+
+.work-evidence {
+  margin: var(--ds-space-1) 0 0;
+  padding: var(--ds-space-2);
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--ds-text-sm);
+  background: var(--ds-surface-muted, rgba(0, 0, 0, 0.04));
+  border-radius: 8px;
+}
+
+.work-meta {
+  display: block;
+  margin-top: var(--ds-space-1);
+}
+
+.paged-more > summary {
+  cursor: pointer;
+  padding: var(--ds-space-3) 0;
+  color: var(--ds-text-muted);
+}
