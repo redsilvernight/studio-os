@@ -51,6 +51,9 @@ READ_ONLY_TOOLS = {
     "studio_get_builds",
     "studio_resolve_agent",
     "studio_discover_definitions",
+    "studio_discover_capabilities",
+    "studio_preview_dependency_updates",
+    "studio_preview_work_profile_pack",
     "studio_prepare_context",
     "studio_get_roadmap",
     "studio_preview_roadmap_hydration",
@@ -76,9 +79,12 @@ WRITE_TOOLS = {
     "studio_sync",
     "studio_coordinate",
     "studio_register_agent",
+    "studio_resolve_agent_identity",
+    "studio_supersede_agent_identity",
     "studio_log_ai_work",
     "studio_emit_event",
     "studio_create_transfer_metadata",
+    "studio_delete_transfer",
     "studio_request_producer_job",
     "studio_publish_definition",
     "studio_configure_runtime",
@@ -103,7 +109,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 57
+    assert len(tools) == len(READ_ONLY_TOOLS | WRITE_TOOLS)
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"

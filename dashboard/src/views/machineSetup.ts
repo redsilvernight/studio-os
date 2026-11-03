@@ -96,6 +96,16 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
     harnesses.length === 0
       ? "Aucun outil IA chargé."
       : `${plural(harnesses.length, "outil IA chargé", "outils IA chargés")} : le raccordement de chacun se fait dans sa carte ci-dessous.`;
+  const versioning = plan.versioning;
+  const versioningBody = !versioning
+    ? "Ce client ne fournit pas encore le diagnostic Git."
+    : versioning.state === "missing"
+      ? "Git est absent. Il conserve l’historique et permet de revenir sur vos changements. Parcours manuel : installez Git avec votre accord, vérifiez git --version, puis relancez cet aperçu."
+      : versioning.state === "unavailable"
+        ? "Git est présent mais sa vérification a échoué. Vérifiez git --version dans votre terminal puis relancez cet aperçu."
+        : `${versioning.repositories} dépôt(s) local(aux) sur ${versioning.workspaces} projet(s) enregistré(s), ${versioning.with_identity} avec une identité de commit, ${versioning.with_remote} avec un distant. ${versioning.unavailable ? `${versioning.unavailable} vérification(s) incomplète(s). ` : ""}` +
+          `${versioning.identity_configured ? "Identité globale configurée. " : "Aucune identité globale complète détectée ; une identité locale au projet suffit. "}` +
+          "Un dépôt distant est facultatif pour versionner localement. Depuis le dossier du projet : git init si nécessaire, puis git config --local user.name et git config --local user.email avec les valeurs de votre choix. --global concerne tous vos projets : ne l’utilisez que si vous le souhaitez. Relancez cet aperçu après configuration.";
   const hooks = (plan.hooks ?? []).map((item) => itemHtml(item, chosen.has(item.item_id))).join("");
   const kept = (plan.hooks ?? []).filter((item) => item.state === "differs" && !chosen.has(item.item_id)).length;
   const keptSummary =
@@ -113,8 +123,9 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
     `<h4>3. Skills de la bibliothèque</h4><p class="settings-intro" data-testid="setup-skills">${skillsBody}</p>` +
     `<h4>4. Adapters</h4><p class="settings-intro" data-testid="setup-adapters">${adaptersBody}</p>` +
     `<h4>5. Connexion MCP</h4><p class="settings-intro" data-testid="setup-mcp">${mcp} Chaque raccordement se fait avec sa propre confirmation : il n'est jamais déclaré configuré ici.</p>` +
+    `<h4>6. Versionnement Git</h4><p class="settings-intro" data-testid="setup-versioning">${esc(versioningBody)}</p>` +
     (nothing
-      ? `<p class="settings-notice" role="status" data-testid="setup-nothing">Ce poste est déjà configuré : rien à écrire.</p>`
+      ? `<p class="settings-notice" role="status" data-testid="setup-nothing">Fichiers gérés à jour : rien à écrire. Consultez les vérifications ci-dessus pour les autres étapes.</p>`
       : keptSummary + `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-setup">Confirmer et appliquer</button> `) +
     `<button class="ds-btn" type="button" data-action="cancel-setup">${nothing ? "Fermer" : "Annuler"}</button>` +
     `</div>`
@@ -130,14 +141,20 @@ function resultHtml(plan: SetupPlan | undefined, result: SetupApplyResult): stri
     )
     .join("");
   const skills = result.skills;
+  const failed = (result.hooks ?? []).filter((item) => item.outcome === "failed").length + (skills.outcome === "failed" ? 1 : 0);
+  const unfinished = (result.hooks ?? []).some((item) => item.outcome === "skipped") || skills.outcome === "unavailable" || (skills.left_modified ?? 0) > 0;
+  const succeeded = (result.hooks ?? []).some((item) => item.outcome === "written" || item.outcome === "unchanged") || skills.outcome === "synced" || skills.outcome === "unchanged";
+  const outcome = failed > 0 ? (succeeded ? "partial" : "error") : unfinished ? "partial" : "success";
+  const summary = outcome === "success" ? "Préparation réussie" : outcome === "partial" ? "Préparation partielle" : "Préparation en erreur";
   const skillsTone = skills.outcome === "failed" ? "danger" : skills.outcome === "synced" ? "success" : "neutral";
   const skillsLine =
     dsBadge(SKILLS_OUTCOME_LABELS[skills.outcome], skillsTone) +
     (skills.written ? ` ${skills.written} fichier(s) écrit(s).` : "") +
     (skills.left_modified ? ` ${skills.left_modified} modifiée(s) localement, laissée(s) telle(s) quelle(s).` : "");
   return (
-    `<div class="integration-plan" data-testid="setup-result">` +
-    `<h3>Rapport</h3>` +
+    `<div class="integration-plan" data-testid="setup-result" data-result-state="${outcome}" role="status">` +
+    `<h3>${summary}</h3>` +
+    (outcome === "success" ? `<p>Les opérations demandées ont été vérifiées. Terminez le raccordement de chaque outil dans sa carte ci-dessous.</p>` : `<p>Certains éléments demandent encore une action. Consultez les éléments conservés ou en erreur, puis préparez un nouvel aperçu.</p>`) +
     (rows === "" ? "" : `<ul>${rows}</ul>`) +
     `<p class="settings-intro" data-testid="setup-result-skills">Skills : ${skillsLine}</p>` +
     (result.backups_created ? `<p class="settings-intro">Les fichiers remplacés ont été sauvegardés sur ce poste.</p>` : "") +
@@ -166,14 +183,20 @@ export function bindSetup(root: HTMLElement, platform: Platform, view: SetupView
   const section = root.querySelector("[data-testid=machine-setup]");
   if (!section) return;
   const plan = view?.plan;
+  let pending = false;
   section.querySelector("[data-action=preview-setup]")?.addEventListener("click", () => {
+    if (pending) return;
+    pending = true;
+    section.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = true; });
     void previewSetup(platform).then((outcome) =>
       outcome.ok ? again({ setup: { plan: outcome.value } }) : again({ setup: { error: setupErrorMessage(outcome.error) } }),
     );
   });
   section.querySelector("[data-action=cancel-setup]")?.addEventListener("click", () => void again({ setup: {} }));
   section.querySelector("[data-action=confirm-setup]")?.addEventListener("click", () => {
-    if (!plan) return;
+    if (!plan || pending) return;
+    pending = true;
+    section.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = true; });
     const overwrite = [...section.querySelectorAll<HTMLInputElement>("[data-setup-overwrite]")]
       .filter((box) => box.checked)
       .map((box) => box.dataset["setupOverwrite"] ?? "");

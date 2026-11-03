@@ -10,16 +10,20 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   canDecideVaultNote,
+  sortVaultNotes,
+  VAULT_SORT_LABEL,
   VAULT_STATUS_LABEL,
   VAULT_TREE_LIMIT,
   VAULT_TYPE_LABEL,
   vaultDecisionActionsHtml,
   vaultDetailHtml,
+  vaultExcerpt,
   vaultItemHtml,
   vaultListHtml,
   vaultPageHtml,
   vaultScopeLabel,
   vaultVersionsHtml,
+  vaultZoneLabel,
   type VaultListState,
 } from "./vault";
 import type { VaultNote, VaultNoteSummary, VaultNoteVersion } from "../vaultApi";
@@ -122,6 +126,15 @@ describe("vaultPageHtml (page #/vault)", () => {
     expect(html).toContain('<option value="proposed" selected>');
   });
 
+  it("offre un tri explicite et garde le choix courant", () => {
+    const html = vaultPageHtml(blank, [], [], { searching: false });
+    expect(html).toContain('id="vault-sort"');
+    for (const label of Object.values(VAULT_SORT_LABEL)) expect(html).toContain(label);
+    expect(vaultPageHtml({ ...blank, sort: "title_asc" }, [], [], { searching: false })).toContain(
+      '<option value="title_asc" selected>',
+    );
+  });
+
   it("annonce les résultats et la troncature quand une recherche court", () => {
     const html = vaultPageHtml(blank, [], [summary()], { searching: true, truncated: true, total: 12 });
     expect(html).toContain("12 résultat(s)");
@@ -173,6 +186,45 @@ describe("vaultItemHtml / vaultListHtml", () => {
     const html = vaultListHtml([], { searching: false });
     expect(html).toContain("Aucune note");
     expect(html).not.toContain("<li");
+  });
+
+  it("affiche un extrait lisible et la zone projet nommée", () => {
+    const html = vaultItemHtml(
+      summary({ scope: "project", project_id: PROJECT_ID }),
+      new Map([[PROJECT_ID, "Studi'os"]]),
+    );
+    expect(html).toContain("Redis avant PostgreSQL.");
+    expect(html).toContain("Projet · Studi'os");
+    expect(html).toContain("vault-item-excerpt");
+    expect(html).toContain("vault-zone");
+  });
+
+  it("tronque proprement un résumé trop long", () => {
+    const text = vaultExcerpt("a ".repeat(200));
+    expect(text.length).toBeLessThanOrEqual(220);
+    expect(text.endsWith("…")).toBe(true);
+    expect(vaultExcerpt("  Redis   avant  PostgreSQL.  ")).toBe("Redis avant PostgreSQL.");
+    expect(vaultZoneLabel(summary())).toBe("Studio");
+  });
+});
+
+describe("sortVaultNotes", () => {
+  const notes = [
+    summary({ id: "b", title: "Bravo", updated_at: "2026-01-03T00:00:00Z" }),
+    summary({ id: "a", title: "Alpha", updated_at: "2026-01-01T00:00:00Z" }),
+    summary({ id: "c", title: "Charlie", updated_at: "2026-01-02T00:00:00Z" }),
+  ];
+
+  it("trie par titre sans muter l'entrée", () => {
+    expect(sortVaultNotes(notes, "title_asc").map((n) => n.id)).toEqual(["a", "b", "c"]);
+    expect(sortVaultNotes(notes, "title_desc").map((n) => n.id)).toEqual(["c", "b", "a"]);
+    expect(notes.map((n) => n.id)).toEqual(["b", "a", "c"]);
+  });
+
+  it("trie par fraîcheur et conserve l'ordre serveur par défaut", () => {
+    expect(sortVaultNotes(notes, "recent").map((n) => n.id)).toEqual(["b", "c", "a"]);
+    expect(sortVaultNotes(notes, "oldest").map((n) => n.id)).toEqual(["a", "c", "b"]);
+    expect(sortVaultNotes(notes).map((n) => n.id)).toEqual(["b", "a", "c"]);
   });
 });
 

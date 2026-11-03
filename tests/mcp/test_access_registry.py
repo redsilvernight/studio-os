@@ -224,11 +224,35 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_get_transfers": (Probe({"project_id": "{pid}"}), Probe({}, "filtered")),
     "studio_get_transfer": (Probe({"transfer_id": "{transfer}"}),),
     "studio_request_transfer_download": (Probe({"transfer_id": "{transfer}"}),),
+    "studio_delete_transfer": (Probe({"transfer_id": "{transfer}"}),),
     "studio_resolve_agent": (Probe({"stable_key": "world-agent", "project_id": "{pid}"}),),
     "studio_discover_definitions": (
         Probe({"project_id": "{pid}"}),
         Probe({"resource_id": "{lib}"}),
         Probe({}, "filtered"),
+    ),
+    "studio_preview_dependency_updates": (Probe({"resource_id": "{lib}", "version": 1}),),
+    "studio_preview_work_profile_pack": (
+        Probe(
+            {
+                "project_id": "{pid}",
+                "machine_policy": {"opt_in": False, "max_concurrent": 1},
+                "pack": {
+                    "format": "studio.work-profile-pack/v1",
+                    "profile": {
+                        "stable_key": "sample",
+                        "title": "Sample",
+                        "agent_stable_key": "sample",
+                    },
+                    "base": {
+                        "kind": "agent_definition",
+                        "stable_key": "sample",
+                        "version": 1,
+                        "resource_id": "{lib}",
+                    },
+                },
+            }
+        ),
     ),
     "studio_publish_definition": (
         Probe(

@@ -1,10 +1,11 @@
 ---
 id: DEC-0162
 title: 'Desktop : deux builds Prod/Dev distincts et serveur local Dev'
-status: accepted
+status: superseded
 date: '2026-10-08'
 supersedes: []
-superseded_by: []
+superseded_by:
+- DEC-0206
 source: server-export
 ---
 

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
 import { ApiError, parseErrorBody } from "../api";
+import type { StudioClient } from "../api";
 import { isRoadmapManagerRole, roadmapCurrentStepHtml, roadmapDonePhasesHtml, roadmapExecutionHtml, roadmapFullyDone, roadmapLifecycleHtml, roadmapPhaseStripHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapProposalsHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
 import type { Roadmap, RoadmapDataSource, RoadmapPendingProposal } from "../roadmapTypes";
 
@@ -186,12 +187,28 @@ describe("Roadmap switcher and targeted roadmap", () => {
     expect(load).toHaveBeenCalledWith(proposed.project_id, proposed.id);
     expect(loadPendingProposal).toHaveBeenCalledWith(proposed.project_id, proposed.id);
     expect(root.textContent).toContain("Modifications proposées");
-    const links = [...root.querySelectorAll<HTMLAnchorElement>(".roadmap-switch-link")];
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      `#/projects/${active.project_id}/roadmap/${active.id}`,
-      `#/projects/${proposed.project_id}/roadmap/${proposed.id}`,
+    const select = root.querySelector<HTMLSelectElement>("[data-roadmap-select]")!;
+    expect([...select.options].map((option) => option.value)).toEqual([active.id, proposed.id]);
+    expect(select.value).toBe(proposed.id);
+    expect(select.options[0]?.textContent).toContain("Active");
+    select.value = active.id;
+    select.dispatchEvent(new Event("change"));
+    expect(window.location.hash).toBe(`#/projects/${active.project_id}/roadmap/${active.id}`);
+  });
+
+  it("indique la progression et les roadmaps historiques dans un contrôle compact", async () => {
+    const roadmap = (await createFixtureRoadmapDataSource().load(roadmapFixtureProjectIds.active))!;
+    const root = document.getElementById("root")!;
+    root.innerHTML = roadmapSwitcherHtml(roadmap, [
+      { id: roadmap.id, title: roadmap.title, status: "active", progress: { done: 1, total: 4, skipped: 0, ratio: 0.25 } },
+      ...Array.from({ length: 30 }, (_, i) => ({ id: `history-${i}`, title: `Historique ${i} ${"long".repeat(40)}`, status: "archived" as const, progress: { done: 4, total: 4, skipped: 0, ratio: 1 } })),
     ]);
-    expect(links[1]?.getAttribute("aria-current")).toBe("page");
+    const select = root.querySelector<HTMLSelectElement>("[data-roadmap-select]")!;
+    expect(select.options).toHaveLength(31);
+    expect(select.options[0]?.textContent).toContain("Active — 25 %");
+    expect(select.options[1]?.textContent).toContain("Archivée — 100 %");
+    expect(root.querySelector("label")?.htmlFor).toBe(select.id);
+    expect(root.querySelectorAll("a")).toHaveLength(0);
   });
 });
 
@@ -398,7 +415,7 @@ describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
     expect(roadmapCurrentStepHtml(roadmap, roadmap.current_step_key ?? null)).toContain("data-current-step");
   });
 
-  it("replit les phases terminées en un seul élément tout en les gardant dans le DOM", () => {
+  it("replit les phases terminées tout en gardant leurs étapes consultables", () => {
     const roadmap = doneRoadmap();
     const plan = roadmapPlanHtml(roadmap, "P2.1");
     expect(plan).toContain("1 phase terminée");
@@ -407,7 +424,34 @@ describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
     const execution = roadmapExecutionHtml(roadmap, "P2.1");
     expect(execution).toContain("roadmap-done-phases");
     expect(execution).toContain("Phase terminée");
-    expect(roadmapDonePhasesHtml(roadmap, "P2.1")).toContain("masquée");
+    expect(roadmapDonePhasesHtml(roadmap, "P2.1")).toContain('data-step-key="P1.1"');
+  });
+
+  it.each(["plan", "execution"] as const)("garde chaque phase repliée quand tout est terminé en mode %s", (mode) => {
+    const roadmap = doneRoadmap();
+    roadmap.current_step_key = null;
+    roadmap.phases = roadmap.phases!.map((phase) => ({ ...phase, steps: phase.steps!.map((step) => ({ ...step, state: "done", available: false })) }));
+    const root = document.getElementById("root")!;
+    root.innerHTML = mode === "plan" ? roadmapPlanHtml(roadmap, null) : roadmapExecutionHtml(roadmap, null);
+    const phases = [...root.querySelectorAll<HTMLDetailsElement>("[data-done-phase]")];
+    expect(phases).toHaveLength(2);
+    expect(phases.every((phase) => !phase.open)).toBe(true);
+    expect(phases[0]?.querySelectorAll("[data-step-key]")).toHaveLength(2);
+    expect(root.querySelector(".roadmap-phase")).toBeNull();
+  });
+
+  it("conserve la phase ouverte et le focus en consultant une de ses étapes", async () => {
+    const roadmap = doneRoadmap();
+    const fixture = createFixtureRoadmapDataSource();
+    const root = document.getElementById("root")!;
+    await renderRoadmapInto(root, { dataSource: { ...fixture, load: async () => roadmap }, projectId: roadmap.project_id, projectName: "Test" });
+    root.querySelector<HTMLDetailsElement>("[data-done-phase]")!.open = true;
+    root.querySelector<HTMLButtonElement>('[data-step-key="P1.1"]')!.click();
+    expect(root.querySelector<HTMLDetailsElement>("[data-done-phase]")!.open).toBe(true);
+    expect(root.querySelector(".roadmap-detail")?.textContent).toContain("Objectif P1.1");
+    expect((document.activeElement as HTMLElement).dataset.stepKey).toBe("P1.1");
+    root.querySelector<HTMLButtonElement>('[data-mode="plan"]')!.click();
+    expect(root.querySelector<HTMLDetailsElement>("[data-done-phase]")!.open).toBe(true);
   });
 
   it("regroupe proposition et révision en un seul bloc sans perdre de carte", async () => {
@@ -445,5 +489,89 @@ describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
     (root.querySelector('[data-mode="plan"]') as HTMLButtonElement).click();
     expect(root.querySelector('[data-mode="plan"]')?.getAttribute("aria-selected")).toBe("true");
     expect(root.querySelector(".roadmap-timeline")).not.toBeNull();
+  });
+});
+
+describe("Roadmap — panneau « Lancer un lot »", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  function fakeClient(): StudioClient {
+    return { GET: vi.fn(), POST: vi.fn() } as unknown as StudioClient;
+  }
+
+  async function renderWith(
+    projectId: string,
+    extra: { client?: StudioClient; canManageLifecycle?: boolean } = {},
+  ): Promise<HTMLElement> {
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, {
+      dataSource: createFixtureRoadmapDataSource(),
+      projectId,
+      projectName: "Projet test",
+      ...extra,
+    });
+    return root;
+  }
+
+  it("monte le panneau après l'étape courante sur une roadmap active", async () => {
+    const root = await renderWith(roadmapFixtureProjectIds.active, { client: fakeClient() });
+    const slot = root.querySelector("[data-admission-slot]");
+    expect(slot).not.toBeNull();
+    expect(root.querySelector("[data-admission-panel]")).not.toBeNull();
+    const current = root.querySelector("[data-current-step]");
+    expect(current?.nextElementSibling).toBe(slot);
+  });
+
+  it("n'affiche le panneau ni hors exécution, ni sans client, ni sans droit de gestion", async () => {
+    const withoutClient = await renderWith(roadmapFixtureProjectIds.active);
+    expect(withoutClient.querySelector("[data-admission-slot]")).toBeNull();
+
+    const withoutRight = await renderWith(roadmapFixtureProjectIds.active, { client: fakeClient(), canManageLifecycle: false });
+    expect(withoutRight.querySelector("[data-admission-slot]")).toBeNull();
+
+    const archived = await renderWith(roadmapFixtureProjectIds.completed, { client: fakeClient() });
+    expect(archived.querySelector("[data-admission-slot]")).toBeNull();
+  });
+
+  it("retire le panneau quand on passe en lecture Plan", async () => {
+    const root = await renderWith(roadmapFixtureProjectIds.active, { client: fakeClient() });
+    (root.querySelector('[data-mode="plan"]') as HTMLButtonElement).click();
+    expect(root.querySelector('[data-mode="plan"]')?.getAttribute("aria-selected")).toBe("true");
+    expect(root.querySelector("[data-admission-slot]")).toBeNull();
+  });
+
+  it("conserve l'état du panneau d'un paint à l'autre", async () => {
+    const client = {
+      GET: vi.fn().mockResolvedValue({
+        data: {
+          roadmap_id: "r1",
+          project_id: "p1",
+          roadmap_status: "active",
+          roadmap_version: 1,
+          harness_id: null,
+          launchable: [],
+          excluded: [],
+          machines: [{ machine_id: "m1", display_name: "poste-1", harnesses: [{ harness_id: "claude-code", detected: true, configured: true }] }],
+          plan_digest: "digest-admission",
+          evaluated_at: new Date().toISOString(),
+        },
+        response: { ok: true, status: 200 },
+      }),
+      POST: vi.fn(),
+    } as unknown as StudioClient;
+    const root = await renderWith(roadmapFixtureProjectIds.active, { client });
+    const slot = root.querySelector("[data-admission-slot]");
+    (root.querySelector("[data-admission-preview]") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(root.querySelector("[data-admission-harness] option[value='claude-code']")).not.toBeNull());
+
+    // Un changement d'étape repaint la roadmap : le panneau garde son dry-run.
+    (root.querySelector<HTMLButtonElement>("[data-step-key]") as HTMLButtonElement).click();
+
+    expect(root.querySelector("[data-admission-slot]")).toBe(slot);
+    expect(root.querySelector("[data-admission-harness] option[value='claude-code']")).not.toBeNull();
+    // Un dry-run à l'ouverture + celui du clic ; aucun au repaint.
+    expect(client.GET).toHaveBeenCalledTimes(2);
   });
 });

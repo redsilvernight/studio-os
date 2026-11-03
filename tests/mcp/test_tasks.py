@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.task import TaskModel
 from studio_api.services import provisioning as provisioning_service
 from studio_mcp.tools.tasks import (
     studio_claim_task,
@@ -28,6 +29,23 @@ async def test_create_and_get_task(auth_ctx: FakeContext, project: ProjectModel)
 async def test_get_task_rejects_unknown_id(auth_ctx: FakeContext) -> None:
     result = await studio_get_task("00000000-0000-0000-0000-000000000000", auth_ctx)
     assert result["error_code"] == "not_found"
+
+
+async def test_default_active_tasks_are_bounded_with_exact_remaining_count(
+    db_session: AsyncSession, project: ProjectModel, auth_ctx: FakeContext
+) -> None:
+    db_session.add_all(
+        [
+            TaskModel(project_id=project.id, title=f"Task {index:03d}", status="created")
+            for index in range(101)
+        ]
+    )
+    await db_session.flush()
+    result = await studio_get_active_tasks(str(project.id), auth_ctx)
+    assert result["returned"] == 100
+    assert result["additional_available"] == 1
+    assert result["tasks"][0]["title"] == "Task 000"
+    assert result["tasks"][-1]["title"] == "Task 099"
 
 
 async def test_get_active_tasks_lists_created_task(

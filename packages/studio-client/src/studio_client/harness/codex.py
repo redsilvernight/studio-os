@@ -17,7 +17,12 @@ import tomllib
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from studio_client.harness.base import STUDIO_MCP_SERVER_NAME, AdapterRefusal, HarnessContext
+from studio_client.harness.base import (
+    STUDIO_MCP_SERVER_NAME,
+    AccessMode,
+    AdapterRefusal,
+    HarnessContext,
+)
 from studio_client.harness.fsafe import (
     Document,
     FsError,
@@ -28,6 +33,7 @@ from studio_client.harness.fsafe import (
     resolve_target,
 )
 from studio_client.harness.json_mcp import JsonMcpAdapter
+from studio_client.harness.probe import locate_bundled_codex
 
 _CONFIG_NAME = "config.toml"
 _CONTAINER = "mcp_servers"
@@ -161,6 +167,20 @@ class CodexAdapter(JsonMcpAdapter):
     project_files = ()
     container_path = (_CONTAINER,)
 
+    def resolve_executable(self, ctx: HarnessContext) -> Path:
+        """PATH first; when the CLI is not installed there, fall back to the
+        copy bundled with the Codex app, still refusing the workspace."""
+        try:
+            return super().resolve_executable(ctx)
+        except AdapterRefusal as refusal:
+            if refusal.reason != "executable_not_found":
+                raise
+        local = ctx.env_value("LOCALAPPDATA") or str(ctx.home / "AppData" / "Local")
+        bundled = locate_bundled_codex(local, excluded_dirs=[ctx.workspace_root])
+        if bundled is None:
+            raise AdapterRefusal("executable_not_found")
+        return bundled
+
     def _config_dir(self, ctx: HarnessContext) -> str:
         raw = ctx.env_value("CODEX_HOME")
         if not raw:
@@ -217,5 +237,11 @@ class CodexAdapter(JsonMcpAdapter):
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         return {"url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
-        return ("-a", "never", "exec", "--sandbox", "workspace-write", prompt)
+    access_modes = frozenset({AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE})
+
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
+        sandbox = "read-only" if mode is AccessMode.READ_ONLY else "workspace-write"
+        return ("-a", "never", "exec", "--json", "--sandbox", sandbox, prompt)

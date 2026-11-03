@@ -51,6 +51,8 @@ from studio_contracts.runtime import (
     RuntimeTarget,
 )
 
+from tests.core_neutrality import core_neutrality_source
+
 AGENT = LibraryKind.AGENT_DEFINITION
 RULE = LibraryKind.RULE
 SKILL = LibraryKind.SKILL
@@ -1641,7 +1643,7 @@ def test_p13_core_has_no_provider_model_harness_branches() -> None:
     offenders: list[str] = []
     for zone in zones:
         for path in sorted(zone.rglob("*.py")):
-            text = path.read_text(encoding="utf-8")
+            text = core_neutrality_source(path, repo)
             lowered = text.lower()
             hits = [token for token in vendor if token in lowered]
             if branch.search(text) or catalog.search(text) or hits:

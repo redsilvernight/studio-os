@@ -38,6 +38,17 @@ __pycache__/
 htmlcov/
 .venv/
 
+# Local worktrees, client state and personal vault must not enter build context
+.worktrees/
+.studio-os/
+vault/
+output/
+desktop/src-tauri/target/
+desktop/binaries/
+test-results/
+playwright-report/
+studi-os-credentials-*.txt
+
 # Documentation (not needed at build time)
 docs/
 

@@ -81,6 +81,12 @@ describe("buildContent", () => {
 });
 
 describe("dependencies", () => {
+  it("keeps an explicit resource UUID and rejects a malformed one", () => {
+    const row = { kind: "rule", stable_key: "base", version: "1", relation: "", resource_id: "12345678-1234-1234-1234-123456789abc" };
+    expect(buildDependencies([row])).toEqual({ ok: true, value: [{ kind: "rule", stable_key: "base", version: 1, resource_id: row.resource_id }] });
+    expect(buildDependencies([{ ...row, resource_id: "oops" }]).ok).toBe(false);
+    expect(asDependencyInputs([row])[0]?.resource_id).toBe(row.resource_id);
+  });
   it("infers no relation when omitted and keeps explicit ones", () => {
     const result = buildDependencies([
       { kind: "rule", stable_key: "coding-standard", version: "2", relation: "" },

@@ -221,7 +221,7 @@ None. The studio-tester and contract-guardian reviews found only minor observati
 | **Capability knowledge.init** | `contracts/local/allowlist.json`, `desktop/src-tauri/src/allowlist.rs`, `desktop/src-tauri/src/info.rs`, `dashboard/src/testSupport/fakeDesktop.ts` | **MEDIUM** — Capability registry shared |
 | **Daemon/Bridge serving** | `packages/studio-client/daemon/local_features.py`, `packages/studio-client/daemon/service.py` | **LOW** — Internal implementation |
 | **TypeScript generated** | `dashboard/scripts/gen-local-contracts.mjs`, `dashboard/src/platform/generated/local-contracts.generated.ts` | **LOW** — Dashboard-only |
-| **Documentation** | `docs/DESKTOP_P1_LOCAL_CONTRACTS.md`, `docs/DESKTOP_P6_KNOWLEDGE_VAULT.md`, `docs/DESKTOP_WAVE2_INTEGRATION.md` | **NONE** — Documentation only |
+| **Documentation** | `docs/DESKTOP_P1_LOCAL_CONTRACTS.md`, `docs/DESKTOP_P6_KNOWLEDGE_VAULT.md`, `docs/archive/DESKTOP_WAVE2_INTEGRATION.md` | **NONE** — Documentation only |
 
 **Exact files for integrator conflict detection**:
 - `contracts/local/allowlist.json`

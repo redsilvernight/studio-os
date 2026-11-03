@@ -1,0 +1,626 @@
+{
+  "schema_version": 1,
+  "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+  "task_id": "db685418-bfd4-4d2e-85d2-2a0867b2e1e7",
+  "window": {
+    "since": "2026-10-10T00:00:00+00:00",
+    "until": "2026-10-16T21:31:17+00:00",
+    "basis": "started_at; latest-200 export, not a certified whole-window census"
+  },
+  "ai_work_export": {
+    "source": "studio_get_ai_work",
+    "limit": 200,
+    "returned": 200,
+    "additional_available": 107,
+    "oldest_exported_started_at": "2026-09-28T18:35:35.462138+00:00",
+    "unavailable_fields": "unknown fields: agent_profile, harness, model, provider",
+    "entries": [
+      {
+        "id": "e8f61dc4-9ce0-44e1-84fe-c2145a990c8d",
+        "task_id": "c338f74f-cd22-4278-a060-a8415d4334c7",
+        "agent_id": "38e1ca7e-c101-4691-a197-85539a4abb7a",
+        "session_id": "560b67ca-e216-4d5c-a2ab-18484b7ee00a",
+        "status": "completed",
+        "started_at": "2026-10-16T17:26:35.023220+00:00",
+        "ended_at": "2026-10-16T17:26:35.023220+00:00"
+      },
+      {
+        "id": "91e6bd3e-6160-4ec7-adde-bb7ee298331b",
+        "task_id": "c338f74f-cd22-4278-a060-a8415d4334c7",
+        "agent_id": "38e1ca7e-c101-4691-a197-85539a4abb7a",
+        "session_id": "4b6c74a8-498f-4b52-b4bc-d9231482a27f",
+        "status": "completed",
+        "started_at": "2026-10-16T17:18:13.936153+00:00",
+        "ended_at": "2026-10-16T17:18:13.936153+00:00"
+      },
+      {
+        "id": "588373a6-e116-414d-88da-44bbe1f9bdfb",
+        "task_id": "f1ddc8b9-0dc2-43c6-97f4-aba21475aaa9",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "5b3f447b-6a52-413e-b388-78e29e7d31bb",
+        "status": "completed",
+        "started_at": "2026-10-16T17:10:09.238966+00:00",
+        "ended_at": "2026-10-16T17:10:09.238966+00:00"
+      },
+      {
+        "id": "27a3f870-b15e-44ce-af8b-fe71f0c0462d",
+        "task_id": "c338f74f-cd22-4278-a060-a8415d4334c7",
+        "agent_id": "38e1ca7e-c101-4691-a197-85539a4abb7a",
+        "session_id": "6bc342b6-d3f9-4539-ad1a-017c1588ae3b",
+        "status": "completed",
+        "started_at": "2026-10-16T16:38:49.605538+00:00",
+        "ended_at": "2026-10-16T16:38:49.605538+00:00"
+      },
+      {
+        "id": "953a75ad-fc73-4425-b230-124eb31bac61",
+        "task_id": "f1ddc8b9-0dc2-43c6-97f4-aba21475aaa9",
+        "agent_id": "38e1ca7e-c101-4691-a197-85539a4abb7a",
+        "session_id": "479ac42a-6177-485e-b992-830146f01b40",
+        "status": "completed",
+        "started_at": "2026-10-16T15:42:23.464932+00:00",
+        "ended_at": "2026-10-16T15:42:23.464932+00:00"
+      },
+      {
+        "id": "0b0a5599-88a5-452a-bd0d-7084b0d00dfc",
+        "task_id": "9b3ecc2b-0e68-4151-bf0a-2c191b57fac4",
+        "agent_id": "38e1ca7e-c101-4691-a197-85539a4abb7a",
+        "session_id": "0ea42fc3-aa02-495f-9719-d136c03b1f69",
+        "status": "completed",
+        "started_at": "2026-10-16T15:31:11.339664+00:00",
+        "ended_at": "2026-10-16T15:31:11.339664+00:00"
+      },
+      {
+        "id": "81d3a082-f94a-4933-b450-183eab8ef54b",
+        "task_id": "9b3ecc2b-0e68-4151-bf0a-2c191b57fac4",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "a8a63f63-83de-4234-9c4d-ef251f3181e7",
+        "status": "completed",
+        "started_at": "2026-10-16T15:28:59.468657+00:00",
+        "ended_at": "2026-10-16T15:28:59.468657+00:00"
+      },
+      {
+        "id": "6b6be500-dd44-41b2-8d00-d363d6a41ac8",
+        "task_id": "b24705d8-5ee3-44e9-a49e-7408c1f233e7",
+        "agent_id": "1c60c43b-79f7-40e9-a147-cda203c1ca81",
+        "session_id": "eadeb31f-c39d-4f6a-8ca5-151049936a41",
+        "status": "completed",
+        "started_at": "2026-10-16T10:31:34.338048+00:00",
+        "ended_at": "2026-10-16T10:31:34.338048+00:00"
+      },
+      {
+        "id": "e33f0cb7-ec3a-4033-b3ac-942c125ad235",
+        "task_id": "b24705d8-5ee3-44e9-a49e-7408c1f233e7",
+        "agent_id": "1c60c43b-79f7-40e9-a147-cda203c1ca81",
+        "session_id": "ae021d29-df1d-4e43-80fe-22348e7dd4ff",
+        "status": "completed",
+        "started_at": "2026-10-16T09:43:09.655155+00:00",
+        "ended_at": "2026-10-16T09:43:09.655155+00:00"
+      },
+      {
+        "id": "a77574fc-4e72-4623-9c4a-62bc9add0e01",
+        "task_id": "f33a3c2d-59bf-4e76-a5e0-ac485817421a",
+        "agent_id": "1a7660e7-0044-4936-bfc5-c5d0e4830344",
+        "session_id": "ee1f89eb-1c00-4aee-8f2b-5a373cc74dbe",
+        "status": "completed",
+        "started_at": "2026-10-16T08:19:57.195076+00:00",
+        "ended_at": "2026-10-16T08:19:57.195076+00:00"
+      },
+      {
+        "id": "c0f7e97b-43cc-4af7-a16d-5e7a9301cc89",
+        "task_id": "bb335466-469f-4e92-a044-dcd077f54971",
+        "agent_id": "d48da23c-8ba3-4304-86dd-87c6ac3eb716",
+        "session_id": "b8880a55-2720-40c7-919f-909f7c352676",
+        "status": "completed",
+        "started_at": "2026-10-15T15:05:43.824207+00:00",
+        "ended_at": "2026-10-15T15:05:43.824207+00:00"
+      },
+      {
+        "id": "254a84e4-86d5-46bb-a018-ea4acfb30b96",
+        "task_id": "bb335466-469f-4e92-a044-dcd077f54971",
+        "agent_id": "d48da23c-8ba3-4304-86dd-87c6ac3eb716",
+        "session_id": "b8880a55-2720-40c7-919f-909f7c352676",
+        "status": "completed",
+        "started_at": "2026-10-15T14:53:27.226357+00:00",
+        "ended_at": "2026-10-15T14:53:27.226357+00:00"
+      },
+      {
+        "id": "a157f406-e19c-42f8-a281-bd60eb420da3",
+        "task_id": "bb335466-469f-4e92-a044-dcd077f54971",
+        "agent_id": "d48da23c-8ba3-4304-86dd-87c6ac3eb716",
+        "session_id": "ccce85e6-93ad-4306-80e9-44d46fca1dfb",
+        "status": "completed",
+        "started_at": "2026-10-15T10:40:54.436222+00:00",
+        "ended_at": "2026-10-15T10:40:54.436222+00:00"
+      },
+      {
+        "id": "5ea53631-7eb3-4c33-8bb7-42c7c0fca038",
+        "task_id": "b076f9e9-dbfe-4375-afbf-8dc7c9f92b7b",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "64f05e6c-6b4b-4607-8e33-e6ff312b387c",
+        "status": "completed",
+        "started_at": "2026-10-15T10:36:17.148467+00:00",
+        "ended_at": "2026-10-15T10:36:17.148467+00:00"
+      },
+      {
+        "id": "bd14a222-f513-473f-858b-7d1d806a3dcd",
+        "task_id": "c9794588-1850-48ce-a2f5-de36502eb66e",
+        "agent_id": "ce08d97a-033e-4429-90be-e80a50a69a28",
+        "session_id": "b90a3361-fb22-4a23-b7e2-5acdc631200b",
+        "status": "completed",
+        "started_at": "2026-10-14T13:00:19.350023+00:00",
+        "ended_at": "2026-10-14T13:00:19.350023+00:00"
+      },
+      {
+        "id": "819c4f7a-9b7d-44fb-81b1-a9d5fe5f91a3",
+        "task_id": "6db3817b-a650-48c6-a282-f3bfe73f7a89",
+        "agent_id": "ce08d97a-033e-4429-90be-e80a50a69a28",
+        "session_id": "cfd005b1-ebb8-49d6-b363-3c9a8903cfac",
+        "status": "completed",
+        "started_at": "2026-10-14T13:00:11.611863+00:00",
+        "ended_at": "2026-10-14T13:00:11.611863+00:00"
+      },
+      {
+        "id": "5b2928f0-7c2c-4de6-9109-6858a53ea6fd",
+        "task_id": "bd5e4cd8-bb31-4a04-9442-e44613a61392",
+        "agent_id": "ce08d97a-033e-4429-90be-e80a50a69a28",
+        "session_id": "43b9c02b-3aa9-4130-ae96-71844279a2f7",
+        "status": "completed",
+        "started_at": "2026-10-14T13:00:00.338767+00:00",
+        "ended_at": "2026-10-14T13:00:00.338767+00:00"
+      },
+      {
+        "id": "08d83db0-5995-44f1-b985-08285c87c501",
+        "task_id": "c9794588-1850-48ce-a2f5-de36502eb66e",
+        "agent_id": "ce08d97a-033e-4429-90be-e80a50a69a28",
+        "session_id": "51666d5b-3804-466d-bda5-0b5cfbc2ab3f",
+        "status": "approved",
+        "started_at": "2026-10-14T12:26:46.495374+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "1af59f8b-d6ba-4609-a05e-582e0450ab08",
+        "task_id": "6db3817b-a650-48c6-a282-f3bfe73f7a89",
+        "agent_id": "ce08d97a-033e-4429-90be-e80a50a69a28",
+        "session_id": "3096c945-32a3-4110-812d-86e8d13440a0",
+        "status": "approved",
+        "started_at": "2026-10-14T12:26:39.024747+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "1b24ad0b-a0a0-44f5-9027-20037a3d73c4",
+        "task_id": "bd5e4cd8-bb31-4a04-9442-e44613a61392",
+        "agent_id": "ce08d97a-033e-4429-90be-e80a50a69a28",
+        "session_id": "870dbcb4-b92d-4915-b8ff-0b73be32bfa4",
+        "status": "approved",
+        "started_at": "2026-10-14T12:26:31.149616+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "736628ef-645c-4ae4-89ec-47a7c5398fe6",
+        "task_id": "7cfd9c38-9669-447d-8820-fb1eef5f987f",
+        "agent_id": "1a7660e7-0044-4936-bfc5-c5d0e4830344",
+        "session_id": "1d22b518-9a0b-4cce-9140-575d0f521905",
+        "status": "completed",
+        "started_at": "2026-10-14T11:41:48.756367+00:00",
+        "ended_at": "2026-10-14T11:41:48.756367+00:00"
+      },
+      {
+        "id": "a6187cd3-e22e-43a4-bf27-d24ba6052f5d",
+        "task_id": "19efd5f0-6642-4685-8381-59b0bdf27404",
+        "agent_id": "1a7660e7-0044-4936-bfc5-c5d0e4830344",
+        "session_id": "296a4d6d-18cc-4c9c-8684-8cebf5fafb4c",
+        "status": "completed",
+        "started_at": "2026-10-14T10:25:23.453918+00:00",
+        "ended_at": "2026-10-14T10:25:23.453918+00:00"
+      },
+      {
+        "id": "82d62e44-0d17-4ee6-adf5-92159da93a91",
+        "task_id": "9569e51d-afdf-49ae-a1d1-3a35a2e54cfb",
+        "agent_id": "1a7660e7-0044-4936-bfc5-c5d0e4830344",
+        "session_id": "37b01f77-e3ad-4cfa-ba80-e5212f8a7058",
+        "status": "completed",
+        "started_at": "2026-10-14T10:25:22.685522+00:00",
+        "ended_at": "2026-10-14T10:25:22.685522+00:00"
+      },
+      {
+        "id": "fd9595d3-0f3a-4560-90d0-59b60bbbae6b",
+        "task_id": "fdda430c-7bd7-43d7-b4c5-8720e4686394",
+        "agent_id": "eac863de-5922-480c-8ecf-34821ced7cd6",
+        "session_id": "2d53f2de-13ad-48dd-a0c6-79e60999b5eb",
+        "status": "completed",
+        "started_at": "2026-10-14T10:16:33.635930+00:00",
+        "ended_at": "2026-10-14T10:16:33.635930+00:00"
+      },
+      {
+        "id": "d8e55029-d635-435a-ba13-c1b3a42152d5",
+        "task_id": "fdda430c-7bd7-43d7-b4c5-8720e4686394",
+        "agent_id": "eac863de-5922-480c-8ecf-34821ced7cd6",
+        "session_id": "9a2027b5-9f8e-40a5-a4da-7db8b8227fba",
+        "status": "completed",
+        "started_at": "2026-10-14T09:40:08.842447+00:00",
+        "ended_at": "2026-10-14T09:40:08.842447+00:00"
+      },
+      {
+        "id": "229cc66c-0e36-4116-a6b9-881b2b6bae52",
+        "task_id": "fdda430c-7bd7-43d7-b4c5-8720e4686394",
+        "agent_id": "eac863de-5922-480c-8ecf-34821ced7cd6",
+        "session_id": "cc43efe4-550a-47ce-9498-fa3764a92d3e",
+        "status": "completed",
+        "started_at": "2026-10-14T09:10:16.568917+00:00",
+        "ended_at": "2026-10-14T09:10:16.568917+00:00"
+      },
+      {
+        "id": "028aaae9-20c7-4392-ac4f-81b5ae0da65b",
+        "task_id": "2195b320-6d3e-4d63-9d2f-de0f96bf1ecc",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "0ffb6ae1-8672-46a9-bed4-a03671f551df",
+        "status": "completed",
+        "started_at": "2026-10-13T17:55:25.340967+00:00",
+        "ended_at": "2026-10-13T17:55:25.340967+00:00"
+      },
+      {
+        "id": "2d561d36-2364-4a74-a79b-b5db0b9d8687",
+        "task_id": "e79b2304-86fe-460a-8c40-d749541b4d59",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "6cc8ced0-1f88-403e-b1af-66211b35f0df",
+        "status": "completed",
+        "started_at": "2026-10-13T17:55:24.457322+00:00",
+        "ended_at": "2026-10-13T17:55:24.457322+00:00"
+      },
+      {
+        "id": "0ebbad4e-4bed-4a7b-ad9c-a157a6a14e76",
+        "task_id": "fe992d0c-58d3-4697-9732-4c590dc2ebd2",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "a94ff0be-09cf-460b-8fd4-60d1623a1c48",
+        "status": "completed",
+        "started_at": "2026-10-13T17:55:23.527040+00:00",
+        "ended_at": "2026-10-13T17:55:23.527040+00:00"
+      },
+      {
+        "id": "bb7dcc3f-ffb1-4692-ba5f-febe906472be",
+        "task_id": "5463118b-7676-402e-9a91-a1a7f7286e8d",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "8e0821e4-323a-4064-a151-be78d9fec1bb",
+        "status": "completed",
+        "started_at": "2026-10-13T05:51:50.619600+00:00",
+        "ended_at": "2026-10-13T05:51:50.619600+00:00"
+      },
+      {
+        "id": "a32fe956-d8f3-4beb-a7b0-bbf50376b0cc",
+        "task_id": "05d3eba0-596b-47ef-b1ac-ed57c6a393fb",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "d2b7d481-a6fd-4fb8-a9f0-56da393ed390",
+        "status": "completed",
+        "started_at": "2026-10-13T05:51:49.573879+00:00",
+        "ended_at": "2026-10-13T05:51:49.573879+00:00"
+      },
+      {
+        "id": "906d6751-e907-43e7-b584-366e975d4bb3",
+        "task_id": "9b09061a-5410-4a28-a26c-a6a33338e903",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "71adfdfa-eca6-4cfd-b022-a9169d156485",
+        "status": "completed",
+        "started_at": "2026-10-13T05:51:48.561793+00:00",
+        "ended_at": "2026-10-13T05:51:48.561793+00:00"
+      },
+      {
+        "id": "e935df34-8534-478a-9ba5-50167a3b5b3a",
+        "task_id": "c84df0d0-bf50-4a4f-a03c-7f1744f706b3",
+        "agent_id": "a7e12c30-cdb3-4821-b8ca-baf421e3e567",
+        "session_id": "642d8a9f-e8a6-4f00-819d-df6fa576f329",
+        "status": "completed",
+        "started_at": "2026-10-12T18:15:51.769281+00:00",
+        "ended_at": "2026-10-12T18:15:51.769281+00:00"
+      },
+      {
+        "id": "fcdac197-a1b0-444d-b0bb-2465513dca98",
+        "task_id": "c84df0d0-bf50-4a4f-a03c-7f1744f706b3",
+        "agent_id": "a7e12c30-cdb3-4821-b8ca-baf421e3e567",
+        "session_id": "53255a8e-c9a6-4278-9cfa-6c18c2957add",
+        "status": "approved",
+        "started_at": "2026-10-12T16:42:15.719648+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "a6c70310-3d26-4cd7-a01b-5455362e0f00",
+        "task_id": "c84df0d0-bf50-4a4f-a03c-7f1744f706b3",
+        "agent_id": "a7e12c30-cdb3-4821-b8ca-baf421e3e567",
+        "session_id": "948a1fc1-8009-4669-b180-c2d4e0147e42",
+        "status": "approved",
+        "started_at": "2026-10-12T16:25:20.338283+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "4e83c025-ba1c-4c3d-8083-6b029a820f02",
+        "task_id": "c84df0d0-bf50-4a4f-a03c-7f1744f706b3",
+        "agent_id": "a7e12c30-cdb3-4821-b8ca-baf421e3e567",
+        "session_id": "f2dde469-e482-47a1-bdf9-9783993e5341",
+        "status": "approved",
+        "started_at": "2026-10-12T15:47:25.559091+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "b9cf3d2e-c5bd-40b6-aacb-846dd5792778",
+        "task_id": "5de8d43b-5d82-4cd2-bf9a-2df75f06ee73",
+        "agent_id": "c03ca1b5-ad99-4716-bc7d-f7534f1626ba",
+        "session_id": "b3fea85a-c24b-4e8d-9ff2-45b93b7fdb29",
+        "status": "completed",
+        "started_at": "2026-10-12T05:54:54.142231+00:00",
+        "ended_at": "2026-10-12T05:54:54.142231+00:00"
+      },
+      {
+        "id": "de1f6532-e541-4227-8820-8f6c6f1c53f8",
+        "task_id": "7cfd9c38-9669-447d-8820-fb1eef5f987f",
+        "agent_id": "c03ca1b5-ad99-4716-bc7d-f7534f1626ba",
+        "session_id": "18f92959-56f1-41cb-9907-cd48b1ec6423",
+        "status": "approved",
+        "started_at": "2026-10-11T20:47:44.637080+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "b0ed3eda-8921-43d0-a5e3-b3671689bde9",
+        "task_id": "7cfd9c38-9669-447d-8820-fb1eef5f987f",
+        "agent_id": "c03ca1b5-ad99-4716-bc7d-f7534f1626ba",
+        "session_id": "a699ebf7-2885-44f8-bf14-16bcd82b923d",
+        "status": "approved",
+        "started_at": "2026-10-11T20:38:52.004980+00:00",
+        "ended_at": null
+      },
+      {
+        "id": "d51285f4-e919-45e6-a046-18cc5d25639e",
+        "task_id": "2bd61f01-06af-47ba-8ea3-aee5afe84cfb",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "3b014890-ff31-4691-83d8-1d540c01eb3a",
+        "status": "completed",
+        "started_at": "2026-10-11T20:01:33.116890+00:00",
+        "ended_at": "2026-10-11T20:01:33.116890+00:00"
+      },
+      {
+        "id": "e460c015-ad73-4df4-b18f-7daac42465ca",
+        "task_id": "4adf254e-d8fe-419b-921a-a03e1600c1ed",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "58d50cb9-889c-466f-827e-55ea4096355a",
+        "status": "completed",
+        "started_at": "2026-10-11T20:01:32.354261+00:00",
+        "ended_at": "2026-10-11T20:01:32.354261+00:00"
+      },
+      {
+        "id": "933088f4-38d1-4c9d-bec7-62ac270b4c49",
+        "task_id": "2346eb27-6708-4ef3-9760-8baf79bb3b32",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "ca9ba2f8-050b-4403-9eeb-765a7df59eeb",
+        "status": "completed",
+        "started_at": "2026-10-11T20:01:31.606019+00:00",
+        "ended_at": "2026-10-11T20:01:31.606019+00:00"
+      },
+      {
+        "id": "be82be54-e0a3-4db1-9f2d-04f981040b24",
+        "task_id": "7df4bcb7-e0fe-4828-b817-8dd6c58d6eeb",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "23a73737-c144-4ad1-959b-9eb8a8d5449e",
+        "status": "completed",
+        "started_at": "2026-10-11T20:01:30.743019+00:00",
+        "ended_at": "2026-10-11T20:01:30.743019+00:00"
+      },
+      {
+        "id": "d6651d4f-7019-450a-aac5-85e914fde267",
+        "task_id": "e084ffab-20f4-4768-82af-17554fbaf0bc",
+        "agent_id": "3f1e06fd-b466-4ecd-a3d5-d933846d6e04",
+        "session_id": "c039de27-60ad-403e-b618-ed5404b55516",
+        "status": "completed",
+        "started_at": "2026-10-11T19:19:22.979104+00:00",
+        "ended_at": "2026-10-11T19:48:12.768784+00:00"
+      },
+      {
+        "id": "c1b1e818-d0fa-4410-8d38-c02867636056",
+        "task_id": "01be6bab-05be-4b76-a0df-e149db2da2ed",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "791cdd4b-6f79-4368-8260-d05324032895",
+        "status": "completed",
+        "started_at": "2026-10-11T18:27:59.695791+00:00",
+        "ended_at": "2026-10-11T18:27:59.695791+00:00"
+      },
+      {
+        "id": "0a5e445e-cbeb-4616-aa5f-65b78122d49e",
+        "task_id": "12bdc227-8892-43fb-805f-e9076949f37c",
+        "agent_id": "1a7660e7-0044-4936-bfc5-c5d0e4830344",
+        "session_id": "8f16e1ab-5638-4fe2-8184-e521cfa3b3eb",
+        "status": "completed",
+        "started_at": "2026-10-11T18:20:09.716531+00:00",
+        "ended_at": "2026-10-11T18:20:09.716531+00:00"
+      },
+      {
+        "id": "e293f2e5-ea1f-485f-b5ba-44098e56b959",
+        "task_id": "c74b5693-75ba-4dd9-9308-c5915ad1cf78",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "33e834d9-572b-487e-9d1b-22c33eaa0f89",
+        "status": "completed",
+        "started_at": "2026-10-11T16:37:37.992501+00:00",
+        "ended_at": "2026-10-11T16:37:37.992501+00:00"
+      },
+      {
+        "id": "1b86744e-f058-4b58-b820-578a5af7cb27",
+        "task_id": "d2c11cff-e1f0-47f1-a65f-518564608876",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "eacf71c3-ddc0-44aa-98e2-34636793636b",
+        "status": "completed",
+        "started_at": "2026-10-11T13:26:35.505909+00:00",
+        "ended_at": "2026-10-11T13:26:35.505909+00:00"
+      },
+      {
+        "id": "6f52d263-b610-4152-b67f-f9864a940369",
+        "task_id": "5d987416-82c8-4a6a-81d0-8634697adc75",
+        "agent_id": "52f1dcb2-ebbc-4910-a76f-8eb7cfcf5a54",
+        "session_id": "99d1ff1c-2987-43b0-b53c-5f8a5d97eba0",
+        "status": "completed",
+        "started_at": "2026-10-11T11:33:46.552523+00:00",
+        "ended_at": "2026-10-11T11:33:46.552523+00:00"
+      },
+      {
+        "id": "45f039e5-4516-4f8f-a898-4540e31728c3",
+        "task_id": "36d50c97-3955-40a7-ace8-2db1ab907e04",
+        "agent_id": "1869d4b9-8b40-444c-b34a-bfaffec66320",
+        "session_id": "ebbefb59-13e6-4336-9759-01a45da02eda",
+        "status": "completed",
+        "started_at": "2026-10-10T17:04:42.802750+00:00",
+        "ended_at": "2026-10-10T17:04:42.802750+00:00"
+      },
+      {
+        "id": "815e9803-4a3b-4f47-bd85-133191f19a50",
+        "task_id": "0c2ae81d-1207-497e-a14c-fb23925b57df",
+        "agent_id": "6c1f40f4-8598-4344-bc10-254a5e40a196",
+        "session_id": "edb4c486-31ab-466b-9116-7e5841067a5b",
+        "status": "completed",
+        "started_at": "2026-10-10T15:47:41.313121+00:00",
+        "ended_at": "2026-10-10T15:47:41.313121+00:00"
+      },
+      {
+        "id": "f449d826-5a1f-4b1a-beee-54555ff72754",
+        "task_id": "3332e392-871b-4d92-81c3-fbb01d43b8af",
+        "agent_id": "1869d4b9-8b40-444c-b34a-bfaffec66320",
+        "session_id": "3a353514-a4ef-4cc4-9bc9-82ffe70fe9d4",
+        "status": "completed",
+        "started_at": "2026-10-10T14:10:44.676324+00:00",
+        "ended_at": "2026-10-10T14:10:44.676324+00:00"
+      },
+      {
+        "id": "5524051e-3051-4a2d-9541-405030764df1",
+        "task_id": "b8cdf66c-9820-4cde-90dc-9f4cec5395b1",
+        "agent_id": "1869d4b9-8b40-444c-b34a-bfaffec66320",
+        "session_id": "aeadcedc-a42f-4c9c-a6b3-18fae926c8e2",
+        "status": "completed",
+        "started_at": "2026-10-10T14:02:00.511478+00:00",
+        "ended_at": "2026-10-10T14:02:00.511478+00:00"
+      },
+      {
+        "id": "0d1006a9-b10f-46c3-a7ef-e69690431325",
+        "task_id": "f39aad38-236a-4bb2-8f42-6b5cd9ffc333",
+        "agent_id": "1869d4b9-8b40-444c-b34a-bfaffec66320",
+        "session_id": "8cb01c43-6a5c-458d-b021-9f7271799f39",
+        "status": "completed",
+        "started_at": "2026-10-10T13:54:39.228328+00:00",
+        "ended_at": "2026-10-10T13:54:39.228328+00:00"
+      },
+      {
+        "id": "e8a8384a-7e37-4437-b463-4001ad6a05c2",
+        "task_id": "40148cc2-060e-4e8d-8a5c-37acf89f1ac9",
+        "agent_id": "1869d4b9-8b40-444c-b34a-bfaffec66320",
+        "session_id": "ae8743cc-477a-4a04-8a1d-94e10bdcf024",
+        "status": "completed",
+        "started_at": "2026-10-10T13:26:56.854276+00:00",
+        "ended_at": "2026-10-10T13:26:56.854276+00:00"
+      },
+      {
+        "id": "f2f8c89c-350c-4f4e-ae68-501732b21245",
+        "task_id": "3c4fb39c-1d59-49f3-900c-66117b64f2e6",
+        "agent_id": "1869d4b9-8b40-444c-b34a-bfaffec66320",
+        "session_id": "a6b13140-5cff-4b87-82c6-c37f27251297",
+        "status": "completed",
+        "started_at": "2026-10-10T06:34:52.731586+00:00",
+        "ended_at": "2026-10-10T06:34:52.731586+00:00"
+      }
+    ]
+  },
+  "launch_export": {
+    "source": "studio_list_task_launches",
+    "limit": 100,
+    "offset": 0,
+    "entries": []
+  },
+  "http": {
+    "collected_at": "2026-10-16T23:30:51.93494+02:00",
+    "sources": {
+      "projects_control": {
+        "status": "available",
+        "http_status": 200,
+        "path": "/api/v1/projects",
+        "params": {}
+      },
+      "usage_summary": {
+        "status": "unavailable",
+        "error_type": "NotFoundError",
+        "http_status": 404,
+        "path": "/api/v1/usage/summary",
+        "params": {
+          "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+          "group_by": "configuration",
+          "since": "2026-10-10T00:00:00Z",
+          "until": "2026-10-16T23:30:51.93494+02:00"
+        }
+      },
+      "mission": {
+        "status": "unavailable",
+        "error_type": "NotFoundError",
+        "http_status": 404,
+        "path": "/api/v1/projects/2a836038-153c-41cf-879a-73bd794760b0/mission",
+        "params": {
+          "window_hours": 168,
+          "limit": 50
+        }
+      }
+    }
+  },
+  "audit": [
+    {
+      "id": "f2f8c89c-350c-4f4e-ae68-501732b21245",
+      "task_id": "3c4fb39c-1d59-49f3-900c-66117b64f2e6",
+      "method": "studio_get_ai_work filtered by task_id; exact metadata comparison",
+      "matched": true
+    },
+    {
+      "id": "e8f61dc4-9ce0-44e1-84fe-c2145a990c8d",
+      "task_id": "c338f74f-cd22-4278-a060-a8415d4334c7",
+      "method": "studio_get_ai_work filtered by task_id; exact metadata comparison",
+      "matched": true
+    },
+    {
+      "id": "08d83db0-5995-44f1-b985-08285c87c501",
+      "task_id": "c9794588-1850-48ce-a2f5-de36502eb66e",
+      "method": "studio_get_ai_work filtered by task_id; exact metadata comparison",
+      "matched": true
+    },
+    {
+      "id": "d6651d4f-7019-450a-aac5-85e914fde267",
+      "task_id": "e084ffab-20f4-4768-82af-17554fbaf0bc",
+      "method": "studio_get_ai_work filtered by task_id; exact metadata comparison",
+      "matched": true
+    }
+  ],
+  "metrics": {
+    "ai_work_entries": 56,
+    "by_status": {
+      "approved": 8,
+      "completed": 48
+    },
+    "distinct_agents": 12,
+    "distinct_sessions": 55,
+    "sessions_with_multiple_entries": 1,
+    "task_linked": {
+      "numerator": 56,
+      "denominator": 56,
+      "percent": 100.0
+    },
+    "session_linked": {
+      "numerator": 56,
+      "denominator": 56,
+      "percent": 100.0
+    },
+    "completed_positive_duration": {
+      "numerator": 1,
+      "denominator": 48,
+      "percent": 2.08
+    },
+    "completed_zero_duration": {
+      "numerator": 47,
+      "denominator": 48,
+      "percent": 97.92
+    },
+    "completed_missing_end": 0,
+    "project_launches_returned": 0,
+    "tasklaunch_positive_duration_coverage": null,
+    "protocol_successes": null,
+    "configuration_coverage": null,
+    "tokens_coverage": null,
+    "cost": null
+  }
+}

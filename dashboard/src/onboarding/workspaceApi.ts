@@ -41,6 +41,8 @@ async function call<T>(
   return { ok: true, value: answer.response.payload as T };
 }
 
+export { call as callWorkspace };
+
 export function validateWorkspace(
   platform: Platform,
   workspaceId: string,
@@ -67,8 +69,8 @@ export function workspaceGitStatus(
 export function saveWorkspaceConfig(
   platform: Platform,
   payload: {
-    config: Record<string, unknown>;
-    current_roots: Record<string, unknown> | null;
+    config: object;
+    current_roots: object | null;
     root_confirmation_id?: string;
     expected_updated_at?: string;
   },

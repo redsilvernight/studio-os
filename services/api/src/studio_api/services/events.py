@@ -23,6 +23,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     has_project_access,
     load_project_scope,
+    owns_agent,
     project_visibility_clause,
 )
 
@@ -85,7 +86,7 @@ async def resolve_event_identity(
             )
     elif event_in.actor_type == "agent":
         agent = await session.get(AgentModel, event_in.actor_id)
-        if agent is None or agent.machine_id != machine.id:
+        if not owns_agent(agent, machine):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail={
@@ -215,8 +216,15 @@ async def list_events(
     since: datetime | None = None,
     limit: int = 100,
     event_type: EventType | None = None,
+    until: datetime | None = None,
+    offset: int = 0,
 ) -> list[EventModel]:
-    stmt = select(EventModel).order_by(EventModel.server_timestamp.desc()).limit(limit)
+    stmt = (
+        select(EventModel)
+        .order_by(EventModel.server_timestamp.desc(), EventModel.seq.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
         stmt = stmt.where(EventModel.project_id == project_id)
@@ -229,6 +237,8 @@ async def list_events(
         stmt = stmt.where(EventModel.task_id == task_id)
     if since is not None:
         stmt = stmt.where(EventModel.server_timestamp >= since)
+    if until is not None:
+        stmt = stmt.where(EventModel.server_timestamp < until)
     if event_type is not None:
         stmt = stmt.where(EventModel.event_type == event_type.value)
     result = await session.execute(stmt)

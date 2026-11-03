@@ -20,6 +20,7 @@ def test_the_knowledge_stack_never_opens_a_connection(tmp_path: Path, monkeypatc
     def denied(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("the knowledge stack attempted a network connection")
 
+    original_connect, original_create_connection = socket.socket.connect, socket.create_connection
     socket.socket.connect = denied  # type: ignore[method-assign]
     socket.create_connection = denied  # type: ignore[assignment]
     try:
@@ -40,8 +41,8 @@ def test_the_knowledge_stack_never_opens_a_connection(tmp_path: Path, monkeypatc
         assert provider.get_document(KnowledgeGetDocumentRequest(uri=uri)).markdown
         assert provider.graph_page(GraphPageRequest(workspace_id=WORKSPACE_ID)).nodes
     finally:
-        del socket.socket.connect
-        del socket.create_connection
+        socket.socket.connect = original_connect  # type: ignore[method-assign]
+        socket.create_connection = original_create_connection
 
 
 def test_importing_the_knowledge_package_pulls_no_http_client() -> None:

@@ -37,8 +37,57 @@
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* Ligne de liste : titre + extrait lisibles à gauche, badges à droite. */
+.vault-item {
+  align-items: flex-start;
+}
+
+.vault-item-main {
   display: grid;
-  gap: var(--ds-space-3);
+  gap: var(--ds-space-1);
+}
+
+.vault-item .ds-list-title {
+  font-size: var(--ds-text-lg);
+  line-height: 1.35;
+}
+
+.vault-item-excerpt {
+  margin: 0;
+  max-width: 80ch;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.vault-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-1) var(--ds-space-2);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+}
+
+.vault-zone {
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.vault-zone[data-scope="studio"] {
+  color: var(--ds-action);
+}
+
+.vault-item-date {
+  white-space: nowrap;
+}
+
+.vault-item .vault-badges {
+  align-self: flex-start;
+  justify-content: flex-end;
 }
 
 .vault-badges {
@@ -183,6 +232,12 @@
   .vault-tech-list > div {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+  .vault-item {
+    flex-wrap: wrap;
+  }
+  .vault-item .vault-badges {
+    justify-content: flex-start;
   }
 }
 .vault-modes {

@@ -1,14 +1,19 @@
 # Studi'OS Desktop
 
+Start with the [canonical documentation index](../docs/Studio_OS_Documentation_Pack/studio_os_docs/00_README.md)
+and [public-release readiness](../docs/Studio_OS_Documentation_Pack/studio_os_docs/IMPLEMENTATION/05_PUBLIC_RELEASE_READINESS.md).
+This file covers component development; packaging alone does not validate a public release.
+
 Thin Tauri 2 shell around the shared Dashboard build. Architecture, bridge, capabilities, gate matrix and limits: [`docs/DESKTOP_P2_FOUNDATION.md`](../docs/DESKTOP_P2_FOUNDATION.md).
 
 ## Prerequisites (Windows)
 
 Node ≥ 22.18, Rust stable (MSVC), Visual Studio Build Tools with the C++ workload, WebView2, and `uv` with Python for the daemon sidecar. Check them with:
 
-```bash
+```powershell
 cd desktop
-npm ci && (cd ../dashboard && npm ci)
+npm ci
+npm --prefix ../dashboard ci
 npm run prereqs
 ```
 

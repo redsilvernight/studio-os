@@ -246,6 +246,7 @@
     "HarnessApplyResult",
     "HarnessChange",
     "HarnessDetectResult",
+    "HarnessLaunchPreview",
     "HarnessPlan",
     "HarnessPreviewRequest",
     "HarnessRollbackRequest",
@@ -277,6 +278,7 @@
     "KnowledgeSearchRequest",
     "KnowledgeSearchResult",
     "KnowledgeStatus",
+    "LaunchEnvironmentEntry",
     "LaunchSettings",
     "LaunchSettingsRequest",
     "LaunchSettingsSaveRequest",
@@ -315,9 +317,11 @@
     "SetupPlanRequest",
     "SetupSkillsResult",
     "SetupSkillsStep",
+    "SetupVersioningStep",
     "SharedStatusSummary",
     "SkillCheckEntry",
     "SkillPreviewEntry",
+    "SkillResolution",
     "SkillTargetState",
     "SkillsApplyRequest",
     "SkillsApplyResult",
@@ -332,6 +336,7 @@
     "WorkspaceConfirmRootsResult",
     "WorkspaceGetConfigRequest",
     "WorkspaceGitStatus",
+    "WorkspaceListResult",
     "WorkspaceMarker",
     "WorkspaceMigrationPolicy",
     "WorkspaceRoots",
@@ -534,6 +539,10 @@
     {
       "model": "HarnessDetectResult",
       "name": "harness.detect.result"
+    },
+    {
+      "model": "HarnessLaunchPreview",
+      "name": "harness.launch_preview.unverified"
     },
     {
       "model": "HarnessPlan",

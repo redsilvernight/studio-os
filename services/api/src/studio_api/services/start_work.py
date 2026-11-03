@@ -36,6 +36,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_project_access,
+    owns_agent,
 )
 from studio_api.settings import Settings
 
@@ -50,7 +51,7 @@ async def authorize_start_work(
     ensure_project_access(principal, request.project_id, "write")
     ensure_can_write(principal, "start_work")
     agent = await session.get(AgentModel, request.agent_id)
-    if agent is None or agent.machine_id != principal.machine.id:
+    if not owns_agent(agent, principal.machine):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={

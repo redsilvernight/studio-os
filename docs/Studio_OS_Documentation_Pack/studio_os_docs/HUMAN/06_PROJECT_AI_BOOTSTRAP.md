@@ -117,6 +117,15 @@ studio-client skills sync
 studio-client rules sync
 ```
 
+La synchronisation globale des skills inclut les scopes `studio` et `user`
+visibles par le compte connecté. Une définition `user` de même clé remplace
+la définition `studio` selon la résolution existante ; leurs textes ne sont
+pas fusionnés. Les skills `project` restent hors de cette synchronisation.
+Le plan « Configurer ce poste » applique la même règle avant écriture.
+Utiliser `skills diff` pour examiner les changements avant `skills sync` ;
+les fichiers modifiés localement restent protégés contre un écrasement implicite.
+Les projections personnelles appartiennent au répertoire utilisateur du poste.
+
 Un manifeste dont `format` annonce une version inconnue ou future est refusé
 avant toute écriture. Mettre le client à niveau ou réinitialiser le manifeste
 après revue ; ne pas modifier seulement la chaîne de version pour contourner le
@@ -152,3 +161,45 @@ liste de harnesses et sa limite de concurrence.
   un manifeste `studio.bootstrap/v1` validé ;
 - drift persistant : relire `bootstrap diff`, puis restaurer ou accepter
   explicitement le fichier concerné avant de synchroniser.
+
+## Découvrir les fonctions du produit
+
+Dans l'accueil connecté, « Découvrir Studi'OS » propose un résumé, un parcours
+de démarrage et les vérifications de configuration. Le détail d'une capacité
+donne un exemple, ses prérequis et les restrictions de rôle. Les données sont
+chargées à la demande. Le catalogue décrit les fonctions du produit, sans
+charger le contenu des définitions de bibliothèque.
+
+Dans un harnais connecté, demander « Que peux-tu faire avec Studi'OS ? »,
+« Comment démarrer mon projet ? » ou « Qu'est-ce qui manque dans ma configuration ? ».
+Le même catalogue est disponible par la CLI :
+
+```powershell
+studio-client capabilities
+studio-client capabilities --intent start_project
+studio-client capabilities --intent configuration
+studio-client capabilities --key vault
+```
+
+Un état disponible décrit l'accès à la fonction selon les droits et les rapports
+reçus ; ce n'est pas un test de connectivité. Un rapport absent ou périmé reste
+signalé. Les vérifications Git et des fichiers du poste se font dans le setup.
+
+## Accompagner le versionnement local
+
+Le moteur de configuration propose aussi un parcours CLI. Aucun compte GitHub
+ni dépôt distant n'est requis pour commencer :
+
+```powershell
+studio-client versioning status --path ./mon-projet --json
+studio-client versioning init --path ./mon-projet --branch main --confirm
+studio-client versioning configure --scope local --repo ./mon-projet --name "Votre nom" --email "vous@example.org" --confirm
+```
+
+Sans `--confirm`, les commandes d'écriture refusent l'action. `--scope global`
+configure l'identité du poste ; `--scope local` la limite au dépôt indiqué.
+Chaque écriture est relue avant d'annoncer un succès. Un dépôt existant, y
+compris dans un dossier parent, est conservé ; une branche différente n'est
+pas imposée. Si Git manque, le diagnostic fournit son parcours d'installation
+manuel. Après installation, relancer le diagnostic. Le setup Desktop conserve
+le diagnostic et le guide manuel ; ces actions CLI demandent leur propre accord.

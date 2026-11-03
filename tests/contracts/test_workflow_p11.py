@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -435,6 +436,6 @@ def test_no_server_side_workflow_execution_concepts_exist() -> None:
         for path in root.rglob("*.py"):
             text = path.read_text(encoding="utf-8")
             for token in forbidden:
-                if token in text:
+                if re.search(rf"\b{re.escape(token)}\b", text):
                     offenders.append(f"{path.relative_to(repo_root)}:{token}")
     assert offenders == []

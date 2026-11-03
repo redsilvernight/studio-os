@@ -12,6 +12,7 @@ import {
   HOME_PROJECT_LIMIT,
   HOME_REVIEW_LIMIT,
   HOME_WORK_LIMIT,
+  checkHealth,
   homeHealthHtml,
   homeLoadingHtml,
   homeMetricsHtml,
@@ -297,6 +298,43 @@ describe("homeHealthHtml", () => {
     expect(down).toContain("Studio OS est injoignable");
     expect(down).not.toContain("/healthz");
     expect(down).not.toMatch(/HTTP|unreachable/i);
+  });
+
+  it("API hors service : une prochaine action lisible, aucune quand tout va bien", () => {
+    expect(homeHealthHtml({ reachable: false })).toContain('data-testid="health-next-step"');
+    expect(homeHealthHtml({ reachable: false })).toContain("Prochaine action");
+    expect(homeHealthHtml({ reachable: true })).not.toContain("health-next-step");
+  });
+
+  it("Desktop : reprend l'état dérivé du shell au lieu d'un second statut", () => {
+    const html = homeHealthHtml({
+      reachable: true,
+      shell: { level: "warn", label: "Assistant local indisponible", nextStep: "Redémarrez <l'application>." },
+    });
+    expect(html).toContain("Assistant local indisponible");
+    expect(html).not.toContain("Studio OS est joignable");
+    expect(html).toContain("Redémarrez &lt;l'application&gt;.");
+  });
+});
+
+describe("checkHealth", () => {
+  it("borne la sonde par un délai et ne transmet aucun jeton", async () => {
+    const calls: Array<RequestInit | undefined> = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push(init);
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      });
+    }) as typeof fetch;
+    try {
+      await expect(checkHealth("https://studio.example.test", 10)).resolves.toEqual({ reachable: false });
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.signal).toBeInstanceOf(AbortSignal);
+    expect(new Headers(calls[0]?.headers).get("Authorization")).toBeNull();
   });
 });
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from studio_api.db.models.machine import MachineModel
-from studio_mcp.tools.agents import studio_register_agent
+from studio_mcp.tools.agents import studio_register_agent, studio_resolve_agent_identity
 
 from tests.mcp.conftest import FakeContext
 
@@ -37,4 +37,40 @@ async def test_register_agent_readonly_forbidden(
     readonly_auth_ctx: FakeContext,
 ) -> None:
     result = await studio_register_agent("nope", readonly_auth_ctx)
+    assert result["error_code"] == "forbidden"
+
+
+async def test_resolve_durable_identity_and_unknown_state(auth_ctx: FakeContext) -> None:
+    first = await studio_resolve_agent_identity(
+        "codex-desktop",
+        auth_ctx,
+        provider="openai",
+        effective_model="gpt-6.1-sol",
+    )
+    second = await studio_resolve_agent_identity(
+        "codex-cli",
+        auth_ctx,
+        provider="openai",
+        effective_model="gpt-6.1-sol",
+    )
+    assert first["state"] == "resolved"
+    assert first["agent"]["id"] == second["agent"]["id"]
+    unknown = await studio_resolve_agent_identity("codex", auth_ctx, selection_alias="latest")
+    assert unknown["state"] == "unknown"
+    assert unknown["agent"] is None
+
+
+async def test_identity_input_error_is_structured_and_bounded(auth_ctx: FakeContext) -> None:
+    result = await studio_resolve_agent_identity("x" * 2000, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+    assert len(str(result)) < 200
+
+
+async def test_identity_readonly_forbidden(readonly_auth_ctx: FakeContext) -> None:
+    result = await studio_resolve_agent_identity(
+        "codex",
+        readonly_auth_ctx,
+        provider="openai",
+        effective_model="gpt-6.1-sol",
+    )
     assert result["error_code"] == "forbidden"

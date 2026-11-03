@@ -428,6 +428,98 @@ async def test_pin_stays_on_old_version(client: AsyncClient, auth_headers: dict[
 # --- Scope ------------------------------------------------------------------
 
 
+async def test_explicit_pin_disambiguates_same_key_and_keeps_scope_rules(
+    client: AsyncClient, auth_headers: dict[str, str], other_auth_headers: dict[str, str]
+) -> None:
+    shared = await _create(client, auth_headers, _payload("rule", "explicit-rule"))
+    private = await _create(client, auth_headers, _payload("rule", "explicit-rule", scope="user"))
+    payload = _payload(
+        "skill", "explicit-skill", scope="user", dependencies=[_pin("rule", "explicit-rule")]
+    )
+    ambiguous = await client.post("/api/v1/library", headers=auth_headers, json=payload)
+    assert ambiguous.status_code == 409
+    assert ambiguous.json()["detail"]["error_code"] == "pin_ambiguous"
+    pin = {**_pin("rule", "explicit-rule"), "resource_id": shared["id"]}
+    payload["dependencies"] = [pin]
+    source = await _create(client, auth_headers, payload)
+    preview = await client.get(
+        f"/api/v1/library/{source['id']}/versions/1/dependency-updates", headers=auth_headers
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["items"][0]["resource_id"] == shared["id"]
+    payload["stable_key"] = "explicit-forbidden"
+    payload["scope"] = "studio"
+    payload["dependencies"] = [{**pin, "resource_id": private["id"]}]
+    forbidden = await client.post("/api/v1/library", headers=auth_headers, json=payload)
+    assert forbidden.status_code == 422
+    assert forbidden.json()["detail"]["reason"] == "forbidden_scope"
+    hidden = await client.post("/api/v1/library", headers=other_auth_headers, json=payload)
+    assert hidden.status_code == 404
+    assert hidden.json()["detail"]["error_code"] == "pin_not_found"
+    payload["dependencies"] = [{**pin, "stable_key": "wrong-key"}]
+    mismatch = await client.post("/api/v1/library", headers=auth_headers, json=payload)
+    assert mismatch.status_code == 404
+
+
+async def test_dependency_update_preview_is_bounded_and_does_not_repin(
+    client: AsyncClient, auth_headers: dict[str, str], other_auth_headers: dict[str, str]
+) -> None:
+    target = await _create(client, auth_headers, _payload("skill", "preview-target"))
+    source = await _create(
+        client,
+        auth_headers,
+        _payload(
+            "agent_definition",
+            "preview-source",
+            scope="user",
+            dependencies=[{**_pin("skill", "preview-target"), "resource_id": target["id"]}],
+        ),
+    )
+    base = f"/api/v1/library/{source['id']}"
+    before = (await client.get(f"{base}/versions", headers=auth_headers)).json()
+    second = await client.post(
+        f"/api/v1/library/{target['id']}/versions",
+        headers=auth_headers,
+        json={"title": "v2", "content": _skill_content("Updated")},
+    )
+    assert second.status_code == 201, second.text
+    current = (await client.get(f"/api/v1/library/{target['id']}", headers=auth_headers)).json()
+    activated = await client.post(
+        f"/api/v1/library/{target['id']}/activate",
+        headers=auth_headers,
+        json={"version": 2, "expected_resource_version": current["version"]},
+    )
+    assert activated.status_code == 200, activated.text
+    url = f"{base}/versions/1/dependency-updates"
+    preview = await client.get(url, headers=auth_headers, params={"limit": 1})
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["mutates"] is False
+    item = body["items"][0]
+    assert (item["pinned_version"], item["active_version"], item["update_available"]) == (
+        1,
+        2,
+        True,
+    )
+    assert item["suggested_pin"]["version"] == 2
+    assert item["suggested_pin"]["resource_id"] == target["id"]
+    assert (await client.get(f"{base}/versions", headers=auth_headers)).json() == before
+    assert (await client.get(url, headers=auth_headers, params={"offset": 1})).json()["items"] == []
+    assert (await client.get(url, headers=auth_headers, params={"limit": 101})).status_code == 422
+    assert (await client.get(url, headers=other_auth_headers)).status_code == 404
+    latest = activated.json()
+    deprecated = await client.post(
+        f"/api/v1/library/{target['id']}/deprecate",
+        headers=auth_headers,
+        json={"expected_resource_version": latest["version"]},
+    )
+    assert deprecated.status_code == 200, deprecated.text
+    item = (await client.get(url, headers=auth_headers)).json()["items"][0]
+    assert item["deprecated"] is True
+    assert item["update_available"] is False
+    assert item["suggested_pin"]["version"] == 1
+
+
 async def test_user_may_bind_studio_and_own_user(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:

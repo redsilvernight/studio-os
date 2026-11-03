@@ -111,7 +111,9 @@ from studio_contracts.local.workspace import (
     WorkspaceScope,
     WorkspaceValidateRequest,
 )
+from studio_workspaces.root_confirmation import RootConfirmationService
 from studio_workspaces.store import WorkspaceStoreError
+from studio_workspaces.watch_source import registry_watch_source
 from studio_workspaces.workspace_bridge import WorkspaceBridge
 
 from studio_client.config import ClientConfig, default_config_path, reload_git_watches
@@ -146,10 +148,11 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.6.0"
+DAEMON_VERSION = "0.9.2"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
+        BridgeCommand.WORKSPACE_LIST,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -186,6 +189,8 @@ SERVED = frozenset(
         BridgeCommand.DAEMON_HEALTH,
         BridgeCommand.IDENTITY_GET_VIEW,
         BridgeCommand.IDENTITY_ENROLL,
+        BridgeCommand.IDENTITY_FORGET,
+        BridgeCommand.WORKSPACE_LIST,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -209,10 +214,12 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
+        BridgeCommand.HARNESS_LAUNCH_PREVIEW,
         BridgeCommand.SKILLS_CHECK,
         BridgeCommand.SKILLS_PREVIEW,
         BridgeCommand.SKILLS_APPLY,
         BridgeCommand.SKILLS_STATUS,
+        BridgeCommand.SKILLS_CONFIGURE,
         BridgeCommand.SETUP_PLAN,
         BridgeCommand.SETUP_APPLY,
         BridgeCommand.SETUP_HOOKS_CHECK,
@@ -241,6 +248,7 @@ _LOCAL_FEATURE_COMMANDS = frozenset(
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
+        BridgeCommand.HARNESS_LAUNCH_PREVIEW,
     }
 )
 _LOGGER = logging.getLogger("studio_client.daemon.service")
@@ -797,6 +805,31 @@ class BridgeService:
         capability_error = check_capability(request.command, self._granted_capabilities)
         if capability_error is not None:
             return self._local_error(request, capability_error)
+        if (
+            request.command is BridgeCommand.SKILLS_APPLY
+            and request.payload.get("resolutions") is not None
+            and "skills.resolve" not in self._granted_capabilities
+        ):
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.CAPABILITY_MISSING,
+                "Targeted skill resolutions require the skills.resolve capability.",
+            )
+        if (
+            request.command is BridgeCommand.SKILLS_APPLY
+            and any(
+                isinstance(resolution, dict) and resolution.get("kind", "skill") != "skill"
+                for resolution in request.payload.get("resolutions") or []
+            )
+            and "skills.definitions" not in self._granted_capabilities
+        ):
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.CAPABILITY_MISSING,
+                "Rule and agent resolutions require the skills.definitions capability.",
+            )
         if request.command in _LOCAL_FEATURE_COMMANDS and self.controller.local_features is None:
             return self._error(
                 request,
@@ -843,13 +876,29 @@ class BridgeService:
             )
         if isinstance(payload, HandshakeResponse):
             self._granted_capabilities = set(payload.granted_capabilities)
+        payload_data = payload.model_dump(mode="json")
+        if (
+            request.command is BridgeCommand.SKILLS_PREVIEW
+            and "skills.resolve" not in self._granted_capabilities
+        ):
+            for entry in payload_data["skills"]:
+                entry.pop("preview_hash", None)
+        if (
+            request.command is BridgeCommand.SKILLS_PREVIEW
+            and "skills.definitions" not in self._granted_capabilities
+        ):
+            payload_data["skills"] = [
+                entry for entry in payload_data["skills"] if entry.get("kind") == "skill"
+            ]
+            for entry in payload_data["skills"]:
+                entry.pop("kind", None)
         response = BridgeResponse(
             message_id=_message_id(),
             correlation_id=request.correlation_id,
             request_id=request.message_id,
             sent_at=_now(),
             command=request.command,
-            payload=payload.model_dump(mode="json"),
+            payload=payload_data,
         )
         return response.model_dump(mode="json")
 
@@ -883,6 +932,8 @@ class BridgeService:
                             "identity.enroll",
                             "skills.read",
                             "skills.apply",
+                            "skills.resolve",
+                            "skills.definitions",
                             "setup.plan",
                             "setup.apply",
                             "launch.settings",
@@ -960,6 +1011,8 @@ class BridgeService:
         assert bridge is not None
         payload = request.payload
         profile = self.controller._profile()
+        if request.command is BridgeCommand.WORKSPACE_LIST:
+            return bridge.list(profile)
         if request.command is BridgeCommand.WORKSPACE_VALIDATE:
             return bridge.validate(
                 WorkspaceValidateRequest.model_validate(payload).workspace_id, profile
@@ -1010,6 +1063,8 @@ class BridgeService:
             return features.harness_detect(WorkspaceScope.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_STATUS:
             return features.harness_status(HarnessStatusRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_LAUNCH_PREVIEW:
+            return features.harness_launch_preview(HarnessStatusRequest.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_PREVIEW:
             return features.harness_preview(HarnessPreviewRequest.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_APPLY:
@@ -1215,6 +1270,10 @@ def main(
         _LOGGER.error("refusing to start: the desktop server origin is invalid")
         return 2
     config = desktop_config or ClientConfig()  # type: ignore[call-arg]
+    if workspace_bridge is None:
+        workspace_bridge = WorkspaceBridge(data_root, RootConfirmationService())
+    if workspace_source is None:
+        workspace_source = registry_watch_source(data_root)
     controller = DaemonController(
         config,
         data_root=data_root,

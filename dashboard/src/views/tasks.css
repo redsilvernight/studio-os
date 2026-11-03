@@ -10,6 +10,19 @@
   padding-bottom: var(--ds-space-12);
 }
 
+.tasks-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.tasks-actions > .ds-btn {
+  flex: none;
+}
+
 /* Barre d'outils : un groupe logique (vue, filtre, statut) sur une surface. */
 .tasks-toolbar {
   display: flex;
@@ -30,7 +43,7 @@
 
 .tasks-toolbar .ds-search {
   flex: 1;
-  min-width: 220px;
+  min-width: min(220px, 100%);
 }
 
 /* Vues nommées (Maintenant, Mon travail, Toutes) : l'active porte aria-pressed. */
@@ -447,6 +460,52 @@
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+/* Coordination : le dernier passage de relais d'abord, puis ce qui reste à
+   traiter, puis le fil. Les réponses sont indentées sous leur signal racine ;
+   leur texte est échappé au rendu, il n'est jamais interprété. */
+.task-coordination-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.task-coordination-text {
+  margin: var(--ds-space-1) 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-coordination-item {
+  padding: var(--ds-space-3) var(--ds-space-1);
+  border-bottom: 1px solid var(--ds-border);
+  list-style: none;
+}
+
+.task-coordination-replies {
+  list-style: none;
+  margin: var(--ds-space-2) 0 0;
+  padding-left: var(--ds-space-4);
+  border-left: 2px solid var(--ds-border);
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.task-coordination-handoff,
+.task-coordination-pending {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-3) var(--ds-space-4);
+}
+
+.task-coordination-handoff {
+  background: var(--ds-action-soft);
+}
+
+.task-coordination-pending .ds-list {
+  margin-top: var(--ds-space-1);
 }
 
 #task-edit-form {

@@ -6,21 +6,28 @@
  * La présence est DÉDUITE (pas de GET /machines) : le vocabulaire parle
  * d'activité, jamais de connexion garantie.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ApiError } from "../api";
 import {
   activityLabelFr,
   filterMachineRows,
+  findProbableDuplicates,
   formatRelativeFr,
+  groupMachineRows,
   initialMachinesState,
   isMachinesDefaultState,
   machineDisplayTitle,
+  setMachineWorkstation,
+  workstationCandidates,
+  workstationErrorFr,
   type MachineRow,
 } from "../machinesApi";
 import {
   machineCardHtml,
   machineDrawerBodyHtml,
+  machineWorkstationSectionHtml,
   machinesEmptyHtml,
   machinesListHtml,
   machinesLoadingHtml,
@@ -48,10 +55,11 @@ const row = (overrides: Partial<MachineRow> = {}): MachineRow => ({
   agentCount: 1,
   activeSessionCount: 1,
   version: null,
+  workstationId: null,
   ...overrides,
 });
 
-const info = (overrides: Partial<MachineCardInfo> = {}): MachineCardInfo => ({
+const info =(overrides: Partial<MachineCardInfo> = {}): MachineCardInfo => ({
   agentNames: ["Claude"],
   activeSession: null,
   ...overrides,
@@ -267,6 +275,111 @@ describe("machineDrawerBodyHtml", () => {
     expect(html).toContain('data-machine-rename="');
     expect(html).toContain("Renommer");
     expect(html).toContain('data-machine-version="');
+  });
+});
+
+const OWNER = "cccccccc-0000-4111-8111-00000000000c";
+const M3 = "dddddddd-0000-4111-8111-000000000003";
+const M4 = "eeeeeeee-0000-4111-8111-000000000004";
+
+describe("groupMachineRows", () => {
+  it("imbrique les machines d'outil sous leur poste et garde les racines héritées", () => {
+    const desk = row({ machineId: M1, displayName: "PC Flo", ownerUserId: OWNER, version: 1 });
+    const tool = row({ machineId: M2, displayName: "Claude Code", ownerUserId: OWNER, version: 1, workstationId: M1 });
+    const legacy = row({ machineId: M3, displayName: "Vieux poste", ownerUserId: OWNER, version: 1 });
+    const orphan = row({ machineId: M4, displayName: "Orphelin", workstationId: "absent" });
+    const groups = groupMachineRows([tool, desk, legacy, orphan]);
+    expect(groups.map((group) => group.root.machineId)).toEqual([M1, M3, M4]);
+    expect(groups[0]?.children.map((child) => child.machineId)).toEqual([M2]);
+    expect(groups[1]?.children).toEqual([]);
+  });
+
+  it("rend les machines rattachées dans une sous-liste étiquetée", () => {
+    const html = machinesListHtml(
+      [row({ displayName: "PC Flo" }), row({ machineId: M2, displayName: "Outil", workstationId: M1 })],
+      new Map(),
+      NOW,
+    );
+    expect(html).toContain('class="machine-group"');
+    expect(html).toContain('aria-label="Machines rattachées au poste PC Flo"');
+    expect(html.indexOf("PC Flo")).toBeLessThan(html.indexOf("Outil"));
+  });
+});
+
+describe("findProbableDuplicates", () => {
+  const a = row({ machineId: M1, displayName: "Codex", ownerUserId: OWNER, workstationId: M3 });
+  const b = row({ machineId: M2, displayName: " codex ", ownerUserId: OWNER, workstationId: M3 });
+
+  it("même propriétaire, même poste, même nom insensible à la casse", () => {
+    const duplicates = findProbableDuplicates([a, b]);
+    expect(duplicates.get(M2)).toEqual({ targetId: M1, others: [M1] });
+    expect(duplicates.get(M1)?.targetId).toBe(M1);
+  });
+
+  it("ignore un autre poste, un autre propriétaire ou un nom absent", () => {
+    expect(findProbableDuplicates([a, { ...b, workstationId: null }]).size).toBe(0);
+    expect(findProbableDuplicates([a, { ...b, ownerUserId: "autre" }]).size).toBe(0);
+    expect(findProbableDuplicates([{ ...a, displayName: null }, { ...b, displayName: null }]).size).toBe(0);
+  });
+
+  it("affiche le badge et la commande d'administration exacte", () => {
+    const html = machinesListHtml([a, b], new Map(), NOW);
+    expect(html).toContain("Doublon probable");
+    expect(html).toContain(`studio-admin merge-machines --from ${M2} --into ${M1}`);
+    expect(html).not.toContain(`--from ${M1}`);
+  });
+});
+
+describe("rattachement à un poste", () => {
+  const desk = row({ machineId: M1, displayName: "PC Flo", ownerUserId: OWNER, version: 2 });
+  const tool = row({ machineId: M2, displayName: "Outil", ownerUserId: OWNER, version: 5 });
+  const foreign = row({ machineId: M3, displayName: "Autre", ownerUserId: "autre", version: 1 });
+
+  it("propose les postes racines du même propriétaire", () => {
+    expect(workstationCandidates(tool, [desk, tool, foreign]).map((r) => r.machineId)).toEqual([M1]);
+    const html = machineWorkstationSectionHtml(tool, [desk, tool, foreign]);
+    expect(html).toContain('<label for="machine-workstation-select">');
+    expect(html).toContain(`<option value="${M1}">PC Flo</option>`);
+    expect(html).toContain(`data-machine-attach="${M2}" data-machine-version="5"`);
+    expect(html).toContain("Rattacher à ce poste");
+    expect(html).not.toContain("Autre");
+  });
+
+  it("propose Détacher pour une machine rattachée, rien pour un poste parent", () => {
+    const attached = { ...tool, workstationId: M1 };
+    const html = machineWorkstationSectionHtml(attached, [desk, attached]);
+    expect(html).toContain(`data-machine-detach="${M2}"`);
+    expect(html).toContain("PC Flo");
+    const parent = machineWorkstationSectionHtml(desk, [desk, attached]);
+    expect(parent).toContain("1 machine(s) d'outil rattachée(s)");
+    expect(parent).not.toMatch(/data-machine-(attach|detach)/);
+  });
+
+  it("appelle PUT /workstation avec If-Match-Version", async () => {
+    const put = vi.fn(async () => ({
+      response: { ok: true, status: 200 },
+      data: { id: M2, version: 6, workstation_id: M1 },
+    }));
+    const updated = await setMachineWorkstation({ PUT: put } as never, M2, M1, 5);
+    expect(updated.version).toBe(6);
+    expect(put).toHaveBeenCalledWith("/api/v1/machines/{machine_id}/workstation", {
+      params: { path: { machine_id: M2 }, header: { "If-Match-Version": 5 } },
+      body: { workstation_id: M1 },
+    });
+  });
+
+  it("traduit 409 et 404 en français", async () => {
+    const put = vi.fn(async () => ({
+      response: { ok: false, status: 409 },
+      error: { detail: { error_code: "workstation_invalid", message: "x" } },
+    }));
+    const failure = await setMachineWorkstation({ PUT: put } as never, M2, null, 5).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(workstationErrorFr(failure)).toContain("Rattachement refusé");
+    const conflict = new ApiError({ status: 409, errorCode: "version_conflict", message: "", serverVersion: 7 });
+    expect(workstationErrorFr(conflict)).toContain("modifié entre-temps");
+    const missing = new ApiError({ status: 404, errorCode: null, message: "", serverVersion: null });
+    expect(workstationErrorFr(missing)).toContain("introuvable");
   });
 });
 

@@ -752,12 +752,15 @@ class RoadmapRevisionSummary(ContractModel):
 
 
 class ProposalCreate(IdempotentCreate):
-    """A structured change to an approved roadmap. `base_revision_no` is the
-    revision the author read; if it is no longer current when reviewed, the
-    approval fails `409 base_revision_stale`."""
+    """Draft replacement or pending change to an active roadmap.
+
+    Drafts check the current revision before writing. Active proposals check
+    the approved base at review; `submit` only controls draft submission.
+    """
 
     base_revision_no: int
     document: RoadmapDocument
+    submit: bool = True
     summary: str | None = Field(default=None, max_length=MAX_COMMENT)
     provenance: WriteProvenance = Field(
         default_factory=lambda: WriteProvenance(origin=RoadmapOrigin.AI_PROPOSAL)

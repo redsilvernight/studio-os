@@ -8,18 +8,24 @@ Auto-sync at daemon startup is orchestrated from ``daemon.runtime``.
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import logging
+import os
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from studio_contracts.local.common import ComponentId, LocalError, LocalErrorCode
 from studio_contracts.local.skills import (
     SkillCheckEntry,
     SkillHarnessTarget,
+    SkillLibraryKind,
     SkillPreviewEntry,
     SkillsApplyRequest,
     SkillsApplyResult,
@@ -34,12 +40,33 @@ from studio_contracts.local.skills import (
 
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
+from studio_client.context.errors import ContextError
+from studio_client.context.library import LibraryContextItem, LibraryContextProvider
 from studio_client.daemon.local_features import LocalFeatureError
+from studio_client.drift import (
+    SyncState,
+    classify_state,
+    dump_manifest_v2,
+    hash_text,
+    load_managed_hashes,
+)
 from studio_client.errors import AuthenticationError, StudioApiError
+from studio_client.projection_backups import (
+    ProjectionBackup,
+    commit_projection_backup,
+    prepare_projection_backup,
+)
 from studio_client.skill_sync import (
+    _STABLE_KEY_RE,
+    _WINDOWS_RESERVED_NAMES,
+    GLOBAL_PROJECTION_SCOPES,
+    SkillPlanEntry,
     SkillSyncConflictError,
     SkillSyncError,
     SkillSyncPlan,
+    SkillSyncResult,
+    SkillTargetPlan,
+    _atomic_write,
     apply_skill_sync,
     diff_skill_plan,
     fetch_skill_projections,
@@ -60,10 +87,70 @@ _HARNESS = {
 
 _STATUS_FILE_NAME = "skills-sync-status.json"
 _SETTINGS_FILE_NAME = "skills-sync-settings.json"
+_DEFINITIONS_MANIFEST_NAME = "library-definitions-manifest.json"
+
+_DEFINITION_KINDS = frozenset({"rule", "agent_definition"})
+_GLOBAL_SCOPES = GLOBAL_PROJECTION_SCOPES
 
 
 def _status_path(data_root: Path) -> Path:
     return data_root / _STATUS_FILE_NAME
+
+
+@dataclass(frozen=True)
+class DefinitionTargetPlan:
+    harness: Literal["agents", "claude"]
+    path: Path
+    state: SyncState
+    current_text: str | None
+    current_sha256: str | None
+    desired_text: str
+
+
+@dataclass(frozen=True)
+class DefinitionPlanEntry:
+    projection: LibraryContextItem
+    rendered: str
+    sha256: str
+    targets: tuple[DefinitionTargetPlan, DefinitionTargetPlan]
+
+    @property
+    def all_targets(self) -> tuple[DefinitionTargetPlan, ...]:
+        return self.targets
+
+
+@dataclass(frozen=True)
+class DefinitionSyncPlan:
+    home: Path
+    entries: tuple[DefinitionPlanEntry, ...]
+    manifest_path: Path
+    manifest_text: str
+    retired: tuple[DefinitionTargetPlan, ...] = ()
+    manifest_before: str | None = None
+
+    @property
+    def current(self) -> tuple[DefinitionTargetPlan, ...]:
+        return self._targets_with_state("current")
+
+    @property
+    def missing(self) -> tuple[DefinitionTargetPlan, ...]:
+        return self._targets_with_state("missing")
+
+    @property
+    def outdated(self) -> tuple[DefinitionTargetPlan, ...]:
+        return self._targets_with_state("outdated")
+
+    @property
+    def locally_modified(self) -> tuple[DefinitionTargetPlan, ...]:
+        return self._targets_with_state("locally_modified")
+
+    def _targets_with_state(self, state: SyncState) -> tuple[DefinitionTargetPlan, ...]:
+        return tuple(
+            target
+            for entry in self.entries
+            for target in entry.all_targets
+            if target.state == state
+        )
 
 
 def _error(
@@ -101,12 +188,399 @@ def _save_status(data_root: Path, status: SkillsSyncStatus) -> None:
     temporary.replace(path)
 
 
-def _fetch_and_plan(
+def _manifest_kind(library_kind: str) -> str:
+    return "agent" if library_kind == "agent_definition" else library_kind
+
+
+def _definition_paths(
+    home: Path, library_kind: str, stable_key: str
+) -> tuple[tuple[Literal["agents", "claude"], Path], ...]:
+    if library_kind == "rule":
+        return (
+            ("agents", home / ".agents" / "rules" / f"{stable_key}.md"),
+            ("claude", home / ".claude" / "rules" / f"{stable_key}.md"),
+        )
+    return (
+        ("agents", home / ".agents" / "definitions" / f"{stable_key}.md"),
+        ("claude", home / ".claude" / "agents" / f"{stable_key}.md"),
+    )
+
+
+def render_definition(projection: LibraryContextItem) -> str:
+    _validate_definition_projection(projection)
+    description = " ".join((projection.description or "").split())
+    if not description:
+        description = " ".join(projection.title.split())
+    body = projection.text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    provenance = (
+        "<!-- studio-os-library: "
+        f"kind={projection.library_kind}; stable_key={projection.stable_key}; "
+        f"version={projection.version}; version_origin={projection.version_origin}; "
+        f"scope={projection.scope} -->"
+    )
+    rendered = (
+        "---\n"
+        f"name: {json.dumps(projection.stable_key, ensure_ascii=False)}\n"
+        f"description: {json.dumps(description, ensure_ascii=False)}\n"
+        "---\n\n"
+        f"{provenance}\n"
+    )
+    if body:
+        rendered += f"\n{body}\n"
+    return rendered
+
+
+def _validate_definition_projection(projection: LibraryContextItem) -> None:
+    key = projection.stable_key
+    windows_stem = key.split(".", 1)[0].upper()
+    if (
+        not _STABLE_KEY_RE.fullmatch(key)
+        or key in {".", ".."}
+        or ".." in key
+        or key.endswith(".")
+        or windows_stem in _WINDOWS_RESERVED_NAMES
+    ):
+        raise SkillSyncError(f"unsafe definition stable_key: {key!r}")
+    if projection.library_kind not in _DEFINITION_KINDS:
+        raise SkillSyncError(
+            f"expected a rule or agent_definition projection, got {projection.library_kind!r}"
+        )
+    if projection.scope not in _GLOBAL_SCOPES:
+        raise SkillSyncError(
+            f"refusing to project definition {key!r} with scope {projection.scope!r}"
+        )
+    if projection.version <= 0:
+        raise SkillSyncError(f"invalid definition version for {key!r}: {projection.version}")
+
+
+async def fetch_library_projections(
+    api: Any,
+    project_id: Any,
+    limit: int = 100,
+) -> tuple[LibraryContextItem, ...]:
+    provider = LibraryContextProvider(api)
+    textual = await provider.fetch(project_id, limit=limit, kinds=("rule", "skill"))
+    items = [item for item in textual.items if item.scope in _GLOBAL_SCOPES]
+
+    for row in await provider.fetch_effective_versions(
+        project_id, kind="agent_definition", limit=limit
+    ):
+        status = str(getattr(row.resource, "status", "active"))
+        if status not in {"active", "deprecated"}:
+            continue
+        if str(row.resource.scope) not in _GLOBAL_SCOPES:
+            continue
+        content = dict(row.version_row.content)
+        parts = [
+            str(content[field]).strip()
+            for field in ("summary", "intended_use")
+            if isinstance(content.get(field), str) and str(content[field]).strip()
+        ]
+        items.append(
+            LibraryContextItem(
+                library_kind="agent_definition",
+                stable_key=row.resource.stable_key,
+                version=row.version,
+                version_origin=row.version_origin,
+                scope=str(row.resource.scope),
+                title=row.version_row.title,
+                text="\n\n".join(parts),
+                content_schema=str(
+                    content.get("content_schema", "studio.library.agent_definition/v1")
+                ),
+                deprecated=status == "deprecated",
+            )
+        )
+
+    return tuple(sorted(items, key=lambda item: (item.library_kind, item.stable_key)))
+
+
+def plan_definition_sync(
+    home: Path | str,
+    projections: tuple[LibraryContextItem, ...] | list[LibraryContextItem],
+) -> DefinitionSyncPlan:
+    root = Path(home).expanduser().resolve()
+    manifest_path = root / ".studio-os" / _DEFINITIONS_MANIFEST_NAME
+    manifest_before = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else None
+    managed_hashes = load_managed_hashes(manifest_path)
+    entries: list[DefinitionPlanEntry] = []
+    retired: list[DefinitionTargetPlan] = []
+    seen: set[tuple[str, str]] = set()
+
+    for projection in sorted(
+        projections, key=lambda item: (_manifest_kind(item.library_kind), item.stable_key)
+    ):
+        _validate_definition_projection(projection)
+        manifest_kind = _manifest_kind(projection.library_kind)
+        identity = (manifest_kind, projection.stable_key)
+        if identity in seen:
+            raise SkillSyncError(
+                f"duplicate {projection.library_kind} stable_key: {projection.stable_key!r}"
+            )
+        seen.add(identity)
+        rendered = render_definition(projection)
+        desired_hash = hash_text(rendered)
+        managed_hash = managed_hashes.get(identity)
+
+        if projection.deprecated:
+            retired.extend(
+                _plan_retired_definition(
+                    root, projection.library_kind, projection.stable_key, rendered, managed_hash
+                )
+            )
+            continue
+
+        agents_target = _plan_definition_target(
+            root, projection.library_kind, projection.stable_key, "agents", rendered, managed_hash
+        )
+        claude_target = _plan_definition_target(
+            root, projection.library_kind, projection.stable_key, "claude", rendered, managed_hash
+        )
+        entries.append(
+            DefinitionPlanEntry(
+                projection=projection,
+                rendered=rendered,
+                sha256=desired_hash,
+                targets=(agents_target, claude_target),
+            )
+        )
+
+    manifest_text = dump_manifest_v2(
+        [
+            {
+                "kind": _manifest_kind(entry.projection.library_kind),
+                "scope": entry.projection.scope,
+                "sha256": entry.sha256,
+                "stable_key": entry.projection.stable_key,
+                "version": entry.projection.version,
+                "version_origin": entry.projection.version_origin,
+            }
+            for entry in entries
+        ]
+    )
+    return DefinitionSyncPlan(
+        home=root,
+        entries=tuple(entries),
+        manifest_path=manifest_path,
+        manifest_text=manifest_text,
+        retired=tuple(retired),
+        manifest_before=manifest_before,
+    )
+
+
+def _plan_definition_target(
+    home: Path,
+    library_kind: str,
+    stable_key: str,
+    harness: Literal["agents", "claude"],
+    rendered: str,
+    managed_hash: str | None,
+) -> DefinitionTargetPlan:
+    path = dict(_definition_paths(home, library_kind, stable_key))[harness]
+    if not path.exists():
+        return DefinitionTargetPlan(harness, path, "missing", None, None, rendered)
+    if not path.is_file():
+        raise SkillSyncError(f"definition target is not a regular file: {path}")
+    try:
+        current = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SkillSyncError(f"definition target is not valid UTF-8: {path}") from exc
+    state = classify_state(current, rendered, managed_hash)
+    return DefinitionTargetPlan(harness, path, state, current, hash_text(current), rendered)
+
+
+def _plan_retired_definition(
+    home: Path,
+    library_kind: str,
+    stable_key: str,
+    rendered: str,
+    managed_hash: str | None,
+) -> list[DefinitionTargetPlan]:
+    retired: list[DefinitionTargetPlan] = []
+    for harness, path in _definition_paths(home, library_kind, stable_key):
+        if not path.is_file():
+            continue
+        try:
+            current = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if current == rendered or (managed_hash is not None and hash_text(current) == managed_hash):
+            retired.append(
+                DefinitionTargetPlan(
+                    harness, path, "outdated", current, hash_text(current), rendered
+                )
+            )
+    return retired
+
+
+def _verify_definition_plan_is_fresh(plan: DefinitionSyncPlan) -> None:
+    if plan.manifest_path.exists() and not plan.manifest_path.is_file():
+        raise SkillSyncConflictError("definition manifest changed since planning")
+    manifest = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
+    )
+    if manifest != plan.manifest_before:
+        raise SkillSyncConflictError("definition manifest changed since planning")
+    for target in [*(t for e in plan.entries for t in e.all_targets), *plan.retired]:
+        if target.path.exists():
+            if not target.path.is_file():
+                raise SkillSyncConflictError(
+                    f"definition target changed since planning: {target.path}"
+                )
+            try:
+                current_hash = hash_text(target.path.read_text(encoding="utf-8"))
+            except UnicodeDecodeError as exc:
+                raise SkillSyncConflictError(
+                    f"definition target changed since planning: {target.path}"
+                ) from exc
+        else:
+            current_hash = None
+        if current_hash != target.current_sha256:
+            raise SkillSyncConflictError(f"definition target changed since planning: {target.path}")
+
+
+def _select_definitions(
+    plan: DefinitionSyncPlan, selected: set[tuple[str, str]]
+) -> DefinitionSyncPlan:
+    known = {
+        (_manifest_kind(e.projection.library_kind), e.projection.stable_key) for e in plan.entries
+    }
+    if selected - known:
+        raise SkillSyncError("unknown definition selection")
+    manifest = json.loads(plan.manifest_text)
+    previous_text = (
+        plan.manifest_path.read_text(encoding="utf-8") if plan.manifest_path.is_file() else None
+    )
+    previous = json.loads(previous_text) if previous_text is not None else {}
+    if not isinstance(previous, dict) or not isinstance(previous.get("items", []), list):
+        raise SkillSyncError("invalid existing definition manifest")
+
+    def identity(row: Any) -> tuple[Any, Any]:
+        return (row.get("kind"), row.get("stable_key")) if isinstance(row, dict) else (None, None)
+
+    items = [
+        row
+        for row in previous.get("items", [])
+        if isinstance(row, dict) and identity(row) not in selected
+    ] + [row for row in manifest["items"] if identity(row) in selected]
+    return replace(
+        plan,
+        entries=tuple(
+            entry
+            for entry in plan.entries
+            if (_manifest_kind(entry.projection.library_kind), entry.projection.stable_key)
+            in selected
+        ),
+        retired=(),
+        manifest_text=dump_manifest_v2(items),
+        manifest_before=previous_text,
+    )
+
+
+def apply_definition_sync(
+    plan: DefinitionSyncPlan,
+    *,
+    overwrite: bool = False,
+    selected: set[tuple[str, str]] | None = None,
+    journal_sink: list[ProjectionBackup] | None = None,
+) -> SkillSyncResult:
+    if selected is not None:
+        if not selected:
+            return SkillSyncResult(
+                written=(), backups=(), manifest_path=plan.manifest_path, removed=()
+            )
+        plan = _select_definitions(plan, selected)
+    conflicts = list(plan.locally_modified)
+    if conflicts and not overwrite:
+        paths = ", ".join(str(target.path) for target in conflicts)
+        raise SkillSyncConflictError(
+            "refusing to overwrite locally modified definition files "
+            f"without overwrite=True: {paths}"
+        )
+    _verify_definition_plan_is_fresh(plan)
+
+    desired: dict[Path, str | None] = {
+        target.path: target.desired_text
+        for entry in plan.entries
+        for target in entry.all_targets
+        if target.state != "current"
+    }
+    desired.update({target.path: None for target in plan.retired})
+    desired[plan.manifest_path] = plan.manifest_text
+    journal = prepare_projection_backup(plan.home, desired)
+    _verify_definition_plan_is_fresh(plan)
+
+    backup_root: Path | None = None
+    backups: list[Path] = []
+    if conflicts:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+        backup_root = plan.home / ".studio-os" / "backups" / "definitions" / timestamp
+        for entry in plan.entries:
+            for target in entry.all_targets:
+                if target.state != "locally_modified" or target.current_text is None:
+                    continue
+                backup_path = (
+                    backup_root
+                    / _manifest_kind(entry.projection.library_kind)
+                    / entry.projection.stable_key
+                    / target.harness
+                    / "definition.md"
+                )
+                _atomic_write(backup_path, target.current_text)
+                backups.append(backup_path)
+
+    written: list[Path] = []
+    for entry in plan.entries:
+        for target in entry.all_targets:
+            if target.state == "current":
+                continue
+            _atomic_write(target.path, target.desired_text)
+            written.append(target.path)
+
+    removed: list[Path] = []
+    for target in plan.retired:
+        target.path.unlink()
+        removed.append(target.path)
+        try:
+            target.path.parent.rmdir()
+        except OSError:
+            pass
+
+    _atomic_write(plan.manifest_path, plan.manifest_text)
+    if journal_sink is None:
+        commit_projection_backup(journal)
+    elif journal is not None:
+        journal_sink.append(journal)
+    return SkillSyncResult(
+        written=tuple(written),
+        backups=tuple(backups),
+        manifest_path=plan.manifest_path,
+        removed=tuple(removed),
+    )
+
+
+def plan_library_sync(
+    home: Path,
+    projections: tuple[LibraryContextItem, ...] | list[LibraryContextItem],
+) -> tuple[SkillSyncPlan, DefinitionSyncPlan]:
+    skills = [
+        item
+        for item in projections
+        if item.library_kind == "skill" and item.scope in _GLOBAL_SCOPES
+    ]
+    definitions = [
+        item
+        for item in projections
+        if item.library_kind in _DEFINITION_KINDS and item.scope in _GLOBAL_SCOPES
+    ]
+    return plan_skill_sync(home, skills), plan_definition_sync(home, definitions)
+
+
+def _run_fetch(
     config: ClientConfig,
     token_store: TokenStore,
-    home: Path,
-) -> SkillSyncPlan:
-    """Fetch projections and build a sync plan. Raises LocalFeatureError on failure."""
+    fetcher: Callable[[ClientConfig, TokenStore], Any],
+) -> tuple[LibraryContextItem, ...]:
     if not token_store.get_token(origin_of(config.api_base_url)):
         raise _error(
             LocalErrorCode.SECRET_ABSENT,
@@ -116,8 +590,7 @@ def _fetch_and_plan(
         )
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
-            projections = pool.submit(asyncio.run, _fetch(config, token_store)).result()
-        return plan_skill_sync(home, projections)
+            return tuple(pool.submit(asyncio.run, fetcher(config, token_store)).result())
     except AuthenticationError as exc:
         raise _error(
             LocalErrorCode.SECRET_REVOKED,
@@ -133,17 +606,51 @@ def _fetch_and_plan(
             ComponentId.DAEMON,
             retryable=True,
         ) from exc
-    except SkillSyncError as exc:
-        _LOGGER.warning("skills.sync: invalid library skill (%s)", type(exc).__name__)
+    except (SkillSyncError, ContextError) as exc:
+        _LOGGER.warning("skills.sync: invalid library definition (%s)", type(exc).__name__)
         raise _error(
             LocalErrorCode.INTERNAL_ERROR,
-            "A Library skill could not be checked.",
+            "A Library definition could not be checked.",
             ComponentId.DAEMON,
             retryable=False,
         ) from exc
 
 
+def _fetch_projections(
+    config: ClientConfig, token_store: TokenStore
+) -> tuple[LibraryContextItem, ...]:
+    return _run_fetch(config, token_store, _fetch)
+
+
+def _fetch_skill_projections(
+    config: ClientConfig, token_store: TokenStore
+) -> tuple[LibraryContextItem, ...]:
+    return _run_fetch(config, token_store, _fetch_skills_only)
+
+
+def _fetch_and_plan(
+    config: ClientConfig,
+    token_store: TokenStore,
+    home: Path,
+) -> SkillSyncPlan:
+    projections = _fetch_skill_projections(config, token_store)
+    return plan_skill_sync(home, projections)
+
+
+def _fetch_and_plan_library(
+    config: ClientConfig,
+    token_store: TokenStore,
+    home: Path,
+) -> tuple[SkillSyncPlan, DefinitionSyncPlan]:
+    return plan_library_sync(home, _fetch_projections(config, token_store))
+
+
 async def _fetch(config: ClientConfig, token_store: TokenStore) -> Any:
+    async with StudioApiClient(config, token_store) as client:
+        return await fetch_library_projections(client, None, limit=_SKILL_LIMIT)
+
+
+async def _fetch_skills_only(config: ClientConfig, token_store: TokenStore) -> Any:
     async with StudioApiClient(config, token_store) as client:
         return await fetch_skill_projections(client, None, limit=_SKILL_LIMIT)
 
@@ -185,14 +692,102 @@ def check_skills(
     return summarize(plan)
 
 
+def _preview_hash(entry: SkillPlanEntry) -> str:
+    payload = {
+        "stable_key": entry.projection.stable_key,
+        "version": entry.projection.version,
+        "desired_sha256": entry.sha256,
+        "targets": [(target.harness, target.current_sha256) for target in entry.all_targets],
+    }
+    return sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _definition_kind(entry: DefinitionPlanEntry) -> SkillLibraryKind:
+    return SkillLibraryKind(_manifest_kind(entry.projection.library_kind))
+
+
+def _definition_preview_hash(entry: DefinitionPlanEntry) -> str:
+    payload = {
+        "kind": _manifest_kind(entry.projection.library_kind),
+        "stable_key": entry.projection.stable_key,
+        "version": entry.projection.version,
+        "desired_sha256": entry.sha256,
+        "targets": [(target.harness, target.current_sha256) for target in entry.all_targets],
+    }
+    return sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _diff_definition_entry(home: Path, entry: DefinitionPlanEntry) -> str:
+    chunks: list[str] = []
+    for target in entry.all_targets:
+        if target.state == "current":
+            continue
+        relative = target.path.relative_to(home).as_posix()
+        current_lines = (
+            [] if target.current_text is None else target.current_text.splitlines(keepends=True)
+        )
+        chunks.extend(
+            difflib.unified_diff(
+                current_lines,
+                target.desired_text.splitlines(keepends=True),
+                fromfile="/dev/null" if target.state == "missing" else relative,
+                tofile=relative,
+            )
+        )
+    return "".join(chunks)
+
+
+def _target_label(
+    plan: SkillSyncPlan | DefinitionSyncPlan,
+    target: SkillTargetPlan | DefinitionTargetPlan,
+) -> str:
+    return target.path.relative_to(plan.home).as_posix()
+
+
+def _sync_paths(
+    plans: tuple[SkillSyncPlan | DefinitionSyncPlan, ...],
+) -> dict[Path, bytes | None]:
+    snapshot: dict[Path, bytes | None] = {}
+    for plan in plans:
+        snapshot[plan.manifest_path] = (
+            plan.manifest_path.read_bytes() if plan.manifest_path.is_file() else None
+        )
+        targets = [target for entry in plan.entries for target in entry.all_targets]
+        targets.extend(plan.retired)
+        for target in targets:
+            snapshot[target.path] = target.path.read_bytes() if target.path.is_file() else None
+    return snapshot
+
+
+def _restore_paths(snapshot: dict[Path, bytes | None]) -> None:
+    for path, data in snapshot.items():
+        if data is None:
+            if path.is_file():
+                path.unlink()
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.rollback")
+        temporary.write_bytes(data)
+        os.replace(temporary, path)
+
+
+def _restore_after_failure(snapshot: dict[Path, bytes | None]) -> None:
+    try:
+        _restore_paths(snapshot)
+    except OSError:
+        _LOGGER.exception("skills.apply: rollback failed")
+
+
 def preview_skills(
     config: ClientConfig,
     token_store: TokenStore,
     *,
     home: Path | None = None,
 ) -> SkillsPreviewResult:
-    """Return a preview (unified diff) of the skill synchronization plan."""
-    plan = _fetch_and_plan(config, token_store, home if home is not None else Path.home())
+    """Return a preview (unified diff) of the skill, rule and agent synchronization plan."""
+    plan, definitions = _fetch_and_plan_library(
+        config, token_store, home if home is not None else Path.home()
+    )
     entries = [
         SkillPreviewEntry(
             stable_key=entry.projection.stable_key,
@@ -203,9 +798,25 @@ def preview_skills(
                 )
                 for target in entry.targets
             ],
-            diff="",
+            diff=diff_skill_plan(replace(plan, entries=(entry,), retired=())),
+            preview_hash=_preview_hash(entry),
         )
         for entry in plan.entries
+    ] + [
+        SkillPreviewEntry(
+            kind=_definition_kind(entry),
+            stable_key=entry.projection.stable_key,
+            version=entry.projection.version,
+            targets=[
+                SkillTargetState(
+                    harness=_HARNESS[target.harness], state=SkillSyncState(target.state)
+                )
+                for target in entry.all_targets
+            ],
+            diff=_diff_definition_entry(definitions.home, entry),
+            preview_hash=_definition_preview_hash(entry),
+        )
+        for entry in definitions.entries
     ]
     diff_text = diff_skill_plan(plan)
     return SkillsPreviewResult(
@@ -235,24 +846,135 @@ def apply_skills(
             ComponentId.DAEMON,
             retryable=False,
         )
-    plan = _fetch_and_plan(config, token_store, home if home is not None else Path.home())
-    conflicts = list(plan.locally_modified)
-    conflict_keys = [target.path.name for target in conflicts] if conflicts else []
+    root = home if home is not None else Path.home()
+    definitions: DefinitionSyncPlan | None = None
+    if request.resolutions is None:
+        plan = _fetch_and_plan(config, token_store, root)
+    else:
+        plan, definitions = _fetch_and_plan_library(config, token_store, root)
+    selected_keys: set[str] | None = None
+    selected_definitions: set[tuple[str, str]] = set()
+    if request.resolutions is not None and definitions is not None:
+        skill_hashes = {entry.projection.stable_key: _preview_hash(entry) for entry in plan.entries}
+        definition_hashes = {
+            (_manifest_kind(entry.projection.library_kind), entry.projection.stable_key): (
+                _definition_preview_hash(entry)
+            )
+            for entry in definitions.entries
+        }
+        for resolution in request.resolutions:
+            expected = (
+                skill_hashes.get(resolution.stable_key)
+                if resolution.kind is SkillLibraryKind.SKILL
+                else definition_hashes.get((resolution.kind.value, resolution.stable_key))
+            )
+            if expected is None or resolution.preview_hash != expected:
+                raise _error(
+                    LocalErrorCode.INVALID_REQUEST,
+                    "Skill versions changed since preview; compare them again before applying.",
+                    ComponentId.DAEMON,
+                    retryable=False,
+                )
+        library_choices = [r for r in request.resolutions if r.choice == "library"]
+        selected_keys = {r.stable_key for r in library_choices if r.kind is SkillLibraryKind.SKILL}
+        selected_definitions = {
+            (r.kind.value, r.stable_key)
+            for r in library_choices
+            if r.kind is not SkillLibraryKind.SKILL
+        }
+    selected_plan = (
+        plan
+        if selected_keys is None
+        else replace(
+            plan,
+            entries=tuple(
+                entry for entry in plan.entries if entry.projection.stable_key in selected_keys
+            ),
+            retired=(),
+        )
+    )
+    overwrite = request.overwrite or selected_keys is not None
+    remaining = (
+        plan
+        if selected_keys is None
+        else replace(
+            plan,
+            entries=tuple(
+                entry for entry in plan.entries if entry.projection.stable_key not in selected_keys
+            ),
+        )
+    )
+
+    def is_selected_definition(entry: DefinitionPlanEntry) -> bool:
+        identity = (_manifest_kind(entry.projection.library_kind), entry.projection.stable_key)
+        return identity in selected_definitions
+
+    selected_definition_plan = (
+        None
+        if definitions is None
+        else replace(
+            definitions,
+            entries=tuple(e for e in definitions.entries if is_selected_definition(e)),
+            retired=(),
+        )
+    )
+    remaining_definitions = (
+        None
+        if definitions is None
+        else replace(
+            definitions,
+            entries=tuple(e for e in definitions.entries if not is_selected_definition(e)),
+        )
+    )
+    conflict_keys = [_target_label(plan, target) for target in remaining.locally_modified]
+    if remaining_definitions is not None:
+        conflict_keys.extend(
+            _target_label(remaining_definitions, target)
+            for target in remaining_definitions.locally_modified
+        )
     added: list[str] = []
     updated: list[str] = []
 
-    for target in plan.missing:
-        added.append(target.path.name)
-    for target in plan.outdated:
-        updated.append(target.path.name)
-    if request.overwrite:
-        updated.extend(conflict_keys)
-        conflict_keys = []
+    for target in selected_plan.missing:
+        added.append(_target_label(plan, target))
+    for target in selected_plan.outdated:
+        updated.append(_target_label(plan, target))
+    if overwrite:
+        updated.extend(_target_label(plan, target) for target in selected_plan.locally_modified)
+        if selected_keys is None:
+            conflict_keys = []
+    if selected_definition_plan is not None:
+        added.extend(
+            _target_label(selected_definition_plan, t) for t in selected_definition_plan.missing
+        )
+        updated.extend(
+            _target_label(selected_definition_plan, t)
+            for t in (
+                *selected_definition_plan.outdated,
+                *selected_definition_plan.locally_modified,
+            )
+        )
     enabled = auto_sync_enabled(config, data_root)
 
+    snapshot = _sync_paths((plan,) if definitions is None else (plan, definitions))
+    journals: list[ProjectionBackup] = []
     try:
-        result = apply_skill_sync(plan, overwrite=request.overwrite)
+        result = apply_skill_sync(
+            plan, overwrite=overwrite, selected_keys=selected_keys, journal_sink=journals
+        )
+        if definitions is not None:
+            definition_result = apply_definition_sync(
+                definitions, overwrite=True, selected=selected_definitions, journal_sink=journals
+            )
+            result = replace(
+                result,
+                written=(*result.written, *definition_result.written),
+                backups=(*result.backups, *definition_result.backups),
+            )
+        for journal in journals:
+            commit_projection_backup(journal)
     except SkillSyncConflictError as exc:
+        _restore_after_failure(snapshot)
         _LOGGER.warning("skills.apply: conflicts prevented overwrite (%s)", exc)
         status = SkillsSyncStatus(
             state=SkillSyncStatusState.CONFLICTS,
@@ -269,10 +991,38 @@ def apply_skills(
             retryable=False,
         ) from exc
 
+    except (SkillSyncError, OSError, ValueError) as exc:
+        _restore_after_failure(snapshot)
+        raise _error(
+            LocalErrorCode.INVALID_REQUEST,
+            "The skill plan could not be applied safely; compare the versions again.",
+            ComponentId.DAEMON,
+            retryable=False,
+        ) from exc
+
     state = SkillSyncStatusState.UPDATED if (added or updated) else SkillSyncStatusState.UP_TO_DATE
+    if conflict_keys:
+        state = SkillSyncStatusState.CONFLICTS
+    elif selected_keys is not None and (
+        remaining.missing
+        or remaining.outdated
+        or (
+            remaining_definitions is not None
+            and (remaining_definitions.missing or remaining_definitions.outdated)
+        )
+    ):
+        state = SkillSyncStatusState.NOT_SYNCED
+    previous = _load_status(data_root) if data_root is not None else None
+    successful_sync = (
+        datetime.now(UTC)
+        if state in {SkillSyncStatusState.UPDATED, SkillSyncStatusState.UP_TO_DATE}
+        else previous.last_successful_sync
+        if previous is not None
+        else None
+    )
     status = SkillsSyncStatus(
         state=state,
-        last_successful_sync=datetime.now(UTC),
+        last_successful_sync=successful_sync,
         last_check=datetime.now(UTC),
         added=added,
         updated=updated,
@@ -420,20 +1170,30 @@ class _AutoSyncRunner:
             ),
         )
         try:
-            plan = _fetch_and_plan(self.config, self.token_store, self.home)
-            conflicts = list(plan.locally_modified)
-            conflict_keys = [target.path.name for target in conflicts] if conflicts else []
+            projections = _fetch_projections(self.config, self.token_store)
+            skill_plan, definition_plan = plan_library_sync(self.home, projections)
+            plans: tuple[SkillSyncPlan | DefinitionSyncPlan, ...] = (
+                skill_plan,
+                definition_plan,
+            )
+            conflict_keys = [
+                _target_label(plan, target) for plan in plans for target in plan.locally_modified
+            ]
             added: list[str] = []
             updated: list[str] = []
+            retired = False
 
-            for target in plan.missing:
-                added.append(target.path.name)
-            for target in plan.outdated:
-                updated.append(target.path.name)
+            for plan in plans:
+                for target in plan.missing:
+                    added.append(_target_label(plan, target))
+                for target in plan.outdated:
+                    updated.append(_target_label(plan, target))
+                retired = retired or bool(plan.retired)
 
-            if conflicts:
+            if conflict_keys:
                 _LOGGER.info(
-                    "Auto-sync found %d locally modified skill(s), skipping", len(conflicts)
+                    "Auto-sync found %d locally modified file(s), skipping",
+                    len(conflict_keys),
                 )
                 status = SkillsSyncStatus(
                     state=SkillSyncStatusState.CONFLICTS,
@@ -444,8 +1204,8 @@ class _AutoSyncRunner:
                 _save_status(self.data_root, status)
                 return
 
-            if not added and not updated and not plan.retired:
-                _LOGGER.info("Auto-sync: skills already up to date")
+            if not added and not updated and not retired:
+                _LOGGER.info("Auto-sync: library already up to date")
                 status = SkillsSyncStatus(
                     state=SkillSyncStatusState.UP_TO_DATE,
                     last_successful_sync=datetime.now(UTC),
@@ -455,12 +1215,33 @@ class _AutoSyncRunner:
                 _save_status(self.data_root, status)
                 return
 
-            result = apply_skill_sync(plan, overwrite=False)
+            backups = 0
+            snapshot = _sync_paths(plans)
+            journals: list[ProjectionBackup] = []
+            try:
+                if skill_plan.missing or skill_plan.outdated or skill_plan.retired:
+                    backups += len(
+                        apply_skill_sync(skill_plan, overwrite=False, journal_sink=journals).backups
+                    )
+                if definition_plan.missing or definition_plan.outdated or definition_plan.retired:
+                    backups += len(
+                        apply_definition_sync(
+                            definition_plan, overwrite=False, journal_sink=journals
+                        ).backups
+                    )
+                for journal in journals:
+                    commit_projection_backup(journal)
+            except Exception:
+                try:
+                    _restore_paths(snapshot)
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Auto-sync rollback failed")
+                raise
             _LOGGER.info(
                 "Auto-sync completed: added %d, updated %d, backups %d",
                 len(added),
                 len(updated),
-                len(result.backups),
+                backups,
             )
             status = SkillsSyncStatus(
                 state=SkillSyncStatusState.UPDATED,

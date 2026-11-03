@@ -18,9 +18,26 @@ import { describeError, esc } from "../ui";
 import type { components } from "../openapi-schema";
 import type { VaultNoteStatus, VaultNoteType } from "../vaultApi";
 import { loadAtlasNotes } from "../atlas/loader";
-import { applyFilters, ATLAS_TYPE_ORDER, buildAtlasGraph, defaultFilters, layoutAtlas, NOTE_TYPE_TOKEN } from "../atlas/model";
+import {
+  applyFilters,
+  ATLAS_COMMUNITY_COLORS,
+  ATLAS_TYPE_ORDER,
+  ATLAS_ZONE_COLORS,
+  buildAtlasGraph,
+  defaultFilters,
+  layoutAtlas,
+  NOTE_TYPE_TOKEN,
+} from "../atlas/model";
 import { createAtlasRenderer } from "../atlas/renderer";
-import type { AtlasFilters, AtlasGraph, AtlasNode, AtlasPalette, AtlasRenderer, AtlasView } from "../atlas/types";
+import type {
+  AtlasFilters,
+  AtlasGraph,
+  AtlasNode,
+  AtlasPalette,
+  AtlasProjection,
+  AtlasRenderer,
+  AtlasView,
+} from "../atlas/types";
 import { VAULT_STATUS_LABEL, VAULT_TYPE_LABEL, vaultModeNavHtml, vaultScopeLabel } from "./vault";
 import "./vaultAtlas.css";
 
@@ -36,6 +53,65 @@ const HEADER_DESC = "Carte des notes du studio et des projets, avec leurs liens.
 const ATLAS_STATUSES: VaultNoteStatus[] = ["draft", "proposed", "validated"];
 /** Plafond de la liste clavier : au-delà, affiner par recherche ou filtres. */
 const VISIBLE_LIST_MAX = 60;
+
+export const ATLAS_MODE_STORAGE_KEY = "studio.vault.atlas.mode";
+export const ATLAS_MODE_LABEL: Record<AtlasProjection, string> = { "2d": "Vue 2D", "3d": "Vue 3D" };
+
+export interface AtlasTimings {
+  buildMs: number;
+  layoutMs: number;
+  filterMs: number;
+  drawMs: number;
+}
+
+export function measureAtlasStep<T>(label: string, fn: () => T): { value: T; ms: number } {
+  const name = `studio:vault-atlas:${label}`;
+  const startMark = `${name}:start`;
+  const endMark = `${name}:end`;
+  const start = typeof performance !== "undefined" ? performance.now() : 0;
+  try {
+    performance.mark(startMark);
+  } catch {
+  }
+  const value = fn();
+  const ms = (typeof performance !== "undefined" ? performance.now() : 0) - start;
+  try {
+    performance.mark(endMark);
+    performance.measure(name, startMark, endMark);
+    performance.clearMarks(startMark);
+    performance.clearMarks(endMark);
+    performance.clearMeasures(name);
+  } catch {
+  }
+  return { value, ms };
+}
+
+export function atlasPerfText(notes: number, edges: number, timings: AtlasTimings): string {
+  return `${notes} note(s) · ${edges} lien(s) · construction ${timings.buildMs.toFixed(1)} ms` +
+    ` · disposition ${timings.layoutMs.toFixed(1)} ms · filtre ${timings.filterMs.toFixed(1)} ms` +
+    ` · dessin ${timings.drawMs.toFixed(1)} ms`;
+}
+
+export function readAtlasMode(storage?: Storage | null): AtlasProjection {
+  try {
+    const store = storage ?? (typeof localStorage !== "undefined" ? localStorage : null);
+    return store?.getItem(ATLAS_MODE_STORAGE_KEY) === "2d" ? "2d" : "3d";
+  } catch {
+    return "3d";
+  }
+}
+
+export function writeAtlasMode(mode: AtlasProjection, storage?: Storage | null): void {
+  try {
+    const store = storage ?? (typeof localStorage !== "undefined" ? localStorage : null);
+    store?.setItem(ATLAS_MODE_STORAGE_KEY, mode);
+  } catch {
+  }
+}
+
+export function toggleAtlasMode(mode: AtlasProjection): AtlasProjection {
+  return mode === "2d" ? "3d" : "2d";
+}
 
 const LINK_LABEL: Record<string, string> = {
   links_to: "lie",
@@ -58,7 +134,12 @@ function checkbox(name: string, value: string, label: string, checked: boolean):
   return `<label class="vault-atlas-check"><input type="checkbox" data-atlas-${name}="${esc(value)}"${checked ? " checked" : ""} /> ${esc(label)}</label>`;
 }
 
-export function atlasToolbarHtml(filters: AtlasFilters, projects: Project[], projectId: string | null): string {
+export function atlasToolbarHtml(
+  filters: AtlasFilters,
+  projects: Project[],
+  projectId: string | null,
+  mode: AtlasProjection = "3d",
+): string {
   const projectOptions = [`<option value=""${projectId === null ? " selected" : ""}>Tous les projets accessibles</option>`]
     .concat(projects.map((p) => `<option value="${esc(p.id)}"${projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`))
     .join("");
@@ -77,6 +158,7 @@ export function atlasToolbarHtml(filters: AtlasFilters, projects: Project[], pro
     `<input class="ds-input" type="search" id="atlas-query" value="${esc(filters.query)}" placeholder="Rechercher (plusieurs mots)…" autocomplete="off" /></div>` +
     `<label class="vault-filter"><span>Projet</span><select class="ds-select" id="atlas-project">${projectOptions}</select></label>` +
     `<button class="ds-btn ds-btn--sm" type="button" id="atlas-recenter">Recentrer</button>` +
+    `<button class="ds-btn ds-btn--sm" type="button" id="atlas-projection" aria-pressed="${mode === "2d" ? "true" : "false"}" title="Basculer entre la vue perspective (3D) et la vue à plat (2D)">${ATLAS_MODE_LABEL[mode]}</button>` +
     `<fieldset class="vault-atlas-group"><legend>Portée</legend>${scopes}</fieldset>` +
     `<fieldset class="vault-atlas-group"><legend>Type</legend>${types}</fieldset>` +
     `<fieldset class="vault-atlas-group"><legend>Statut</legend>${statuses}` +
@@ -95,34 +177,72 @@ export function atlasLegendHtml(): string {
   return `<ul class="vault-atlas-legend" aria-label="Légende">${items}` +
     `<li class="vault-atlas-legend-sep"><span class="vault-atlas-ring vault-atlas-ring--solid" aria-hidden="true"></span>Validée</li>` +
     `<li><span class="vault-atlas-ring vault-atlas-ring--dashed" aria-hidden="true"></span>Proposée</li>` +
-    `<li><span class="vault-atlas-ring" aria-hidden="true"></span>Brouillon</li></ul>`;
+    `<li><span class="vault-atlas-ring" aria-hidden="true"></span>Brouillon</li>` +
+    `<li class="vault-atlas-legend-sep"><span class="vault-atlas-zone-ring" aria-hidden="true"></span>Zone (portée × type)</li>` +
+    `<li><span class="vault-atlas-community-swatch" aria-hidden="true"></span>Communauté de liens</li></ul>`;
 }
 
-export function atlasStatusLine(view: AtlasView, graph: AtlasGraph): string {
+export function atlasStatusLine(view: AtlasView, graph: AtlasGraph, selected: string | null = null): string {
   const notes = view.clusters.length > 0
     ? view.clusters.reduce((sum, c) => sum + c.count, 0)
     : view.nodes.filter((n) => n.kind === "note").length;
   const parts = [`${notes} note(s) visible(s) sur ${graph.nodes.filter((n) => n.kind === "note").length}`];
   if (view.clusters.length > 0) parts.push(`regroupées en ${view.clusters.length} amas`);
+  if (view.groups.length > 0) parts.push(`${view.groups.length} zone(s)`);
+  if (view.communities.length > 0) parts.push(`${view.communities.length} communauté(s)`);
   if (view.matches.size > 0) parts.push(`${view.matches.size} correspondance(s)`);
+  if (selected !== null) {
+    const neighbors = graph.neighbors.get(selected)?.size ?? 0;
+    if (neighbors > 0) parts.push(`${neighbors} voisin(s) surligné(s)`);
+  }
   if (graph.truncated) parts.push("chargement plafonné, affinez par projet");
   return `${parts.join(" — ")}.`;
 }
 
 /** Alternative clavier : correspondances d'abord, puis le reste, plafonné. */
-export function atlasVisibleListHtml(view: AtlasView, selected: string | null): string {
+export function atlasVisibleListHtml(view: AtlasView, selected: string | null, graph?: AtlasGraph): string {
   const notes = view.nodes.filter((n) => n.kind === "note");
   const ordered = view.matches.size > 0
     ? [...notes.filter((n) => view.matches.has(n.id)), ...notes.filter((n) => !view.matches.has(n.id))]
     : notes;
   if (ordered.length === 0) return `<p class="ds-list-sub">Aucune note visible avec ces filtres.</p>`;
-  const items = ordered.slice(0, VISIBLE_LIST_MAX).map((node) =>
-    `<li><button type="button" class="vault-atlas-item${node.id === selected ? " is-selected" : ""}" data-atlas-pick="${esc(node.id)}"${node.id === selected ? ' aria-current="true"' : ""}><span class="vault-atlas-dot" data-type="${esc(node.kind === "note" ? node.noteType : "anchor")}" aria-hidden="true"></span>${esc(nodeTitle(node))}</button></li>`,
-  ).join("");
+  const neighbors = selected === null ? new Set<string>() : graph?.neighbors.get(selected) ?? new Set<string>();
+  const items = ordered.slice(0, VISIBLE_LIST_MAX).map((node) => {
+    const isSelected = node.id === selected;
+    const isNeighbor = !isSelected && neighbors.has(node.id);
+    const classes = `vault-atlas-item${isSelected ? " is-selected" : ""}${isNeighbor ? " is-neighbor" : ""}`;
+    return `<li><button type="button" class="${classes}" data-atlas-pick="${esc(node.id)}"${isSelected ? ' aria-current="true"' : ""}><span class="vault-atlas-dot" data-type="${esc(node.kind === "note" ? node.noteType : "anchor")}" aria-hidden="true"></span>${esc(nodeTitle(node))}${isNeighbor ? ' <span class="vault-atlas-neighbor">voisin</span>' : ""}</button></li>`;
+  }).join("");
   const more = ordered.length > VISIBLE_LIST_MAX
     ? `<p class="ds-list-sub">${ordered.length - VISIBLE_LIST_MAX} autre(s) : affinez la recherche.</p>`
     : "";
   return `<ul class="vault-atlas-items" role="list">${items}</ul>${more}`;
+}
+
+export function atlasRegionsHtml(view: AtlasView): string {
+  if (view.groups.length === 0 && view.communities.length === 0) {
+    return `<p class="ds-list-sub">Aucune zone avec ces filtres.</p>`;
+  }
+  const zones = view.groups
+    .map(
+      (group) =>
+        `<li><span class="vault-atlas-region-dot" data-zone-color="${group.colorIndex % ATLAS_ZONE_COLORS.length}" aria-hidden="true"></span>` +
+        `<span class="vault-atlas-region-label">${esc(group.label)}</span></li>`,
+    )
+    .join("");
+  const communities = view.communities
+    .map(
+      (community) =>
+        `<li><span class="vault-atlas-region-dot" data-community-color="${community.colorIndex % ATLAS_COMMUNITY_COLORS.length}" aria-hidden="true"></span>` +
+        `<button type="button" class="vault-atlas-region-link" data-atlas-pick="${esc(community.members[0] ?? "")}">${esc(community.label)}</button></li>`,
+    )
+    .join("");
+  return `<h3 class="vault-atlas-region-title">Zones (${view.groups.length})</h3>` +
+    (zones === "" ? `<p class="ds-list-sub">Aucune zone.</p>` : `<ul class="vault-atlas-regions" role="list">${zones}</ul>`) +
+    (communities === ""
+      ? ""
+      : `<h3 class="vault-atlas-region-title">Communautés (${view.communities.length})</h3>` +
+        `<ul class="vault-atlas-regions" role="list">${communities}</ul>`);
 }
 
 export function atlasDetailHtml(graph: AtlasGraph, id: string | null): string {
@@ -159,19 +279,32 @@ export function atlasDetailHtml(graph: AtlasGraph, id: string | null): string {
     `<h3 class="vault-atlas-subtitle">Voisins (${neighborIds.length})</h3>${neighbors}`;
 }
 
-export function atlasPageHtml(filters: AtlasFilters, projects: Project[], projectId: string | null): string {
-  return header() + atlasToolbarHtml(filters, projects, projectId) +
-    `<div class="vault-atlas">` +
+export function atlasHintText(mode: AtlasProjection): string {
+  return mode === "2d"
+    ? "Glisser : déplacer · Molette : zoom · Flèches : notes · Entrée : sélection · Échap : effacer"
+    : "Glisser : pivoter · Maj + glisser : déplacer · Molette : zoom · Flèches : notes · Entrée : sélection · Échap : effacer";
+}
+
+export function atlasPageHtml(
+  filters: AtlasFilters,
+  projects: Project[],
+  projectId: string | null,
+  mode: AtlasProjection = "3d",
+): string {
+  return header() + atlasToolbarHtml(filters, projects, projectId, mode) +
+    `<div class="vault-atlas" data-atlas-mode="${mode}">` +
     `<div class="vault-atlas-stage">` +
     `<div class="vault-atlas-frame">` +
     `<canvas id="atlas-canvas" class="vault-atlas-canvas" tabindex="0" role="img" aria-label="Atlas des notes du vault ; utilisez la liste « Notes visibles » pour naviguer au clavier."></canvas>` +
-    `<p class="vault-atlas-hint" aria-hidden="true">Glisser : pivoter · Maj + glisser : déplacer · Molette : zoom · Double-clic : centrer</p>` +
+    `<p class="vault-atlas-hint" id="atlas-hint" aria-hidden="true">${esc(atlasHintText(mode))}</p>` +
     `</div>` +
     atlasLegendHtml() +
     `<p class="ds-list-sub vault-atlas-status" id="atlas-status" role="status" aria-live="polite"></p>` +
+    `<p class="ds-list-sub vault-atlas-perf" id="atlas-perf" hidden></p>` +
     `</div>` +
     `<aside class="vault-atlas-side" aria-label="Détail et notes visibles">` +
     `<section class="vault-atlas-detail" id="atlas-detail" aria-live="polite"></section>` +
+    `<section><h2 class="vault-atlas-subtitle">Zones et communautés</h2><div id="atlas-regions"></div></section>` +
     `<section><h2 class="vault-atlas-subtitle">Notes visibles</h2><div id="atlas-list"></div></section>` +
     `</aside>` +
     `</div>`;
@@ -198,6 +331,8 @@ export function readAtlasPalette(el: Element): AtlasPalette {
   const read = (name: string, fallback: string): string => css.getPropertyValue(name).trim() || fallback;
   const noteType = {} as Record<VaultNoteType, string>;
   for (const type of ATLAS_TYPE_ORDER) noteType[type] = read(NOTE_TYPE_TOKEN[type], ATLAS_TYPE_COLOR[type]);
+  const zones = ATLAS_ZONE_COLORS.map((fallback, index) => read(`--atlas-zone-${index + 1}`, fallback));
+  const communities = ATLAS_COMMUNITY_COLORS.map((fallback, index) => read(`--atlas-community-${index + 1}`, fallback));
   return {
     background: read("--atlas-bg", "#1b2540"),
     backgroundEdge: read("--atlas-bg-edge", "#0b1020"),
@@ -209,6 +344,8 @@ export function readAtlasPalette(el: Element): AtlasPalette {
     noteType,
     satellite: read("--atlas-satellite", "#7c8aa5"),
     labelBackground: read("--atlas-label-bg", "rgba(11, 16, 32, 0.82)"),
+    zones,
+    communities,
   };
 }
 
@@ -232,17 +369,35 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
   const projectNames = new Map(projects.map((p) => [p.id, p.name]));
   const filters = defaultFilters();
   let projectId: string | null = null;
+  let atlasMode = readAtlasMode();
+  const timings: AtlasTimings = { buildMs: 0, layoutMs: 0, filterMs: 0, drawMs: 0 };
   let graph: AtlasGraph;
   let view: AtlasView;
   let renderer: AtlasRenderer | null = null;
   let selected: string | null = null;
   let hovered: string | null = null;
 
+  const updatePerf = (): void => {
+    const host = root.querySelector<HTMLElement>("#atlas-perf");
+    if (host === null) return;
+    if (!import.meta.env.DEV) {
+      host.hidden = true;
+      host.textContent = "";
+      return;
+    }
+    const noteCount = graph.nodes.filter((node) => node.kind === "note").length;
+    host.textContent = atlasPerfText(noteCount, graph.edges.length, timings);
+    host.hidden = false;
+  };
+
   const load = async (): Promise<boolean> => {
     try {
       const { notes, truncated } = await loadAtlasNotes(ctx.client, { projectId });
-      graph = buildAtlasGraph(notes, truncated);
-      layoutAtlas(graph);
+      const built = measureAtlasStep("build", () => buildAtlasGraph(notes, truncated));
+      graph = built.value;
+      timings.buildMs = built.ms;
+      const laid = measureAtlasStep("layout", () => layoutAtlas(graph));
+      timings.layoutMs = laid.ms;
       return true;
     } catch (error) {
       renderer?.destroy();
@@ -257,13 +412,18 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
     const detail = root.querySelector("#atlas-detail");
     if (detail !== null) detail.innerHTML = atlasDetailHtml(graph, selected ?? hovered);
     const list = root.querySelector("#atlas-list");
-    if (list !== null) list.innerHTML = atlasVisibleListHtml(view, selected);
+    if (list !== null) list.innerHTML = atlasVisibleListHtml(view, selected, graph);
+    const regions = root.querySelector("#atlas-regions");
+    if (regions !== null) regions.innerHTML = atlasRegionsHtml(view);
     const status = root.querySelector("#atlas-status");
-    if (status !== null) status.textContent = atlasStatusLine(view, graph);
+    if (status !== null) status.textContent = atlasStatusLine(view, graph, selected);
+    updatePerf();
   };
 
   const refilter = (): void => {
-    view = applyFilters(graph, filters, projectNames);
+    const filtered = measureAtlasStep("filter", () => applyFilters(graph, filters, projectNames));
+    view = filtered.value;
+    timings.filterMs = filtered.ms;
     if (selected !== null && !view.nodes.some((n) => n.id === selected)) selected = null;
     renderer?.setView(view);
     renderer?.setSelected(selected);
@@ -283,18 +443,23 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
 
   const mount = (): void => {
     renderer?.destroy();
-    root.innerHTML = atlasPageHtml(filters, projects, projectId);
+    root.innerHTML = atlasPageHtml(filters, projects, projectId, atlasMode);
     const canvas = root.querySelector<HTMLCanvasElement>("#atlas-canvas");
     const stage = root.querySelector(".vault-atlas");
     if (canvas === null || stage === null) return;
     renderer = createAtlasRenderer(canvas, {
       palette: readAtlasPalette(stage),
       reducedMotion: prefersReducedMotion(),
+      mode: atlasMode,
       onHover: (id) => {
         hovered = id;
         if (selected === null) refreshSide();
       },
       onSelect: select,
+      onRender: (ms) => {
+        timings.drawMs = ms;
+        updatePerf();
+      },
     });
     bind(canvas);
     refilter();
@@ -327,6 +492,20 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
       });
     });
     root.querySelector("#atlas-recenter")?.addEventListener("click", () => renderer?.resetCamera());
+    root.querySelector("#atlas-projection")?.addEventListener("click", () => {
+      atlasMode = toggleAtlasMode(atlasMode);
+      writeAtlasMode(atlasMode);
+      renderer?.setMode(atlasMode);
+      const stage = root.querySelector(".vault-atlas");
+      stage?.setAttribute("data-atlas-mode", atlasMode);
+      const button = root.querySelector<HTMLButtonElement>("#atlas-projection");
+      if (button !== null) {
+        button.textContent = ATLAS_MODE_LABEL[atlasMode];
+        button.setAttribute("aria-pressed", atlasMode === "2d" ? "true" : "false");
+      }
+      const hint = root.querySelector("#atlas-hint");
+      if (hint !== null) hint.textContent = atlasHintText(atlasMode);
+    });
     const collect = <T extends string>(attr: string): T[] =>
       [...root.querySelectorAll<HTMLInputElement>(`[data-atlas-${attr}]`)]
         .filter((box) => box.checked)
@@ -350,12 +529,72 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
       if (pick === null) return;
       select(pick.dataset["atlasPick"] ?? null);
     });
+    const navIds = (): string[] => {
+      const notes = view.nodes.filter((node) => node.kind === "note");
+      const ordered = view.matches.size > 0
+        ? [...notes.filter((node) => view.matches.has(node.id)), ...notes.filter((node) => !view.matches.has(node.id))]
+        : notes;
+      return ordered.map((node) => node.id);
+    };
+
+    const moveSelection = (delta: number): void => {
+      const ids = navIds();
+      if (ids.length === 0) return;
+      const current = selected === null ? -1 : ids.indexOf(selected);
+      const base = current < 0 ? (delta > 0 ? -1 : 0) : current;
+      const next = (base + delta + ids.length) % ids.length;
+      select(ids[next] ?? null);
+    };
+
     canvas.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") select(null);
-      if (event.key === "/") {
-        event.preventDefault();
-        query?.focus();
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      switch (event.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+          event.preventDefault();
+          moveSelection(1);
+          break;
+        case "ArrowLeft":
+        case "ArrowUp":
+          event.preventDefault();
+          moveSelection(-1);
+          break;
+        case "Enter":
+          event.preventDefault();
+          if (selected === null) moveSelection(1);
+          else select(selected);
+          break;
+        case "Escape":
+          event.preventDefault();
+          select(null);
+          break;
+        case "/":
+          event.preventDefault();
+          query?.focus();
+          break;
+        default:
+          break;
       }
+    });
+
+    root.querySelector<HTMLElement>(".vault-atlas-side")?.addEventListener("keydown", (event: KeyboardEvent) => {
+      const items = [...root.querySelectorAll<HTMLButtonElement>("#atlas-list [data-atlas-pick]")];
+      if (event.key === "Escape") {
+        event.preventDefault();
+        select(null);
+        canvas.focus();
+        return;
+      }
+      if (items.length === 0) return;
+      const index = items.indexOf(document.activeElement as HTMLButtonElement);
+      let target: number | null = null;
+      if (event.key === "ArrowDown") target = index < 0 ? 0 : (index + 1) % items.length;
+      else if (event.key === "ArrowUp") target = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length;
+      else if (event.key === "Home") target = 0;
+      else if (event.key === "End") target = items.length - 1;
+      if (target === null) return;
+      event.preventDefault();
+      items[target]?.focus();
     });
   };
 
@@ -363,11 +602,11 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
   mount();
 
   // Le canevas quitte le DOM au changement de route : on arrête le moteur.
-  const onLeave = (): void => {
+  const stopWhenLeft = (): void => {
     if (location.hash === "#/vault/atlas" && root.contains(root.querySelector("#atlas-canvas"))) return;
     renderer?.destroy();
     renderer = null;
-    window.removeEventListener("hashchange", onLeave);
+    window.removeEventListener("hashchange", stopWhenLeft);
   };
-  window.addEventListener("hashchange", onLeave);
+  window.addEventListener("hashchange", stopWhenLeft);
 }

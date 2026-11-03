@@ -42,6 +42,7 @@ from studio_contracts.local.harness import (
     HarnessApplyRequest,
     HarnessApplyResult,
     HarnessDetectResult,
+    HarnessLaunchPreview,
     HarnessPlan,
     HarnessPreviewRequest,
     HarnessRollbackRequest,
@@ -105,6 +106,7 @@ from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsResult,
     WorkspaceGetConfigRequest,
     WorkspaceGitStatus,
+    WorkspaceListResult,
     WorkspaceSaveConfigRequest,
     WorkspaceScope,
     WorkspaceStatus,
@@ -152,6 +154,7 @@ class BridgeCommand(StrEnum):
     IDENTITY_ENROLL = "identity.enroll"
     IDENTITY_FORGET = "identity.forget"
     WORKSPACE_VALIDATE = "workspace.validate"
+    WORKSPACE_LIST = "workspace.list"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
     WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
     WORKSPACE_GIT_STATUS = "workspace.git_status"
@@ -174,6 +177,7 @@ class BridgeCommand(StrEnum):
     HARNESS_APPLY = "harness.apply"
     HARNESS_ROLLBACK = "harness.rollback"
     HARNESS_VERIFY = "harness.verify"
+    HARNESS_LAUNCH_PREVIEW = "harness.launch_preview"
     SKILLS_CHECK = "skills.check"
     SKILLS_PREVIEW = "skills.preview"
     SKILLS_APPLY = "skills.apply"
@@ -275,6 +279,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             mutating=True,
         ),
         _spec(
+            BridgeCommand.WORKSPACE_LIST,
+            EmptyPayload,
+            WorkspaceListResult,
+            "workspace.config",
+        ),
+        _spec(
             BridgeCommand.WORKSPACE_VALIDATE,
             WorkspaceValidateRequest,
             WorkspaceStatus,
@@ -362,6 +372,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
         ),
         _spec(BridgeCommand.HARNESS_DETECT, WorkspaceScope, HarnessDetectResult, "harness.read"),
         _spec(BridgeCommand.HARNESS_STATUS, HarnessStatusRequest, HarnessStatus, "harness.read"),
+        _spec(
+            BridgeCommand.HARNESS_LAUNCH_PREVIEW,
+            HarnessStatusRequest,
+            HarnessLaunchPreview,
+            "harness.launch_preview",
+        ),
         _spec(BridgeCommand.HARNESS_PREVIEW, HarnessPreviewRequest, HarnessPlan, "harness.plan"),
         _spec(
             BridgeCommand.HARNESS_APPLY,

@@ -3,7 +3,14 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Response, status
-from studio_contracts.auth import Machine, MachineCreate, MachineCreated, MachineUpdate, Role
+from studio_contracts.auth import (
+    Machine,
+    MachineCreate,
+    MachineCreated,
+    MachineUpdate,
+    MachineWorkstationUpdate,
+    Role,
+)
 from studio_contracts.launch_grants import MachineLaunchGrant, MachineLaunchGrantCreate
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
@@ -80,7 +87,10 @@ async def get_own_machine(machine: CurrentMachine) -> Machine:
         "is never readable again. Deliberately not replayable: no "
         "`Idempotency-Key` (a replayable credential creation would persist "
         "the secret). The very first machine is created out of band, never "
-        "through this endpoint."
+        "through this endpoint. Optional `workstation_id` "
+        "attaches the new machine to an active, unattached machine of the "
+        "same owner: another User's machine answers 404 like a missing one, "
+        "a revoked or attached one `409 workstation_invalid`."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
@@ -93,7 +103,7 @@ async def create_machine(
     if owner_user_id != principal.user.id and principal.role != Role.ADMIN:
         raise forbidden("machine", "create")
     new_machine, token = await provisioning_service.create_machine(
-        session, owner_user_id, machine_in.display_name
+        session, owner_user_id, machine_in.display_name, machine_in.workstation_id
     )
     return MachineCreated(**Machine.model_validate(new_machine).model_dump(), credential=token)
 
@@ -201,6 +211,59 @@ async def rename_machine(
         )
     target = await provisioning_service.update_machine(session, target, machine_in.display_name)
     return Machine.model_validate(target)
+
+
+@router.put(
+    "/{machine_id}/workstation",
+    response_model=Machine,
+    description=(
+        "Attach a machine to its physical workstation, or detach it with "
+        "`workstation_id: null`. Owner or admin; `agent` gets 403; "
+        "another User's machine or workstation answers 404 like a missing "
+        "one. The workstation must be an active machine of the same owner, "
+        "not itself attached, and the machine must not have attached "
+        "machines, otherwise `409 workstation_invalid`. Uses optimistic "
+        "concurrency via `If-Match-Version` (required). Never changes a "
+        "credential."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
+)
+async def set_machine_workstation(
+    machine_id: UUID,
+    body: MachineWorkstationUpdate,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    if_match_version: int = Header(
+        alias="If-Match-Version", description=IF_MATCH_VERSION_DESCRIPTION
+    ),
+) -> Machine:
+    if principal.role == Role.AGENT:
+        raise forbidden("machine", "set_workstation")
+    target = await provisioning_service.get_machine(session, machine_id)
+    if target is None or (
+        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
+    if target.version != if_match_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "version_conflict",
+                "message": "machine was modified concurrently",
+                "server_version": target.version,
+            },
+        )
+    target = await provisioning_service.set_machine_workstation(
+        session, target, body.workstation_id
+    )
+    return Machine.model_validate(target).model_copy(
+        update={"status": heartbeats_service.derive_status(target, get_settings())}
+    )
 
 
 @router.get(

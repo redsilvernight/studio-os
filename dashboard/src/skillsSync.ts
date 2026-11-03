@@ -1,5 +1,5 @@
 /**
- * Indicateur permanent de synchronisation des skills (Desktop) : état courant
+ * Indicateur permanent de synchronisation de la Library (Desktop) : état courant
  * du démon (`skills.status`), notification à la fin d'une synchro qui a changé
  * quelque chose ou échoué, détail et actions (différences, réessayer).
  * Les messages affichés sont fixes : jamais le texte brut du démon.
@@ -13,21 +13,95 @@ import {
   configureSkillsSync,
   getSkillsSyncStatus,
   previewSkills,
+  skillsPreviewErrorMessage,
   SYNC_STATE_LABELS,
   SYNC_STATE_LEVELS,
   SYNC_STATE_MESSAGES,
   type SkillsSyncStatus,
+  type SkillsPreviewResult,
+  type SkillResolution,
 } from "./skillsApi";
 
 const NOTIFIED_KEY = "studio.skills-sync.notified";
 const RUNNING_POLL_MS = 3000;
 const IDLE_POLL_MS = 60000;
 const DIALOG_ID = "skills-sync-dialog";
+const SKILLS_CALL_TIMEOUT_MS = 30000;
+const TIMEOUT = Symbol("timeout");
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let current: SkillsSyncStatus | null = null;
 let unavailable = false;
 let busy = false;
+let preview: SkillsPreviewResult | null = null;
+let previewLoading = false;
+let previewIssue = "";
+let operationNote = "";
+let confirming = false;
+let previewGeneration = 0;
+const choices = new Map<string, "local" | "library">();
+
+type PreviewEntry = NonNullable<SkillsPreviewResult["skills"]>[number];
+type EntryKind = NonNullable<PreviewEntry["kind"]>;
+
+const KIND_LABELS: Record<EntryKind, string> = { skill: "Skill", rule: "Rule", agent: "Agent" };
+
+function withDeadline<T>(work: Promise<T>): Promise<T | typeof TIMEOUT> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<typeof TIMEOUT>((resolve) => {
+    deadline = setTimeout(() => resolve(TIMEOUT), SKILLS_CALL_TIMEOUT_MS);
+  });
+  return Promise.race([work, expiry]).finally(() => clearTimeout(deadline));
+}
+
+function entryKind(entry: PreviewEntry): EntryKind {
+  return entry.kind ?? "skill";
+}
+
+function entryId(entry: PreviewEntry): string {
+  return `${entryKind(entry)}:${entry.stable_key}`;
+}
+
+function targetPath(entry: PreviewEntry, harness: string): string {
+  const key = entry.stable_key;
+  const root = harness === "agents" ? ".agents" : ".claude";
+  const kind = entryKind(entry);
+  if (kind === "rule") return `${root}/rules/${key}.md`;
+  if (kind === "agent") return harness === "agents" ? `.agents/definitions/${key}.md` : `.claude/agents/${key}.md`;
+  return `${root}/skills/${key}/SKILL.md`;
+}
+
+function pendingSkills(plan: SkillsPreviewResult | null): PreviewEntry[] {
+  return (plan?.skills ?? []).filter((skill) => skill.targets.some((target) => target.state !== "current"));
+}
+
+function diffHtml(diff: string): string {
+  return diff.split("\n").map((line) => {
+    const kind = line.startsWith("+") && !line.startsWith("+++") ? "added"
+      : line.startsWith("-") && !line.startsWith("---") ? "removed" : "context";
+    return `<span class="skills-sync-line skills-sync-line--${kind}">${esc(line)}\n</span>`;
+  }).join("");
+}
+
+function skillRowHtml(skill: PreviewEntry): string {
+  const key = skill.stable_key;
+  const id = entryId(skill);
+  const kind = KIND_LABELS[entryKind(skill)];
+  const selected = choices.get(id) ?? "";
+  const missing = skill.targets.every((target) => target.state === "missing");
+  const local = skill.targets.some((target) => target.state === "locally_modified");
+  const state = local ? "Modifié localement" : missing ? "Absent" : "Mise à jour disponible";
+  return `<li class="skills-sync-row" data-skill="${esc(id)}">` +
+    `<div class="skills-sync-identity"><strong>${esc(key)}</strong><span class="ds-badge ds-badge--neutral">${kind}</span><span class="ds-badge ds-badge--${local ? "warning" : "neutral"}">${state}</span>` +
+    `<code>${esc(targetPath(skill, "agents"))}</code><small>Copies partagées et Claude Code</small></div>` +
+    `<select class="ds-input" data-skills-choice="${esc(id)}" aria-label="Version à utiliser pour ${kind} ${esc(key)}"${busy || !skill.preview_hash ? " disabled" : ""}>` +
+    `<option value=""${selected === "" ? " selected" : ""}>Choisir une version…</option>` +
+    `<option value="local"${selected === "local" ? " selected" : ""}${missing ? " disabled" : ""}>Garder ma version</option>` +
+    `<option value="library"${selected === "library" ? " selected" : ""}>Utiliser la Library</option></select>` +
+    `<details class="skills-sync-comparison"><summary>Comparer les versions de ${esc(key)}</summary>` +
+    `<div class="skills-sync-legend"><span>− Ma version locale</span><span>+ Version Library · v${skill.version}</span></div>` +
+    `<pre class="skills-sync-diff"><code>${diffHtml(skill.diff || "Aucune différence.")}</code></pre></details></li>`;
+}
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "jamais";
@@ -43,7 +117,7 @@ function nameList(items: readonly string[] | undefined): string {
 export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = false): string {
   const known = status !== null && !failed;
   const level = known ? SYNC_STATE_LEVELS[status.state] : "warn";
-  const label = known ? SYNC_STATE_LABELS[status.state] : "Skills : état indisponible";
+  const label = known ? SYNC_STATE_LABELS[status.state] : "Library : état indisponible";
   const pending = known ? (status.conflicts ?? []).length || (status.updated ?? []).length + (status.added ?? []).length : 0;
   const suffix = known && pending > 0 && status.state !== "up_to_date" ? ` (${pending})` : "";
   return (
@@ -56,39 +130,42 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
 }
 
 export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolean): string {
-  if (status === null || failed) {
-    return (
-      `<p>${esc(SYNC_STATE_MESSAGES.not_synced)}</p>` +
-      `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-skills-action="refresh">Réessayer</button></div>`
-    );
-  }
-  const added = nameList(status.added);
-  const updated = nameList(status.updated);
-  const conflicts = nameList(status.conflicts);
-  return (
-    `<p>${esc(SYNC_STATE_MESSAGES[status.state])}</p>` +
-    `<p>Dernière vérification : ${esc(formatDate(status.last_check))}<br>` +
-    `Dernière synchro réussie : ${esc(formatDate(status.last_successful_sync))}</p>` +
-    (added ? `<h3>Ajoutés</h3>${added}` : "") +
-    (updated ? `<h3>Mis à jour</h3>${updated}` : "") +
-    (conflicts ? `<h3>Conflits</h3>${conflicts}` : "") +
-    `<pre class="skills-sync-diff" data-testid="skills-sync-diff" hidden></pre>` +
-    (conflicts
-      ? `<p class="skills-sync-overwrite" data-testid="skills-sync-overwrite" hidden>Les skills en conflit seront remplacés par la version de la Library ; votre copie locale est sauvegardée dans ~/.studio-os/backups/skills.</p>`
-      : "") +
-    `<div class="ds-dialog-actions">` +
-    `<button class="ds-btn" type="button" data-skills-action="diff">Voir les différences</button>` +
-    (conflicts
-      ? `<button class="ds-btn" type="button" data-skills-action="overwrite">Écraser avec la Library</button>` +
-        `<button class="ds-btn ds-btn--danger" type="button" data-skills-action="overwrite-confirm" hidden>Confirmer l'écrasement</button>`
-      : "") +
-    `<button class="ds-btn" type="button" data-skills-action="toggle">${status.auto_sync_enabled ? "Désactiver la synchro auto" : "Activer la synchro auto"}</button>` +
-    `<button class="ds-btn ds-btn--primary" type="button" data-skills-action="retry"${status.state === "in_progress" ? " disabled" : ""}>Réessayer</button>` +
-    `</div>`
-  );
+  const pending = pendingSkills(preview);
+  const count = choices.size;
+  const replacements = pending.filter((skill) => choices.get(entryId(skill)) === "library");
+  const compatible = pending.every((skill) => Boolean(skill.preview_hash));
+  const message = status === null || failed ? SYNC_STATE_MESSAGES.not_synced : SYNC_STATE_MESSAGES[status.state];
+  const subtitle = pending.length ? `${pending.length} élément${pending.length > 1 ? "s" : ""} à vérifier avant la mise à jour` : message;
+  const confirmation = confirming
+    ? `<section class="skills-sync-confirmation" aria-labelledby="skills-sync-confirm-title"><h3 id="skills-sync-confirm-title">Vérifier les choix</h3>` +
+      `<p>${replacements.length ? "Ces copies seront remplacées par la Library, après sauvegarde :" : "Vos versions locales seront conservées pour cette synchronisation."}</p>` +
+      (replacements.length ? `<ul>${replacements.map((skill) => `<li><strong>${KIND_LABELS[entryKind(skill)]} ${esc(skill.stable_key)}</strong><code>${skill.targets.filter((target) => target.state !== "current").map((target) => esc(targetPath(skill, target.harness))).join("<br>")}</code></li>`).join("")}</ul>` : "") +
+      `<p class="skills-sync-help">Les copies modifiées sont sauvegardées dans ~/.studio-os/backups. Les éléments sans choix restent en attente.</p></section>` : "";
+  return `<div class="skills-sync-content"><p class="skills-sync-subtitle">${esc(subtitle)}</p>` +
+    (pending.some((skill) => skill.targets.some((target) => target.state === "locally_modified")) || status?.state === "conflicts"
+      ? `<p class="skills-sync-notice">Vos modifications locales ont été conservées.</p>` : "") +
+    (previewLoading ? `<p role="status">Chargement des versions à comparer…</p>` : "") +
+    (previewIssue ? `<p class="ds-error" role="alert">${esc(previewIssue)}</p>` : "") +
+    (!compatible ? `<p class="ds-error" role="alert">Mettez à jour l'assistant local pour choisir une version par fichier.</p>` : "") +
+    (!confirming && pending.length ? `<h3 class="skills-sync-section-title">Choisissez la version à utiliser</h3><ul class="skills-sync-list">${pending.map(skillRowHtml).join("")}</ul>` : "") +
+    confirmation +
+    (operationNote ? `<p class="skills-sync-help" role="status">${esc(operationNote)}</p>` : "") +
+    `<details class="skills-sync-technical"><summary>Détails de synchronisation</summary>` +
+    `<p>Dernière vérification : ${esc(formatDate(status?.last_check))}<br>Dernière synchronisation réussie : ${esc(formatDate(status?.last_successful_sync))}</p>` +
+    (status?.added?.length ? `<h3>Ajoutés</h3>${nameList(status.added)}` : "") +
+    (status?.updated?.length ? `<h3>Mis à jour</h3>${nameList(status.updated)}` : "") +
+    (status ? `<button class="ds-btn ds-btn--ghost" type="button" data-skills-action="toggle"${busy ? " disabled" : ""}>${status.auto_sync_enabled ? "Désactiver" : "Activer"} la synchronisation automatique</button>` : "") +
+    `<button class="ds-btn ds-btn--ghost" type="button" data-skills-action="refresh"${busy || previewLoading ? " disabled" : ""}>Vérifier de nouveau</button></details></div>` +
+    `<footer class="skills-sync-footer"><span class="skills-sync-progress" aria-live="polite">${count ? `${count} choix prêt${count > 1 ? "s" : ""} · ${pending.length - count} en attente` : "Les éléments sans choix restent en attente."}</span>` +
+    `<div class="skills-sync-actions">` +
+    (confirming ? `<button class="ds-btn" type="button" data-skills-action="back"${busy ? " disabled" : ""}>Revenir aux choix</button>` : `<button class="ds-btn" type="button" data-ds-close>${pending.length ? "Plus tard" : "Fermer"}</button>`) +
+    (pending.length && compatible ? `<button class="ds-btn ds-btn--${confirming && replacements.length ? "danger" : "primary"}" type="button" data-skills-action="${confirming ? "confirm" : "apply"}"${busy || count === 0 || previewLoading ? " disabled" : ""}>${busy ? "Application…" : confirming ? replacements.length ? "Confirmer le remplacement" : "Confirmer les choix" : `Appliquer ${count || "les"} choix`}</button>` : "") +
+    (!pending.length && previewIssue ? `<button class="ds-btn ds-btn--primary" type="button" data-skills-action="refresh"${busy || previewLoading ? " disabled" : ""}>Réessayer</button>` : "") +
+    `</div></footer>`;
 }
 
 function notifyIfChanged(status: SkillsSyncStatus): void {
+  if (!document.getElementById(DIALOG_ID)?.hidden) return;
   if (status.state === "in_progress" || status.state === "up_to_date" || status.state === "disabled") return;
   const key = `${status.state}|${status.last_check}`;
   try {
@@ -99,80 +176,167 @@ function notifyIfChanged(status: SkillsSyncStatus): void {
   }
   if (status.state === "updated") {
     const count = (status.added ?? []).length + (status.updated ?? []).length;
-    dsNotify(`Skills synchronisés : ${count} ajouté(s) ou mis à jour.`, "success");
+    dsNotify(`Library synchronisée : ${count} élément(s) ajouté(s) ou mis à jour.`, "success");
   } else if (status.state === "conflicts") {
-    dsNotify(`Skills : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
+    dsNotify(`Library : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
   } else {
-    dsNotify("Skills non synchronisés (hors ligne, non connecté ou erreur).", "warning");
+    dsNotify("Library non synchronisée (hors ligne, non connecté ou erreur).", "warning");
   }
+  document.getElementById("ds-toast-region")?.lastElementChild?.setAttribute("data-skills-notice", "");
 }
 
 function openDetail(platform: Platform, trigger: HTMLElement | null): void {
-  const body = document.getElementById(`${DIALOG_ID}-body`);
-  if (body !== null) body.innerHTML = skillsDetailHtml(current, unavailable);
-  bindActions(platform);
+  if (busy) return;
+  document.querySelectorAll("[data-skills-notice]").forEach((notice) => notice.remove());
+  choices.clear();
+  preview = null;
+  confirming = false;
+  operationNote = "";
+  previewIssue = "";
+  previewLoading = true;
+  renderDetail(platform);
   openDsDialog(document, DIALOG_ID, trigger);
+  void loadPreview(platform);
 }
 
-function paint(platform: Platform): void {
+function renderDetail(platform: Platform, focusAction?: string): void {
+  const body = document.getElementById(`${DIALOG_ID}-body`);
+  if (body === null) return;
+  body.innerHTML = skillsDetailHtml(current, unavailable);
+  bindActions(platform);
+  if (focusAction && !document.getElementById(DIALOG_ID)?.hidden) {
+    body.querySelector<HTMLElement>(`[data-skills-action="${focusAction}"]`)?.focus();
+  }
+}
+
+async function loadPreview(platform: Platform): Promise<void> {
+  const generation = ++previewGeneration;
+  previewLoading = true;
+  previewIssue = "";
+  const outcome = await withDeadline(previewSkills(platform)).catch(() => null);
+  if (generation !== previewGeneration) return;
+  previewLoading = false;
+  if (outcome === TIMEOUT) {
+    preview = null;
+    choices.clear();
+    previewIssue = "L'assistant local n'a pas répondu à temps. Il est peut-être occupé : réessayez dans un instant.";
+  } else if (outcome?.ok) {
+    const previous = new Map((preview?.skills ?? []).map((skill) => [entryId(skill), skill.preview_hash]));
+    preview = outcome.value;
+    for (const key of choices.keys()) {
+      const skill = pendingSkills(preview).find((entry) => entryId(entry) === key);
+      if (!skill || previous.get(key) !== skill.preview_hash) choices.delete(key);
+    }
+  } else {
+    preview = null;
+    choices.clear();
+    previewIssue = outcome ? skillsPreviewErrorMessage(outcome.error) : "Impossible de charger les versions. Vérifiez la connexion puis réessayez.";
+  }
+  confirming = false;
+  renderDetail(platform);
+}
+
+function paint(): void {
   const existing = document.getElementById("skills-sync");
   const holder = document.createElement("template");
   holder.innerHTML = skillsIndicatorHtml(current, unavailable);
   const next = holder.content.firstElementChild;
   if (existing === null || next === null) return;
-  existing.replaceWith(next);
-  next.addEventListener("click", () => openDetail(platform, next as HTMLElement));
-  const body = document.getElementById(`${DIALOG_ID}-body`);
-  if (body !== null && !document.getElementById(DIALOG_ID)?.hasAttribute("hidden")) {
-    body.innerHTML = skillsDetailHtml(current, unavailable);
-    bindActions(platform);
-  }
+  existing.innerHTML = next.innerHTML;
+  existing.dataset["state"] = (next as HTMLElement).dataset["state"];
+  existing.className = next.className;
+  existing.title = (next as HTMLElement).title;
 }
 
 function bindActions(platform: Platform): void {
   const root = document.getElementById(`${DIALOG_ID}-body`);
   if (root === null) return;
-  root.querySelector('[data-skills-action="refresh"]')?.addEventListener("click", () => void refresh(platform));
-  root.querySelector('[data-skills-action="diff"]')?.addEventListener("click", () => {
-    void previewSkills(platform).then((outcome) => {
-      const box = root.querySelector<HTMLElement>(".skills-sync-diff");
-      if (box === null) return;
-      box.hidden = false;
-      box.textContent = outcome.ok ? outcome.value.diff || "Aucune différence." : harnessErrorMessage(outcome.error);
-    });
+  root.querySelectorAll('[data-skills-action="refresh"]').forEach((button) => button.addEventListener("click", () => {
+    if (busy || previewLoading) return;
+    confirming = false;
+    previewLoading = true;
+    renderDetail(platform);
+    void refresh(platform, false).then(() => loadPreview(platform));
+  }));
+  root.querySelectorAll<HTMLSelectElement>("[data-skills-choice]").forEach((select) => select.addEventListener("change", () => {
+    const key = select.dataset["skillsChoice"];
+    if (!key) return;
+    if (select.value === "local" || select.value === "library") choices.set(key, select.value);
+    else choices.delete(key);
+    const count = choices.size;
+    const apply = root.querySelector<HTMLButtonElement>('[data-skills-action="apply"]');
+    if (apply) { apply.disabled = count === 0; apply.textContent = `Appliquer ${count || "les"} choix`; }
+    const progress = root.querySelector<HTMLElement>(".skills-sync-progress");
+    if (progress) progress.textContent = `${count} choix prêt${count > 1 ? "s" : ""} · ${pendingSkills(preview).length - count} en attente`;
+  }));
+  root.querySelector('[data-skills-action="apply"]')?.addEventListener("click", () => {
+    if (busy || choices.size === 0) return;
+    confirming = true;
+    renderDetail(platform, "confirm");
   });
-  const runApply = (overwrite: boolean): void => {
+  root.querySelector('[data-skills-action="back"]')?.addEventListener("click", () => {
+    if (busy) return;
+    confirming = false;
+    renderDetail(platform, "apply");
+  });
+  root.querySelector('[data-skills-action="confirm"]')?.addEventListener("click", () => {
+    if (busy) return;
+    const selection: SkillResolution[] = pendingSkills(preview).flatMap((skill) => {
+      const choice = choices.get(entryId(skill));
+      if (!choice || !skill.preview_hash) return [];
+      const kind = entryKind(skill);
+      return [{ ...(kind === "skill" ? {} : { kind }), stable_key: skill.stable_key, choice, preview_hash: skill.preview_hash }];
+    });
+    if (!confirming || selection.length === 0) return;
+    busy = true;
+    renderDetail(platform);
+    document.getElementById(`${DIALOG_ID}-title`)?.focus();
+    void (async () => {
+      try {
+        const outcome = await applySkills(platform, selection);
+        if (!outcome.ok) operationNote = harnessErrorMessage(outcome.error);
+        else {
+          const kept = selection.filter((item) => item.choice === "local").length;
+          operationNote = kept ? "Choix appliqués. Les versions locales conservées restent personnalisées et seront signalées aux prochaines vérifications." : "Choix appliqués. Les autres éléments restent en attente.";
+          if (document.getElementById(DIALOG_ID)?.hidden) {
+            dsNotify("Vos choix de synchronisation ont été appliqués.", "success");
+          }
+        }
+      } catch {
+        operationNote = "Impossible d'appliquer les choix. Vérifiez la connexion puis réessayez.";
+      } finally {
+        busy = false;
+        choices.clear();
+        await refresh(platform, false);
+        await loadPreview(platform);
+        if (!document.getElementById(DIALOG_ID)?.hidden) document.getElementById(`${DIALOG_ID}-title`)?.focus();
+      }
+    })();
+  });
+  root.querySelector('[data-skills-action="toggle"]')?.addEventListener("click", () => {
     if (busy) return;
     busy = true;
-    void applySkills(platform, overwrite).then(async (outcome) => {
-      busy = false;
-      if (!outcome.ok) dsNotify(harnessErrorMessage(outcome.error), "warning");
-      await refresh(platform);
-    });
-  };
-  root.querySelector('[data-skills-action="retry"]')?.addEventListener("click", () => runApply(false));
-  root.querySelector('[data-skills-action="overwrite"]')?.addEventListener("click", () => {
-    root.querySelector<HTMLElement>(".skills-sync-overwrite")?.removeAttribute("hidden");
-    root.querySelector<HTMLElement>('[data-skills-action="overwrite-confirm"]')?.removeAttribute("hidden");
-  });
-  root.querySelector('[data-skills-action="overwrite-confirm"]')?.addEventListener("click", () => runApply(true));
-  root.querySelector('[data-skills-action="toggle"]')?.addEventListener("click", () => {
-    const enable = current?.auto_sync_enabled !== true;
-    void configureSkillsSync(platform, enable).then(async (outcome) => {
-      if (!outcome.ok) dsNotify(harnessErrorMessage(outcome.error), "warning");
-      await refresh(platform);
-    });
+    renderDetail(platform);
+    document.getElementById(`${DIALOG_ID}-title`)?.focus();
+    void (async () => {
+      try {
+        const outcome = await configureSkillsSync(platform, current?.auto_sync_enabled !== true);
+        if (!outcome.ok) dsNotify(harnessErrorMessage(outcome.error), "warning");
+      } catch { dsNotify("Impossible de modifier la synchronisation automatique.", "warning"); }
+      finally { busy = false; await refresh(platform, false); renderDetail(platform); }
+    })();
   });
 }
 
-async function refresh(platform: Platform): Promise<void> {
-  const outcome = await getSkillsSyncStatus(platform).catch(() => null);
+async function refresh(platform: Platform, notify = true): Promise<void> {
+  const answer = await withDeadline(getSkillsSyncStatus(platform)).catch(() => null);
+  const outcome = answer === TIMEOUT ? null : answer;
   unavailable = outcome === null || !outcome.ok;
   if (outcome?.ok) {
     current = outcome.value;
-    notifyIfChanged(outcome.value);
+    if (notify) notifyIfChanged(outcome.value);
   }
-  paint(platform);
+  paint();
   if (timer !== null) clearTimeout(timer);
   timer = setTimeout(() => void refresh(platform), current?.state === "in_progress" ? RUNNING_POLL_MS : IDLE_POLL_MS);
 }
@@ -192,11 +356,12 @@ export function mountSkillsSync(platform: Platform): void {
     const dialog = document.createElement("template");
     dialog.innerHTML = dsModalHtml({
       id: DIALOG_ID,
-      title: "Synchronisation des skills",
+      title: "Synchronisation de la Library",
       body: `<div id="${DIALOG_ID}-body"></div>`,
-      actions: [{ label: "Fermer" }],
+      actions: [],
     });
     document.body.append(...Array.from(dialog.content.childNodes));
+    document.querySelector(`#${DIALOG_ID} .ds-modal > .ds-dialog-actions`)?.remove();
   }
   void refresh(platform);
 }
@@ -208,4 +373,11 @@ export function resetSkillsSyncForTests(): void {
   current = null;
   unavailable = false;
   busy = false;
+  preview = null;
+  previewLoading = false;
+  previewIssue = "";
+  operationNote = "";
+  confirming = false;
+  previewGeneration += 1;
+  choices.clear();
 }

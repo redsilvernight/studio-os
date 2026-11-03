@@ -93,6 +93,8 @@ export interface MachineRow {
   activeSessionCount: number;
   /** Optimistic concurrency version, only when canonical. */
   version: number | null;
+  /** Physical workstation (parent machine), `null` for a root or when derived. */
+  workstationId: string | null;
 }
 
 export interface MachineEvidence {
@@ -132,6 +134,7 @@ export function buildMachineRows(evidence: MachineEvidence): MachineRow[] {
       agentCount: 0,
       activeSessionCount: 0,
       version: machine.version ?? null,
+      workstationId: machine.workstation_id ?? null,
     });
   }
 
@@ -149,6 +152,7 @@ export function buildMachineRows(evidence: MachineEvidence): MachineRow[] {
       agentCount: 0,
       activeSessionCount: 0,
       version: null,
+      workstationId: null,
     };
     rows.set(machineId, created);
     return created;
@@ -343,4 +347,109 @@ export async function renameMachine(
   });
   if (result.response.ok && result.data !== undefined) return result.data;
   throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+export async function setMachineWorkstation(
+  client: StudioClient,
+  machineId: string,
+  workstationId: string | null,
+  ifMatchVersion: number,
+): Promise<Machine> {
+  const result = await client.PUT("/api/v1/machines/{machine_id}/workstation", {
+    params: {
+      path: { machine_id: machineId },
+      header: { "If-Match-Version": ifMatchVersion },
+    },
+    body: { workstation_id: workstationId },
+  });
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+export function workstationErrorFr(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.errorCode === "version_conflict")
+      return "Ce poste a été modifié entre-temps. Actualisez la page puis réessayez.";
+    if (error.errorCode === "workstation_invalid")
+      return "Rattachement refusé : le poste cible doit être actif, non rattaché lui-même, et cette machine ne doit pas avoir de machines rattachées.";
+    if (error.status === 404) return "Machine ou poste introuvable pour ce jeton.";
+    if (error.status === 403) return "Action réservée au propriétaire de la machine ou à un administrateur.";
+  }
+  return `Échec du rattachement (${error instanceof Error ? error.message : String(error)}).`;
+}
+
+export interface MachineGroup {
+  root: MachineRow;
+  children: MachineRow[];
+}
+
+/**
+ * Groupe par poste physique en conservant l'ordre d'entrée. Une machine dont
+ * le poste parent n'est pas dans `rows` reste une racine.
+ */
+export function groupMachineRows(rows: MachineRow[]): MachineGroup[] {
+  const ids = new Set(rows.map((row) => row.machineId));
+  const children = new Map<string, MachineRow[]>();
+  const roots: MachineRow[] = [];
+  for (const row of rows) {
+    const parent = row.workstationId;
+    if (parent !== null && parent !== row.machineId && ids.has(parent)) {
+      const list = children.get(parent) ?? [];
+      list.push(row);
+      children.set(parent, list);
+    } else {
+      roots.push(row);
+    }
+  }
+  return roots.map((root) => ({ root, children: children.get(root.machineId) ?? [] }));
+}
+
+export interface DuplicateInfo {
+  /** Machine conservée lors d'une fusion (première du groupe dans l'ordre). */
+  targetId: string;
+  others: string[];
+}
+
+/**
+ * Doublons probables : même propriétaire, même poste parent (ou aucun) et même
+ * nom insensible à la casse. Exige un propriétaire et un nom connus.
+ */
+export function findProbableDuplicates(rows: MachineRow[]): Map<string, DuplicateInfo> {
+  const buckets = new Map<string, MachineRow[]>();
+  for (const row of rows) {
+    const name = row.displayName?.trim().toLowerCase() ?? "";
+    if (row.ownerUserId === null || name === "") continue;
+    const key = `${row.ownerUserId}\n${row.workstationId ?? ""}\n${name}`;
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(row);
+    buckets.set(key, bucket);
+  }
+  const result = new Map<string, DuplicateInfo>();
+  for (const bucket of buckets.values()) {
+    if (bucket.length < 2) continue;
+    const targetId = bucket[0]?.machineId ?? "";
+    for (const row of bucket) {
+      result.set(row.machineId, {
+        targetId,
+        others: bucket.filter((other) => other.machineId !== row.machineId).map((other) => other.machineId),
+      });
+    }
+  }
+  return result;
+}
+
+/** Postes racines du même propriétaire auxquels `row` peut être rattachée. */
+export function workstationCandidates(row: MachineRow, rows: MachineRow[]): MachineRow[] {
+  if (row.ownerUserId === null) return [];
+  return rows.filter(
+    (candidate) =>
+      candidate.machineId !== row.machineId &&
+      candidate.ownerUserId === row.ownerUserId &&
+      candidate.workstationId === null &&
+      candidate.version !== null,
+  );
+}
+
+export function mergeMachinesCommand(sourceId: string, targetId: string): string {
+  return `studio-admin merge-machines --from ${sourceId} --into ${targetId}`;
 }

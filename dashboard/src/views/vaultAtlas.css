@@ -17,6 +17,17 @@
   --atlas-type-lesson: #ffc23d;
   --atlas-type-note: #a3b1c6;
   --atlas-satellite: #7c8aa5;
+  --atlas-zone-1: #5b9dff;
+  --atlas-zone-2: #3ddc97;
+  --atlas-zone-3: #ffc23d;
+  --atlas-zone-4: #b58cff;
+  --atlas-zone-5: #2fd4e6;
+  --atlas-community-1: #f472b6;
+  --atlas-community-2: #38bdf8;
+  --atlas-community-3: #facc15;
+  --atlas-community-4: #a3e635;
+  --atlas-community-5: #fb923c;
+  --atlas-community-6: #c084fc;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 21rem;
   gap: var(--ds-space-4);
@@ -144,6 +155,23 @@
   border-left: 1px solid var(--ds-border);
 }
 
+/* Zones : disque coloré par portée/projet ; communautés : halo pointillé. */
+.vault-atlas-zone-ring {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--atlas-zone-1);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--atlas-zone-1) 24%, transparent);
+}
+
+.vault-atlas-community-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px dashed var(--atlas-community-1);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--atlas-community-1) 18%, transparent);
+}
+
 .vault-atlas-ring {
   width: 0.75rem;
   height: 0.75rem;
@@ -163,6 +191,11 @@
 
 .vault-atlas-status {
   margin-top: var(--ds-space-1);
+}
+
+.vault-atlas-perf {
+  margin-top: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .vault-atlas-side {
@@ -188,13 +221,78 @@
   color: var(--ds-text-muted);
 }
 
-.vault-atlas-items {
+.vault-atlas-items,
+.vault-atlas-regions {
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.vault-atlas-regions li {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-width: 0;
+  font-size: var(--ds-text-sm);
+}
+
+.vault-atlas-region-title {
+  margin: var(--ds-space-2) 0 var(--ds-space-1);
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vault-atlas-region-dot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--atlas-zone-1);
+}
+
+.vault-atlas-region-dot[data-zone-color="1"] { background: var(--atlas-zone-2); }
+.vault-atlas-region-dot[data-zone-color="2"] { background: var(--atlas-zone-3); }
+.vault-atlas-region-dot[data-zone-color="3"] { background: var(--atlas-zone-4); }
+.vault-atlas-region-dot[data-zone-color="4"] { background: var(--atlas-zone-5); }
+
+.vault-atlas-region-dot[data-community-color="0"] { background: var(--atlas-community-1); }
+.vault-atlas-region-dot[data-community-color="1"] { background: var(--atlas-community-2); }
+.vault-atlas-region-dot[data-community-color="2"] { background: var(--atlas-community-3); }
+.vault-atlas-region-dot[data-community-color="3"] { background: var(--atlas-community-4); }
+.vault-atlas-region-dot[data-community-color="4"] { background: var(--atlas-community-5); }
+.vault-atlas-region-dot[data-community-color="5"] { background: var(--atlas-community-6); }
+
+.vault-atlas-region-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vault-atlas-region-link {
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--ds-action);
+  background: none;
+  border: 0;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.vault-atlas-region-link:hover {
+  text-decoration: underline;
+}
+
+.vault-atlas-region-link:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
+  border-radius: var(--ds-radius-sm);
 }
 
 .vault-atlas-item {
@@ -217,6 +315,18 @@
 .vault-atlas-item.is-selected {
   background: var(--ds-action-soft);
   border-color: var(--ds-action);
+}
+
+/* Voisin de la note sélectionnée : mis en évidence sans prendre la vedette. */
+.vault-atlas-item.is-neighbor {
+  background: color-mix(in srgb, var(--ds-action-soft) 55%, transparent);
+  border-color: color-mix(in srgb, var(--ds-action) 55%, transparent);
+}
+
+.vault-atlas-neighbor {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-xs);
+  font-style: italic;
 }
 
 .vault-atlas-item:focus-visible {

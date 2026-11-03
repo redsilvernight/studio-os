@@ -298,9 +298,18 @@ async def get_download_url(
     description=(
         "Delete a transfer and its stored bytes. Only the sender (or a "
         "privileged role) may delete. Non-expired transfers are never "
-        "removed automatically."
+        "removed automatically. Repeating an authorized deletion preserves the original "
+        "deletion timestamp. Storage failures return 503 storage_unavailable."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        503: {
+            "description": "Storage unavailable (storage_unavailable); "
+            "transfer is not marked deleted."
+        },
+    },
 )
 async def delete_transfer(
     transfer_id: UUID, session: DbSession, principal: CurrentPrincipal

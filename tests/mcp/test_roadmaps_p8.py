@@ -6,6 +6,7 @@ DEC-0084/DEC-0087). Real Postgres through the shared MCP fixtures.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -105,6 +106,45 @@ async def test_agent_proposes_a_revision_and_reads_its_status(
             "truncated": False,
         }
     ]
+
+
+async def test_mcp_revises_draft_in_place_and_replays(
+    db_session: AsyncSession,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    ctx: Context,
+) -> None:
+    principal = await load_principal(db_session, machine[0])
+    draft = await roadmaps_service.import_roadmap(
+        db_session,
+        principal,
+        RoadmapImport(project_id=project.id, document=_document()),
+    )
+    kwargs: dict[str, Any] = {
+        "roadmap_id": str(draft.id),
+        "base_revision_no": draft.revision_no,
+        "submit": False,
+        "idempotency_key": "mcp-draft-revision",
+    }
+    first = await studio_propose_roadmap(str(project.id), _document("Revised draft"), ctx, **kwargs)
+    assert first["kind"] == "snapshot"
+    replay = await studio_propose_roadmap(
+        str(project.id), _document("Revised draft"), ctx, **kwargs
+    )
+    assert replay == first
+    current = await roadmaps_service.get_roadmap(db_session, principal, draft.id)
+    assert current.status.value == "draft"
+    assert current.title == "Revised draft"
+    assert current.revision_no > draft.revision_no
+    stale = await studio_propose_roadmap(
+        str(project.id),
+        _document("Stale"),
+        ctx,
+        roadmap_id=str(draft.id),
+        base_revision_no=draft.revision_no,
+        submit=False,
+    )
+    assert stale["error_code"] == "version_conflict"
 
 
 async def test_proposing_a_revision_requires_a_base_revision(

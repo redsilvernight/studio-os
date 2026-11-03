@@ -44,6 +44,24 @@ un test échoue si l'export diverge des builders Python.
 
 ## Points de conception
 
+- **Aperçu des lancements (additif)** : `harness.launch_preview`, capability
+  optionnelle homonyme, requête `HarnessStatusRequest`, réponse
+  `HarnessLaunchPreview`. Lecture seule sur un workspace connu, même si les
+  intégrations y sont désactivées ; aucun plan, provisioning, renouvellement,
+  exécution, écriture de configuration ou répertoire temporaire. Les réponses
+  existantes de `harness.status` et `harness.detect` restent identiques pour les
+  anciens consommateurs stricts. Un ancien daemon refuse la nouvelle capacité
+  et l’interface indique que cet aperçu est indisponible.
+  Le résultat décrit la préparation prévue sur **ce poste** : sources de
+  réglages, hooks et MCP Studio présents ou manquants, exclusions motivées,
+  modes d’accès et nécessité d’une autorisation de production. Ce n’est ni un
+  journal d’exécution ni une approbation du contenu des hooks. Noms fixes et
+  raisons seules : aucun contenu, chemin absolu, commande, environnement ou
+  credential. Claude réutilise les hooks de `isolation_settings`, indépendants
+  pour identité et garde ; OpenCode copie seulement son plugin Studio ; Codex
+  annonce une isolation non vérifiée. Profil, permissions et politique locale
+  continuent d’être contrôlés au lancement, sans repli permissif.
+
 - **Handshake** : négociation par plage de protocole et capabilities, jamais par
   version de paquet. Résultats : `compatible`, `compatible_degraded`,
   `daemon_too_old`, `desktop_too_old`, `capability_missing`,
@@ -105,6 +123,15 @@ un test échoue si l'export diverge des builders Python.
   `written` ; une seconde exécution n'écrit rien (`unchanged`). Les skills
   `locally_modified` ne sont jamais écrasées. L'enregistrement des hooks
   Claude/Codex reste manuel (DEC-0096).
+  `SetupPlan.versioning` optionnel ajoute un diagnostic Git en lecture seule :
+  absent, inexécutable ou vérifié, identité globale configurée, nombre de dépôts
+  parmi les workspaces, identité effective par dépôt et présence d'un distant
+  comptées séparément. Ni noms/e-mails, ni chemins, ni URL distantes ne sont
+  exposés. Les commandes ont un timeout ; un contrôle incomplet reste visible.
+  Le parcours manuel explique l'installation, l'initialisation et la différence
+  `--local` / `--global`, puis demande de refaire l'aperçu. `setup.apply` n'installe
+  pas Git, ne change pas son identité, n'initialise pas de dépôt et n'ajoute aucun
+  distant. Un dépôt local fonctionnel n'exige ni GitHub ni une branche nommée `dev`.
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).
@@ -130,7 +157,40 @@ un test échoue si l'export diverge des builders Python.
   `confirm` obligatoire ; `overwrite` remplace les copies modifiées à la main
   après sauvegarde dans `~/.studio-os/backups/skills`) et `skills.configure`
   (active ou désactive la synchro auto au démarrage, réglage local persistant).
-  Aucun chemin ni contenu de skill ne sort du daemon.
+  Extension additive de résolution ciblée : chaque `SkillPreviewEntry` inclut
+  un `diff` propre au skill et un `preview_hash` optionnel (SHA-256 opaque,
+  dérivé de la version Library et des empreintes de toutes les copies locales).
+  La capacité optionnelle `skills.resolve`, négociée au handshake, autorise
+  cette extension : sans elle, le daemon omet réellement `preview_hash` de
+  `skills.preview` (y compris la valeur `null`) et refuse un apply ciblé avec
+  `capability_missing`. Un ancien Desktop strict conserve sa réponse connue.
+  `SkillsApplyRequest.resolutions`, optionnel, contient de 1 à 500 choix
+  `{stable_key, choice: local|library, preview_hash}` ; les clés sont uniques
+  et ce mode exclut `overwrite: true`. Le daemon résout lui-même les chemins,
+  compare chaque token au plan actuel avant toute écriture et refuse une clé
+  inconnue ou une comparaison périmée avec `invalid_request`. Un choix
+  `library` n'écrit et ne sauvegarde que ce skill ; les entrées du manifeste
+  non sélectionnées et les copies dépréciées restent intactes. Un choix
+  `local` conserve toutes ses copies pour ce cycle, sans acquittement durable :
+  une personnalisation reste signalée aux vérifications suivantes. Les choix
+  uniquement `local` ne modifient aucun fichier ni manifeste. Les anciennes
+  requêtes sans `resolutions` gardent leur comportement global strict.
+  Extension additive aux définitions : la capacité optionnelle
+  `skills.definitions` ajoute à `skills.preview` les rules et agents globaux
+  de la Library, distingués par `kind` (`skill` par défaut, `rule`, `agent`),
+  avec leur diff et leur `preview_hash` ; les compteurs et le `diff` global
+  restent limités aux skills. Une résolution porte alors `kind` et l'unicité
+  vaut pour `(kind, stable_key)`. Sans la capacité, le daemon retire ces
+  entrées et le champ `kind`, et refuse une résolution non `skill` avec
+  `capability_missing`. Un choix `library` sur une définition sauvegarde la
+  copie dans `~/.studio-os/backups/definitions` et ne touche, dans le
+  manifeste des définitions, que la ligne choisie ; un échec restaure les
+  fichiers et manifestes d'avant l'apply.
+  Les listes `added`, `updated`, `conflicts` identifient les copies par chemin
+  relatif au dossier utilisateur ; `skills.check` reste sans chemin ni contenu.
+  Les diffs et les résultats de `skills.apply` restent réservés à la liaison
+  locale Desktop/daemon, sans publication vers le serveur. Le dashboard bloque
+  les résolutions ciblées si un ancien daemon ne fournit pas de token.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les
@@ -185,6 +245,15 @@ racines lisibles choisies dans le dialogue natif à un identifiant opaque
 single-use à TTL court, consommé par `save_config`) et `workspace.git_status`
 (sonde Git en lecture seule : état, branche, remote, détaché). Les anciens
 pairs ignorent ces commandes ; l'export compte 31 commandes.
+
+La page Espaces de travail utilise aussi `workspace.list`, ajout local compatible
+sous `workspace.config` : requête vide, réponse `WorkspaceListResult { items:
+WorkspaceStatus[] }`. Le daemon filtre les associations au profil courant
+(origine et identifiant de profil), puis vérifie chaque dossier. La configuration
+locale accompagne aussi les dossiers déplacés ou absents pour conserver le nom
+du projet et permettre une réparation explicite. Aucun chemin n'est publié sur
+le serveur. L'entrée réelle du daemon partage le registre `workspaces/{id}.json`
+avec la CLI et la source des watchers ; le web ne sert aucune de ces commandes.
 
 ## Fixtures
 

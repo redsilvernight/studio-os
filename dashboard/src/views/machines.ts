@@ -31,13 +31,20 @@ import {
   fetchCanonicalMachines,
   fetchSessions,
   filterMachineRows,
+  findProbableDuplicates,
   formatRelativeFr,
+  groupMachineRows,
   initialMachinesState,
   isMachinesDefaultState,
   machineDisplayTitle,
   MACHINE_PRESENCE_EVENT_TYPES,
+  mergeMachinesCommand,
   renameMachine,
+  setMachineWorkstation,
+  workstationCandidates,
+  workstationErrorFr,
   type Agent,
+  type DuplicateInfo,
   type EventEnvelope,
   type Machine,
   type MachineActivityFilter,
@@ -146,21 +153,59 @@ function machineContextLine(row: MachineRow, info: MachineCardInfo): string {
   return parts.map((part) => esc(part)).join(" · ");
 }
 
-export function machineCardHtml(row: MachineRow, info: MachineCardInfo, now: number): string {
+export function machineDuplicateHtml(row: MachineRow, duplicate: DuplicateInfo | undefined): string {
+  if (duplicate === undefined) return "";
+  const hint =
+    duplicate.targetId === row.machineId
+      ? `Poste conservé par défaut si ses doublons sont fusionnés par un administrateur.`
+      : `Fusion par un administrateur (simulation par défaut, <code class="mono">--apply</code> pour écrire) : ` +
+        `<code class="mono">${esc(mergeMachinesCommand(row.machineId, duplicate.targetId))}</code>`;
+  return `<div class="ds-list-sub machine-duplicate">${dsBadge("Doublon probable", "warning")} <span>${hint}</span></div>`;
+}
+
+function machineCardInnerHtml(
+  row: MachineRow,
+  info: MachineCardInfo,
+  now: number,
+  duplicate: DuplicateInfo | undefined,
+): string {
   return (
-    `<li class="ds-list-item machine-row"><div class="grow">` +
+    `<div class="grow">` +
     `<h3 class="ds-list-title">${esc(machineDisplayTitle(row))}</h3>` +
     `<div class="ds-list-sub">${machineContextLine(row, info)}</div>` +
     `<div class="ds-list-sub">Dernière activité : ${machineTimeHtml(row.lastActivityAt, now)}</div>` +
+    machineDuplicateHtml(row, duplicate) +
     `</div><div class="machine-side">${machineStatusHtml(row)}` +
-    `<button class="ds-btn ds-btn--sm" type="button" data-machine-details="${esc(row.machineId)}">Détails</button></div></li>`
+    `<button class="ds-btn ds-btn--sm" type="button" data-machine-details="${esc(row.machineId)}">Détails</button></div>`
   );
 }
 
+export function machineCardHtml(
+  row: MachineRow,
+  info: MachineCardInfo,
+  now: number,
+  duplicate?: DuplicateInfo,
+): string {
+  return `<li class="ds-list-item machine-row">${machineCardInnerHtml(row, info, now, duplicate)}</li>`;
+}
+
 export function machinesListHtml(rows: MachineRow[], infos: Map<string, MachineCardInfo>, now: number): string {
+  const duplicates = findProbableDuplicates(rows);
+  const infoOf = (row: MachineRow): MachineCardInfo => infos.get(row.machineId) ?? { agentNames: [], activeSession: null };
   return (
     `<ul class="ds-list machines-list">` +
-    rows.map((row) => machineCardHtml(row, infos.get(row.machineId) ?? { agentNames: [], activeSession: null }, now)).join("") +
+    groupMachineRows(rows)
+      .map(({ root, children }) => {
+        if (children.length === 0) return machineCardHtml(root, infoOf(root), now, duplicates.get(root.machineId));
+        return (
+          `<li class="machine-group">` +
+          `<div class="ds-list-item machine-row">${machineCardInnerHtml(root, infoOf(root), now, duplicates.get(root.machineId))}</div>` +
+          `<ul class="ds-list machine-children" aria-label="${esc(`Machines rattachées au poste ${machineDisplayTitle(root)}`)}">` +
+          children.map((child) => machineCardHtml(child, infoOf(child), now, duplicates.get(child.machineId))).join("") +
+          `</ul></li>`
+        );
+      })
+      .join("") +
     `</ul>`
   );
 }
@@ -193,6 +238,7 @@ export function machineDrawerBodyHtml(
   sessions: WorkSession[],
   runtimes: RuntimeRegistration[],
   now: number,
+  allRows: MachineRow[] = [],
 ): string {
   const activity = activityLabelFr(row.status, row.statusSource);
   const active = sessions.filter((session) => session.ended_at === null || session.ended_at === undefined);
@@ -256,7 +302,61 @@ export function machineDrawerBodyHtml(
     `<button class="ds-btn ds-btn--sm" type="button" data-machine-rename="${esc(row.machineId)}" data-machine-version="${esc(String(row.version ?? 0))}">Renommer</button>` +
     `<p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;
 
-  return `<h3 class="machine-drawer-title">${esc(machineDisplayTitle(row))}</h3>` + summary + usage + environment + technical;
+  return (
+    `<h3 class="machine-drawer-title">${esc(machineDisplayTitle(row))}</h3>` +
+    summary +
+    usage +
+    environment +
+    machineWorkstationSectionHtml(row, allRows) +
+    technical
+  );
+}
+
+export function machineWorkstationSectionHtml(row: MachineRow, allRows: MachineRow[]): string {
+  const heading = `<h3 id="machine-workstation-heading" tabindex="-1">Poste physique</h3>`;
+  const errorBox = `<div class="ds-form-error" id="machine-workstation-error" role="alert" hidden></div>`;
+  const version = esc(String(row.version ?? 0));
+  if (row.workstationId !== null) {
+    const parent = allRows.find((candidate) => candidate.machineId === row.workstationId);
+    const parentLabel = parent === undefined ? "un poste non chargé" : machineDisplayTitle(parent);
+    return (
+      `<section class="machine-workstation" aria-labelledby="machine-workstation-heading">${heading}` +
+      `<p class="ds-list-sub">Machine d'outil rattachée au poste ${esc(parentLabel)}.</p>` +
+      `<button class="ds-btn ds-btn--sm" type="button" data-machine-detach="${esc(row.machineId)}" data-machine-version="${version}">Détacher</button>` +
+      `${errorBox}</section>`
+    );
+  }
+  const children = allRows.filter((candidate) => candidate.workstationId === row.machineId);
+  if (children.length > 0) {
+    return (
+      `<section class="machine-workstation" aria-labelledby="machine-workstation-heading">${heading}` +
+      `<p class="ds-list-sub">Poste de travail : ${children.length} machine(s) d'outil rattachée(s).</p></section>`
+    );
+  }
+  if (row.version === null) {
+    return (
+      `<section class="machine-workstation" aria-labelledby="machine-workstation-heading">${heading}` +
+      `<p class="ds-list-sub">Rattachement indisponible sans lecture canonique des postes.</p></section>`
+    );
+  }
+  const candidates = workstationCandidates(row, allRows);
+  if (candidates.length === 0) {
+    return (
+      `<section class="machine-workstation" aria-labelledby="machine-workstation-heading">${heading}` +
+      `<p class="ds-list-sub">Machine non rattachée. Aucun autre poste de ce propriétaire n'est disponible pour un rattachement.</p></section>`
+    );
+  }
+  const options = candidates
+    .map((candidate) => `<option value="${esc(candidate.machineId)}">${esc(machineDisplayTitle(candidate))}</option>`)
+    .join("");
+  return (
+    `<section class="machine-workstation" aria-labelledby="machine-workstation-heading">${heading}` +
+    `<p class="ds-list-sub">Machine non rattachée. Si elle tourne sur le même PC qu'un poste, rattachez-la à ce poste.</p>` +
+    `<div class="ds-form-field"><label for="machine-workstation-select">Poste de rattachement</label>` +
+    `<select class="ds-select" id="machine-workstation-select">${options}</select></div>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-machine-attach="${esc(row.machineId)}" data-machine-version="${version}">Rattacher à ce poste</button>` +
+    `${errorBox}</section>`
+  );
 }
 
 export interface MachinesPageData {
@@ -433,43 +533,86 @@ function bindDetails(root: HTMLElement, data: MachinesPageData): void {
   root.querySelectorAll<HTMLElement>("[data-machine-details]").forEach((button) => {
     button.addEventListener("click", () => {
       const id = button.getAttribute("data-machine-details") ?? "";
-      const row = data.rows.find((candidate) => candidate.machineId === id);
-      if (row === undefined) return;
-      const body = root.querySelector("#machine-drawer-body");
-      if (body !== null) {
-        body.innerHTML = machineDrawerBodyHtml(
-          row,
-          data.agents.filter((agent) => agent.machine_id === id),
-          data.sessions.filter((session) => session.machine_id === id),
-          data.runtimes,
-          data.now,
-        );
-      }
+      if (!renderDrawerBody(root, data, id)) return;
       openDsDialog(root, "machine-drawer", button);
     });
   });
 }
 
-function bindRename(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
-  root.querySelectorAll<HTMLElement>("[data-machine-rename]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const id = button.getAttribute("data-machine-rename") ?? "";
-      const version = button.getAttribute("data-machine-version") ?? "";
-      const row = data.rows.find((candidate) => candidate.machineId === id);
-      if (row === undefined) return;
-      const nameInput = root.querySelector<HTMLInputElement>("#machine-rename-name");
-      const idInput = root.querySelector<HTMLInputElement>("#machine-rename-id");
-      const versionInput = root.querySelector<HTMLInputElement>("#machine-rename-version");
-      const errorBox = root.querySelector<HTMLElement>("#machine-rename-error");
-      if (nameInput !== null && idInput !== null && versionInput !== null && errorBox !== null) {
-        nameInput.value = row.displayName ?? "";
-        idInput.value = id;
-        versionInput.value = version;
-        errorBox.hidden = true;
-        errorBox.textContent = "";
+function renderDrawerBody(root: HTMLElement, data: MachinesPageData, machineId: string): boolean {
+  const row = data.rows.find((candidate) => candidate.machineId === machineId);
+  if (row === undefined) return false;
+  const body = root.querySelector("#machine-drawer-body");
+  if (body !== null) {
+    body.innerHTML = machineDrawerBodyHtml(
+      row,
+      data.agents.filter((agent) => agent.machine_id === machineId),
+      data.sessions.filter((session) => session.machine_id === machineId),
+      data.runtimes,
+      data.now,
+      data.rows,
+    );
+  }
+  return true;
+}
+
+function bindWorkstation(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
+  const body = root.querySelector<HTMLElement>("#machine-drawer-body");
+  body?.addEventListener("click", async (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const button = target?.closest<HTMLButtonElement>("[data-machine-attach], [data-machine-detach]") ?? null;
+    if (button === null) return;
+    const attaching = button.hasAttribute("data-machine-attach");
+    const machineId = button.getAttribute(attaching ? "data-machine-attach" : "data-machine-detach") ?? "";
+    const version = parseInt(button.getAttribute("data-machine-version") ?? "", 10);
+    const workstationId = attaching
+      ? (body.querySelector<HTMLSelectElement>("#machine-workstation-select")?.value ?? "")
+      : null;
+    if (!machineId || Number.isNaN(version) || workstationId === "") return;
+    const errorBox = body.querySelector<HTMLElement>("#machine-workstation-error");
+    button.disabled = true;
+    try {
+      const updated = await setMachineWorkstation(ctx.client, machineId, workstationId, version);
+      const row = data.rows.find((candidate) => candidate.machineId === machineId);
+      if (row !== undefined) {
+        row.workstationId = updated.workstation_id ?? null;
+        row.version = updated.version ?? null;
       }
-      openDsDialog(root, "machine-rename-dialog", button);
-    });
+      refreshList(root, data);
+      renderDrawerBody(root, data, machineId);
+      body.querySelector<HTMLElement>("[data-machine-attach], [data-machine-detach], #machine-workstation-heading")?.focus();
+    } catch (error) {
+      button.disabled = false;
+      if (errorBox !== null) {
+        errorBox.textContent = workstationErrorFr(error);
+        errorBox.hidden = false;
+      }
+    }
+  });
+}
+
+function bindRename(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
+  const body = root.querySelector<HTMLElement>("#machine-drawer-body");
+  body?.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const button = target?.closest<HTMLElement>("[data-machine-rename]") ?? null;
+    if (button === null) return;
+    const id = button.getAttribute("data-machine-rename") ?? "";
+    const version = button.getAttribute("data-machine-version") ?? "";
+    const row = data.rows.find((candidate) => candidate.machineId === id);
+    if (row === undefined) return;
+    const nameInput = root.querySelector<HTMLInputElement>("#machine-rename-name");
+    const idInput = root.querySelector<HTMLInputElement>("#machine-rename-id");
+    const versionInput = root.querySelector<HTMLInputElement>("#machine-rename-version");
+    const errorBox = root.querySelector<HTMLElement>("#machine-rename-error");
+    if (nameInput !== null && idInput !== null && versionInput !== null && errorBox !== null) {
+      nameInput.value = row.displayName ?? "";
+      idInput.value = id;
+      versionInput.value = version;
+      errorBox.hidden = true;
+      errorBox.textContent = "";
+    }
+    openDsDialog(root, "machine-rename-dialog", button);
   });
 
   const form = root.querySelector<HTMLFormElement>("#machine-rename-form");
@@ -495,19 +638,7 @@ function bindRename(root: HTMLElement, ctx: MachinesContext, data: MachinesPageD
       }
       closeDsDialog(root, "machine-rename-dialog");
       refreshList(root, data);
-      const drawerBody = root.querySelector("#machine-drawer-body");
-      if (drawerBody !== null) {
-        const row = data.rows.find((r) => r.machineId === machineId);
-        if (row !== undefined) {
-          drawerBody.innerHTML = machineDrawerBodyHtml(
-            row,
-            data.agents.filter((agent) => agent.machine_id === machineId),
-            data.sessions.filter((session) => session.machine_id === machineId),
-            data.runtimes,
-            data.now,
-          );
-        }
-      }
+      renderDrawerBody(root, data, machineId);
     } catch (error) {
       errorBox.textContent = describeError(error);
       errorBox.hidden = false;
@@ -543,6 +674,7 @@ function bindMachines(root: HTMLElement, ctx: MachinesContext, data: MachinesPag
   bindToolbar(root, data);
   bindDetails(root, data);
   bindRename(root, ctx, data);
+  bindWorkstation(root, ctx, data);
 }
 
 async function fetchEvents(client: StudioClient): Promise<EventEnvelope[]> {

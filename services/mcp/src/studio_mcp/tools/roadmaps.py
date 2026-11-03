@@ -276,6 +276,9 @@ async def studio_propose_roadmap(
     validation when `submit` is true). Never creates Tasks and never activates
     the roadmap.
 
+    To revise a `draft`, pass `roadmap_id` and its current `revision_no` as
+    `base_revision_no`; `submit` controls submission. A `proposed` roadmap
+    requires `request_changes` by an authorized reviewer before revision.
     To change an already `active` roadmap, pass `roadmap_id` and
     `base_revision_no` (the `approved_revision_no` read beforehand): the change
     is recorded as a *pending proposal revision* instead of being applied, and
@@ -315,6 +318,7 @@ async def studio_propose_roadmap(
             proposal = ProposalCreate(
                 base_revision_no=base_revision_no,
                 document=document,
+                submit=submit,
                 summary=summary,
                 provenance=provenance,
             )
@@ -330,6 +334,7 @@ async def studio_propose_roadmap(
                     {
                         "roadmap_id": roadmap_id,
                         "base_revision_no": base_revision_no,
+                        "submit": submit,
                         "summary": summary,
                         "agent_id": agent_id,
                         "document": document.model_dump(mode="json"),

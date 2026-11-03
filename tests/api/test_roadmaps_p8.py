@@ -82,6 +82,94 @@ async def active_roadmap(
     return activated.json()  # type: ignore[no-any-return]
 
 
+async def test_draft_revision_preserves_identity_links_and_replays(
+    client: AsyncClient, auth_headers: Headers, project: ProjectModel
+) -> None:
+    imported = await client.post(
+        "/api/v1/roadmaps/import",
+        headers=auth_headers,
+        json={"project_id": str(project.id), "document": document()},
+    )
+    assert imported.status_code == 201, imported.text
+    draft = imported.json()
+    task_id = await make_task(client, auth_headers, project)
+    linked = await client.post(
+        f"/api/v1/roadmaps/{draft['id']}/steps/S1/links",
+        headers=auth_headers,
+        json={"task_id": task_id},
+    )
+    assert linked.status_code == 201, linked.text
+    path = f"/api/v1/roadmaps/{draft['id']}/proposals"
+    payload = {
+        "base_revision_no": draft["revision_no"],
+        "document": document(title="Revised draft"),
+        "submit": False,
+    }
+    headers = {**auth_headers, "Idempotency-Key": f"draft-revision-{uuid.uuid4()}"}
+    first = await client.post(path, headers=headers, json=payload)
+    assert first.status_code == 201, first.text
+    assert first.json()["kind"] == "snapshot"
+    replay = await client.post(path, headers=headers, json=payload)
+    assert replay.status_code == 201, replay.text
+    assert replay.json() == first.json()
+    current = await client.get(f"/api/v1/roadmaps/{draft['id']}", headers=auth_headers)
+    assert current.status_code == 200, current.text
+    revised = current.json()
+    assert revised["id"] == draft["id"]
+    assert revised["status"] == "draft"
+    assert revised["title"] == "Revised draft"
+    assert revised["revision_no"] > draft["revision_no"]
+    assert step_of(revised, "S1")["id"] == step_of(draft, "S1")["id"]
+    assert [link["task_id"] for link in step_of(revised, "S1")["linked_tasks"]] == [task_id]
+    stale = await client.post(path, headers=auth_headers, json=payload)
+    assert stale.status_code == 409, stale.text
+    assert error(stale)["error_code"] == "version_conflict"
+    assert error(stale)["server_revision_no"] == revised["revision_no"]
+
+
+async def test_proposed_requires_request_changes_then_draft_revision_keeps_review(
+    client: AsyncClient, auth_headers: Headers, project: ProjectModel
+) -> None:
+    imported = await client.post(
+        "/api/v1/roadmaps/import",
+        headers=auth_headers,
+        json={"project_id": str(project.id), "document": document(), "submit": True},
+    )
+    assert imported.status_code == 201, imported.text
+    proposed = imported.json()
+    path = f"/api/v1/roadmaps/{proposed['id']}"
+    payload = {
+        "base_revision_no": proposed["revision_no"],
+        "document": document(title="Revised after review"),
+    }
+    rejected = await client.post(f"{path}/proposals", headers=auth_headers, json=payload)
+    assert rejected.status_code == 409, rejected.text
+    assert "request_changes" in error(rejected)["message"]
+    changes = await client.post(
+        f"{path}/transitions",
+        headers=auth_headers,
+        json={
+            "transition": "request_changes",
+            "expected_version": proposed["version"],
+            "comment": "Clarify the acceptance criteria",
+        },
+    )
+    assert changes.status_code == 200, changes.text
+    assert changes.json()["status"] == "draft"
+    revised = await client.post(f"{path}/proposals", headers=auth_headers, json=payload)
+    assert revised.status_code == 201, revised.text
+    assert revised.json()["status"] == "pending"
+    assert revised.json()["revision_no"] > proposed["revision_no"]
+    current = await client.get(path, headers=auth_headers)
+    assert current.json()["status"] == "proposed"
+    assert current.json()["title"] == "Revised after review"
+    old = await client.get(
+        f"{path}/revisions/{proposed['revision_no']}",
+        headers=auth_headers,
+    )
+    assert old.json()["review_comment"] == "Clarify the acceptance criteria"
+
+
 async def propose(
     client: AsyncClient,
     headers: Headers,
@@ -167,7 +255,7 @@ async def test_agent_proposes_on_active_without_touching_the_roadmap(
     assert proposed[-1].payload["revision_no"] == revision["revision_no"]
 
 
-async def test_proposal_requires_an_active_roadmap(
+async def test_draft_revision_submits_by_default_without_approval(
     client: AsyncClient, auth_headers: Headers, project: ProjectModel
 ) -> None:
     created = await client.post(
@@ -176,8 +264,11 @@ async def test_proposal_requires_an_active_roadmap(
         json={"project_id": str(project.id), "document": document()},
     )
     draft = created.json()
-    response = await propose(client, auth_headers, draft, document(), base=0, expected_status=409)
-    assert error(response)["error_code"] == "invalid_state"
+    response = await propose(client, auth_headers, draft, document(), base=0)
+    assert response.json()["status"] == "pending"
+    current = await client.get(f"/api/v1/roadmaps/{draft['id']}", headers=auth_headers)
+    assert current.json()["status"] == "proposed"
+    assert current.json()["approved_revision_no"] is None
 
 
 async def test_new_proposal_supersedes_the_pending_one(

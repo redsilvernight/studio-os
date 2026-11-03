@@ -130,6 +130,25 @@ describe("« Configurer ce poste » — aperçu", () => {
     expect(text).toContain("Extension de l'outil (opencode)");
   });
 
+  it("explique Git absent sans annoncer le poste entièrement configuré", () => {
+    const html = setupSectionHtml({ plan: makePlan({
+      versioning: { state: "missing", identity_configured: false, workspaces: 0, repositories: 0, with_identity: 0, with_remote: 0, unavailable: 0 },
+    }) });
+    expect(html).toContain("Git est absent");
+    expect(html).toContain("vérifiez git --version");
+    expect(html).not.toContain("Ce poste est déjà configuré");
+  });
+
+  it("distingue dépôt local, identité locale et distant facultatif", () => {
+    const html = setupSectionHtml({ plan: makePlan({
+      versioning: { state: "checked", identity_configured: false, workspaces: 2, repositories: 1, with_identity: 1, with_remote: 0, unavailable: 0 },
+    }) });
+    expect(html).toContain("1 dépôt(s) local(aux)");
+    expect(html).toContain("0 avec un distant");
+    expect(html).toContain("une identité locale au projet suffit");
+    expect(html).toContain("Un dépôt distant est facultatif");
+  });
+
   it("renvoie aux cartes de harnais pour le MCP au lieu d'y répéter leurs badges", () => {
     const html = setupSectionHtml({ plan: makePlan() }, [
       { adapter_id: "claude-code", display_name: "Claude Code", state: "detected" } as never,
@@ -272,6 +291,7 @@ describe("« Configurer ce poste » — application", () => {
     expect(result.querySelector("[data-setup-result=hook\\:claude-code]")?.getAttribute("data-outcome")).toBe("failed");
     expect(result.textContent).not.toContain("Écrit et relu</span>");
     expect(result.querySelector("[data-setup-result=guard]")?.textContent).toContain("Laissé tel quel");
+    expect(result.getAttribute("data-result-state")).toBe("error");
     expect(root.querySelector("[data-action=confirm-setup]")).toBeNull();
   });
 
@@ -284,6 +304,14 @@ describe("« Configurer ce poste » — application", () => {
     expect(result.querySelector("[data-setup-result=guard]")?.textContent).toContain("sauvegarde créée");
     expect(result.querySelector("[data-testid=setup-result-skills]")?.textContent).toContain("2 fichier(s) écrit(s)");
     expect(result.textContent).toContain("1 modifiée(s) localement");
+    expect(result.getAttribute("data-result-state")).toBe("partial");
+  });
+
+  it("distinguishes a verified successful preparation from a partial result", () => {
+    const html = setupSectionHtml({ result: { plan_id: "ok", hooks: [{ item_id: "guard", outcome: "written", backed_up: false }], skills: { outcome: "unchanged", written: 0, left_modified: 0 } } });
+    expect(html).toContain('data-result-state="success"');
+    expect(html).toContain("Préparation réussie");
+    expect(html).toContain("Terminez le raccordement");
   });
 
   it("un aperçu expiré revient au bouton, avec un message", async () => {

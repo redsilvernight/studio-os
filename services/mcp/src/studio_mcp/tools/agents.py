@@ -2,15 +2,76 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from uuid import UUID
 
+from fastapi import HTTPException
 from mcp.server.mcpserver import Context
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.services import agents as agents_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import Principal, ensure_can_write
+from studio_contracts.agent_identity import AgentIdentityRequest
 from studio_contracts.auth import Agent, AgentCreate
 
 from studio_mcp.errors import run_tool
+
+
+async def studio_resolve_agent_identity(
+    harness: str,
+    ctx: Context,
+    provider: str | None = None,
+    effective_model: str | None = None,
+    selection_alias: str | None = None,
+) -> dict[str, Any]:
+    """Resolve the caller user's durable harness/model identity; aliases alone stay unknown."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        ensure_can_write(principal, "agent")
+        try:
+            request = AgentIdentityRequest(
+                harness=harness,
+                provider=provider,
+                effective_model=effective_model,
+                selection_alias=selection_alias,
+            )
+        except ValidationError:
+            return {"error_code": "invalid_argument", "message": "invalid agent identity input"}
+        result = await agents_service.resolve_identity(
+            session,
+            principal,
+            request,
+        )
+        return result.model_dump(mode="json")
+
+    return await run_tool(ctx, _handler)
+
+
+async def studio_supersede_agent_identity(
+    legacy_agent_id: str,
+    canonical_agent_id: str,
+    ctx: Context,
+) -> dict[str, Any]:
+    """Link a former agent identity to its canonical row (DEC-0237). Explicit and reversible:
+    the former row keeps its machine, metadata and history. Admin, or the owner of both."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        ensure_can_write(principal, "agent")
+        try:
+            legacy_id = UUID(legacy_agent_id)
+            canonical_id = UUID(canonical_agent_id)
+        except ValueError:
+            return {"error_code": "invalid_argument", "message": "agent ids must be UUIDs"}
+        try:
+            agent = await agents_service.supersede_identity(
+                session, principal, legacy_id, canonical_id
+            )
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {"message": str(exc.detail)}
+            return {"error_code": detail.get("error_code", "error"), **detail}
+        return Agent.model_validate(agent).model_dump(mode="json", exclude={"owner_user_id"})
+
+    return await run_tool(ctx, _handler)
 
 
 async def studio_register_agent(
@@ -43,7 +104,7 @@ async def studio_register_agent(
                     stable_key=stable_key,
                 ),
             )
-            return Agent.model_validate(created).model_dump(mode="json")
+            return Agent.model_validate(created).model_dump(mode="json", exclude={"owner_user_id"})
 
         request_hash = idempotency_service.hash_request(
             json.dumps(

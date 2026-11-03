@@ -14,9 +14,12 @@ from studio_api.services import library as library_service
 from studio_api.services import resolution as resolution_service
 from studio_api.services import runtime_bindings as bindings_service
 from studio_api.services import runtime_registry as registry_service
+from studio_api.services import work_profile_pack as pack_service
 from studio_api.services.authz import Principal, ensure_can_write
 from studio_contracts.library import (
     DependencyPin,
+    DependencySelection,
+    DependencyUpdates,
     LibraryKind,
     LibraryResource,
     LibraryResourceCreate,
@@ -24,6 +27,7 @@ from studio_contracts.library import (
     LibraryVersion,
     LibraryVersionCreate,
     RuntimeCapabilities,
+    parse_dependency_selection,
 )
 from studio_contracts.resolution import ResolvedAgentDefinition, SessionRuntimeOverride
 from studio_contracts.runtime import (
@@ -36,6 +40,7 @@ from studio_contracts.runtime import (
     RuntimeRegistrationUpdate,
     RuntimeTarget,
 )
+from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_mcp.errors import McpError, run_tool
 from studio_mcp.util import parse_uuid
@@ -125,13 +130,13 @@ def _coerce_capabilities(
         return _invalid(f"invalid capabilities: {_validation_message(exc)}")
 
 
-def _coerce_dependencies(raw: Any) -> list[DependencyPin] | McpError:
+def _coerce_dependencies(raw: Any) -> list[DependencySelection] | McpError:
     if raw is None:
         return []
     if not isinstance(raw, list):
         return _invalid("invalid dependencies: expected a list")
     try:
-        return [p if isinstance(p, DependencyPin) else DependencyPin.model_validate(p) for p in raw]
+        return [parse_dependency_selection(pin) for pin in raw]
     except ValidationError as exc:
         return _invalid(f"invalid dependencies: {_validation_message(exc)}")
 
@@ -274,6 +279,62 @@ async def studio_discover_definitions(
     return cast(DefinitionList | DefinitionDetail | McpError, await _run_p8(ctx, _handler))
 
 
+async def studio_preview_work_profile_pack(
+    ctx: Context,
+    pack: dict[str, Any],
+    machine_policy: dict[str, Any],
+    project_id: str | None = None,
+) -> WorkProfilePackPreview | McpError:
+    """Preview a versioned work-profile pack without publishing or activating."""
+    if len(json.dumps([pack, machine_policy], default=str)) > 131072:
+        return _invalid("pack and machine policy exceed 128 KiB")
+    try:
+        request = WorkProfilePackRequest.model_validate(
+            {
+                "pack": pack,
+                "machine_policy": machine_policy,
+                "project_id": project_id,
+            }
+        )
+    except ValidationError as exc:
+        return _invalid(_validation_message(exc))
+
+    async def _handler(
+        session: AsyncSession, principal: Principal
+    ) -> WorkProfilePackPreview | McpError:
+        try:
+            return await pack_service.preview_work_profile_pack(session, principal, request)
+        except HTTPException as exc:
+            return _from_http(exc)
+
+    return cast(WorkProfilePackPreview | McpError, await _run_p8(ctx, _handler))
+
+
+async def studio_preview_dependency_updates(
+    ctx: Context,
+    resource_id: str,
+    version: int,
+    limit: int = 20,
+    offset: int = 0,
+) -> DependencyUpdates | McpError:
+    """Preview pinned dependency updates without publishing, activating or projecting."""
+    parsed = _parse_uuid(resource_id, "resource_id")
+    if isinstance(parsed, McpError):
+        return parsed
+    if version < 1 or not 1 <= limit <= 100 or offset < 0:
+        return _invalid("version must be >= 1, limit within 1..100 and offset >= 0")
+
+    async def _handler(session: AsyncSession, principal: Principal) -> DependencyUpdates | McpError:
+        try:
+            return await library_service.preview_dependency_updates(
+                session, principal, parsed, version, limit=limit, offset=offset
+            )
+        except HTTPException as exc:
+            return _from_http(exc)
+
+    return cast(DependencyUpdates | McpError, await _run_p8(ctx, _handler))
+
+
 async def studio_publish_definition(
     action: Literal["create", "create_version", "activate", "deprecate"],
     ctx: Context,
@@ -284,7 +345,7 @@ async def studio_publish_definition(
     title: str | None = None,
     description: str | None = None,
     content: dict[str, Any] | None = None,
-    dependencies: list[DependencyPin] | None = None,
+    dependencies: list[DependencySelection] | None = None,
     project_id: str | None = None,
     version: int | None = None,
     expected_resource_version: int | None = None,

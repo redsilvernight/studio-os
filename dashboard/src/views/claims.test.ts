@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { resetActorNames, setActorNames } from "../actorNames";
 import type { ResourceClaim } from "../claimsApi";
-import { filterClaims, paginateClaims, releaseClaimConfirmText, rowsHtml } from "./claims";
+import { filterClaims, newestClaimsFirst, paginateClaims, releaseClaimConfirmText, rowsHtml } from "./claims";
 
 const claim = {
   id: "claim-1",
@@ -18,6 +18,7 @@ const claim = {
   claimed_by_machine_id: "abcdef12-3456",
   status: "active",
   ttl_seconds: 3600,
+  created_at: "2026-09-01T12:00:00Z",
   expires_at: new Date(Date.now() + 3_600_000).toISOString(),
 } as unknown as ResourceClaim;
 
@@ -40,6 +41,24 @@ describe("filtre et pagination", () => {
     expect(paginateClaims(items, 99).page).toBe(3);
     expect(paginateClaims(items, 0).page).toBe(1);
     expect(paginateClaims([], 5)).toEqual({ items: [], page: 1, pages: 1 });
+  });
+
+  it("trie toutes les réservations avant pagination, avec départage stable, dans chaque filtre", () => {
+    const mixed = Array.from({ length: 25 }, (_, index) => ({
+      ...claim,
+      id: `c-${String(index).padStart(2, "0")}`,
+      status: index % 2 === 0 ? "active" : "released",
+      created_at: `2026-09-${String(Math.floor(index / 2) + 1).padStart(2, "0")}T12:00:00Z`,
+    })) as ResourceClaim[];
+    for (const filter of ["all", "active", "past"] as const) {
+      const filtered = filterClaims(mixed, filter, Date.now());
+      const sorted = newestClaimsFirst(filtered);
+      expect(sorted.map((item) => item.id)).toEqual([...sorted.map((item) => item.id)].sort().reverse());
+      expect(paginateClaims(sorted, 1).items[0]).toBe(sorted[0]);
+      expect(paginateClaims(sorted, 2).items[0]).toBe(sorted[10]);
+      expect(newestClaimsFirst([...filtered].reverse())).toEqual(sorted);
+    }
+    expect(mixed[0]?.id).toBe("c-00");
   });
 });
 

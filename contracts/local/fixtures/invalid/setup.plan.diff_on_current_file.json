@@ -54,7 +54,8 @@
       "outdated": 0,
       "reason": null,
       "state": "checked"
-    }
+    },
+    "versioning": null
   },
   "model": "SetupPlan",
   "reason": "only a differing file carries a diff"

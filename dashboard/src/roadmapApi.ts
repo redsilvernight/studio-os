@@ -235,7 +235,7 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
           params: { path: { project_id: projectId } },
         }),
       );
-      return summaries.map((summary) => ({ id: summary.id, title: summary.title, status: summary.status }));
+      return summaries.map((summary) => ({ id: summary.id, title: summary.title, status: summary.status, progress: summary.progress }));
     },
 
     async load(projectId: string, roadmapId?: string): Promise<Roadmap | null> {

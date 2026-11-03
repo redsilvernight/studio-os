@@ -13,6 +13,7 @@ step name rather than a raw stack trace.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -26,6 +27,7 @@ from uuid import UUID
 from studio_client.bootstrap import (
     load_manifest,
     manifest_path,
+    plan_files,
 )
 from studio_client.bootstrap import (
     sync as bootstrap_sync,
@@ -34,7 +36,7 @@ from studio_client.bootstrap import (
 logger = logging.getLogger(__name__)
 
 WORKTREE_SUFFIX = "-wt-"
-DEFAULT_BASE_BRANCH = "dev"
+DEFAULT_BASE_BRANCH: str | None = None
 SLUG_MAX_LENGTH = 40
 SLUG_FALLBACK = "task"
 STEP_BOOTSTRAP = "bootstrap"
@@ -62,16 +64,20 @@ GitRunner = Callable[[Sequence[str], Path], GitResult]
 
 
 def run_git(args: Sequence[str], cwd: Path) -> GitResult:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise PreparationError("worktree", "git command timed out after 30 seconds") from exc
     return GitResult(completed.returncode, completed.stdout, completed.stderr)
 
 
@@ -142,7 +148,7 @@ def ensure_task_worktree(
     task_id: UUID,
     slug: str,
     *,
-    base: str = DEFAULT_BASE_BRANCH,
+    base: str | None = DEFAULT_BASE_BRANCH,
     fetch: bool = True,
     runner: GitRunner = run_git,
 ) -> Worktree:
@@ -176,7 +182,20 @@ def ensure_task_worktree(
         if fetched.returncode != 0:
             logger.warning("launch prepare: git fetch origin failed; using the local base")
 
-    base_ref = f"origin/{base}" if _verify(runner, root, f"origin/{base}") else base
+    if base is None:
+        remote_head = runner(
+            ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], root
+        )
+        if remote_head.returncode == 0 and _verify(runner, root, remote_head.stdout.strip()):
+            base = remote_head.stdout.strip()
+        else:
+            local_head = runner(["symbolic-ref", "--quiet", "--short", "HEAD"], root)
+            base = local_head.stdout.strip() if local_head.returncode == 0 else "HEAD"
+    base_ref = (
+        f"origin/{base}"
+        if not base.startswith("origin/") and _verify(runner, root, f"origin/{base}")
+        else base
+    )
     if not _verify(runner, root, base_ref):
         raise PreparationError("worktree", f"base branch {base!r} not found")
 
@@ -196,7 +215,7 @@ class PreparationRequest:
     task_id: UUID
     task_title: str | None
     harness_id: str
-    base_branch: str = DEFAULT_BASE_BRANCH
+    base_branch: str | None = DEFAULT_BASE_BRANCH
 
 
 @dataclass(frozen=True)
@@ -222,6 +241,77 @@ def bootstrap_configurator(root: Path, request: PreparationRequest) -> Sequence[
     return (STEP_BOOTSTRAP,)
 
 
+_GIT_SHA = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+
+
+@dataclass(frozen=True)
+class WorktreeObservation:
+    """What git itself reports for a prepared worktree — never what the
+    preparation declared. `problem` is a closed token naming why the
+    worktree is not proven (`git_unavailable`, `toplevel_mismatch`,
+    `head_unreadable`, `detached_head`, `branch_mismatch`); a mismatched
+    top-level drops the commit, which would belong to another tree."""
+
+    git_sha: str | None
+    branch: str | None
+    dirty: bool | None
+    problem: str | None = None
+
+    @property
+    def verified(self) -> bool:
+        return self.problem is None and self.git_sha is not None
+
+
+def _resolved(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except OSError:
+        return path
+
+
+def observe_worktree(worktree: Worktree, *, runner: GitRunner = run_git) -> WorktreeObservation:
+    path = worktree.path
+    top = runner(["rev-parse", "--show-toplevel"], path)
+    if top.returncode != 0 or not top.stdout.strip():
+        return WorktreeObservation(None, None, None, "git_unavailable")
+    if not _same_path(_resolved(Path(top.stdout.strip())), _resolved(path)):
+        return WorktreeObservation(None, None, None, "toplevel_mismatch")
+    head = runner(["rev-parse", "HEAD"], path)
+    sha = head.stdout.strip() if head.returncode == 0 else ""
+    if not _GIT_SHA.match(sha):
+        return WorktreeObservation(None, None, None, "head_unreadable")
+    status = runner(["status", "--porcelain"], path)
+    dirty = bool(status.stdout.strip()) if status.returncode == 0 else None
+    ref = runner(["symbolic-ref", "--quiet", "--short", "HEAD"], path)
+    branch = ref.stdout.strip() if ref.returncode == 0 else ""
+    if not branch:
+        return WorktreeObservation(sha, None, dirty, "detached_head")
+    problem = None if branch == worktree.branch else "branch_mismatch"
+    return WorktreeObservation(sha, branch, dirty, problem)
+
+
+def file_digest(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def projection_digests(root: Path) -> list[tuple[str, str]] | None:
+    """Digest of every file the repo-local bootstrap manages, read from the
+    worktree after preparation (the applied bytes, not the planned ones).
+    Targets stay repository-relative. A repository without manifest projects
+    nothing (`[]`); `None` means the digests could not be computed."""
+    if not manifest_path(root).is_file():
+        return []
+    try:
+        planned = plan_files(root, load_manifest(root))
+        targets = sorted({Path(item.path).as_posix() for item in planned})
+        return [
+            (target, file_digest(root / target)) for target in targets if (root / target).is_file()
+        ]
+    except Exception:  # noqa: BLE001
+        logger.warning("launch snapshot: projection digests unavailable")
+        return None
+
+
 class LaunchPreparer:
     """Prepares the worktree then runs each injected AI configurator in order.
     Default configuration is the repo-local bootstrap; skills sync and
@@ -233,7 +323,7 @@ class LaunchPreparer:
         self,
         *,
         configurators: Sequence[IaConfigurator] | None = None,
-        base_branch: str = DEFAULT_BASE_BRANCH,
+        base_branch: str | None = DEFAULT_BASE_BRANCH,
         fetch: bool = True,
         runner: GitRunner = run_git,
     ) -> None:
@@ -262,3 +352,7 @@ class LaunchPreparer:
             except Exception as exc:
                 raise PreparationError(STEP_IA_CONFIG, str(exc)) from exc
         return PreparedLaunch(worktree, tuple(steps))
+
+    def observe(self, worktree: Worktree) -> WorktreeObservation:
+        """Ask git, with the preparer's own runner, what the worktree really is."""
+        return observe_worktree(worktree, runner=self._runner)

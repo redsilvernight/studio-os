@@ -4,10 +4,12 @@ from studio_api.db.models.account_token import AccountTokenModel
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.base import Base
+from studio_api.db.models.budget import BudgetPolicyModel, BudgetReservationModel
 from studio_api.db.models.build import BuildModel, GitHubIntegrationModel, ProducerJobModel
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
+from studio_api.db.models.execution_snapshot import ExecutionSnapshotModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel
 from studio_api.db.models.launch_credential import LaunchCredentialModel
 from studio_api.db.models.library import (
@@ -33,6 +35,7 @@ from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.transfer import TransferModel
+from studio_api.db.models.usage import UsageLedgerEntryModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.models.vault import VaultNoteLinkModel, VaultNoteModel, VaultNoteVersionModel
 from studio_api.db.models.work_session import WorkSessionModel
@@ -51,6 +54,10 @@ __all__ = [
     "TaskModel",
     "TaskLaunchModel",
     "WorkSessionModel",
+    "UsageLedgerEntryModel",
+    "ExecutionSnapshotModel",
+    "BudgetPolicyModel",
+    "BudgetReservationModel",
     "VaultNoteModel",
     "VaultNoteLinkModel",
     "VaultNoteVersionModel",

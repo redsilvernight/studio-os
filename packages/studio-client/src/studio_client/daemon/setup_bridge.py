@@ -56,8 +56,10 @@ from studio_client.machine_setup import (
     detected_harnesses,
     plan_fingerprint,
     plan_hooks,
+    probe_versioning,
 )
 from studio_client.skill_sync import (
+    GLOBAL_PROJECTION_SCOPES,
     SkillSyncConflictError,
     SkillSyncError,
     SkillSyncPlan,
@@ -169,6 +171,7 @@ class SetupBridge:
             ],
             skills=skills_step,
             adapters=self._check_adapters(),
+            versioning=probe_versioning(home, tuple(self._roots()), self._path_dirs()),
         )
         with self._lock:
             self._forget_expired()
@@ -200,7 +203,12 @@ class SetupBridge:
     def _plan_skills(self, home: Path) -> tuple[SetupSkillsStep, SkillSyncPlan | None]:
         try:
             projections = self._load_projections()
-            plan = plan_skill_sync(home, projections)
+            skills = [
+                item
+                for item in projections
+                if item.library_kind == "skill" and item.scope in GLOBAL_PROJECTION_SCOPES
+            ]
+            plan = plan_skill_sync(home, skills)
         except _SkillsUnavailable as exc:
             return SetupSkillsStep(state=SetupSkillsState.UNAVAILABLE, reason=exc.reason), None
         except SkillSyncError as exc:

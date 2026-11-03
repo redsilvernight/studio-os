@@ -105,6 +105,7 @@ test.describe("A5 onboarding Web", () => {
   test("visite → inscription → vérification → attente d'accès → accès attribué → tableau de bord", async ({ page }) => {
     const seen = watch(page);
     const stub = newStub();
+    await page.route("**/healthz", (route) => route.fulfill({ status: 200, json: { status: "ok" } }));
     await page.route("**/api/**", apiStub(stub));
 
     // Visite : l'écran de connexion propose la création de compte.

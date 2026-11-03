@@ -55,6 +55,11 @@ def test_admin_profile_is_every_registered_tool() -> None:
     assert set(TOOL_PROFILES[ADMIN_PROFILE]) == set(MCP_ACCESS)
 
 
+def test_transfer_deletion_is_discovered_only_in_admin_profile() -> None:
+    assert "studio_delete_transfer" in TOOL_PROFILES[ADMIN_PROFILE]
+    assert "studio_delete_transfer" not in SESSION_TOOL_PROFILE
+
+
 def test_default_profile_is_session() -> None:
     assert DEFAULT_TOOL_PROFILE == SESSION_PROFILE
     assert normalise_tool_profile(None) == SESSION_PROFILE

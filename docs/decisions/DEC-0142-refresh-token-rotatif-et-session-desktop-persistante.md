@@ -12,7 +12,7 @@ source: server-export
 
 Serveur : `2f654121-eb10-40c5-b834-cefa8ec1b5c2` (accepted).
 Tâche : `76ba7e87-b807-46d7-9cb1-b11c19564541`.
-Complète [DU0-B](DU0-B-session-revocation.md) (DEC-0110), sans la remplacer.
+Complète [DU0-B](DEC-0110-du-0-b-jwt-court-et-version-de-revocation.md) (DEC-0110), sans la remplacer.
 
 ## Contexte
 

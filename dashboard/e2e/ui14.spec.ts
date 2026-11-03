@@ -175,6 +175,10 @@ function apiStub(opts: StubOptions = {}) {
       await json(200, TASKS);
       return;
     }
+    if (url.includes("/api/v1/timeline/dates")) {
+      await json(200, []);
+      return;
+    }
     if (url.includes("/api/v1/timeline")) {
       await json(200, { project_id: P1, days: [] });
       return;
@@ -223,6 +227,7 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[]; errors: strin
 
 async function login(page: Page, startHash: string, opts: StubOptions = {}): Promise<void> {
   await page.route("**/api/**", apiStub(opts));
+  await page.route("**/healthz", (route) => route.fulfill({ status: 503, body: "" }));
   await page.goto(`/${startHash}`);
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
@@ -410,6 +415,8 @@ test.describe("UI-14 clavier et focus", () => {
     await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
     await expect(page.locator("#ds-toast-region .ds-toast")).toContainText("créée");
+    // Le rechargement de la liste est asynchrone : il rend le focus au déclencheur.
+    await expect(page.locator("#task-new")).toBeFocused();
 
     await page.locator(".ds-skip-link").focus();
     await page.keyboard.press("Enter");
@@ -529,11 +536,11 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(8);
+    await expect(tabs).toHaveCount(10);
     const panel = view.locator("#workspace-panel");
     await expect(panel).toHaveAttribute("role", "tabpanel");
     await expect(panel).toHaveAttribute("aria-labelledby", "ws-tab-overview");
-    for (const [index, id] of ["overview", "roadmap", "tasks", "claims", "activity", "decisions", "members", "ai-integration"].entries()) {
+    for (const [index, id] of ["overview", "mission", "roadmap", "tasks", "claims", "activity", "decisions", "history", "members", "ai-integration"].entries()) {
       await expect(tabs.nth(index)).toHaveAttribute("id", `ws-tab-${id}`);
       await expect(tabs.nth(index)).toHaveAttribute("aria-controls", "workspace-panel");
     }
@@ -542,9 +549,10 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(5)).toBeFocused();
+    await expect(tabs.nth(6)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
+    await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("Enter");
@@ -612,7 +620,9 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
     await form.locator('button[type="submit"]').click();
     const msg = form.locator("[data-msg]");
     await expect(msg).toContainText("ancrage");
-    await expect(msg).toBeFocused();
+    const harness = form.locator('input[name="harness_ref"]');
+    await expect(harness).toHaveAttribute("aria-invalid", "true");
+    await expect(harness).toBeFocused();
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -666,16 +676,20 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
   test("espacement du texte augmenté : contenu essentiel intact", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/tasks");
-    await page.addStyleTag({
-      content: "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }",
+    // Feuille construite (CSSOM) : simule une feuille utilisateur WCAG 1.4.12
+    // sans <style> inline, que la CSP appliquée bloquerait.
+    await page.evaluate(() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(
+        "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }",
+      );
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
     });
     const view = page.locator("#view");
     await expect(view.locator("h1")).toBeVisible();
     await expect(view.locator("#task-new")).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(1);
-    // Le <style> injecté par le test lui-même déclenche la politique
-    // report-only (attendu) ; aucun autre signal CSP.
-    expect(csp.every((message) => /inline style/i.test(message))).toBe(true);
+    expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
 });
@@ -724,7 +738,7 @@ test.describe("UI-14 balayage automatisé axe", () => {
     expect(blocking).toEqual([]);
     expect(fatal).toEqual([]);
     // Signaux attendus uniquement : injection <script> d'axe lui-même
-    // (report-only, preuve que la politique est active) et bruit réseau
+    // (bloquée par la CSP, axe s'exécute via evaluate) et bruit réseau
     // "Failed to load resource" (backend absent en E2E : /healthz 401,
     // /machines 404 volontaire pour la présence déduite UI-9).
     const networkNoise = /inline script|failed to load resource/i;

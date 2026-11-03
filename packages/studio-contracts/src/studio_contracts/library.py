@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 from studio_contracts.local.common import contains_secret_material
@@ -65,6 +66,37 @@ class DependencyPin(ContractModel):
     stable_key: str
     version: int
     relation: BindingRelation | None = None
+
+
+class ResourceDependencyPin(DependencyPin):
+    resource_id: UUID
+
+
+DependencySelection = ResourceDependencyPin | DependencyPin
+_DEPENDENCY_SELECTION: TypeAdapter[DependencySelection] = TypeAdapter(DependencySelection)
+
+
+def parse_dependency_selection(raw: object) -> DependencySelection:
+    return _DEPENDENCY_SELECTION.validate_python(raw)
+
+
+class DependencyUpdate(ContractModel):
+    resource_id: UUID
+    scope: LibraryScope
+    pinned_version: int
+    active_version: int
+    deprecated: bool
+    update_available: bool
+    suggested_pin: ResourceDependencyPin
+
+
+class DependencyUpdates(ContractModel):
+    resource_id: UUID
+    version: int
+    mutates: Literal[False] = False
+    items: list[DependencyUpdate] = Field(max_length=100)
+    additional_available: int = Field(default=0, ge=0)
+    offset: int = Field(default=0, ge=0)
 
 
 _BINDING_MATRIX: dict[tuple[LibraryKind, LibraryKind], BindingRelation] = {
@@ -154,7 +186,7 @@ class LibraryResourceCreate(IdempotentCreate):
     title: str = Field(min_length=1)
     description: str | None = None
     content: dict[str, object] = {}
-    dependencies: list[DependencyPin] = []
+    dependencies: list[DependencySelection] = []
 
 
 class LibraryVersion(ContractModel):
@@ -175,7 +207,7 @@ class LibraryVersionCreate(IdempotentCreate):
     title: str = Field(min_length=1)
     description: str | None = None
     content: dict[str, object] = {}
-    dependencies: list[DependencyPin] = []
+    dependencies: list[DependencySelection] = []
 
 
 class LibraryActivate(ContractModel):
@@ -475,7 +507,7 @@ def _workflow_has_cycle(participants: list[WorkflowParticipant]) -> bool:
 
 def workflow_validation_errors(
     content: dict[str, object],
-    dependencies: list[DependencyPin],
+    dependencies: Sequence[DependencyPin],
 ) -> list[dict[str, str]]:
     """Static workflow validation (P11/DEC-0075), on top of the P3 schema.
 

@@ -44,6 +44,8 @@ RULE = LibraryKind.RULE
 SKILL = LibraryKind.SKILL
 
 P8_TOOL_NAMES = {
+    "studio_preview_work_profile_pack",
+    "studio_preview_dependency_updates",
     "studio_resolve_agent",
     "studio_discover_definitions",
     "studio_publish_definition",
@@ -57,6 +59,45 @@ def as_dict(result: Any) -> dict[str, Any]:
         return result.model_dump(mode="json")
     assert isinstance(result, dict)
     return result
+
+
+async def test_preview_dependency_updates_validates_bounds_and_returns_explicit_pins(
+    auth_ctx: FakeContext, db_session: AsyncSession, machine: tuple[MachineModel, str]
+) -> None:
+    principal = await _principal(db_session, machine)
+    target = await _create(db_session, principal, RULE, _key("preview-rule"), _rule_content())
+    source = await _create(
+        db_session,
+        principal,
+        AGENT,
+        _key("preview-agent"),
+        _agent_content(),
+        dependencies=[DependencyPin(kind=RULE, stable_key=target.stable_key, version=1)],
+    )
+    result = as_dict(await p8.studio_preview_dependency_updates(auth_ctx, str(source.id), 1))
+    assert result["mutates"] is False
+    assert result["items"][0]["suggested_pin"]["resource_id"] == str(target.id)
+    assert result["items"][0]["update_available"] is False
+    for resource_id, version, limit in [
+        ("invalid", 1, 1),
+        (str(source.id), 0, 1),
+        (str(source.id), 1, 101),
+    ]:
+        rejected = await p8.studio_preview_dependency_updates(
+            auth_ctx, resource_id, version, limit=limit
+        )
+        assert isinstance(rejected, McpError)
+        assert rejected.error_code == "invalid_argument"
+
+
+async def test_pack_preview_returns_structured_validation_errors(auth_ctx: FakeContext) -> None:
+    for pack in [{"format": "unsupported"}, {"format": "x" * 131073}]:
+        result = await p8.studio_preview_work_profile_pack(
+            auth_ctx, pack, {"opt_in": False, "max_concurrent": 1}
+        )
+        assert isinstance(result, McpError)
+        assert result.error_code == "invalid_argument"
+        assert len(result.message) < 1000
 
 
 def _key(prefix: str) -> str:

@@ -245,7 +245,7 @@ test.describe("UI-10 page Transferts", () => {
     await expect(drawer).toContainText("Destinataire");
     await expect(drawer).toContainText("Informations techniques");
     await expect(drawer).toContainText("Référence de stockage");
-    await expect(drawer).toContainText("Suppression, annulation, prolongation et renvoi ne sont pas proposés");
+    await expect(drawer).toContainText("Annulation, prolongation et renvoi ne sont pas proposés");
     await expect(drawer.locator('[data-transfer-download]')).toHaveCount(1);
     await page.screenshot({ path: `${SHOTS}/transfers-detail-1280.png` });
 

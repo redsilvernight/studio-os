@@ -24,6 +24,7 @@ def test_machine_token_env_carries_the_launch_credential() -> None:
 
 def test_entry_with_credential_replaces_the_bearer_without_mutating_the_entry() -> None:
     entry = {"type": "http", "headers": {"Authorization": "Bearer durable", "X-A": "1"}}
-    replaced = entry_with_credential(entry, "ephemeral")
+    replaced = entry_with_credential(entry, "ephemeral", url="http://127.0.0.1/mcp")
     assert replaced["headers"] == {"Authorization": "Bearer ephemeral", "X-A": "1"}
+    assert replaced["url"] == "http://127.0.0.1/mcp"
     assert entry["headers"]["Authorization"] == "Bearer durable"

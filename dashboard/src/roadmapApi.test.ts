@@ -322,8 +322,8 @@ describe("createApiRoadmapDataSource with a targeted roadmap", () => {
     const GET = vi.fn().mockResolvedValue(ok([SUMMARY, PROPOSED]));
     const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
     await expect(source.listRoadmaps?.("p1")).resolves.toEqual([
-      { id: "r1", title: "Plan", status: "active" },
-      { id: "r9", title: "Bootstrap", status: "proposed" },
+      { id: "r1", title: "Plan", status: "active", progress: SUMMARY.progress },
+      { id: "r9", title: "Bootstrap", status: "proposed", progress: PROPOSED.progress },
     ]);
   });
 

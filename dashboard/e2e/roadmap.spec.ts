@@ -236,7 +236,7 @@ test.describe("Roadmap workspace", () => {
     await openRoadmap(page, roadmapFixtureProjectIds.active);
     await expect(page.getByRole("tab", { name: "Roadmap" })).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".roadmap-fixture-note")).toHaveCount(0);
-    await expect(page.getByRole("tab", { name: "Exécution" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tab", { name: "Exécution", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Étape actuelle/ })).toBeVisible();
     await expect(page.locator("[data-current-step]")).toBeVisible();

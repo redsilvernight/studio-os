@@ -47,6 +47,16 @@ describe("openDsDialog / closeDsDialog", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("ferme via un bouton [data-ds-close] re-rendu après l'ouverture", () => {
+    openDsDialog(document, "dlg", null);
+    const overlay = document.getElementById("dlg") as HTMLElement;
+    const host = document.createElement("div");
+    host.innerHTML = `<button type="button" data-ds-close><span>Fermer</span></button>`;
+    overlay.querySelector(".ds-modal, [role=dialog]")?.append(host) ?? overlay.append(host);
+    host.querySelector("span")?.click();
+    expect(overlay.hasAttribute("hidden")).toBe(true);
+  });
+
   it("piège Tab et Shift+Tab dans le dialogue", () => {
     const trigger = document.getElementById("trigger") as HTMLButtonElement;
     openDsDialog(document, "dlg", trigger);

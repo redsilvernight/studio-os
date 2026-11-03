@@ -183,3 +183,15 @@
     animation: none;
   }
 }
+.transfer-delete {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-4);
+  overflow-wrap: anywhere;
+}
+
+.transfer-delete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+

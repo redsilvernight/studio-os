@@ -55,7 +55,8 @@ def install_fake(
 
 def base_env(*bin_dirs: Path) -> dict[str, str]:
     """An environment whose PATH holds only `bin_dirs` (plus what a process
-    needs to start), so a test never sees the real machine's harnesses."""
+    needs to start), so a test never sees the real machine's harnesses —
+    including the CLIs a desktop app bundles under the user profile."""
     env = {key: value for key, value in os.environ.items() if key.upper() != "PATH"}
     system = os.environ.get("SystemRoot", "")
     entries = [str(directory) for directory in bin_dirs]
@@ -65,6 +66,8 @@ def base_env(*bin_dirs: Path) -> dict[str, str]:
     for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "STUDIO_MCP_MACHINE_TOKEN"):
         env.pop(name, None)
     for key in [key for key in env if key.upper() == "XDG_CONFIG_HOME"]:
+        del env[key]
+    for key in [key for key in env if key.upper() in {"APPDATA", "LOCALAPPDATA"}]:
         del env[key]
     return env
 
@@ -113,6 +116,23 @@ class FakeProvisioner:
     created: list[tuple[str, str, str]] = field(default_factory=list)
     revoked: list[str] = field(default_factory=list)
     tokens: dict[str, str] = field(default_factory=dict)
+    reusable: dict[str, str] = field(default_factory=dict)
+    adopted: list[str] = field(default_factory=list)
+
+    def reuse(
+        self, origin: str, display_name: str, known_machine_id: str | None
+    ) -> tuple[str, str] | None:
+        machine_id = (
+            known_machine_id
+            if known_machine_id in self.reusable
+            else next((m for m, n in self.reusable.items() if n == display_name), None)
+        )
+        if machine_id is None or machine_id in self.revoked:
+            return None
+        token = f"sk_test_{uuid4().hex}"
+        self.adopted.append(machine_id)
+        self.tokens[machine_id] = token
+        return machine_id, token
 
     def create(self, origin: str, display_name: str) -> tuple[str, str]:
         if self.fail_create:

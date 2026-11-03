@@ -180,6 +180,7 @@ export interface RoadmapListItem {
   id: string;
   title: string;
   status: RoadmapStatus;
+  progress?: RoadmapProgress;
 }
 
 export interface RoadmapDataSource {

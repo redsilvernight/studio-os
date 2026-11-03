@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -31,8 +31,35 @@ async def get_timeline(
     principal: CurrentPrincipal,
     project_id: UUID = Query(...),
     since: datetime | None = Query(default=None),
-    limit: int = Query(default=200, le=500),
+    limit: int = Query(default=200, ge=0, le=500),
+    until: datetime | None = Query(default=None, description="Exclusive upper timestamp bound."),
+    offset: int = Query(
+        default=0, ge=0, description="Rows to skip in timestamp/sequence descending order."
+    ),
 ) -> Timeline:
     return await timeline_service.get_timeline(
-        session, principal, project_id=project_id, since=since, limit=limit
+        session,
+        principal,
+        project_id=project_id,
+        since=since,
+        limit=limit,
+        until=until,
+        offset=offset,
     )
+
+
+@router.get(
+    "/dates",
+    response_model=list[date],
+    description=(
+        "Complete UTC dates of project events and recorded session starts/ends, newest first. "
+        "Independent of timeline page limits. Restricted to an accessible project."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def get_timeline_dates(
+    session: DbSession,
+    principal: CurrentPrincipal,
+    project_id: UUID = Query(...),
+) -> list[date]:
+    return await timeline_service.get_timeline_dates(session, principal, project_id)

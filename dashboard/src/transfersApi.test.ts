@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "./api";
 import {
   createTransfer,
+  deleteTransfer,
   partRange,
   sha256Hex,
   uploadPhaseLabel,
@@ -46,6 +47,19 @@ describe("createTransfer", () => {
       params: { header: { "Idempotency-Key": "key-1" } },
       body: expect.objectContaining({ filename: "a.bin", size_bytes: 10 }),
     });
+  });
+});
+
+describe("deleteTransfer", () => {
+  it("accepte le 204 sans contenu et utilise DELETE", async () => {
+    const DELETE = vi.fn().mockResolvedValue({ response: new Response(null, { status: 204 }) });
+    await expect(deleteTransfer({ DELETE } as unknown as StudioClient, "transfer-1")).resolves.toBeUndefined();
+    expect(DELETE).toHaveBeenCalledWith("/api/v1/transfers/{transfer_id}", { params: { path: { transfer_id: "transfer-1" } } });
+  });
+
+  it.each([403, 503])("rend explicite une erreur %s", async (status) => {
+    const DELETE = vi.fn().mockResolvedValue(fail(status, { detail: { error_code: status === 403 ? "forbidden" : "storage_unavailable" } }));
+    await expect(deleteTransfer({ DELETE } as unknown as StudioClient, "transfer-1")).rejects.toMatchObject({ status });
   });
 });
 

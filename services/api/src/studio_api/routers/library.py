@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, status
 from studio_contracts.library import (
+    DependencyUpdates,
     LibraryActivate,
     LibraryDeprecate,
     LibraryLockCreate,
@@ -156,6 +157,30 @@ async def list_library_versions(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library resource not found")
     rows = await library_service.list_versions(session, resource.id)
     return [await library_service.version_detail(session, row) for row in rows]
+
+
+@router.get(
+    "/{resource_id}/versions/{version}/dependency-updates",
+    response_model=DependencyUpdates,
+    description="Preview active-version changes of pinned dependencies without changing versions, "
+    "activation or projection. Suggested pins carry explicit resource UUIDs.",
+)
+async def dependency_updates(
+    resource_id: UUID,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    version: int = Path(ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> DependencyUpdates:
+    return await library_service.preview_dependency_updates(
+        session,
+        principal,
+        resource_id,
+        version,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post(

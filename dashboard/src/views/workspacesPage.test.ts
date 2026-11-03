@@ -24,9 +24,9 @@ function platformPicking(result: PickResult | Error): Platform {
 
 describe("P3 x P5 native folder pick", () => {
   it("maps a selection, cancel, unavailable and error to closed outcomes", () => {
-    expect(toFolderOutcome({ status: "selected", path: "C:\Work\game", display_name: "game" })).toEqual({
+    expect(toFolderOutcome({ status: "selected", path: "C:\\Work\\game", display_name: "game" })).toEqual({
       kind: "selected",
-      path: "C:\Work\game",
+      path: "C:\\Work\\game",
       displayName: "game",
     });
     expect(toFolderOutcome({ status: "cancelled" })).toEqual({ kind: "cancelled" });
@@ -51,7 +51,7 @@ describe("P3 x P5 native folder pick", () => {
   });
 
   it.each([
-    [{ status: "selected", path: "C:\Work\game", display_name: "game" } as PickResult, "selected", "Dossier choisi : game"],
+    [{ status: "selected", path: "C:\\Work\\game", display_name: "game" } as PickResult, "selected", "Dossier choisi : game"],
     [{ status: "cancelled" } as PickResult, "cancelled", "Sélection annulée"],
     [{ status: "error", code: "x" } as PickResult, "error", "n'a pas pu être sélectionné"],
   ])("desktop click shows the %#th outcome honestly", async (result, kind, text) => {
@@ -65,9 +65,9 @@ describe("P3 x P5 native folder pick", () => {
   });
 
   it("a selection never claims the association is done and never shows the raw path", () => {
-    const html = workspacesPageHtml("desktop", { kind: "selected", path: "C:\Secret\dir", displayName: "dir" });
-    expect(html).toContain("pas encore disponible");
-    expect(html).not.toContain("C:\Secret");
+    const html = workspacesPageHtml("desktop", { kind: "selected", path: "C:\\Secret\\dir", displayName: "dir" });
+    expect(html).toContain("Confirmez son association");
+    expect(html).not.toContain("C:\\Secret");
   });
 });
 

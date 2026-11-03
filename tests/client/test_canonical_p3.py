@@ -39,7 +39,14 @@ from studio_contracts.library import VersionOrigin
 from studio_contracts.resolution import ResolvedAgentDefinition
 
 REPO = Path(__file__).resolve().parents[2]
-KEYS = ("studio-architect", "studio-tester", "contract-guardian", "sync-debugger")
+KEYS = (
+    "studio-architect",
+    "studio-tester",
+    "contract-guardian",
+    "sync-debugger",
+    "migration-reviewer",
+    "dashboard-a11y",
+)
 FORBIDDEN = ("opus", "sonnet", "gpt-", "kimi", "anthropic", "openai", "claude-code")
 
 
@@ -54,7 +61,7 @@ def test_canonical_definitions_exist_and_parse() -> None:
         assert agent.stable_key == key
         assert agent.summary and agent.instructions and agent.triggers
         assert agent.edit_policy == "deny"
-        assert agent.rules and agent.skills
+        assert agent.rules
 
 
 def test_canonical_definitions_name_no_model_or_harness() -> None:

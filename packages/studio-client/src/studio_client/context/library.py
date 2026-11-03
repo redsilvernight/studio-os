@@ -51,6 +51,7 @@ class LibraryContextItem:
     text: str
     content_schema: str
     deprecated: bool = False
+    description: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -60,6 +61,7 @@ class LibraryContextItem:
             "version_origin": self.version_origin,
             "scope": self.scope,
             "title": self.title,
+            "description": self.description,
             "text": self.text,
             "content_schema": self.content_schema,
             "deprecated": self.deprecated,
@@ -240,6 +242,7 @@ class LibraryContextProvider:
             version_origin=origin,
             scope=str(resource.scope),
             title=version_row.title,
+            description=version_row.description,
             text=parsed.text,
             content_schema=str(parsed.content_schema),
             deprecated=status == "deprecated",

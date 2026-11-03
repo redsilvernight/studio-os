@@ -46,9 +46,12 @@ async def _heartbeat(
 
 def _caps(project_id: str, **overrides: Any) -> dict[str, Any]:
     caps: dict[str, Any] = {
-        "harnesses": [{"harness_id": "claude-code", "version": "2.1.0"}],
+        "harnesses": [
+            {"harness_id": "claude-code", "version": "2.1.0", "detected": True, "configured": True}
+        ],
         "project_ids": [project_id],
         "accepts_launches": True,
+        "launch_safety": True,
         "running_launches": 0,
         "max_launches": 2,
     }
@@ -104,6 +107,28 @@ async def test_all_reasons_reported_in_fixed_order(
         "harness_incompatible",
         "at_capacity",
     ]
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        {"harness_id": "claude-code", "detected": True, "configured": False},
+        {"harness_id": "claude-code", "detected": False, "configured": False},
+    ],
+)
+async def test_harness_not_configured_on_the_machine_is_incompatible(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    report: dict[str, Any],
+) -> None:
+    model, _ = machine
+    project_id, task_id = await _task(client, auth_headers)
+    await _heartbeat(client, auth_headers, model.id, _caps(project_id, harnesses=[report]))
+    for query in ("?harness_id=claude-code", ""):
+        entry = await _entry(client, auth_headers, task_id, query)
+        assert entry["eligible"] is False
+        assert entry["reasons"] == ["harness_incompatible"]
 
 
 async def test_heartbeat_without_capabilities_keeps_previous_report(
@@ -205,3 +230,13 @@ async def test_foreign_stored_capabilities_do_not_break_eligibility(
     entry = await _entry(client, auth_headers, task_id)
     assert entry["eligible"] is False
     assert entry["reasons"] == ["no_capabilities_report"]
+
+
+async def test_daemon_without_safety_is_not_eligible(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project, task = await _task(client, auth_headers)
+    await _heartbeat(client, auth_headers, machine[0].id, _caps(project, launch_safety=None))
+    entry = await _entry(client, auth_headers, task)
+    assert entry["eligible"] is False
+    assert "launch_safety_unsupported" in entry["reasons"]

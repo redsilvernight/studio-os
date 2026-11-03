@@ -205,6 +205,60 @@
       ],
       "title": "SetupUnavailableReason",
       "type": "string"
+    },
+    "SetupVersioningStep": {
+      "additionalProperties": false,
+      "properties": {
+        "identity_configured": {
+          "default": false,
+          "title": "Identity Configured",
+          "type": "boolean"
+        },
+        "repositories": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Repositories",
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "missing",
+            "unavailable",
+            "checked"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "unavailable": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Unavailable",
+          "type": "integer"
+        },
+        "with_identity": {
+          "default": 0,
+          "minimum": 0,
+          "title": "With Identity",
+          "type": "integer"
+        },
+        "with_remote": {
+          "default": 0,
+          "minimum": 0,
+          "title": "With Remote",
+          "type": "integer"
+        },
+        "workspaces": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Workspaces",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "SetupVersioningStep",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -259,6 +313,17 @@
     },
     "skills": {
       "$ref": "#/$defs/SetupSkillsStep"
+    },
+    "versioning": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SetupVersioningStep"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

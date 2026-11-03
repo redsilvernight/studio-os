@@ -28,8 +28,11 @@ docker compose run --rm --no-deps -T \
   --entrypoint /bin/sh \
   minio -c "
     mc alias set local http://minio:9000 '${MINIO_ROOT_USER}' '${MINIO_ROOT_PASSWORD}' >/dev/null &&
-    mc mirror --overwrite local/${MINIO_BUCKET} /backup
+    mc mirror --overwrite local/${MINIO_BUCKET} /backup &&
+    chown -R '$(id -u):$(id -g)' /backup
   "
+# The container writes as root: the chown above lets the retention below,
+# run as the invoking user, delete old mirrors.
 
 echo "backup complete: ${DEST}"
 

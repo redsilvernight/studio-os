@@ -129,8 +129,20 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
             {"expected_version": 1, "status": "accepted"},
         ),
     ),
+    ("POST", "/api/v1/task-launches/{launch_id}/retry"): (
+        Probe("/api/v1/task-launches/{launch}/retry", {}),
+    ),
     ("POST", "/api/v1/task-launches/{launch_id}/credential"): (
         Probe("/api/v1/task-launches/{launch}/credential"),
+    ),
+    ("POST", "/api/v1/task-launches/{launch_id}/snapshot"): (
+        Probe("/api/v1/task-launches/{launch}/snapshot", {}),
+    ),
+    ("GET", "/api/v1/task-launches/{launch_id}/snapshot"): (
+        Probe("/api/v1/task-launches/{launch}/snapshot"),
+    ),
+    ("GET", "/api/v1/task-launches/{launch_id}/replay-preview"): (
+        Probe("/api/v1/task-launches/{launch}/replay-preview"),
     ),
     ("POST", "/api/v1/tasks/{task_id}/release"): (Probe("/api/v1/tasks/{task}/release"),),
     ("GET", "/api/v1/sessions"): (Probe("/api/v1/sessions?task_id={task}"),),
@@ -245,6 +257,9 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ),
     ("GET", "/api/v1/library/{resource_id}"): (Probe(_LIB),),
     ("GET", "/api/v1/library/{resource_id}/versions"): (Probe(_LIB + "/versions"),),
+    ("GET", "/api/v1/library/{resource_id}/versions/{version}/dependency-updates"): (
+        Probe(_LIB + "/versions/1/dependency-updates"),
+    ),
     ("POST", "/api/v1/library/{resource_id}/versions"): (
         Probe(_LIB + "/versions", {"title": "x", "content": _RULE}),
     ),
@@ -287,6 +302,29 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/resolutions"): (
         Probe("/api/v1/resolutions", {"stable_key": "some-agent", "project_id": "{pid}"}),
     ),
+    ("POST", "/api/v1/resolutions/work-profile-pack"): (
+        Probe(
+            "/api/v1/resolutions/work-profile-pack",
+            {
+                "project_id": "{pid}",
+                "machine_policy": {"opt_in": False, "max_concurrent": 1},
+                "pack": {
+                    "format": "studio.work-profile-pack/v1",
+                    "profile": {
+                        "stable_key": "sample",
+                        "title": "Sample",
+                        "agent_stable_key": "sample",
+                    },
+                    "base": {
+                        "kind": "agent_definition",
+                        "stable_key": "sample",
+                        "version": 1,
+                        "resource_id": "{lib}",
+                    },
+                },
+            },
+        ),
+    ),
     ("POST", "/api/v1/bootstrap-plan"): (Probe("/api/v1/bootstrap-plan", {"project_id": "{pid}"}),),
     ("GET", "/api/v1/ai-work"): (
         Probe("/api/v1/ai-work?project_id={pid}"),
@@ -299,11 +337,54 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         ),
     ),
     ("PATCH", "/api/v1/ai-work/{work_id}"): (Probe("/api/v1/ai-work/{work}", {"summary": "x"}),),
+    ("GET", "/api/v1/usage"): (
+        Probe("/api/v1/usage?project_id={pid}"),
+        Probe("/api/v1/usage?task_id={task}"),
+        Probe("/api/v1/usage", expect="filtered"),
+    ),
+    ("GET", "/api/v1/usage/summary"): (
+        Probe("/api/v1/usage/summary?project_id={pid}"),
+        Probe("/api/v1/usage/summary?project_id={pid}&task_id={task}&group_by=task"),
+    ),
+    ("GET", "/api/v1/usage/configuration-history"): (
+        Probe("/api/v1/usage/configuration-history?project_id={pid}"),
+    ),
+    ("POST", "/api/v1/usage"): (
+        Probe(
+            "/api/v1/usage",
+            {
+                "project_id": "{pid}",
+                "machine_id": "{outsider_machine}",
+                "source_event_id": "outsider-usage",
+                "provenance": {"collector": "runtime"},
+                "period_start": "2026-10-11T10:00:00Z",
+                "period_end": "2026-10-11T10:00:05Z",
+            },
+        ),
+    ),
     ("GET", "/api/v1/review-queue"): (
         Probe("/api/v1/review-queue?project_id={pid}"),
         Probe("/api/v1/review-queue", expect="filtered"),
     ),
+    ("GET", "/api/v1/projects/{project_id}/mission"): (
+        Probe(f"/api/v1/projects/{_UNKNOWN}/mission"),
+        Probe("/api/v1/projects/{pid}/mission"),
+    ),
+    ("GET", "/api/v1/projects/{project_id}/budget"): (
+        Probe(f"/api/v1/projects/{_UNKNOWN}/budget"),
+        Probe("/api/v1/projects/{pid}/budget"),
+    ),
+    ("PUT", "/api/v1/projects/{project_id}/budget-policy"): (
+        Probe("/api/v1/projects/{pid}/budget-policy", {"mode": "alert_only"}),
+    ),
+    ("POST", "/api/v1/projects/{project_id}/budget-policy/approve"): (
+        Probe("/api/v1/projects/{pid}/budget-policy/approve", {"expected_version": 1}),
+    ),
+    ("POST", "/api/v1/projects/{project_id}/budget/reconcile"): (
+        Probe("/api/v1/projects/{pid}/budget/reconcile", {}),
+    ),
     ("GET", "/api/v1/timeline"): (Probe("/api/v1/timeline?project_id={pid}"),),
+    ("GET", "/api/v1/timeline/dates"): (Probe("/api/v1/timeline/dates?project_id={pid}"),),
     ("POST", "/api/v1/projects/{project_id}/github-integration"): (
         Probe(
             "/api/v1/projects/{pid}/github-integration",
@@ -462,6 +543,19 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/roadmaps/{roadmap_id}/hydration/apply"): (
         Probe(_RM + "/hydration/apply", {"expected_version": 1}),
     ),
+    ("GET", "/api/v1/roadmaps/{roadmap_id}/admission/dry-run"): (
+        Probe(_RM + "/admission/dry-run"),
+    ),
+    ("POST", "/api/v1/roadmaps/{roadmap_id}/admission"): (
+        Probe(
+            _RM + "/admission",
+            {
+                "plan_digest": "0" * 64,
+                "harness_id": "claude-code",
+                "items": [{"task_id": "{task}", "machine_id": "{outsider_machine}"}],
+            },
+        ),
+    ),
 }
 
 
@@ -509,6 +603,7 @@ async def _build_world(
                 "harnesses": [{"harness_id": "claude-code", "version": "2.1.0"}],
                 "project_ids": [pid],
                 "accepts_launches": True,
+                "launch_safety": True,
                 "running_launches": 0,
                 "max_launches": 2,
             },
@@ -586,6 +681,20 @@ async def _build_world(
         member,
         "/api/v1/ai-work",
         {"project_id": pid, "agent_id": agent["id"], "summary": "w"},
+    )
+    await _post(
+        client,
+        member,
+        "/api/v1/usage",
+        {
+            "project_id": pid,
+            "machine_id": me["id"],
+            "task_id": task,
+            "source_event_id": f"usage-{slug}",
+            "provenance": {"collector": "runtime"},
+            "period_start": "2026-10-11T10:00:00Z",
+            "period_end": "2026-10-11T10:00:05Z",
+        },
     )
     outsider_agent = await _post(client, outsider, "/api/v1/agents", {"display_name": "o"})
     await _post(
@@ -678,6 +787,8 @@ def _render(value: Any, world: dict[str, str]) -> Any:
         if value.get("$plan"):
             return _plan(world["slug"])  # re-initialize the member's project by slug
         return {k: _render(v, world) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_render(item, world) for item in value]
     if isinstance(value, str):
         return value.format(**world, new_uuid=uuid.uuid4(), now=datetime.now(UTC).isoformat())
     return value

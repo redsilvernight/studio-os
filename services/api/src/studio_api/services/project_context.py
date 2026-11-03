@@ -32,7 +32,7 @@ import json
 import math
 import re
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -159,7 +159,7 @@ _STOPWORDS = frozenset(
         "que qui quoi dont est sont etre avoir fait faire mais donc car "
         "ces cet cette son ses leur leurs mon mes ton tes nos vos notre votre "
         "plus tout tous toute toutes aussi comme lors puis ainsi "
-        "aux du de la le un en et ou ne pas"
+        "aux du de la le un en et ou ne pas non"
     ).split()
 )
 
@@ -211,6 +211,19 @@ def score(terms: list[str], title: str, body: str = "") -> tuple[int, list[str]]
             total += 1
             matched.append(term)
     return total, matched
+
+
+def focused_terms(terms: list[str], documents: Sequence[str]) -> list[str]:
+    if len(documents) < 5:
+        return terms
+    counts = {term: 0 for term in terms}
+    for document in documents:
+        present = set(tokens(document))
+        for term in terms:
+            counts[term] += term in present
+    if not any(0 < count <= len(documents) * 0.2 for count in counts.values()):
+        return terms
+    return [term for term in terms if counts[term] < len(documents) * 0.6]
 
 
 def source_references(description: str | None) -> list[str]:
@@ -385,6 +398,7 @@ async def _select_tasks(
 
     active = await projects_service.get_active_tasks(session, principal, project_id)
     candidates = [t for t in active if t.id != task_id]
+    terms = focused_terms(terms, [f"{row.title} {row.description or ''}" for row in active])
     ranked: list[tuple[int, str, str, TaskModel, list[str]]] = []
     for candidate in candidates:
         value, matched = score(terms, candidate.title, candidate.description or "")
@@ -393,10 +407,13 @@ async def _select_tasks(
     ranked.sort(key=lambda row: (-row[0], row[1], row[2]))
 
     related: list[TaskItem] = []
+    related_budget = (
+        budget.slice(int((budget.remaining + budget.used) * 0.2)) if task_id is not None else budget
+    )
     for _, _, _, candidate, matched in ranked:
         if len(related) == limit:
             break
-        item = _task_item(candidate, principal, _why("lexical", matched), budget, known_ids)
+        item = _task_item(candidate, principal, _why("lexical", matched), related_budget, known_ids)
         if item is None:
             omitted["related_tasks"] = omitted.get("related_tasks", 0) + 1
             continue
@@ -473,6 +490,7 @@ async def _select_decisions(
         for d in await decisions_service.list_decisions(session, principal, project_id=project_id)
         if d.status != "superseded"
     ]
+    terms = focused_terms(terms, [f"{row.title} {row.body}" for row in rows])
     weights = _decision_term_weights(rows)
     scored: list[tuple[DecisionModel, float, list[str], bool]] = []
     best = 0.0
@@ -488,7 +506,7 @@ async def _select_decisions(
             best = max(best, value)
         scored.append((row, value, matched, linked))
 
-    ranked: list[tuple[int, float, int, float, str, DecisionModel, Why]] = []
+    ranked: list[tuple[int, int, float, float, str, DecisionModel, Why]] = []
     for row, value, matched, linked in scored:
         if not linked and value < DECISION_MIN_RELATIVE_SCORE * best:
             continue
@@ -496,8 +514,8 @@ async def _select_decisions(
         ranked.append(
             (
                 0 if linked else 1,
-                -value,
                 0 if row.status == "accepted" else 1,
+                -value,
                 -row.created_at.timestamp(),
                 row.readable_id,
                 row,
@@ -757,6 +775,7 @@ async def _select_ai_work(
     lexically overlaps the objective. Bounded by `limit` and its own budget
     slice, so the section can neither starve nor swamp the rest."""
     rows = await ai_work_service.list_ai_work(session, principal, project_id=project_id)
+    terms = focused_terms(terms, [row.summary or "" for row in rows])
     linked: list[tuple[float, str, AIWorkLogModel]] = []
     lexical: list[tuple[int, float, str, AIWorkLogModel, list[str]]] = []
     for row in rows:
@@ -1035,6 +1054,17 @@ async def prepare_project_context(
     claims, claims_total = await _select_claims(
         session, principal, project_id, task_id, paths, limit
     )
+    ai_work, ai_work_total = await _select_ai_work(
+        session,
+        principal,
+        project_id,
+        task_id,
+        terms,
+        limit,
+        budget.slice(int(max_chars * AIWORK_BUDGET_SHARE)),
+        omitted,
+        known_ids,
+    )
     # Before decisions/rules/skills — which would otherwise drain the budget —
     # but under its own ceiling, so the Roadmap can neither starve nor swamp them.
     known_tasks: dict[uuid.UUID, TaskLocation] = {t.id: "related_tasks" for t in related}
@@ -1051,17 +1081,6 @@ async def prepare_project_context(
     )
     for name, count in roadmap.omitted.items():
         omitted[name] = omitted.get(name, 0) + count
-    ai_work, ai_work_total = await _select_ai_work(
-        session,
-        principal,
-        project_id,
-        task_id,
-        terms,
-        limit,
-        budget.slice(int(max_chars * AIWORK_BUDGET_SHARE)),
-        omitted,
-        known_ids,
-    )
     decisions, decisions_total = await _select_decisions(
         session, principal, project_id, task_id, terms, limit, budget, omitted, known_ids
     )

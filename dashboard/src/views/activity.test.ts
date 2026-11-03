@@ -2,11 +2,13 @@
  * UI-4 — Onglet Activité : timeline lisible depuis GET /timeline, jamais un
  * dump JSON. DOM-free : chaînes pures + lecture statique de workspace.css.
  */
-import { describe, expect, it } from "vitest";
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   activityLoadingHtml,
+  collapseAiWork,
   countTimelineEvents,
   TIMELINE_LIMIT_DEFAULT,
   TIMELINE_LIMIT_MAX,
@@ -14,7 +16,11 @@ import {
   timelineEventContext,
   timelineEventLabel,
   timelineHtml,
+  newestTimelineFirst,
+  renderActivityInto,
+  utcDayWindow,
 } from "./activity";
+import type { StudioClient } from "../api";
 
 const baseEvent = {
   event_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -107,6 +113,52 @@ describe("timelineEventLabel", () => {
       expect(timelineEventLabel(type)).not.toBe("Événement");
     }
     expect(timelineEventLabel("future.unknown_thing")).toBe("Événement");
+  });
+
+  it("signaux coordination.* : libellé d'intention, jamais le type brut", () => {
+    expect(timelineEventLabel("coordination.question")).toBe("Question");
+    expect(timelineEventLabel("coordination.blocked_by")).toBe("Blocage");
+    expect(timelineEventLabel("coordination.handoff")).toBe("Passage de relais");
+    expect(timelineEventLabel("coordination.heads_up")).toBe("Information");
+    for (const type of ["coordination.question", "coordination.blocked_by", "coordination.handoff", "coordination.heads_up"]) {
+      expect(timelineEventLabel(type)).not.toContain("coordination");
+    }
+    expect(timelineEventLabel("coordination.future_intent")).toBe("Événement");
+  });
+});
+
+describe("coordination.* dans la timeline", () => {
+  const html = timelineHtml({
+    timeline: timeline({
+      date: "2026-09-12",
+      events: [
+        event({
+          event_type: "coordination.question",
+          task_id: "t1",
+          payload: { text: "Le chemin de sortie est-il validé ?" },
+        }),
+      ],
+    }),
+    limit: TIMELINE_LIMIT_DEFAULT,
+  });
+
+  it("la timeline n'est pas filtrée : un signal s'y affiche comme les autres", () => {
+    expect(html).toContain("Question");
+    expect(html).toContain("1 événement(s)");
+    expect(html).toContain('href="#/tasks/t1"');
+    expect(html).not.toContain("coordination");
+  });
+
+  it("intention future : libellé générique, jamais le type brut", () => {
+    const future = timelineHtml({
+      timeline: timeline({
+        date: "2026-09-12",
+        events: [event({ event_type: "coordination.future_intent" })],
+      }),
+      limit: TIMELINE_LIMIT_DEFAULT,
+    });
+    expect(future).toContain("Événement");
+    expect(future).not.toContain("future_intent");
   });
 });
 
@@ -219,14 +271,14 @@ describe("timelineHtml limites et états", () => {
     const events = Array.from({ length: TIMELINE_LIMIT_DEFAULT }, () => event({ event_type: "task.updated" }));
     const html = timelineHtml({ timeline: timeline({ date: "2026-09-12", events }), limit: TIMELINE_LIMIT_DEFAULT });
     expect(html).toContain("data-timeline-more");
-    expect(html).toContain("historique plus ancien");
+    expect(html).toContain("suite de cette journée");
   });
 
-  it("plafond serveur : message honnête, plus de bouton", () => {
+  it("une page pleine continue au-delà de 500 événements", () => {
     const events = Array.from({ length: TIMELINE_LIMIT_MAX }, () => event({ event_type: "task.updated" }));
     const html = timelineHtml({ timeline: timeline({ date: "2026-09-12", events }), limit: TIMELINE_LIMIT_MAX });
-    expect(html).not.toContain("data-timeline-more");
-    expect(html).toContain(`${TIMELINE_LIMIT_MAX} événements`);
+    expect(html).toContain("data-timeline-more");
+    expect(html).not.toContain("limite serveur");
   });
 });
 
@@ -240,6 +292,211 @@ describe("countTimelineEvents", () => {
         ),
       ),
     ).toBe(3);
+  });
+});
+
+describe("historique exhaustif et pagination par journée UTC", () => {
+  it("trie les jours et événements du plus récent au plus ancien sans muter la source", () => {
+    const source = timeline(
+      { date: "2026-09-11", events: [event({ event_id: "old", server_timestamp: "2026-09-11T23:59:00Z" })] },
+      { date: "2026-09-12", events: [
+        event({ event_id: "a", server_timestamp: "2026-09-12T12:00:00+02:00" }),
+        event({ event_id: "b", server_timestamp: "2026-09-12T11:00:00Z" }),
+      ] },
+    );
+    const sorted = newestTimelineFirst(source);
+    expect(sorted.days.map((day) => day.date)).toEqual(["2026-09-12", "2026-09-11"]);
+    expect(sorted.days[0]?.events.map((item) => item.event_id)).toEqual(["b", "a"]);
+    expect((source as { days: { date: string }[] }).days[0]?.date).toBe("2026-09-11");
+    expect(utcDayWindow("2026-10-25")).toEqual({ since: "2026-10-25T00:00:00.000Z", until: "2026-10-26T00:00:00.000Z" });
+  });
+
+  it("charge 501 événements à la demande puis un ancien mois indépendant du lot récent", async () => {
+    const root = document.createElement("div");
+    const GET = vi.fn(async (path: string, options: { params: { query: Record<string, unknown> } }) => {
+      const query = options.params.query;
+      expect(query["project_id"]).toBe("p1");
+      if (path.endsWith("/dates")) return { response: new Response(), data: ["2026-10-20", "2026-07-09"] };
+      if (path.endsWith("/sessions")) return { response: new Response(), data: [] };
+      const selected = String(query["since"]).slice(0, 10);
+      const offset = Number(query["offset"]);
+      const total = selected === "2026-10-20" ? 501 : 1;
+      const events = Array.from({ length: Math.min(200, total - offset) }, (_, index) => event({
+        event_id: `${selected}-${offset + index}`,
+        event_type: "task.updated",
+        payload: { title: `${selected}-événement-${offset + index}` },
+        server_timestamp: `${selected}T12:00:00Z`,
+      }));
+      return { response: new Response(), data: timeline({ date: selected, events }) };
+    });
+    await renderActivityInto(root, { client: { GET } as unknown as StudioClient, projectId: "p1", authed: true });
+    expect(root.querySelectorAll(".tl-item")).toHaveLength(200);
+    root.querySelector<HTMLButtonElement>("[data-timeline-more]")!.click();
+    await vi.waitFor(() => expect(root.querySelectorAll(".tl-item")).toHaveLength(400));
+    root.querySelector<HTMLButtonElement>("[data-timeline-more]")!.click();
+    await vi.waitFor(() => expect(root.querySelectorAll(".tl-item")).toHaveLength(501));
+    expect(root.querySelector("[data-timeline-more]")).toBeNull();
+    for (let i = 0; i < 3; i++) root.querySelector<HTMLButtonElement>('[data-cal-month="-1"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-cal-day="2026-07-09"]')!.click();
+    await vi.waitFor(() => expect(root.textContent).toContain("2026-07-09-événement-0"));
+    expect(root.querySelectorAll(".tl-item")).toHaveLength(1);
+    expect(GET.mock.calls.some(([path, options]) => path.endsWith("/timeline") && options.params.query["offset"] === 400)).toBe(true);
+    expect(GET.mock.calls.find(([path, options]) => path.endsWith("/timeline") && String(options.params.query["since"]).startsWith("2026-07"))?.[1].params.query["until"]).toBe("2026-07-10T00:00:00.000Z");
+    expect(root.textContent).toContain("Dates et heures en UTC");
+  });
+
+  it("une session sans événements reste consultable au calendrier, et une panne ne devient pas un jour vide", async () => {
+    const root = document.createElement("div");
+    const GET = vi.fn(async (path: string) => ({
+      response: new Response(),
+      data: path.endsWith("/dates") ? ["2026-01-02"] : path.endsWith("/sessions") ? [{
+        id: "s1", task_id: "t1", machine_id: "m1", agent_id: null,
+        started_at: "2026-01-01T23:59:00Z", ended_at: "2026-01-02T00:01:00Z", status: "ended",
+      }] : timeline(),
+    }));
+    await renderActivityInto(root, { client: { GET } as unknown as StudioClient, projectId: "p1", authed: true });
+    expect(root.textContent).toContain("Session de travail terminée");
+    expect(root.textContent).not.toContain("Aucune activité");
+    expect(root.querySelector('a[href="#/tasks/t1"]')).not.toBeNull();
+    GET.mockRejectedValueOnce(new Error("réseau indisponible"));
+    root.querySelector<HTMLButtonElement>("[data-cal-latest]")!.click();
+    await vi.waitFor(() => expect(root.querySelector('[role="alert"]')?.textContent).toContain("réseau indisponible"));
+    expect(root.textContent).not.toContain("Aucune activité");
+    expect(root.querySelector("[data-timeline-retry]")).not.toBeNull();
+  });
+});
+
+describe("collapseAiWork", () => {
+  const WORK = "50000000-0000-4111-8111-000000000004";
+  const workEvent = (type: string, at: string, aiWorkId: unknown = WORK) =>
+    event({ event_id: `${at}-${type}`, event_type: type, server_timestamp: at, payload: { ai_work_id: aiWorkId } });
+
+  it("started + completed : une seule entrée, la plus récente conservée", () => {
+    const collapsed = collapseAiWork(
+      timeline({
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z"),
+          workEvent("ai_work.completed", "2026-09-12T10:30:00Z"),
+        ],
+      }),
+    );
+    expect(collapsed.days).toHaveLength(1);
+    expect(collapsed.days[0]?.events).toHaveLength(1);
+    expect(collapsed.days[0]?.events[0]?.event_type).toBe("ai_work.completed");
+    expect(countTimelineEvents(collapsed)).toBe(1);
+  });
+
+  it("affiche le libellé du plus récent, jamais « démarré »", () => {
+    const html = timelineHtml({
+      timeline: timeline({
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z"),
+          workEvent("ai_work.completed", "2026-09-12T10:30:00Z"),
+        ],
+      }),
+      limit: TIMELINE_LIMIT_DEFAULT,
+    });
+    expect(html).toContain("Travail IA terminé");
+    expect(html).not.toContain("Travail IA démarré");
+    expect(html).toContain("1 événement(s)");
+    expect(html.match(/class="tl-item"/g)).toHaveLength(1);
+  });
+
+  it("paire répartie sur deux jours : l'entrée reste dans le jour du plus récent", () => {
+    const collapsed = collapseAiWork(
+      timeline(
+        { date: "2026-09-12", events: [workEvent("ai_work.started", "2026-09-11T23:50:00Z")] },
+        { date: "2026-09-11", events: [workEvent("ai_work.completed", "2026-09-12T00:10:00Z")] },
+      ),
+    );
+    expect(collapsed.days.map((d) => d.date)).toEqual(["2026-09-11"]);
+    expect(collapsed.days[0]?.events.map((e) => e.event_type)).toEqual(["ai_work.completed"]);
+  });
+
+  it("un jour vidé par la déduplication disparaît, le reste garde son ordre", () => {
+    const collapsed = collapseAiWork(
+      timeline(
+        {
+          date: "2026-09-12",
+          events: [
+            event({ event_type: "task.created" }),
+            workEvent("ai_work.completed", "2026-09-12T10:00:00Z"),
+            event({ event_type: "task.completed" }),
+          ],
+        },
+        { date: "2026-09-11", events: [workEvent("ai_work.started", "2026-09-11T23:50:00Z")] },
+      ),
+    );
+    expect(collapsed.days.map((d) => d.date)).toEqual(["2026-09-12"]);
+    expect(collapsed.days[0]?.events.map((e) => e.event_type)).toEqual([
+      "task.created",
+      "ai_work.completed",
+      "task.completed",
+    ]);
+  });
+
+  it("travaux IA distincts, horodatages égaux et identifiants absents : rien n'est écrasé", () => {
+    const collapsed = collapseAiWork(
+      timeline({
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z", "work-a"),
+          workEvent("ai_work.completed", "2026-09-12T09:00:00Z", "work-a"),
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z", "work-b"),
+          workEvent("ai_work.started", "2026-09-12T11:00:00Z", undefined),
+          workEvent("ai_work.started", "2026-09-12T12:00:00Z", "  "),
+        ],
+      }),
+    );
+    // Égalité d'horodatage : la première occurrence l'emporte (stabilité).
+    expect(collapsed.days[0]?.events.map((e) => e.event_type)).toEqual([
+      "ai_work.started",
+      "ai_work.started",
+      "ai_work.started",
+      "ai_work.started",
+    ]);
+  });
+
+  it("événements non ai_work intacts : ni regroupés ni déplacés, même identifiant dans le payload", () => {
+    const source = timeline({
+      date: "2026-09-12",
+      events: [
+        event({ event_id: "e1", event_type: "task.created", server_timestamp: "2026-09-12T09:00:00Z" }),
+        event({
+          event_id: "e2",
+          event_type: "session.started",
+          server_timestamp: "2026-09-12T09:00:00Z",
+          payload: { ai_work_id: WORK },
+        }),
+        event({ event_id: "e3", event_type: "task.completed", server_timestamp: "2026-09-12T09:00:00Z" }),
+      ],
+    });
+    expect(collapseAiWork(source).days[0]?.events.map((e) => e.event_id)).toEqual(["e1", "e2", "e3"]);
+  });
+
+  it("n'est pas mutante et reste idempotente", () => {
+    const source = timeline(
+      {
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z"),
+          workEvent("ai_work.completed", "2026-09-12T10:00:00Z"),
+        ],
+      },
+      { date: "2026-09-11", events: [event({ event_type: "task.created" })] },
+    );
+    const before = JSON.parse(JSON.stringify(source));
+    const once = collapseAiWork(source);
+    expect(JSON.parse(JSON.stringify(source))).toEqual(before);
+    expect(once).not.toBe(source);
+    expect(collapseAiWork(once)).toEqual(once);
+  });
+
+  it("reste neutre sur une timeline sans ai_work", () => {
+    const source = timeline({ date: "2026-09-12", events: [event({ event_type: "task.created" })] });
+    expect(collapseAiWork(source)).toEqual(source);
   });
 });
 

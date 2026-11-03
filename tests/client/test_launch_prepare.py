@@ -11,6 +11,7 @@ from studio_client.daemon.launch_prepare import (
     PreparationRequest,
     bootstrap_configurator,
     ensure_task_worktree,
+    run_git,
     task_branch_name,
     task_slug,
     worktree_path,
@@ -73,6 +74,44 @@ def test_ensure_creates_then_reuses_the_task_worktree(tmp_path: Path) -> None:
     again = ensure_task_worktree(repo, task_id, "demo")
     assert again.created is False
     assert again.path == created.path
+
+
+@pytest.mark.parametrize("branch", ["main", "trunk", "release/candidate"])
+def test_default_base_uses_repository_branch_without_requiring_dev(
+    tmp_path: Path, branch: str
+) -> None:
+    repo = _repo(tmp_path, base=branch)
+    expected = _git(repo, "rev-parse", "HEAD").strip()
+    created = ensure_task_worktree(repo, uuid4(), "neutral", fetch=False)
+    assert _git(created.path, "rev-parse", "HEAD").strip() == expected
+    assert _git(repo, "branch", "--list", "dev").strip() == ""
+
+
+def test_default_base_prefers_declared_remote_head_to_current_feature_branch(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path, base="main")
+    expected = _git(repo, "rev-parse", "HEAD").strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", expected)
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    _git(repo, "checkout", "-b", "feature/local")
+    (repo / "later.txt").write_text("feature-only", encoding="utf-8")
+    _git(repo, "add", "later.txt")
+    _git(repo, "commit", "-m", "feature-only")
+    created = ensure_task_worktree(repo, uuid4(), "neutral", fetch=False)
+    assert _git(created.path, "rev-parse", "HEAD").strip() == expected
+    assert not (created.path / "later.txt").exists()
+
+
+def test_git_timeout_is_a_preparation_error_without_an_invented_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def timed_out(*args, **kwargs):
+        raise subprocess.TimeoutExpired("git", 30)
+
+    monkeypatch.setattr(subprocess, "run", timed_out)
+    with pytest.raises(PreparationError, match="timed out"):
+        run_git(["status"], tmp_path)
 
 
 def test_ensure_reuses_an_existing_branch_without_a_worktree(tmp_path: Path) -> None:

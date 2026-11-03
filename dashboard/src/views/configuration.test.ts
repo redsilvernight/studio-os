@@ -22,6 +22,10 @@ import {
   runtimeDetailHtml,
   safeMetadataEntries,
   runtimesPageHtml,
+  runtimeVocabularyHtml,
+  runtimeOptionLabel,
+  updateRuntimeFormHtml,
+  capabilityGapsNoticeHtml,
 } from "./configuration";
 
 const caps = (overrides: Partial<RuntimeCapabilities> = {}): RuntimeCapabilities => ({
@@ -250,7 +254,7 @@ describe("runtimesPageHtml (rendu)", () => {
     expect(html).toContain("Configuration");
     expect(html).toContain("Administration / Configuration");
     expect(html).toContain("Runtimes enregistrés");
-    expect(html).toContain("environnement/cible d'exécution");
+    expect(html).toContain("configuration qui permet d'exécuter un modèle");
     expect(html).toContain("#/inspector");
     expect(html).toContain("#/configuration/runtimes/rt-1");
     expect(html).not.toContain("<table");
@@ -314,5 +318,92 @@ describe("createRuntimeFormHtml", () => {
     expect(html).toContain("Un envoi répété ne crée pas de doublon.");
     expect(html).not.toContain("POST /runtimes");
     expect(html).not.toMatch(/anthropic|openai|ollama|gemini|mistral|gpt-4/i);
+  });
+});
+
+describe("runtimeVocabularyHtml", () => {
+  it("explique Poste / Agent / Runtime / Définition d'agent / Liaison sans identifiant interne", () => {
+    const html = runtimeVocabularyHtml(false);
+    expect(html).toContain("Comment ça s'articule");
+    for (const term of ["Poste", "Agent", "Runtime", "Définition d'agent", "Liaison"]) expect(html).toContain(`<dt>${term}</dt>`);
+    expect(html).toContain('href="#/library/');
+    expect(html).not.toMatch(/_ref|_id|uuid/);
+    expect(html).not.toContain(" open");
+  });
+
+  it("s'ouvre sur la page Runtimes quand aucun runtime n'existe", () => {
+    expect(runtimesPageHtml([])).toMatch(/<details class="settings-howto" open>/);
+    expect(runtimesPageHtml([runtime()])).toMatch(/<details class="settings-howto">/);
+  });
+});
+
+describe("libellés guidés", () => {
+  it("remplace provider/model/harness par Fournisseur / Modèle / Outil (harness)", () => {
+    const page = runtimesPageHtml([runtime()]);
+    expect(page).toContain("Fournisseur");
+    expect(page).toContain("Outil (harness)");
+    expect(page).not.toMatch(/>(Provider|Model|Harness)\b/);
+    const detail = runtimeDetailHtml(runtime(), [], null);
+    expect(detail).toContain("<dt>Fournisseur</dt>");
+    expect(detail).toContain("<dt>Modèle</dt>");
+    expect(detail).toContain("<dt>Outil (harness)</dt>");
+    expect(runtimeTargetSummary(target({ provider_ref: "p", model_ref: "m" }))).toContain("Fournisseur");
+  });
+
+  it("propose un choix de poste au lieu d'un uuid libre à la création", () => {
+    const html = createRuntimeFormHtml([{ id: "m-1", label: "Atelier" }]);
+    expect(html).toContain('<select name="machine_id"');
+    expect(html).toContain("Aucun poste (cible distante)");
+    expect(html).toContain("Atelier");
+    expect(html).toContain('list="settings-harness-create"');
+    expect(html).not.toContain("uuid");
+  });
+});
+
+describe("updateRuntimeFormHtml", () => {
+  it("pré-remplit les valeurs actuelles et range la version dans « Avancé »", () => {
+    const html = updateRuntimeFormHtml(
+      runtime({ machine_id: "m-1", version: 4, runtime_metadata: { region: "eu" } }),
+      [{ id: "m-1", label: "Atelier" }],
+    );
+    expect(html).toContain('name="provider_ref" value="provider-a"');
+    expect(html).toContain('name="model_ref" value="model-a"');
+    expect(html).toContain('value="harness-a"');
+    expect(html).toContain('<option value="m-1" selected>Atelier</option>');
+    expect(html).toContain("region=eu</textarea>");
+    expect(html).toMatch(/<summary>Avancé<\/summary><label class="stack">Version attendue <input name="expected_version"[^>]*value="4"/);
+    expect(html).not.toContain("detach_machine");
+    expect(html).not.toContain("update_capabilities");
+  });
+});
+
+describe("runtimeDetailHtml — origine du choix", () => {
+  it("renvoie vers l'Inspecteur pour l'origine du choix effectif et garde le tableau des liaisons", () => {
+    const html = runtimeDetailHtml(runtime(), [binding()], null);
+    expect(html).toContain("Origine du choix effectif : voir l'<a href=\"#/inspector\">Inspecteur</a>");
+    expect(html).toContain("<table");
+  });
+});
+
+describe("runtimeOptionLabel", () => {
+  it("affiche le titre et le poste", () => {
+    expect(runtimeOptionLabel(runtime({ machine_id: "m-1" }), new Map([["m-1", "Atelier"]]))).toBe(
+      "harness-a · provider-a · model-a — poste Atelier",
+    );
+    expect(runtimeOptionLabel(runtime())).toBe("harness-a · provider-a · model-a — sans poste (cible distante)");
+  });
+});
+
+describe("capabilityGapsNoticeHtml", () => {
+  it("liste les écarts de façon indicative, sans bloquer", () => {
+    const html = capabilityGapsNoticeHtml([{ key: "coding", label: "Code", required: "requis", declared: "non déclaré" }]);
+    expect(html).toContain("Écarts déclarés");
+    expect(html).toContain("le serveur tranche, voir l'<a href=\"#/inspector\">Inspecteur</a>");
+    expect(html).toContain("exigé requis, déclaré non déclaré");
+    expect(html).not.toContain("role=\"alert\"");
+  });
+
+  it("dit qu'aucun écart n'est déclaré", () => {
+    expect(capabilityGapsNoticeHtml([])).toContain("Aucun écart déclaré");
   });
 });

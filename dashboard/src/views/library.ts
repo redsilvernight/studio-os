@@ -2,16 +2,16 @@
  * UI-7 — Bibliothèque : trouver, comprendre, lire, gérer.
  *
  * Refonte de la Bibliothèque CRUD (P12) en bibliothèque de connaissances
- * lisible : page racine calme (5 catégories françaises), listes
+ * lisible : page racine calme (6 catégories françaises), listes
  * documentaires aérées avec recherche locale dominante, page détail
  * d'abord LECTURE (contenu prioritaire, technique replié), versions en
  * divulgation progressive, création en modale DS.
  *
- * Capacités préservées (0 perte) : 5 kinds, index, liste par kind,
+ * Capacités préservées (0 perte) : 6 kinds, index, liste par kind,
  * création (+ Idempotency-Key), détail, versions, nouvelle version, locks,
  * Activate / Deprecate (avec révision optimiste), shadowing (signalé, non
- * décidé), deep link Inspector (agent-definitions). Aucun nouveau kind,
- * aucun endpoint, aucun contrat modifié.
+ * décidé), deep link Inspector (agent-definitions). Aucun endpoint,
+ * aucun contrat modifié.
  *
  * Données honnêtes : GET /library ne retourne que des LibraryResource
  * (id, kind, stable_key, scope, status, active_version, …) — ni titre ni
@@ -24,6 +24,8 @@
  */
 import type { StudioClient } from "../api";
 import type { components } from "../openapi-schema";
+import { loadHookListContent, loadIncomingHookDependencies, type HookListContent, type IncomingHookDependency } from "../libraryHooks";
+import { bindHookScriptFields } from "./hookForms";
 import {
   LIBRARY_KINDS,
   contentSchema,
@@ -53,6 +55,8 @@ import {
   listLibraryLocks,
   listLibraryResources,
   listLibraryVersions,
+  previewDependencyUpdates,
+  previewWorkProfilePack,
   releaseLibraryLock,
   type LibraryLockCreate,
   type LibraryProjectLock,
@@ -60,6 +64,9 @@ import {
   type LibraryResourceCreate,
   type LibraryVersion,
   type LibraryVersionCreate,
+  type DependencyUpdates,
+  type WorkProfilePackPreview,
+  type WorkProfilePackRequest,
 } from "../libraryApi";
 import {
   buildContent,
@@ -91,6 +98,8 @@ import { newIdempotencyKey } from "../claimsApi";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
+import { getPlatform } from "../platform";
+import { getSkillsSyncStatus, type SkillsSyncStatus } from "../skillsApi";
 
 export interface LibraryContext {
   client: StudioClient;
@@ -145,6 +154,13 @@ export const LIBRARY_KIND_FR: readonly LibraryKindFr[] = [
     singular: "Profil de modèle",
     plural: "Profils de modèles",
     description: "Besoins en capacités pour choisir un modèle : raisonnement, outils, contexte.",
+  },
+  {
+    slug: "hooks",
+    kind: "hook",
+    singular: "Hook",
+    plural: "Hooks",
+    description: "Scripts déclenchés par les outils, avec consentement d'exécution propre à chaque machine.",
   },
 ];
 
@@ -253,7 +269,7 @@ export function filterLibraryResources(resources: LibraryResource[], state: Libr
 /* premier plan : stable_key, badges portée/état, version active).     */
 /* ------------------------------------------------------------------ */
 
-function resourceItemHtml(resource: LibraryResource): string {
+function resourceItemHtml(resource: LibraryResource, hookContent?: HookListContent): string {
   const active =
     resource.active_version === 0
       ? `<span class="ds-list-sub">Aucune version activée</span>`
@@ -262,13 +278,23 @@ function resourceItemHtml(resource: LibraryResource): string {
     `<li class="ds-card library-item"><div class="library-item-top">` +
     `<h3 class="library-item-title"><a href="${esc(libraryKindHref(resource.kind, resource.id))}"><code class="mono">${esc(resource.stable_key)}</code></a></h3>` +
     `<span class="library-item-badges">${scopeBadge(resource.scope)}${statusBadge(resource.status)}</span></div>` +
-    `${active}<p class="ds-list-sub">Mis à jour le ${fmtTime(resource.updated_at)}</p></li>`
+    `${active}${resource.kind === "hook" ? hookListMetadataHtml(hookContent, resource.active_version) : ""}<p class="ds-list-sub">Mis à jour le ${fmtTime(resource.updated_at)}</p></li>`
   );
 }
 
-export function resourcesTableHtml(resources: LibraryResource[]): string {
+export function resourcesTableHtml(resources: LibraryResource[], hookContents?: Map<string, HookListContent>): string {
   if (resources.length === 0) return dsEmptyState("Aucune ressource", "Aucune ressource de cette catégorie pour le moment.");
-  return `<ul class="library-list">${resources.map(resourceItemHtml).join("")}</ul>`;
+  return `<ul class="library-list">${resources.map((resource) => resourceItemHtml(resource, hookContents?.get(resource.id))).join("")}</ul>`;
+}
+
+function hookListMetadataHtml(content: HookListContent | undefined, activeVersion: number): string {
+  if (content?.error !== undefined) return `<p class="ds-field-error">Contenu du hook indisponible : ${esc(content.error)}</p>`;
+  if (content?.summary == null) return `<p class="ds-list-sub">Aucun contenu de hook disponible.</p>`;
+  const summary = content.summary;
+  return `<dl class="library-kv"><div><dt>Événement</dt><dd><code class="mono">${esc(summary.event)}</code></dd></div>` +
+    `<div><dt>Matcher</dt><dd>${summary.matcher === null ? "Aucun filtre" : `<code class="mono">${esc(summary.matcher)}</code>`}</dd></div>` +
+    `<div><dt>Mode</dt><dd>${esc(summary.mode)}</dd></div></dl>` +
+    (activeVersion === 0 ? `<p class="ds-list-sub">Contenu de la dernière version : v${summary.version}, non activée</p>` : "");
 }
 
 export function versionsTableHtml(versions: LibraryVersion[], activeVersion: number): string {
@@ -333,8 +359,45 @@ function ioTableHtml(declarations: WorkflowIODeclaration[], caption: string): st
   return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">${esc(caption)}</caption><thead><tr><th scope="col">Nom</th><th scope="col">Description</th><th scope="col">Requise</th><th scope="col">Type</th><th scope="col">Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function hookContentHtml(content: LibraryVersion["content"]): string {
+  const mode = content["mode"] ?? "advisory";
+  const timeout = content["timeout_seconds"] ?? 30;
+  if (content["content_schema"] !== "studio.library.hook/v1" || typeof content["event"] !== "string" || typeof mode !== "string" || !Array.isArray(content["scripts"])) {
+    return dsEmptyState("Contenu non canonique", "Cette version ne suit pas la forme canonique studio.library.hook/v1.");
+  }
+  const scripts = content["scripts"].map((script: unknown) => {
+    if (typeof script !== "object" || script === null) return "";
+    const value = script as Record<string, unknown>;
+    const os = value["os"] ?? "any";
+    if (typeof value["body"] !== "string" || typeof os !== "string" || typeof value["shell"] !== "string") return "";
+    return `<h3>Script ${esc(os)} · ${esc(value["shell"])}</h3><pre class="library-prose mono">${esc(value["body"])}</pre>`;
+  }).join("");
+  const description = typeof content["description"] === "string" ? `<p class="library-prose">${esc(content["description"])}</p>` : "";
+  const matcher = typeof content["matcher"] === "string" ? `<code class="mono">${esc(content["matcher"])}</code>` : "Aucun filtre";
+  return description + `<dl class="library-kv"><div><dt>Événement</dt><dd><code class="mono">${esc(content["event"])}</code></dd></div>` +
+    `<div><dt>Matcher</dt><dd>${matcher}</dd></div><div><dt>Mode</dt><dd>${esc(mode)}</dd></div>` +
+    `<div><dt>Délai maximal</dt><dd>${typeof timeout === "number" ? timeout : "—"} secondes</dd></div></dl>` + scripts +
+    `<p class="ds-notice ds-notice--info">L'exécution locale exige un consentement explicite sur chaque machine. Activer cette version ne donne pas ce consentement.</p>`;
+}
+
+export function incomingHookDependenciesHtml(dependencies: IncomingHookDependency[]): string {
+  if (dependencies.length === 0) return dsEmptyState("Aucune dépendance entrante déclarée", "Aucune référence uses_hook à cette clé dans les versions consultées.");
+  return `<ul class="library-list">${dependencies.map((dependency) =>
+    `<li class="ds-card library-item"><a href="${esc(libraryKindHref(dependency.resource.kind, dependency.resource.id))}">${esc(dependency.resource.stable_key)} — v${dependency.sourceVersion}</a>` +
+    `<p>${scopeBadge(dependency.resource.scope)} Référence <code class="mono">uses_hook</code> vers la version v${dependency.hookVersion} du hook.</p></li>`,
+  ).join("")}</ul>`;
+}
+
+function hookIncomingSectionHtml(): string {
+  return `<section class="ds-panel" aria-label="Dépendances entrantes"><header><h2>Dépendances entrantes</h2></header><div class="body">` +
+    `<p>Références déclarées <code class="mono">uses_hook</code> à cette clé stable, dans les définitions d'agents et les flux de travail. Les portées sont affichées ; la cible effective relève de la résolution serveur.</p>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-hook-incoming>Voir les dépendances entrantes</button>` +
+    `<div data-hook-incoming-output aria-live="polite"></div></div></section>`;
+}
+
 /** Rendu de lecture d'un contenu versionné, par kind (cohérence sans uniformisation abusive). */
 export function versionContentHtml(kind: LibraryKind, version: LibraryVersion): string {
+  if (kind === "hook") return hookContentHtml(version.content);
   if (kind === "rule" || kind === "skill") {
     const text = contentText(version.content);
     return text === null
@@ -389,10 +452,106 @@ export function versionContentHtml(kind: LibraryKind, version: LibraryVersion): 
 }
 
 /* ------------------------------------------------------------------ */
+/* Synchronisation locale : état du démon, conflits jamais masqués.    */
+/* ------------------------------------------------------------------ */
+
+export function librarySyncNoticeHtml(status: SkillsSyncStatus | null | undefined, failed = false): string {
+  if (failed) {
+    return (
+      `<div class="ds-notice ds-notice--warning" role="status" data-library-sync="unavailable">` +
+      `<strong>Synchronisation locale indisponible.</strong> L'état des copies sur ce poste n'a pas pu être lu.</div>`
+    );
+  }
+  if (status == null) return "";
+  if (status.state === "conflicts") {
+    const conflicts = status.conflicts ?? [];
+    return (
+      `<div class="ds-notice ds-notice--warning" role="alert" data-library-sync="conflicts" data-testid="library-sync-conflicts">` +
+      `<strong>Conflit local : ${conflicts.length} fichier${conflicts.length > 1 ? "s" : ""} modifié${conflicts.length > 1 ? "s" : ""} à la main.</strong>` +
+      `Ces copies n'ont pas été écrasées et la synchronisation est en attente. ` +
+      `Rétablissez-les ou supprimez-les, puis relancez la synchronisation locale.` +
+      (conflicts.length > 0 ? `<ul>${conflicts.map((path) => `<li><code class="mono">${esc(path)}</code></li>`).join("")}</ul>` : "") +
+      `</div>`
+    );
+  }
+  if (status.state === "updated") {
+    return (
+      `<div class="ds-notice ds-notice--info" role="status" data-library-sync="updated">` +
+      `Les skills, règles et agents applicables ont été synchronisés sur ce poste.</div>`
+    );
+  }
+  if (status.state === "not_synced") {
+    return (
+      `<div class="ds-notice ds-notice--warning" role="status" data-library-sync="not-synced">` +
+      `La synchronisation locale n'a pas pu aboutir. Elle sera retentée au prochain démarrage.</div>`
+    );
+  }
+  return "";
+}
+
+interface LibrarySyncState {
+  status: SkillsSyncStatus | null;
+  failed: boolean;
+}
+
+async function loadLibrarySyncStatus(): Promise<LibrarySyncState> {
+  try {
+    const outcome = await getSkillsSyncStatus(getPlatform());
+    return outcome.ok
+      ? { status: outcome.value, failed: false }
+      : { status: null, failed: true };
+  } catch {
+    return { status: null, failed: true };
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Page racine : cinq catégories calmes, noms français.                */
 /* ------------------------------------------------------------------ */
 
-export function libraryRootHtml(): string {
+export function workProfilePackPreviewHtml(preview: WorkProfilePackPreview): string {
+  const composition = preview.issues.length === 0 ? "Composition conforme aux références déclarées." : "La composition déclarée diffère de la résolution actuelle ou dépasse la limite prise en charge.";
+  return `<p>${composition}</p><p>${preview.accepted ? "Le profil correspond à la politique fournie pour cet aperçu." : "Le lancement reste soumis aux prérequis et aux autorisations du poste."}</p>` +
+    `<p>Aucune définition publiée ou activée. La machine garde la décision finale.</p>` +
+    `<ul>${preview.observed.map((ref) => `<li>${esc(ref.stable_key)} · v${ref.version} · <code>${esc(ref.resource_id)}</code></li>`).join("")}</ul>`;
+}
+
+function workProfilePackFormHtml(): string {
+  return `<section class="ds-panel"><header><h2>Vérifier un pack métier</h2></header><div class="body">` +
+    `<p>Lire un manifeste JSON pour comparer sa base et ses adaptations à la bibliothèque, sans publier de définition.</p>` +
+    `<form data-pack-preview><label>Manifeste du pack <input type="file" name="pack" accept="application/json,.json" required /></label>` +
+    `<details><summary>Politique pour cet aperçu</summary><p>Sans fichier, aucune autorisation de lancement n'est accordée. Ce fichier ne modifie pas les réglages du poste.</p>` +
+    `<label>Politique machine (facultative) <input type="file" name="policy" accept="application/json,.json" /></label></details>` +
+    `<button class="ds-btn" type="submit">Vérifier la composition</button><div data-pack-output aria-live="polite"></div></form></div></section>`;
+}
+
+function bindWorkProfilePack(root: HTMLElement, ctx: LibraryContext): void {
+  const form = root.querySelector<HTMLFormElement>("[data-pack-preview]");
+  const output = form?.querySelector<HTMLElement>("[data-pack-output]");
+  if (!form || !output) return;
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const read = async (name: string, required: boolean): Promise<unknown> => {
+      const file = form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.files?.[0];
+      if (!file) {
+        if (required) throw new Error("Choisissez un manifeste de pack.");
+        return { opt_in: false, max_concurrent: 1 };
+      }
+      if (file.size > 131072) throw new Error("Chaque fichier doit peser au plus 128 Ko.");
+      return JSON.parse(await file.text()) as unknown;
+    };
+    if (button) button.disabled = true;
+    output.textContent = "Vérification de la composition…";
+    Promise.all([read("pack", true), read("policy", false)]).then(([pack, policy]) =>
+      previewWorkProfilePack(ctx.client, { pack, machine_policy: policy } as WorkProfilePackRequest)
+    ).then((preview) => { output.innerHTML = workProfilePackPreviewHtml(preview); })
+      .catch((error: unknown) => { output.textContent = `Aperçu indisponible : ${describeError(error)}`; })
+      .finally(() => { if (button) button.disabled = false; });
+  });
+}
+
+export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed = false): string {
   const cards = LIBRARY_KIND_FR.map(
     (entry) =>
       `<li class="ds-card library-cat"><h2>${esc(entry.plural)}</h2><p>${esc(entry.description)}</p>` +
@@ -401,7 +560,8 @@ export function libraryRootHtml(): string {
   return (
     `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
     `${dsPageHeader("Bibliothèque", "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
-    `<ul class="library-cats">${cards}</ul>`
+    `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
+    `<ul class="library-cats">${cards}</ul>${workProfilePackFormHtml()}`
   );
 }
 
@@ -470,6 +630,7 @@ function appendRow(root: HTMLElement, rowKind: string): void {
 }
 
 function bindRepeatable(root: HTMLElement): void {
+  bindHookScriptFields(root);
   // Assignation de propriété (pas addEventListener) pour que les re-rendus
   // remplacent le gestionnaire au lieu de l'empiler sur le nœud #view.
   root.onclick = (event) => {
@@ -527,6 +688,7 @@ export function buildResourcePayload(form: HTMLFormElement, kind: LibraryKind): 
     description: description === "" ? null : description,
     content,
     dependencies: dependencies.value.map((pin) => ({
+      ...(pin.resource_id ? { resource_id: pin.resource_id } : {}),
       kind: pin.kind,
       stable_key: pin.stable_key,
       version: pin.version,
@@ -568,7 +730,7 @@ export function libraryLoadingHtml(title: string): string {
 }
 
 /** Corps de la page liste d'un kind en HTML pur (DOM-free, testable). */
-export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState): string {
+export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState, hookContents?: Map<string, HookListContent>, syncStatus?: SkillsSyncStatus | null, syncFailed = false): string {
   const fr = kindFr(kind);
   const visible = filterLibraryResources(resources, state);
   const header =
@@ -586,11 +748,12 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
       "Modifiez ou réinitialisez la recherche et les filtres pour retrouver vos éléments déjà chargés.",
     );
   } else {
-    body = resourcesTableHtml(visible);
+    body = resourcesTableHtml(visible, hookContents);
   }
   return (
     `${libraryTabsHtml(fr.slug)}` +
     `<p><a href="#/library">← Retour à la bibliothèque</a></p>${header}` +
+    `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `${listToolbarHtml(fr, state, visible.length, resources.length)}` +
     `${shadowNoteHtml(resources)}${body}`
   );
@@ -604,7 +767,13 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
     return;
   }
   if (meta === null) {
-    root.innerHTML = `<div class="library">${libraryTabsHtml(null)}${libraryRootHtml()}</div>`;
+    const sync = ctx.authed ? await loadLibrarySyncStatus() : null;
+    root.innerHTML = `<div class="library">${libraryTabsHtml(null)}${libraryRootHtml(sync?.status, sync?.failed ?? false)}</div>`;
+    if (ctx.authed) bindWorkProfilePack(root, ctx);
+    else {
+      const form = root.querySelector("[data-pack-preview]");
+      if (form) form.textContent = "Connectez-vous pour vérifier un pack métier.";
+    }
     return;
   }
   const fr = kindFr(meta.kind);
@@ -630,11 +799,13 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
     return;
   }
 
+  const hookContents = meta.kind === "hook" ? await loadHookListContent(ctx.client, resources) : undefined;
+  const sync = ctx.authed ? await loadLibrarySyncStatus() : null;
   const state: LibraryListState = { query: "", scope: "all", status: "all" };
 
   const paint = (): void => {
     root.innerHTML =
-      `<div class="library">${libraryKindPageHtml(meta.kind, resources, state)}` +
+      `<div class="library">${libraryKindPageHtml(meta.kind, resources, state, hookContents, sync?.status, sync?.failed ?? false)}` +
       dsModalHtml({
         id: "library-create-dialog",
         title: `Nouvelle ${fr.singular.toLowerCase()}`,
@@ -807,6 +978,7 @@ function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value:
       description: description === "" ? null : description,
       content,
       dependencies: dependencies.value.map((pin) => ({
+        ...(pin.resource_id ? { resource_id: pin.resource_id } : {}),
         kind: pin.kind,
         stable_key: pin.stable_key,
         version: pin.version,
@@ -817,6 +989,15 @@ function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value:
 }
 
 /** Page détail complète en HTML pur (DOM-free, testable) : lecture d'abord, technique repliée. */
+export function dependencyUpdatesHtml(preview: DependencyUpdates): string {
+  return `<p>Aperçu en lecture seule. Les dépendances restent épinglées ; toute modification exige une nouvelle version.</p>` +
+    (preview.items.length === 0 ? `<p>Aucune dépendance sur cette page.</p>` : `<ul>${preview.items.map((item) =>
+      `<li>${esc(item.suggested_pin.stable_key)} · ${esc(item.scope)} · épinglée v${item.pinned_version}, active v${item.active_version}` +
+      `${item.deprecated ? " · obsolète" : item.update_available ? " · mise à jour disponible" : " · aucune mise à jour"}` +
+      `<pre>${esc(JSON.stringify(item.suggested_pin, null, 2))}</pre></li>`).join("")}</ul>`) +
+    (preview.additional_available > 0 ? `<button type="button" class="ds-btn" data-dependency-next="${preview.offset + preview.items.length}">Suite (${preview.additional_available})</button>` : "");
+}
+
 export function libraryDetailHtml(
   resource: LibraryResource,
   versions: LibraryVersion[],
@@ -845,7 +1026,9 @@ export function libraryDetailHtml(
         `<div class="library-version-body"><p class="ds-list-sub">${fmtTime(version.created_at)}${version.created_by_user_id ? ` · par ${esc(FALLBACK_LABEL.user)}` : ""}</p>` +
         (version.description ? `<p>${esc(version.description)}</p>` : "") +
         versionContentHtml(resource.kind, version) +
-        `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}</div></details>`
+        `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}` +
+        `<button type="button" class="ds-btn" data-dependency-preview="${version.version}">Vérifier les mises à jour</button>` +
+        `<div data-dependency-output="${version.version}" aria-live="polite"></div></div></details>`
       );
     })
     .join("");
@@ -867,6 +1050,7 @@ export function libraryDetailHtml(
       : dsEmptyState("Aucune version activée", "Créez une version puis activez-la pour donner un contenu lisible à cette ressource.")) +
     `</div></section>` +
     `${inspectorLinkHtml(resource)}` +
+    (resource.kind === "hook" ? hookIncomingSectionHtml() : "") +
     `<section class="ds-panel" aria-label="Cycle de vie"><header><h2>Cycle de vie</h2></header><div class="body">` +
     `${lifecycleFormsHtml(resource)}` +
     `<p><button class="ds-btn" type="button" id="library-version-new">+ Nouvelle version</button></p>` +
@@ -955,6 +1139,36 @@ export async function renderLibraryDetail(
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
+  for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {
+    const version = Number(button.dataset["dependencyPreview"]);
+    const output = root.querySelector<HTMLElement>(`[data-dependency-output="${version}"]`);
+    if (output === null) continue;
+    const load = (offset: number): void => {
+      button.disabled = true;
+      output.textContent = "Vérification des versions…";
+      previewDependencyUpdates(ctx.client, resource.id, version, offset).then((preview) => {
+        output.innerHTML = dependencyUpdatesHtml(preview);
+        const next = output.querySelector<HTMLButtonElement>("[data-dependency-next]");
+        next?.addEventListener("click", () => { load(Number(next.dataset["dependencyNext"])); });
+      }).catch((error: unknown) => {
+        output.textContent = `Aperçu indisponible : ${describeError(error)}`;
+      }).finally(() => { button.disabled = false; });
+    };
+    button.addEventListener("click", () => { load(0); });
+  }
+  const incomingButton = root.querySelector<HTMLButtonElement>("[data-hook-incoming]");
+  incomingButton?.addEventListener("click", () => {
+    const output = root.querySelector<HTMLElement>("[data-hook-incoming-output]");
+    if (output === null) return;
+    incomingButton.disabled = true;
+    output.textContent = "Chargement des dépendances…";
+    loadIncomingHookDependencies(ctx.client, resource).then((loaded) => {
+      output.innerHTML = incomingHookDependenciesHtml(loaded.dependencies) +
+        (loaded.errors.length === 0 ? "" : `<p class="ds-field-error" role="alert">Lecture partielle : ${loaded.errors.length} ressource(s) indisponible(s).</p>`);
+    }).catch((error: unknown) => {
+      output.innerHTML = `<p class="ds-field-error" role="alert">Dépendances indisponibles : ${esc(describeError(error))}</p>`;
+    }).finally(() => { incomingButton.disabled = false; });
+  });
 }
 
 function bindDetail(

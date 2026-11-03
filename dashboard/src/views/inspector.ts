@@ -23,6 +23,7 @@ import {
   type LibraryKind,
 } from "../libraryFormat";
 import { listLibraryResources } from "../libraryApi";
+import { fetchAgentProjects, type AgentProject } from "../agentsApi";
 import { postResolution, resolutionErrorView, type ResolvedAgentDefinition, type ResolutionErrorView } from "../resolutionApi";
 import { buildBindingCreateTarget } from "./configForms";
 import { formReader, type FormReader } from "./libraryForms";
@@ -96,15 +97,16 @@ function configLink(href: string, label: string): string {
   return `<a href="${esc(href)}"><code class="mono">${esc(label)}</code></a>`;
 }
 
-export function inspectorFormHtml(stableKey: string | null, projectId: string | null, agentKeys: string[]): string {
+export function inspectorFormHtml(stableKey: string | null, projectId: string | null, agentKeys: string[], projects: AgentProject[] = []): string {
   const options = agentKeys.map((key) => `<option value="${esc(key)}"></option>`).join("");
+  const projectOptions = projects.map((project) => `<option value="${esc(project.id)}"${project.id === projectId ? " selected" : ""}>${esc(project.name)}</option>`).join("");
   return (
     `<form class="stack-form inspector-form" data-resolve>` +
     `<div class="inspector-form-section">` +
     `<h3>Demande d'inspection</h3>` +
     `<label class="stack">Clé stable AgentDefinition <input name="stable_key" list="agent-keys" value="${esc(stableKey ?? "")}" placeholder="ex : review-helper" required /></label>` +
     `<datalist id="agent-keys">${options}</datalist>` +
-    `<label class="stack">ID Projet (contexte optionnel) <input name="project_id" value="${esc(projectId ?? "")}" placeholder="Laissé vide ici" /><span class="meta">Vide = sans contexte projet.</span></label>` +
+    `<label class="stack">Projet (contexte optionnel) <select name="project_id"><option value="">Sans contexte projet</option>${projectOptions}</select><span class="meta">${projects.length === 0 ? "Aucun projet accessible. Vous pouvez inspecter sans contexte projet." : "Choisissez le projet de l’inspection."}</span></label>` +
     `</div>` +
     `<details class="editor inspector-form-section"><summary>Remplacement de session éphémère — non persisté</summary>` +
     `<label class="check">Activer le remplacement <input name="enable_override" type="checkbox" /></label>` +
@@ -457,28 +459,38 @@ export async function renderInspector(root: HTMLElement, ctx: InspectorContext):
     return;
   }
 
-  root.innerHTML = `<p class="ds-eyebrow">Administration · Lecture seule</p>` + dsPageHeader(title, subtitle) + dsStateHtml("loading", { title: "Préparation", message: "Chargement des clés connues." });
+  root.innerHTML = `<p class="ds-eyebrow">Administration · Lecture seule</p>` + dsPageHeader(title, subtitle) + dsStateHtml("loading", { title: "Préparation", message: "Chargement des projets et des clés connues." });
 
   let agentKeys: string[] = [];
+  let projects: AgentProject[] = [];
+  let projectError: unknown;
+  const projectRequest = fetchAgentProjects(ctx.client).then(
+    (result) => { projects = result; },
+    (error: unknown) => { projectError = error; },
+  );
   try {
     const agents = await listLibraryResources(ctx.client, { kind: "agent_definition" });
     agentKeys = agents.map((agent) => agent.stable_key).filter((key, index, all) => all.indexOf(key) === index);
   } catch {
     agentKeys = [];
   }
+  await projectRequest;
 
   const projectId = uiState.selectedProjectId;
   root.innerHTML =
     `<p class="ds-eyebrow">Administration · Lecture seule</p>` +
     dsPageHeader(title, subtitle) +
     `<div class="inspector-grid">` +
-    `<div class="inspector-form-panel">${inspectorFormHtml(ctx.stableKey, projectId, agentKeys)}</div>` +
+    `<div class="inspector-form-panel">${projectError === undefined ? "" : `<div class="ds-notice ds-notice--danger" role="alert">Impossible de charger les projets : ${esc(describeError(projectError))}.<button type="button" class="ds-btn ds-btn--sm" data-projects-retry>Réessayer</button></div>`}${inspectorFormHtml(ctx.stableKey, projectId, agentKeys, projects)}</div>` +
     `<div class="inspector-result-panel"><div data-result>${emptyResultHtml()}</div></div>` +
     `</div>`;
 
+  const projectSelect = root.querySelector<HTMLSelectElement>('[name="project_id"]');
+  if (projectSelect !== null) projectSelect.value = projects.some((project) => project.id === projectId) ? projectId! : "";
   bindInspector(root, ctx);
+  root.querySelector("[data-projects-retry]")?.addEventListener("click", () => { void renderInspector(root, ctx); });
 
-  if (ctx.stableKey !== null && ctx.stableKey !== "") {
+  if (ctx.stableKey !== null && ctx.stableKey !== "" && projectError === undefined) {
     await runResolution(root, ctx);
   }
 }

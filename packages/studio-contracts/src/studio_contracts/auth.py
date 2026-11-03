@@ -63,18 +63,24 @@ class User(VersionedModel):
 class Machine(VersionedModel):
     """A machine owns its own revocable credential: an opaque token whose
     hash alone is stored server-side, so a leaked database never leaks
-    access."""
+    access. `workstation_id` (additive) is the physical
+    workstation this machine belongs to: the Desktop's own machine for a
+    tool machine, `None` for a workstation itself and for a legacy machine
+    never attached. One level only, same owner, never an authorization
+    input."""
 
     id: UUID
     owner_user_id: UUID
     display_name: str
     last_seen_at: datetime | None = None
     status: MachineStatus = MachineStatus.OFFLINE
+    workstation_id: UUID | None = None
 
 
 class Agent(VersionedModel):
-    """Provenance identity attached to one machine: who did the work, for
-    audit and attribution. Never an authorization input — permissions come
+    """Provenance identity owned by a user, or by one machine for legacy rows.
+    `machine_id` records registration; execution machines stay on sessions.
+    `owner_user_id` marks canonical user identities. Permissions come
     from the machine owner's role alone. `agent_profile`, `harness`,
     `provider` and `model` are optional additive observability metadata:
     open strings, never whitelisted, never a capability or compatibility
@@ -82,7 +88,10 @@ class Agent(VersionedModel):
     is the local stable key set by `agents ensure` (default
     `agents-ensure-{harness}`), unique per owning machine: the idempotent
     lookup key for session-start, never an authorization input, and never
-    `AgentDefinition.stable_key` (a resolution parameter, not an identity)."""
+    `AgentDefinition.stable_key` (a resolution parameter, not an identity).
+    `superseded_by_agent_id` (additive) records an explicit,
+    reversible reconciliation of a former identity into its canonical one:
+    the former row keeps its machine, metadata and history untouched."""
 
     id: UUID
     machine_id: UUID | None = None
@@ -93,6 +102,8 @@ class Agent(VersionedModel):
     provider: str | None = None
     model: str | None = None
     stable_key: str | None = None
+    owner_user_id: UUID | None = None
+    superseded_by_agent_id: UUID | None = None
 
 
 class AgentCreate(IdempotentCreate):
@@ -141,16 +152,27 @@ class MachineCreate(ContractModel):
     lets it choose another owner, and never looks that other User up. Only
     `admin` provisions a machine for someone else. `display_name` is the
     workstation name shown in « Postes » (default: the enrollment station's
-    own hostname, editable): stripped, never blank, at most 100 characters."""
+    own hostname, editable): stripped, never blank, at most 100 characters.
+    `workstation_id` (optional) attaches the new machine to an
+    active workstation machine of the same owner that is not itself
+    attached."""
 
     owner_user_id: UUID | None = None
     display_name: NonEmptyStr100
+    workstation_id: UUID | None = None
 
 
 class MachineUpdate(ContractModel):
     """Update a machine's display name. Only the owner or an admin."""
 
     display_name: NonEmptyStr100
+
+
+class MachineWorkstationUpdate(ContractModel):
+    """Attach a machine to a workstation, or detach it with `None`
+    Only the owner or an admin."""
+
+    workstation_id: UUID | None = None
 
 
 class MachineCreated(Machine):
@@ -199,6 +221,8 @@ class MachineCapabilities(ContractModel):
     running_launches: int = Field(default=0, ge=0)
     max_launches: int = Field(default=0, ge=0)
     bootstrap: list[ProjectBootstrapStatus] | None = Field(default=None, max_length=256)
+    launch_profiles: bool | None = None
+    launch_safety: bool | None = None
 
 
 class HeartbeatRequest(ContractModel):
@@ -228,6 +252,7 @@ class IneligibilityReason(StrEnum):
     OWNER_NO_PROJECT_ACCESS = "owner_no_project_access"
     PROJECT_NOT_REGISTERED = "project_not_registered"
     LAUNCHES_NOT_ACCEPTED = "launches_not_accepted"
+    LAUNCH_SAFETY_UNSUPPORTED = "launch_safety_unsupported"
     HARNESS_INCOMPATIBLE = "harness_incompatible"
     AT_CAPACITY = "at_capacity"
 

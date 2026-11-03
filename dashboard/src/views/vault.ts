@@ -49,12 +49,23 @@ export interface VaultContext {
 
 export type VaultScopeFilter = "studio" | "project";
 
+export type VaultSort = "relevance" | "title_asc" | "title_desc" | "recent" | "oldest";
+
+export const VAULT_SORT_LABEL: Record<VaultSort, string> = {
+  relevance: "Ordre du serveur",
+  title_asc: "Titre A → Z",
+  title_desc: "Titre Z → A",
+  recent: "Modification récente",
+  oldest: "Modification ancienne",
+};
+
 export interface VaultListState {
   scope: VaultScopeFilter;
   projectId: string | null;
   query: string;
   noteType: VaultNoteType | "all";
   status: VaultNoteStatus | "all";
+  sort?: VaultSort;
 }
 
 export const VAULT_TYPE_LABEL: Record<VaultNoteType, string> = {
@@ -125,21 +136,57 @@ function typeBadge(noteType: VaultNoteType): string {
   return dsBadge(VAULT_TYPE_LABEL[noteType] ?? String(noteType), "neutral");
 }
 
-export function vaultItemHtml(note: VaultNoteSummary): string {
+export function sortVaultNotes(notes: VaultNoteSummary[], sort: VaultSort = "relevance"): VaultNoteSummary[] {
+  const copy = [...notes];
+  const titleOf = (note: VaultNoteSummary): string => (note.title.trim() === "" ? note.slug : note.title);
+  const timeOf = (note: VaultNoteSummary): number => {
+    const value = Date.parse(note.updated_at || note.created_at);
+    return Number.isNaN(value) ? 0 : value;
+  };
+  switch (sort) {
+    case "title_asc":
+      return copy.sort((a, b) => titleOf(a).localeCompare(titleOf(b), "fr", { sensitivity: "base", numeric: true }));
+    case "title_desc":
+      return copy.sort((a, b) => titleOf(b).localeCompare(titleOf(a), "fr", { sensitivity: "base", numeric: true }));
+    case "recent":
+      return copy.sort((a, b) => timeOf(b) - timeOf(a));
+    case "oldest":
+      return copy.sort((a, b) => timeOf(a) - timeOf(b));
+    default:
+      return copy;
+  }
+}
+
+export function vaultExcerpt(summary: string, max = 220): string {
+  const text = summary.replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+export function vaultZoneLabel(note: VaultNoteSummary, projectNames?: ReadonlyMap<string, string>): string {
+  if (note.scope === "studio") return "Studio";
+  const project = note.project_id === null || note.project_id === undefined ? undefined : projectNames?.get(note.project_id);
+  return project === undefined ? "Projet" : `Projet · ${project}`;
+}
+
+export function vaultItemHtml(note: VaultNoteSummary, projectNames?: ReadonlyMap<string, string>): string {
   const title = note.title.trim() === "" ? note.slug : note.title;
   const readable = note.readable_id !== null && note.readable_id !== undefined
-    ? `<span class="ds-list-sub"><code class="mono">${esc(note.readable_id)}</code></span>`
+    ? ` · <code class="mono">${esc(note.readable_id)}</code>`
     : "";
-  return `<li class="ds-list-item" data-id="${esc(note.id)}">` +
-    `<span class="grow"><span class="ds-list-title"><a href="${esc(noteHref(note.id))}">${esc(title)}</a></span> ` +
-    `${readable}<br />` +
-    `<span class="ds-list-sub"><code class="mono">${esc(note.slug)}</code> · ${esc(vaultScopeLabel(note.scope))} · v${note.version}</span></span>` +
+  const excerpt = vaultExcerpt(note.summary);
+  return `<li class="ds-list-item vault-item" data-id="${esc(note.id)}">` +
+    `<span class="grow vault-item-main">` +
+    `<span class="ds-list-title"><a href="${esc(noteHref(note.id))}">${esc(title)}</a></span>` +
+    (excerpt === "" ? "" : `<p class="vault-item-excerpt">${esc(excerpt)}</p>`) +
+    `<span class="vault-item-meta"><span class="vault-zone" data-scope="${esc(note.scope)}">${esc(vaultZoneLabel(note, projectNames))}</span>` +
+    ` · <code class="mono">${esc(note.slug)}</code>${readable} · v${note.version}` +
+    ` · <span class="vault-item-date">${esc(fmtTime(note.updated_at))}</span></span></span>` +
     `<span class="vault-badges">${typeBadge(note.note_type)}${statusBadge(note.status)}</span></li>`;
 }
 
 export function vaultListHtml(
   notes: VaultNoteSummary[],
-  opts: { searching: boolean; truncated?: boolean; total?: number },
+  opts: { searching: boolean; truncated?: boolean; total?: number; sort?: VaultSort; projectNames?: ReadonlyMap<string, string> },
 ): string {
   if (notes.length === 0) {
     return dsEmptyState(
@@ -152,7 +199,8 @@ export function vaultListHtml(
   const hint = opts.searching && opts.total !== undefined
     ? `<p class="ds-list-sub" role="status">${opts.total} résultat(s)${opts.truncated === true ? " — liste tronquée, affinez la recherche" : ""}</p>`
     : "";
-  return `${hint}<ul class="ds-list vault-list" role="list">${notes.map(vaultItemHtml).join("")}</ul>`;
+  const sorted = sortVaultNotes(notes, opts.sort);
+  return `${hint}<ul class="ds-list ds-list--card vault-list" role="list">${sorted.map((note) => vaultItemHtml(note, opts.projectNames)).join("")}</ul>`;
 }
 
 function vaultToolbarHtml(
@@ -178,6 +226,10 @@ function vaultToolbarHtml(
       ),
     )
     .join("");
+  const sort = state.sort ?? "relevance";
+  const sortOptions = (Object.keys(VAULT_SORT_LABEL) as VaultSort[])
+    .map((key) => `<option value="${esc(key)}"${sort === key ? " selected" : ""}>${esc(VAULT_SORT_LABEL[key])}</option>`)
+    .join("");
   return `<div class="vault-toolbar" role="search" aria-label="Filtrer le vault">` +
     `<div class="vault-scopes" role="group" aria-label="Portée">` +
     `<button class="${scopeStudio ? "ds-btn ds-btn--primary" : "ds-btn"}" type="button" data-vault-scope="studio" aria-pressed="${scopeStudio ? "true" : "false"}">Studio</button>` +
@@ -191,6 +243,7 @@ function vaultToolbarHtml(
     `<input class="ds-input" type="search" id="vault-query" value="${esc(state.query)}" placeholder="Rechercher (serveur)…" autocomplete="off" /></div>` +
     `<label class="vault-filter"><span>Type</span><select class="ds-select" id="vault-type">${typeOptions}</select></label>` +
     `<label class="vault-filter"><span>Statut</span><select class="ds-select" id="vault-status">${statusOptions}</select></label>` +
+    `<label class="vault-filter"><span>Tri</span><select class="ds-select" id="vault-sort">${sortOptions}</select></label>` +
     `<button class="ds-btn ds-btn--sm" type="button" id="vault-reset">Réinitialiser</button>` +
     `<p class="ds-list-sub" role="status" aria-live="polite">${counts.shown} note(s) affichée(s)${counts.searching ? " — recherche serveur" : ""}.</p>` +
     `</div>`;
@@ -210,14 +263,26 @@ export function vaultPageHtml(
   state: VaultListState,
   projects: Project[],
   notes: VaultNoteSummary[],
-  opts: { searching: boolean; truncated?: boolean; total?: number; error?: string },
+  opts: {
+    searching: boolean;
+    truncated?: boolean;
+    total?: number;
+    error?: string;
+    projectNames?: ReadonlyMap<string, string>;
+  },
 ): string {
   const header = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") + vaultModeNavHtml("list");
   if (opts.error !== undefined) {
     return `${header}<div class="ds-notice ds-notice--danger" role="alert"><strong>Vault indisponible.</strong>${esc(opts.error)}</div>`;
   }
   return `${header}${vaultToolbarHtml(state, projects, { shown: notes.length, searching: opts.searching })}` +
-    vaultListHtml(notes, { searching: opts.searching, truncated: opts.truncated, total: opts.total });
+    vaultListHtml(notes, {
+      searching: opts.searching,
+      truncated: opts.truncated,
+      total: opts.total,
+      sort: state.sort,
+      projectNames: opts.projectNames,
+    });
 }
 
 function vaultLinksHtml(note: VaultNote): string {
@@ -329,13 +394,20 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
     projects = [];
   }
   const selected = uiState.selectedProjectId;
+  const projectNames = new Map(projects.map((project) => [project.id, project.name]));
   const state: VaultListState = {
     scope: selected !== null ? "project" : "studio",
     projectId: selected ?? projects[0]?.id ?? null,
     query: "",
     noteType: "all",
     status: "all",
+    sort: "relevance",
   };
+
+  let lastNotes: VaultNoteSummary[] | null = null;
+  let lastSearching = false;
+  let lastTruncated: boolean | undefined;
+  let lastTotal: number | undefined;
 
   const paint = async (): Promise<void> => {
     const searching = state.query.trim() !== "";
@@ -350,10 +422,15 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
           limit: VAULT_TREE_LIMIT,
         });
         const notes = result.items.map((hit) => hit.note);
+        lastNotes = notes;
+        lastSearching = true;
+        lastTruncated = result.truncated;
+        lastTotal = result.total;
         root.innerHTML = vaultPageHtml(state, projects, notes, {
           searching: true,
           truncated: result.truncated,
           total: result.total,
+          projectNames,
         });
       } else {
         const page = await listVaultTree(ctx.client, {
@@ -367,9 +444,14 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
         const visible = state.noteType === "all"
           ? page.items
           : page.items.filter((note) => note.note_type === state.noteType);
-        root.innerHTML = vaultPageHtml(state, projects, visible, { searching: false });
+        lastNotes = visible;
+        lastSearching = false;
+        lastTruncated = undefined;
+        lastTotal = undefined;
+        root.innerHTML = vaultPageHtml(state, projects, visible, { searching: false, projectNames });
       }
     } catch (error) {
+      lastNotes = null;
       root.innerHTML = vaultPageHtml(state, projects, [], { searching, error: describeError(error) });
     }
     bind();
@@ -417,10 +499,26 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
       state.status = (event.target as HTMLSelectElement).value as VaultListState["status"];
       void paint();
     });
+    root.querySelector("#vault-sort")?.addEventListener("change", (event) => {
+      state.sort = (event.target as HTMLSelectElement).value as VaultSort;
+      if (lastNotes === null) {
+        void paint();
+        return;
+      }
+      root.innerHTML = vaultPageHtml(state, projects, lastNotes, {
+        searching: lastSearching,
+        truncated: lastTruncated,
+        total: lastTotal,
+        projectNames,
+      });
+      bind();
+      root.querySelector<HTMLSelectElement>("#vault-sort")?.focus();
+    });
     root.querySelector("#vault-reset")?.addEventListener("click", () => {
       state.query = "";
       state.noteType = "all";
       state.status = "all";
+      state.sort = "relevance";
       void paint();
       root.querySelector<HTMLInputElement>("#vault-query")?.focus();
     });

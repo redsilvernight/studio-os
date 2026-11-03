@@ -16,8 +16,11 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from studio_contracts.local.harness import HarnessLaunchPreview, LaunchEnvironmentEntry
+
 from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
+    AccessMode,
     AdapterRefusal,
     HarnessContext,
     entry_with_credential,
@@ -167,16 +170,46 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         return {"type": "http", "url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
 
     _BASE_TOOLS = "Read,Edit,Write,Bash,Grep,Glob"
+    _READ_ONLY_TOOLS = "Read,Grep,Glob"
+    _WRITE_TOOLS = "Edit,Write,MultiEdit,NotebookEdit,Bash,PowerShell"
+    access_modes = frozenset({AccessMode.READ_ONLY, AccessMode.WORKSPACE_WRITE})
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
+        if mode is AccessMode.READ_ONLY:
+            return (
+                "-p",
+                prompt,
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--permission-mode",
+                "default",
+                "--disallowedTools",
+                f"{self._WRITE_TOOLS},SendMessage",
+                "--tools",
+                self._READ_ONLY_TOOLS,
+            )
         return (
             "-p",
             prompt,
             "--output-format",
-            "text",
+            "stream-json",
+            "--verbose",
             "--permission-mode",
             "acceptEdits",
         )
+
+    def headless_safety_argv(self, *, allow_production: bool, mode: AccessMode) -> tuple[str, ...]:
+        self.require_mode(mode)
+        if allow_production:
+            return ()
+        tools = (
+            self._READ_ONLY_TOOLS if mode is AccessMode.READ_ONLY else "Read,Edit,Write,Grep,Glob"
+        )
+        return ("--restricted", "--tools", tools)
 
     def headless_environment(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
@@ -184,7 +217,11 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         entry = self.read_user_entry(ctx)
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
-        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}}
+        payload = {
+            "mcpServers": {
+                STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential, url=ctx.mcp_url)
+            }
+        }
         try:
             isolation_dir.mkdir(parents=True, exist_ok=True)
             self._isolation_mcp_path(isolation_dir).write_text(
@@ -195,14 +232,21 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         return machine_token_env(credential)
 
     def headless_extra_argv(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self,
+        ctx: HarnessContext,
+        *,
+        model: str | None,
+        isolation_dir: Path,
+        mode: AccessMode = AccessMode.WORKSPACE_WRITE,
     ) -> tuple[str, ...]:
+        self.require_mode(mode)
+        tools = self._READ_ONLY_TOOLS if mode is AccessMode.READ_ONLY else self._BASE_TOOLS
         argv: tuple[str, ...] = (
             "--mcp-config",
             str(self._isolation_mcp_path(isolation_dir)),
             "--strict-mcp-config",
             "--allowedTools",
-            f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
+            f"{tools},mcp__{STUDIO_MCP_SERVER_NAME}",
         )
         argv += ("--setting-sources", "")
         settings = self.isolation_settings(ctx)
@@ -216,19 +260,67 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         """Minimal settings JSON keeping only the Studio session hook (agent
         identity) and the git guard. Combined with an empty `--setting-sources`
         it keeps a remotely launched harness from running the operator's own
-        hooks (bonsai delegation, rtk, office hooks) and, above all, the
-        repository's committed hooks, which no human has validated. `None` when
-        the Studio session hook is not deployed: the run then has no hook."""
+        hooks (local hub routing, rtk, office hooks) and, above all, the
+        repository's committed hooks, which no human has validated. Each Studio
+        hook is included independently; `None` when neither is deployed."""
         session_hook = ctx.home / _CLAUDE_SPEC.hook_rel
-        if not session_hook.is_file():
-            return None
-        hooks: dict[str, list[dict[str, object]]] = {
-            "SessionStart": [{"hooks": [_hook_command(session_hook)]}]
-        }
+        hooks: dict[str, list[dict[str, object]]] = {}
+        if session_hook.is_file():
+            hooks["SessionStart"] = [{"hooks": [_hook_command(session_hook)]}]
         guard = ctx.home / GUARD_REL
         if guard.is_file():
             hooks["PreToolUse"] = [{"matcher": "Bash|PowerShell", "hooks": [_hook_command(guard)]}]
-        return json.dumps({"hooks": hooks})
+        return json.dumps({"hooks": hooks}) if hooks else None
+
+    def launch_preview(self, ctx: HarnessContext) -> HarnessLaunchPreview:
+        settings = self.isolation_settings(ctx)
+        hooks = json.loads(settings)["hooks"] if settings else {}
+        entry = self.read_user_entry(ctx)
+        return HarnessLaunchPreview(
+            adapter_id=self.adapter_id,
+            isolation="isolated",
+            settings_sources=[
+                "Réglages explicites du lancement ; sources user, project et local désactivées."
+            ],
+            hooks=[
+                LaunchEnvironmentEntry(
+                    name=name,
+                    state="included" if event in hooks else "unavailable",
+                    reason=(
+                        "Hook Studio présent sur ce poste."
+                        if event in hooks
+                        else "Hook Studio absent de ce poste."
+                    ),
+                )
+                for event, name in (
+                    ("SessionStart", "Identité Studio"),
+                    ("PreToolUse", "Garde Git Studio"),
+                )
+            ],
+            mcp_servers=[
+                LaunchEnvironmentEntry(
+                    name=STUDIO_MCP_SERVER_NAME,
+                    state="included" if entry is not None else "unavailable",
+                    reason=(
+                        "Configuration isolée ; credential éphémère au lancement."
+                        if entry is not None
+                        else "Entrée MCP Studio absente ; lancement refusé."
+                    ),
+                )
+            ],
+            exclusions=[
+                "Hooks personnels et hooks du dépôt : sources de réglages désactivées.",
+                "Autres serveurs MCP : configuration MCP stricte limitée à Studio.",
+            ],
+            limitations=[
+                "Présence des hooks observée ; contenu et exécution non vérifiés.",
+                "Aperçu de ce poste seulement ; configuration revérifiée au lancement.",
+                "Les instructions CLAUDE.md restent distinctes des réglages et des hooks.",
+                "Sans accord de production : mode restreint sans commandes ; garde conservée.",
+            ],
+            access_modes=[mode.value for mode in sorted(self.access_modes)],
+            production_approval_required=False,
+        )
 
     def _isolation_mcp_path(self, isolation_dir: Path) -> Path:
         return isolation_dir / _ISOLATION_MCP_FILENAME

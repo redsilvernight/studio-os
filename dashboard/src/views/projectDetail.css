@@ -1,0 +1,61 @@
+.workspace-summary-card {
+  min-width: 0;
+  padding: var(--ds-space-5);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-sm);
+  overflow-wrap: anywhere;
+}
+
+.workspace-summary-card > section {
+  display: grid;
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.workspace-summary-card .ds-section-header {
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+
+.workspace-summary-card .grow {
+  min-width: 0;
+}
+
+.workspace-coordination-text {
+  white-space: pre-wrap;
+  margin-block: var(--ds-space-2);
+}
+
+.workspace-coordination-item[data-coordination-intent="blocked_by"] {
+  border-inline-start: 3px solid var(--ds-warning);
+  padding-inline-start: var(--ds-space-3);
+}
+
+.workspace-summary-card .usage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+
+.workspace-summary-card .usage-controls label {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+@media (max-width: 640px) {
+  .workspace-summary-card {
+    padding: var(--ds-space-3);
+  }
+
+  .tasks-actions {
+    align-items: stretch;
+  }
+
+  .tasks-actions > .ds-btn {
+    width: 100%;
+  }
+}

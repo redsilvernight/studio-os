@@ -16,7 +16,6 @@ import {
   type OutboxLegacyStatus,
   type Platform,
   type ServerOriginState,
-  type UpdateErrorCode,
   type UpdateStatus,
 } from "../platform";
 import {
@@ -24,6 +23,7 @@ import {
   daemonLabel,
   daemonNeedsAttention,
   serverStateLabel,
+  statusNextStep,
   summarizeShellStatus,
   type CompatibilityState,
   type DaemonSummary,
@@ -37,6 +37,7 @@ import { originRefusalMessage } from "../originRefusal";
 import { loadOnboardingState, saveOnboardingState } from "../onboarding/state";
 import { stepById } from "../onboarding/steps";
 import { allNotes, openWhatsNew, whatsNewSectionHtml } from "../releaseNotes";
+import { installUpdateOnce, updateErrorMessage } from "../updateInstaller";
 import "./configuration.css";
 
 const DESCRIPTION = "Identité, serveur et état de l'application qui exécute ce tableau de bord.";
@@ -76,6 +77,8 @@ export interface DesktopSection {
   /** The daemon misses optional capabilities that only an update brings. */
   daemonUpdateAdvised?: boolean;
   status: ShellStatus;
+  /** Human next step for the derived status (`null`: nothing to do). */
+  nextStep?: string | null;
   /** Legacy outbox status (Phase 1 read-only). */
   legacyOutbox: OutboxLegacyStatus | null;
 }
@@ -168,6 +171,19 @@ function statusTilesHtml(section: DesktopSection): string {
     'data-testid="compatibility"',
   );
   return `<section class="app-tiles" aria-label="État de l'application">${server}${daemon}${compat}</section>`;
+}
+
+const RESTART_REASONS: ReadonlySet<ShellStatus["reason"]> = new Set(["daemon_unavailable"]);
+
+function nextStepHtml(section: DesktopSection): string {
+  if (!section.nextStep) return "";
+  const restart = RESTART_REASONS.has(section.status.reason)
+    ? `<button class="ds-btn ds-btn--primary" type="button" data-action="restart">Redémarrer l'application</button>`
+    : "";
+  return (
+    `<div class="app-callout" role="status" data-testid="status-next-step" data-reason="${esc(section.status.reason)}">` +
+    `<p class="settings-intro"><strong>Prochaine action :</strong> ${esc(section.nextStep)}</p>${restart}</div>`
+  );
 }
 
 function serverFormHtml(section: DesktopSection, form: ApplicationFormState): string {
@@ -273,18 +289,7 @@ function heroHtml(info: DesktopInfo | null, failure: string | undefined, form: A
   );
 }
 
-const UPDATE_ERRORS: Record<UpdateErrorCode, string> = {
-  not_configured: "Les mises à jour ne sont pas activées dans cette version de l'application.",
-  network: "Le serveur de mises à jour est injoignable. Vérifiez votre connexion puis réessayez.",
-  invalid_metadata: "La réponse du serveur de mises à jour n'est pas exploitable. Rien n'a été modifié.",
-  invalid_signature: "La signature de la mise à jour est invalide : elle a été refusée. Rien n'a été modifié.",
-  install_failed: "L'installation de la mise à jour a échoué. La version actuelle reste en place.",
-  failed: "La mise à jour a échoué. La version actuelle reste en place.",
-};
-
-export function updateErrorMessage(code: UpdateErrorCode): string {
-  return UPDATE_ERRORS[code];
-}
+export { updateErrorMessage } from "../updateInstaller";
 
 function componentsHtml(diag: DesktopDiagnostics | null): string {
   if (!diag) return "";
@@ -364,6 +369,7 @@ export function applicationPageHtml(
       heroHtml(info, failure, form, diag !== null) +
       (section
         ? statusTilesHtml(section) +
+          nextStepHtml(section) +
           serverFormHtml(section, form) +
           onboardingSectionHtml() +
           `<details class="settings-technical" data-testid="whats-new-details"><summary>Historique des versions</summary>${whatsNewSectionHtml()}</details>` +
@@ -389,6 +395,12 @@ async function sectionOf(
 ): Promise<DesktopSection> {
   const connection = shell.monitor.snapshot();
   const legacyOutbox = await platform.outboxLegacyStatus().catch(() => null);
+  const status = summarizeShellStatus({
+    connection,
+    daemon: shell.daemon,
+    compatibility: shell.compatibility,
+    restartRequired: origin?.restart_required ?? false,
+  });
   return {
     origin,
     effectiveServer: apiBaseUrl(),
@@ -396,12 +408,8 @@ async function sectionOf(
     daemon: shell.daemon,
     compatibility: shell.compatibility,
     daemonUpdateAdvised: shell.daemonAdvice === "update_daemon",
-    status: summarizeShellStatus({
-      connection,
-      daemon: shell.daemon,
-      compatibility: shell.compatibility,
-      restartRequired: origin?.restart_required ?? false,
-    }),
+    status,
+    nextStep: statusNextStep(status, connection, shell.daemon),
     legacyOutbox,
   };
 }
@@ -470,12 +478,14 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell,
       return again({ error: originRefusalMessage(result.reason) });
     });
   });
-  root.querySelector("[data-action=restart]")?.addEventListener("click", () => {
-    void platform.restartDesktop().then((started) => {
-      if (!started) return again({ error: "Le redémarrage n'a pas pu être lancé. Fermez puis rouvrez l'application." });
-      return undefined;
-    });
-  });
+  root.querySelectorAll("[data-action=restart]").forEach((button) =>
+    button.addEventListener("click", () => {
+      void platform.restartDesktop().then((started) => {
+        if (!started) return again({ error: "Le redémarrage n'a pas pu être lancé. Fermez puis rouvrez l'application." });
+        return undefined;
+      });
+    }),
+  );
   root.querySelector("[data-action=relaunch-onboarding]")?.addEventListener("click", () => {
     saveOnboardingState({ schema: 1, status: "in_progress", current: "bienvenue" });
     location.hash = "#/bienvenue";
@@ -511,7 +521,7 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell,
       "beforeend",
       `<p class="settings-intro" role="status" data-testid="update-progress">La mise à jour est vérifiée avant d'être installée ; l'application redémarrera d'elle-même.</p>`,
     );
-    void platform.installUpdate().then((result) => {
+    void installUpdateOnce(platform).then((result) => {
       if (!result.ok) {
         // Only an interrupted download leaves the release pending for a retry.
         const update = result.code === "network" ? form.update : undefined;

@@ -142,6 +142,28 @@ class SetupAdaptersStep(LocalContractModel):
         return self
 
 
+class SetupVersioningStep(LocalContractModel):
+    state: Literal["missing", "unavailable", "checked"]
+    identity_configured: bool = False
+    workspaces: int = Field(default=0, ge=0)
+    repositories: int = Field(default=0, ge=0)
+    with_identity: int = Field(default=0, ge=0)
+    with_remote: int = Field(default=0, ge=0)
+    unavailable: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _counts(self) -> Self:
+        if self.repositories > self.workspaces or self.unavailable > self.workspaces:
+            raise ValueError("versioning counts cannot exceed the registered workspaces")
+        if max(self.with_identity, self.with_remote) > self.repositories:
+            raise ValueError("identity and remote counts are among repositories")
+        if self.state != "checked" and (
+            self.identity_configured or self.repositories or self.with_identity or self.with_remote
+        ):
+            raise ValueError("only a completed Git check reports configuration")
+        return self
+
+
 class SetupPlan(LocalContractModel):
     """What « Configurer ce poste » would do. Bound to ``plan_hash``: a file
     edited after the preview invalidates the confirmation."""
@@ -155,6 +177,7 @@ class SetupPlan(LocalContractModel):
     hooks: list[SetupItemPlan] = Field(default=[], max_length=16)
     skills: SetupSkillsStep
     adapters: SetupAdaptersStep
+    versioning: SetupVersioningStep | None = None
 
     @model_validator(mode="after")
     def _plan_window(self) -> Self:

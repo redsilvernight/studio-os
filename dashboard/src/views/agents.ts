@@ -120,10 +120,48 @@ function projectSuffixHtml(names: AgentNames, projectId: string | null | undefin
 /* Identité humaine : nom et rôle, jamais d'identifiant (C2).          */
 /* ------------------------------------------------------------------ */
 
-/** Nom humain, repli générique — jamais un UUID ni un préfixe d'UUID. */
+/** Modèle déclaré sans préfixe provider, normalisé ; null si inconnu. */
+export function agentModelName(agent: Agent): string | null {
+  const raw = (agent.model ?? "").trim().toLowerCase();
+  const model = raw.includes("/") ? raw.slice(raw.indexOf("/") + 1).trim() : raw;
+  return model === "" ? null : model;
+}
+
+/** Nom humain, repli générique — jamais un UUID ni un préfixe d'UUID.
+ * Depuis DEC-0225 le nom enregistré d'une fiche modèle est le modèle. */
 export function agentDisplayName(agent: Agent): string {
   const name = agent.display_name.trim();
   return name === "" ? FALLBACK_LABEL.agent : name;
+}
+
+/** Clés antérieures à DEC-0225 (par harnais ou par lancement) : conservées
+ * intactes pour l'historique, jamais réécrites. */
+export function isLegacyAgentIdentity(agent: Agent): boolean {
+  const key = agent.stable_key ?? "";
+  return key.startsWith("launch-agent-") || key.startsWith("agent-model:") || (key.startsWith("agents-ensure-") && key.includes(":"));
+}
+
+/** Rapprochement contrôlé : nombre d'autres fiches du même modèle sur le
+ * même poste. Affichage seul, aucune fusion ni suppression. */
+export function agentDuplicateCount(agent: Agent, all: Agent[]): number {
+  const model = agentModelName(agent);
+  if (model === null) return 0;
+  return all.filter(
+    (other) => other.id !== agent.id && other.machine_id === agent.machine_id && agentModelName(other) === model,
+  ).length;
+}
+
+/** Mention d'identité pour la liste et la fiche ; null quand rien à signaler. */
+export function agentIdentityNote(agent: Agent, all: Agent[]): string | null {
+  if (agent.owner_user_id) return `Identité durable · ${agent.harness ?? "harnais"}`;
+  const duplicates = agentDuplicateCount(agent, all);
+  if (isLegacyAgentIdentity(agent)) {
+    return duplicates > 0
+      ? `Ancienne identité · ${duplicates} autre(s) fiche(s) de ce modèle sur ce poste`
+      : "Ancienne identité";
+  }
+  if (agentModelName(agent) === null && (agent.harness ?? "").trim() !== "") return "Modèle inconnu";
+  return duplicates > 0 ? `${duplicates} autre(s) fiche(s) de ce modèle sur ce poste` : null;
 }
 
 /** Rôle déclaré (nature) : null quand non renseigné. */
@@ -233,12 +271,14 @@ export function agentRowHtml(
   agent: Agent,
   activity: AgentActivity,
   primaryProject: AgentPrimaryProject | null,
+  identityNote: string | null = null,
 ): string {
   const name = agentDisplayName(agent);
   const role = agentRoleLabel(agent);
-  const sub = role !== null
+  const base = role !== null
     ? (primaryProject !== null ? `${role} · ${primaryProject.name}` : role)
     : (primaryProject !== null ? `Rôle non renseigné · ${primaryProject.name}` : "Rôle non renseigné · aucun projet");
+  const sub = identityNote !== null ? `${base} · ${identityNote}` : base;
   return (
     `<li class="agent-row"><a class="agent-row-link" href="#/agents/${esc(agent.id)}">` +
     `${dsStatusDot(agentDotState(activity), agentDotLabel(activity), true)}` +
@@ -426,7 +466,7 @@ export function agentsListHtml(
       const entries = members.map((agent) => {
         const activity = activityOf(agent);
         const project = agentPrimaryProject(agent, activity, evidence.aiWork, evidence.tasks, names);
-        return { project: project?.name ?? NO_PROJECT_LABEL, html: agentRowHtml(agent, activity, project) };
+        return { project: project?.name ?? NO_PROJECT_LABEL, html: agentRowHtml(agent, activity, project, agentIdentityNote(agent, agents)) };
       });
       if (group.key === "inactive") {
         const byProject = new Map<string, string[]>();
@@ -627,7 +667,9 @@ export function agentDetailHtml(
       : pagedListHtml(ownSessions.map((session) => sessionRowHtml(session, names)), "sessions")) +
     `</div></section>` +
     `<section class="ds-panel" aria-label="Environnement"><header><h2>Environnement</h2></header><div class="body">` +
-    `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>` +
+    (agent.owner_user_id
+      ? `<p>Identité réutilisable sur les postes autorisés de cet utilisateur. La machine d'exécution figure dans chaque session.</p>`
+      : `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>`) +
     `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
     `<p class="ds-list-sub">Aucune définition d'agent n'est associée : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Bibliothèque</a>. Aucune configuration runtime détaillée ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
     `</div></section>` +
@@ -635,7 +677,13 @@ export function agentDetailHtml(
       [
         { label: "Modèle déclaré", value: declaredOrDash(agent.model) },
         { label: "Fournisseur déclaré", value: declaredOrDash(agent.provider) },
-        { label: "Harnais déclaré", value: declaredOrDash(agent.harness) },
+        {
+          label: "Harnais déclaré",
+          value:
+            (agent.harness ?? "").trim() === "" && agentModelName(agent) !== null
+              ? "Tous les outils de ce poste — l'outil est attribué à chaque exécution"
+              : declaredOrDash(agent.harness),
+        },
         {
           label: "Permissions",
           value: "Aucune permission déclarée par l'agent — voir Paramètres d'exécution",

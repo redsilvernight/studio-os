@@ -158,7 +158,7 @@ def test_project_with_ledger_module_can_record_an_attempt(
     assert cost_path.exists()
 
 
-def test_extract_chunk_reports_the_bonsai_backend(
+def test_extract_chunk_reports_the_local_hub_backend(
     incremental_update_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = incremental_update_module
@@ -174,7 +174,7 @@ def test_extract_chunk_reports_the_bonsai_backend(
         {"a.md": "a.md"},
     )
     assert err is None
-    assert backend_used == "bonsai"
+    assert backend_used == "local-ai-hub"
     assert data == {"nodes": [], "edges": [], "hyperedges": []}
 
 

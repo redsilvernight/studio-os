@@ -1,7 +1,7 @@
 /**
  * UI-4 Projets & Workspace projet (browser, API stubbée déterministe) :
  * page Projets (cartes, filtre local clavier, ouverture), workspace
- * (header stable, 8 onglets, deep links, back/forward), overview résumée,
+ * (header stable, 9 onglets, deep links, back/forward), overview résumée,
  * activité lisible, claims soft-lock, décisions liées au projet.
  * Zéro violation CSP, zéro erreur page. Captures dans le dossier temp
  * (hors dépôt) pour la validation visuelle du rapport UI-4.
@@ -116,9 +116,9 @@ const TIMELINE = {
     {
       date: "2026-09-12",
       events: [
-        stubEvent({ event_type: "task.created", payload: { title: "Caméra Android bloquée" }, task_id: "t-blocked" }),
-        stubEvent({ event_type: "resource.conflict", payload: { resource_path: "godot/scenes/niveau.tscn" } }),
-        stubEvent({ event_type: "future.unknown_thing", payload: { anything: "kept-hidden" } }),
+        stubEvent({ event_id: "task-created", event_type: "task.created", payload: { title: "Caméra Android bloquée" }, task_id: "t-blocked" }),
+        stubEvent({ event_id: "resource-conflict", event_type: "resource.conflict", payload: { resource_path: "godot/scenes/niveau.tscn" } }),
+        stubEvent({ event_id: "future-event", event_type: "future.unknown_thing", payload: { anything: "kept-hidden" } }),
       ],
     },
     { date: "2026-09-11", events: [stubEvent({ event_type: "build.failed", server_timestamp: "2026-09-11T16:00:01Z" })] },
@@ -161,8 +161,13 @@ function apiStub() {
       await json(200, PROJECTS);
       return;
     }
+    if (url.includes("/api/v1/timeline/dates")) {
+      await json(200, TIMELINE.days.map((day) => day.date));
+      return;
+    }
     if (url.includes("/api/v1/timeline")) {
-      await json(200, TIMELINE);
+      const selected = new URL(url).searchParams.get("since")?.slice(0, 10);
+      await json(200, { ...TIMELINE, days: selected ? TIMELINE.days.filter((day) => day.date === selected) : TIMELINE.days });
       return;
     }
     if (url.includes("/api/v1/claims")) {
@@ -243,14 +248,14 @@ test.describe("UI-4 projets et workspace", () => {
     expect(fatal).toEqual([]);
   });
 
-  test("workspace : header stable, 8 onglets, deep links, back/forward", async ({ page }) => {
+  test("workspace : header stable, 10 onglets, deep links, back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Jeu Phare");
 
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(8);
+    await expect(tabs).toHaveCount(10);
     await expect(view.locator('[data-ws-tab="overview"]')).toHaveAttribute("aria-selected", "true");
 
     // Overview résumée : pas de tableau complet.
@@ -262,7 +267,7 @@ test.describe("UI-4 projets et workspace", () => {
     // Flèches clavier entre onglets.
     await view.locator('[data-ws-tab="overview"]').focus();
     await page.keyboard.press("ArrowRight");
-    await expect(view.locator('[data-ws-tab="roadmap"]')).toBeFocused();
+    await expect(view.locator('[data-ws-tab="mission"]')).toBeFocused();
 
     // Deep links directs.
     await page.goto(`/#/projects/${P1}/tasks`);
@@ -335,7 +340,7 @@ test.describe("UI-4 projets et workspace", () => {
     await expect(accept).toHaveCount(1);
     await expect(supersede).toHaveCount(1);
     await expect(accept).toHaveText("Accepter");
-    await expect(supersede).toHaveText("Remplacer");
+    await expect(supersede).toHaveText("Écarter la proposition");
     await expect(accept).toBeDisabled();
     await expect(supersede).toBeDisabled();
     await expect(view).toContainText("Réservé au rôle admin.");
@@ -402,7 +407,7 @@ test.describe("UI-4 mobile 375", () => {
 
     await page.goto(`/#/projects/${P1}`);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
-    await expect(view.locator('[role="tab"]')).toHaveCount(8);
+    await expect(view.locator('[role="tab"]')).toHaveCount(10);
     await page.screenshot({ path: `${SHOTS}/workspace-overview-mobile.png` });
 
     await page.goto(`/#/projects/${P1}/activity`);

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BridgeAnswer } from "./platform/contracts";
-import type { SkillsSyncStatus } from "./skillsApi";
+import type { SkillsSyncStatus, SkillsPreviewResult } from "./skillsApi";
 import { mountSkillsSync, resetSkillsSyncForTests, skillsDetailHtml, skillsIndicatorHtml } from "./skillsSync";
 import { fakeDesktop } from "./testSupport/fakeDesktop";
 import { webPlatform } from "./platform/web";
@@ -21,7 +21,14 @@ const status = (over: Partial<SkillsSyncStatus> = {}): SkillsSyncStatus => ({
 
 const answer = (payload: unknown): BridgeAnswer => ({ ok: true, response: { payload } }) as unknown as BridgeAnswer;
 
-function platformWith(current: () => SkillsSyncStatus | "error", calls: string[] = []) {
+const previewResult = (): SkillsPreviewResult => ({
+  skills: ["delegate", "graphify"].map((stable_key, index) => ({
+    stable_key, version: 3, preview_hash: String(index + 1).repeat(64), diff: "--- local\n+++ library\n@@ -1 +1 @@\n- a\n+ b",
+    targets: [{ harness: "agents", state: "locally_modified" }, { harness: "assistant", state: "current" }],
+  })), current: 2, missing: 0, outdated: 0, locally_modified: 2, diff: "- a\n+ b", checked_at: "2026-10-05T10:00:00Z",
+});
+
+function platformWith(current: () => SkillsSyncStatus | "error", calls: string[] = [], plan = previewResult()) {
   return fakeDesktop({
     request: async (command: string, payload: Record<string, unknown>) => {
       calls.push(`${command}:${JSON.stringify(payload)}`);
@@ -29,7 +36,7 @@ function platformWith(current: () => SkillsSyncStatus | "error", calls: string[]
         const value = current();
         return value === "error" ? ({ ok: false, error: { code: "internal" } } as unknown as BridgeAnswer) : answer(value);
       }
-      if (command === "skills.preview") return answer({ diff: "- a\n+ b" });
+      if (command === "skills.preview") return answer(plan);
       if (command === "skills.apply") return answer({});
       return answer({});
     },
@@ -82,12 +89,13 @@ describe("skills sync indicator", () => {
     expect(document.querySelectorAll(".ds-toast")).toHaveLength(1);
     button?.click();
     expect(document.getElementById("skills-sync-dialog")?.hasAttribute("hidden")).toBe(false);
+    expect(document.querySelectorAll(".ds-toast")).toHaveLength(0);
     expect(document.getElementById("skills-sync-dialog-body")?.textContent).toContain("Ajoutés");
     resetSkillsSyncForTests();
     document.getElementById("skills-sync")?.remove();
     mountSkillsSync(platform);
     await flush();
-    expect(document.querySelectorAll(".ds-toast")).toHaveLength(1);
+    expect(document.querySelectorAll(".ds-toast")).toHaveLength(0);
   });
 
   it("stays silent when everything is up to date", async () => {
@@ -103,31 +111,180 @@ describe("skills sync indicator", () => {
     expect(document.getElementById("skills-sync")?.dataset["state"]).toBe("unavailable");
   });
 
-  it("previews the diff and retries with explicit confirmation", async () => {
+  it("identifies skills and keeps comparisons collapsed until requested", async () => {
     const calls: string[] = [];
     mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
     await flush();
     document.getElementById("skills-sync")?.click();
-    document.querySelector<HTMLElement>('[data-skills-action="diff"]')?.click();
     await flush();
+    const row = document.querySelector<HTMLElement>('[data-skill="skill:delegate"]');
+    expect(row?.textContent).toContain(".agents/skills/delegate/SKILL.md");
+    expect(row?.querySelector("details")?.open).toBe(false);
+    row?.querySelector<HTMLElement>("summary")?.click();
     expect(document.querySelector(".skills-sync-diff")?.textContent).toContain("+ b");
-    document.querySelector<HTMLElement>('[data-skills-action="retry"]')?.click();
-    await flush();
-    expect(calls).toContain('skills.apply:{"confirm":true}');
+    expect(calls.some((call) => call.startsWith("skills.apply"))).toBe(false);
   });
 
-  it("overwrites conflicts only after a second confirmation", async () => {
+  it("applies only explicit per-skill choices after reviewing the replacements", async () => {
     const calls: string[] = [];
     mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
     await flush();
     document.getElementById("skills-sync")?.click();
-    const confirm = document.querySelector<HTMLElement>('[data-skills-action="overwrite-confirm"]');
-    expect(confirm?.hasAttribute("hidden")).toBe(true);
-    document.querySelector<HTMLElement>('[data-skills-action="overwrite"]')?.click();
-    expect(calls.some((call) => call.startsWith("skills.apply"))).toBe(false);
-    confirm?.click();
     await flush();
-    expect(calls).toContain('skills.apply:{"confirm":true,"overwrite":true}');
+    const apply = document.querySelector<HTMLButtonElement>('[data-skills-action="apply"]');
+    expect(apply?.disabled).toBe(true);
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    choice.value = "library";
+    choice.dispatchEvent(new Event("change"));
+    expect(apply?.textContent).toBe("Appliquer 1 choix");
+    apply?.click();
+    expect(calls.some((call) => call.startsWith("skills.apply"))).toBe(false);
+    expect(document.querySelector(".skills-sync-confirmation")?.textContent).toContain("delegate");
+    expect(document.querySelector(".skills-sync-confirmation")?.textContent).not.toContain("graphify");
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"stable_key":"delegate","choice":"library","preview_hash":"' + "1".repeat(64) + '"}]}');
+    expect(calls.filter((call) => call.startsWith("skills.apply"))).toHaveLength(1);
+  });
+
+  it("offers rules and agents with their own paths and sends their kind", async () => {
+    const calls: string[] = [];
+    const plan = previewResult();
+    plan.skills = [
+      { ...plan.skills![0]!, kind: "rule", stable_key: "delegate", preview_hash: "a".repeat(64) },
+      { ...plan.skills![1]!, kind: "agent", stable_key: "reviewer", preview_hash: "b".repeat(64),
+        targets: [{ harness: "agents", state: "current" }, { harness: "assistant", state: "locally_modified" }] },
+    ];
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls, plan));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const rule = document.querySelector<HTMLElement>('[data-skill="rule:delegate"]');
+    expect(rule?.textContent).toContain("Rule");
+    expect(rule?.textContent).toContain(".agents/rules/delegate.md");
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="agent:reviewer"]')!;
+    choice.value = "library";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    const confirmation = document.querySelector(".skills-sync-confirmation")?.textContent ?? "";
+    expect(confirmation).toContain(".claude/agents/reviewer.md");
+    expect(confirmation).not.toContain(".agents/definitions/reviewer.md");
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"kind":"agent","stable_key":"reviewer","choice":"library","preview_hash":"' + "b".repeat(64) + '"}]}');
+  });
+
+  it("keeps local choices without authorizing a global overwrite", async () => {
+    const calls: string[] = [];
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    choice.value = "local";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    expect(document.querySelector('[data-skills-action="confirm"]')?.textContent).toBe("Confirmer les choix");
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    expect(calls.find((call) => call.startsWith("skills.apply"))).toContain('"choice":"local"');
+    expect(calls.find((call) => call.startsWith("skills.apply"))).not.toContain('"overwrite"');
+    expect(document.querySelector("#skills-sync-dialog-body")?.textContent).toContain("restent personnalisées");
+  });
+
+  it.each(["internal_error", "invalid_request", "secret_revoked"])("reports a failed preview reload (%s) without denying the applied choices and retries only the preview", async (code) => {
+    let previews = 0;
+    let applies = 0;
+    const platform = fakeDesktop({
+      request: async (command: string) => {
+        if (command === "skills.status") return answer(status({ state: "conflicts", conflicts: ["k"] }));
+        if (command === "skills.preview") {
+          previews += 1;
+          if (previews === 2) return { ok: false, error: { code, retryable: true, message: "private" } } as unknown as BridgeAnswer;
+          return answer(previewResult());
+        }
+        if (command === "skills.apply") applies += 1;
+        return answer({});
+      },
+    } as never);
+    mountSkillsSync(platform);
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    choice.value = "local";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    const body = document.getElementById("skills-sync-dialog-body")!;
+    expect(body.textContent).toContain("Choix appliqués");
+    expect(body.querySelector('[role="alert"]')?.textContent).toContain("Impossible de charger les versions");
+    expect(body.textContent).not.toContain("Aucune modification n'a été confirmée");
+    expect(body.textContent).not.toContain("private");
+    body.querySelector<HTMLElement>('.skills-sync-actions [data-skills-action="refresh"]')?.click();
+    await flush();
+    expect(previews).toBe(3);
+    expect(applies).toBe(1);
+    expect(body.querySelector('[role="alert"]')).toBeNull();
+    expect(body.querySelector('[data-skill="skill:delegate"]')).not.toBeNull();
+  });
+
+  it("preserves the selection and keyboard focus through an idle status poll", async () => {
+    vi.useFakeTimers();
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] })));
+    await vi.advanceTimersByTimeAsync(0);
+    document.getElementById("skills-sync")?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    choice.value = "library";
+    choice.dispatchEvent(new Event("change"));
+    choice.focus();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector('[data-skills-choice="skill:delegate"]')).toBe(choice);
+    expect(choice.value).toBe("library");
+    expect(document.activeElement).toBe(choice);
+  });
+
+  it("stops waiting for a preview that never answers and offers a retry", async () => {
+    vi.useFakeTimers();
+    let previews = 0;
+    const platform = fakeDesktop({
+      request: async (command: string) => {
+        if (command === "skills.status") return answer(status({ state: "conflicts", conflicts: ["k"] }));
+        if (command === "skills.preview") {
+          previews += 1;
+          if (previews === 1) return new Promise<BridgeAnswer>(() => undefined);
+          return answer(previewResult());
+        }
+        return answer({});
+      },
+    } as never);
+    mountSkillsSync(platform);
+    await vi.advanceTimersByTimeAsync(0);
+    document.getElementById("skills-sync")?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(document.querySelector("#skills-sync-dialog-body")?.textContent).toContain("Chargement des versions");
+    await vi.advanceTimersByTimeAsync(30000);
+    const body = document.querySelector("#skills-sync-dialog-body");
+    expect(body?.textContent).not.toContain("Chargement des versions");
+    expect(body?.querySelector('[role="alert"]')?.textContent).toContain("n'a pas répondu à temps");
+    document.querySelector<HTMLElement>('.skills-sync-actions [data-skills-action="refresh"]')?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(previews).toBe(2);
+    expect(document.querySelector('[data-skill="skill:delegate"]')).not.toBeNull();
+  });
+
+  it("does not enable targeted writes against an older daemon preview", async () => {
+    const plan = previewResult();
+    for (const entry of plan.skills ?? []) delete entry.preview_hash;
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), [], plan));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    expect(document.querySelector('[data-skills-action="apply"]')).toBeNull();
+    expect(document.querySelector<HTMLSelectElement>("[data-skills-choice]")?.disabled).toBe(true);
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Mettez à jour");
   });
 
   it("toggles the automatic synchronization", async () => {

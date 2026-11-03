@@ -51,6 +51,7 @@ const plan = (adapter_id: string, changes: unknown[] = [{ change_id: "c1", kind:
 });
 
 interface Rig {
+  workspaceItems?: unknown[];
   calls: { command: string; payload: Record<string, unknown> }[];
   states: Record<string, HarnessState>;
   onApply: () => BridgeAnswer;
@@ -74,7 +75,10 @@ function rig(): { platform: ReturnType<typeof fakeDesktop>; state: Rig } {
   };
   const platform = fakeDesktop({
     request: (async (command: string, payload: Record<string, unknown> = {}) => {
-      if (command !== "skills.check" && command !== "launch.get_settings") state.calls.push({ command, payload });
+      if (!["skills.check", "launch.get_settings", "workspace.list", "workspace.get_config", "identity.get_view"].includes(command)) state.calls.push({ command, payload });
+      if (command === "workspace.list") return ok({ items: state.workspaceItems ?? [workspace()] });
+      if (command === "workspace.get_config") return ok(workspace().config);
+      if (command === "identity.get_view") return ok({ machine: { machine_name: "PC Bureau" } });
       if (command === "harness.detect") {
         return ok({ harnesses: Object.entries(state.states).map(([id, s]) => status(id, s)) });
       }
@@ -86,6 +90,10 @@ function rig(): { platform: ReturnType<typeof fakeDesktop>; state: Rig } {
     }) as never,
   });
   return { platform, state };
+}
+
+function workspace(id = WS, project = "mon-jeu", folder = "Mon jeu") {
+  return { workspace_id: id, health: "valid", action: "none", config: { workspace_id: id, project_id: "project-1", project_slug: project, roots: { workspace_root: `C:/Projects/${folder}` } } };
 }
 
 async function mount(platform: ReturnType<typeof fakeDesktop>, workspaceId: string | null = WS) {
@@ -240,7 +248,7 @@ describe("Settings › Intégrations IA (web)", () => {
 });
 
 describe("Settings › Intégrations IA (Desktop)", () => {
-  it("carries the remembered folder instead of asking for a workspace id", async () => {
+  it("selects a real registered folder and explains the project, PC and detected tools", async () => {
     const { platform, state } = rig();
     globalThis.localStorage.setItem(
       "studio-os.onboarding.v1",
@@ -248,10 +256,13 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     );
     try {
       const root = await mount(platform, null);
-      expect(state.calls).toEqual([]);
+      expect(state.calls.map((call) => call.command)).toEqual(["harness.detect"]);
       expect(root.querySelector("#workspace-id-input")).toBeNull();
       expect(root.querySelector("[data-testid=workspace-form]")).toBeNull();
       expect(root.textContent).toContain("Mon jeu");
+      expect(root.textContent).toContain("mon-jeu");
+      expect(root.textContent).toContain("PC Bureau");
+      expect(root.textContent).toContain("Claude Code");
       expect(root.querySelector<HTMLAnchorElement>("[data-testid=workspace-continue]")?.getAttribute("href")).toBe(
         `#/configuration/integrations/${WS}`,
       );
@@ -262,11 +273,34 @@ describe("Settings › Intégrations IA (Desktop)", () => {
 
   it("points to the setup assistant when no folder is remembered", async () => {
     const { platform, state } = rig();
+    state.workspaceItems = [];
     globalThis.localStorage.removeItem("studio-os.onboarding.v1");
     const root = await mount(platform, null);
     expect(state.calls).toEqual([]);
     expect(root.querySelector("#workspace-id-input")).toBeNull();
     expect(root.textContent).toContain("Lancer l'assistant");
+  });
+
+  it("lets the user choose another real project and folder before continuing", async () => {
+    const { platform, state } = rig();
+    const other = "22222222-2222-4333-8444-555555555555";
+    state.workspaceItems = [workspace(), workspace(other, "autre-projet", "Second dossier")];
+    const root = await mount(platform, null);
+    const select = root.querySelector<HTMLSelectElement>("[data-integration-workspace]")!;
+    select.value = other;
+    select.dispatchEvent(new Event("change"));
+    await flush();
+    expect(root.querySelector<HTMLAnchorElement>('[data-testid="workspace-continue"]')!.getAttribute("href")).toBe(`#/configuration/integrations/${other}`);
+    expect(state.calls.filter((call) => call.command === "harness.detect").map((call) => call.payload["workspace_id"])).toEqual([WS, other]);
+  });
+
+  it("does not continue to a missing folder from remembered state", async () => {
+    const { platform, state } = rig();
+    state.workspaceItems = [{ ...workspace(), health: "inaccessible", action: "grant_access" }];
+    const root = await mount(platform, null);
+    expect(root.querySelector('[data-testid="workspace-continue"]')).toBeNull();
+    expect(root.querySelector('a[href="#/workspaces"]')).not.toBeNull();
+    expect(state.calls).toEqual([]);
   });
 
   it("shows state, version and MCP state per harness, with the right actions", async () => {
@@ -530,11 +564,13 @@ describe("skills.check section", () => {
 describe("launch settings section", () => {
   const view = { opt_in: false, max_concurrent: 2, allowed_harnesses: [] as string[], detected_harnesses: ["harness-a", "harness-b"] };
 
-  function withLaunch(onSave?: (payload: Record<string, unknown>) => BridgeAnswer) {
+  function withLaunch(onSave?: (payload: Record<string, unknown>) => BridgeAnswer, options: { workspaceListError?: boolean; detectError?: boolean } = {}) {
     const { platform, state } = rig();
     const base = platform.request;
     const saved: Record<string, unknown>[] = [];
     (platform as { request: unknown }).request = async (command: string, payload: Record<string, unknown> = {}) => {
+      if (command === "workspace.list" && options.workspaceListError) return refused("internal_error");
+      if (command === "harness.detect" && options.detectError) return refused("internal_error");
       if (command === "launch.get_settings") return ok(view);
       if (command === "launch.save_settings") {
         saved.push(payload);
@@ -562,6 +598,35 @@ describe("launch settings section", () => {
     expect(section?.getAttribute("data-opt-in")).toBe("false");
     expect(root.querySelectorAll("[data-launch-harness]").length).toBe(2);
     expect(root.querySelector<HTMLInputElement>("[data-launch-harness]")?.checked).toBe(false);
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+  });
+
+  it.each([false, true])("confirms and saves machine settings without a workspace (list error: %s)", async (workspaceListError) => {
+    const { platform, state, saved } = withLaunch(undefined, { workspaceListError });
+    state.workspaceItems = [];
+    const root = await mount(platform, null);
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+    setField(root, "opt_in", true);
+    setField(root, "max_concurrent", "3");
+    (root.querySelector('[data-launch-harness="harness-a"]') as HTMLInputElement).checked = true;
+    await click(root, "[data-action=save-launch]");
+    expect(saved).toHaveLength(0);
+    expect(root.querySelector('[data-testid="launch-confirm"]')).not.toBeNull();
+    await click(root, "[data-action=confirm-launch]");
+    expect(saved).toEqual([{ opt_in: true, max_concurrent: 3, allowed_harnesses: ["harness-a"], confirmed: true }]);
+    expect(root.querySelector('[data-testid="launch-notice"]')).not.toBeNull();
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+  });
+
+  it.each([null, WS])("keeps machine settings when harness detection fails (workspace: %s)", async (workspaceId) => {
+    const { platform, saved } = withLaunch(undefined, { detectError: true });
+    const root = await mount(platform, workspaceId);
+    expect(root.querySelectorAll('[data-testid="launch-settings"]')).toHaveLength(1);
+    setField(root, "opt_in", true);
+    await click(root, "[data-action=save-launch]");
+    expect(saved).toHaveLength(0);
+    await click(root, "[data-action=confirm-launch]");
+    expect(saved).toEqual([{ opt_in: true, max_concurrent: 2, allowed_harnesses: [], confirmed: true }]);
   });
 
   it("saves nothing before the explicit confirmation, then sends confirmed=true", async () => {

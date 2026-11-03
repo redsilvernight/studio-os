@@ -108,6 +108,15 @@ au-delà de `--version`. `detect` et `status` fonctionnent même si
 `features.harness` est désactivé ; `preview/apply/rollback` répondent alors
 `feature_disabled`.
 
+Deux CLI livrés par une application de bureau échappent au `PATH` de la session
+qui démarre Studi'OS Desktop, parce que l'application ne l'exporte qu'aux
+processus qu'elle lance elle-même. Ils ont donc un emplacement de repli fixe,
+sous le profil de l'utilisateur et hors dossier de travail, jamais choisi par un
+dépôt : Claude Code embarqué (`%APPDATA%\Claude\claude-code\<version>\`, plus
+haute version) et Codex livré par l'application Codex
+(`%LOCALAPPDATA%\OpenAI\Codex\bin\<build>\`, build le plus récemment écrit). Le
+`PATH` reste prioritaire ; un arbre lié par symlink est refusé.
+
 ## Compatibilité de version (fail-closed)
 
 Claude Code : majeure 2. OpenCode : majeure 1. Toute autre version est

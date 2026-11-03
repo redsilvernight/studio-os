@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
+import pytest
+from mcp import Client
 from studio_mcp.access_registry import MCP_ACCESS
 from studio_mcp.server import mcp
 from studio_mcp.tools.sessions import studio_start_session
@@ -69,6 +72,49 @@ async def test_get_task_rejects_unknown_argument(auth_ctx: FakeContext) -> None:
     )
     assert result["error_code"] == "invalid_argument"
     assert result["unknown_arguments"] == ["verbose"]
+
+
+async def test_invalid_typed_argument_is_structured_without_echoing_input(
+    auth_ctx: FakeContext,
+) -> None:
+    result = await _manager().call_tool(
+        "studio_get_task", {"task_id": {"secret": "do-not-print"}}, auth_ctx
+    )
+    assert result["error_code"] == "invalid_argument"
+    assert result["fields"][0]["field"] == "task_id"
+    assert "do-not-print" not in json.dumps(result)
+
+
+async def test_unknown_argument_names_cannot_expand_error_output(auth_ctx: FakeContext) -> None:
+    result = await _manager().call_tool("studio_get_task", {"x" * 100000: True}, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+    assert len(json.dumps(result)) < 4000
+
+
+@pytest.mark.parametrize("limit", [-1, 501, "100000", "100000.0"])
+async def test_numeric_limits_are_bounded_after_sdk_coercion(
+    auth_ctx: FakeContext, limit: object
+) -> None:
+    result = await _manager().call_tool("studio_get_builds", {"limit": limit}, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_oversized_tool_input_is_rejected_before_handler(auth_ctx: FakeContext) -> None:
+    result = await _manager().call_tool("studio_get_task", {"task_id": "x" * 1048577}, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+    assert result["message"] == "arguments exceed 1 MiB"
+
+
+async def test_real_transport_preserves_structured_argument_error(
+    machine: tuple[Any, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STUDIO_MCP_MACHINE_TOKEN", machine[1])
+    async with Client(mcp) as client:
+        result = await client.call_tool("studio_get_task", {"task_id": {"secret": "do-not-print"}})
+        assert not result.is_error
+        assert result.structured_content is not None
+        assert "invalid_argument" in json.dumps(result.structured_content)
+        assert "do-not-print" not in json.dumps(result.structured_content)
 
 
 async def test_handoff_valid_call_still_succeeds(

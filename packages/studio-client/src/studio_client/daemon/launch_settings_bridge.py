@@ -25,6 +25,7 @@ from studio_contracts.local.launch import (
     LaunchSettingsSaveRequest,
     LaunchSettingsView,
 )
+from studio_contracts.profiles import MachinePolicy
 
 from studio_client.capabilities import neutral_context
 from studio_client.config import ClientConfig
@@ -56,17 +57,28 @@ def _defaults(config: ClientConfig) -> LaunchSettings:
     )
 
 
+def load_machine_policy(config: ClientConfig, data_root: Path) -> MachinePolicy:
+    """Stored settings plus the owner's optional local `permissions`
+    (DEC-0198), else the configured defaults without any permission. An
+    unreadable or invalid file never opts the machine in nor grants a
+    permission: it falls back to the safe defaults."""
+    path = data_root / SETTINGS_FILE
+    try:
+        return MachinePolicy.model_validate_json(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return MachinePolicy(**_defaults(config).model_dump())
+    except (OSError, ValidationError, ValueError) as exc:
+        _LOGGER.warning("launch settings unreadable (%s); using safe defaults", type(exc).__name__)
+        return MachinePolicy(
+            max_concurrent=_defaults(config).max_concurrent, opt_in=False, allowed_harnesses=[]
+        )
+
+
 def load_launch_settings(config: ClientConfig, data_root: Path) -> LaunchSettings:
     """Stored settings, else the configured defaults. An unreadable or invalid
     file never opts the machine in: it falls back to the safe defaults."""
-    path = data_root / SETTINGS_FILE
-    try:
-        return LaunchSettings.model_validate_json(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return _defaults(config)
-    except (OSError, ValidationError, ValueError) as exc:
-        _LOGGER.warning("launch settings unreadable (%s); using safe defaults", type(exc).__name__)
-        return _defaults(config).model_copy(update={"opt_in": False, "allowed_harnesses": []})
+    policy = load_machine_policy(config, data_root)
+    return LaunchSettings.model_validate(policy.model_dump(exclude={"permissions"}))
 
 
 def effective_launch_config(config: ClientConfig, data_root: Path) -> ClientConfig:
@@ -83,9 +95,10 @@ def effective_launch_config(config: ClientConfig, data_root: Path) -> ClientConf
 
 def _write_atomic(path: Path, settings: LaunchSettings) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    body = json.dumps(
-        settings.model_dump(mode="json", exclude={"detected_harnesses"}), sort_keys=True
-    )
+    payload = settings.model_dump(mode="json", exclude={"detected_harnesses"})
+    if payload.get("permissions", []) is None:
+        payload.pop("permissions")
+    body = json.dumps(payload, sort_keys=True)
     descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".launch_settings.")
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
@@ -139,10 +152,11 @@ def save_launch_settings(
     known = {adapter.harness_id for adapter in active.adapters()}
     if any(harness not in known for harness in request.allowed_harnesses):
         raise _invalid("A harness is not known to this machine.")
-    settings = LaunchSettings(
+    settings = MachinePolicy(
         opt_in=request.opt_in,
         max_concurrent=request.max_concurrent,
         allowed_harnesses=request.allowed_harnesses,
+        permissions=load_machine_policy(config, data_root).permissions,
     )
     try:
         _write_atomic(data_root / SETTINGS_FILE, settings)

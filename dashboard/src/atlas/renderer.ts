@@ -6,13 +6,14 @@
  *   zoom vers le curseur, clic = sélection, double-clic = vol.
  * - Clavier (canevas focalisé) : flèches = orbite, +/- = zoom, 0 = recentrer.
  */
-import { cameraFor, lerpCamera, orbit, pan, project, zoomAt } from "./camera";
+import { cameraFor, lerpCamera, orbit, pan, project, project2d, zoomAt } from "./camera";
 import {
   ATLAS_MAX_DRAWN_EDGES,
   type AtlasCamera,
   type AtlasCluster,
   type AtlasEdge,
   type AtlasNode,
+  type AtlasProjection,
   type AtlasRenderer,
   type AtlasRendererOptions,
   type AtlasView,
@@ -51,9 +52,25 @@ function truncate(text: string, max = 42): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+/** Sphère englobante (centre de la boîte, marge), ou null si moins de deux points. */
+function boundingSphere(points: Vec3[]): { center: Vec3; radius: number } | null {
+  if (points.length < 2) return null;
+  const min = { x: Infinity, y: Infinity, z: Infinity };
+  const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const p of points) {
+    min.x = Math.min(min.x, p.x); min.y = Math.min(min.y, p.y); min.z = Math.min(min.z, p.z);
+    max.x = Math.max(max.x, p.x); max.y = Math.max(max.y, p.y); max.z = Math.max(max.z, p.z);
+  }
+  const center = { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 };
+  const radius = points.reduce((r, p) => Math.max(r, Math.hypot(p.x - center.x, p.y - center.y, p.z - center.z)), 0);
+  return { center, radius: radius + 18 };
+}
+
 export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRendererOptions): AtlasRenderer {
   const ctx = canvas.getContext("2d");
-  let view: AtlasView = { nodes: [], edges: [], clusters: [], matches: new Set(), groups: [] };
+  let view: AtlasView = { nodes: [], edges: [], clusters: [], matches: new Set(), groups: [], communities: [] };
+  let projection: AtlasProjection = opts.mode ?? "3d";
+  let measureNextDraw = false;
   let byId = new Map<string, AtlasNode | AtlasCluster>();
   let selected: string | null = null;
   let hovered: string | null = null;
@@ -63,6 +80,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   let frame = 0;
   let flight: { from: AtlasCamera; to: AtlasCamera; start: number } | null = null;
   let drawn: Drawn[] = [];
+  let globe: { center: Vec3; radius: number } | null = null;
   let width = 0;
   let height = 0;
   let destroyed = false;
@@ -78,6 +96,8 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   };
 
   const positionOf = (id: string): Vec3 | null => byId.get(id)?.position ?? null;
+  const projectPoint = (p: Vec3): ProjectedPoint =>
+    projection === "2d" ? project2d(camera, p, width, height) : project(camera, p, width, height);
 
   const focusSet = (): Set<string> | null => {
     const focus = selected ?? hovered;
@@ -121,7 +141,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   const colorOf = (node: AtlasNode | undefined): string =>
     node === undefined ? opts.palette.edge : node.kind === "satellite" ? opts.palette.satellite : opts.palette.noteType[node.noteType] ?? opts.palette.textMuted;
 
-  const draw = (): void => {
+  const drawFrame = (): void => {
     if (ctx === null) return;
     const pal = opts.palette;
     ctx.globalAlpha = 1;
@@ -138,18 +158,74 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     const searching = view.matches.size > 0;
     const nodeById = new Map<string, AtlasNode>(view.nodes.map((n) => [n.id, n]));
     const projected = new Map<string, ProjectedPoint>();
-    for (const node of view.nodes) projected.set(node.id, project(camera, node.position, width, height));
+    for (const node of view.nodes) projected.set(node.id, projectPoint(node.position));
     // Brume de profondeur : ce qui est loin derrière la cible s'estompe.
     const fog = (p: ProjectedPoint): number => Math.max(0.3, Math.min(1, 1.55 - (p.depth / camera.distance) * 0.55));
     const isDim = (id: string): boolean => (dimming && focus !== null && !focus.has(id)) || (searching && !view.matches.has(id));
 
+    // Sphère englobante en fil de fer : silhouette, équateur et deux méridiens.
+    if (globe !== null) {
+      const { center, radius } = globe;
+      ctx.strokeStyle = pal.textMuted;
+      ctx.lineWidth = 1;
+      const ring = (point: (t: number) => Vec3, alpha: number): void => {
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        let pen = false;
+        for (let s = 0; s <= 96; s += 1) {
+          const p = projectPoint(point((s / 96) * Math.PI * 2));
+          if (p.scale <= 0) pen = false;
+          else if (pen) ctx.lineTo(p.x, p.y);
+          else {
+            ctx.moveTo(p.x, p.y);
+            pen = true;
+          }
+        }
+        ctx.stroke();
+      };
+      const c = projectPoint(center);
+      if (c.scale > 0) {
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, radius * c.scale, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (projection === "3d") {
+        const at = (x: number, y: number, z: number): Vec3 => ({ x: center.x + x * radius, y: center.y + y * radius, z: center.z + z * radius });
+        ring((t) => at(Math.cos(t), 0, Math.sin(t)), 0.16);
+        ring((t) => at(Math.cos(t), Math.sin(t), 0), 0.1);
+        ring((t) => at(0, Math.sin(t), Math.cos(t)), 0.1);
+      }
+    }
+
+    for (const community of view.communities) {
+      const p = projectPoint(community.position);
+      if (p.scale <= 0) continue;
+      const r = community.radius * p.scale;
+      if (p.x + r < 0 || p.x - r > width || p.y + r < 0 || p.y - r > height) continue;
+      const tint = pal.communities[community.colorIndex % pal.communities.length] ?? pal.textMuted;
+      ctx.globalAlpha = (dimming || searching ? 0.05 : 0.1) * fog(p);
+      ctx.fillStyle = tint;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = (dimming || searching ? 0.18 : 0.5) * fog(p);
+      ctx.strokeStyle = tint;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 6]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // Îlots : un disque teinté sous chaque groupe.
     for (const group of view.groups) {
-      const p = project(camera, group.center, width, height);
+      const p = projectPoint(group.center);
       if (p.scale <= 0) continue;
       const r = (group.radius + 6) * p.scale;
       if (p.x + r < 0 || p.x - r > width || p.y + r < 0 || p.y - r > height) continue;
-      const tint = pal.noteType[group.noteType] ?? pal.textMuted;
+      const tint = pal.zones[group.colorIndex % pal.zones.length] ?? pal.noteType[group.noteType] ?? pal.textMuted;
       ctx.globalAlpha = (dimming || searching ? 0.04 : 0.08) * fog(p);
       ctx.fillStyle = tint;
       ctx.beginPath();
@@ -252,13 +328,20 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
         ctx.beginPath();
         ctx.arc(p.x, p.y, r + 6, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (focus !== null && focus.has(node.id)) {
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = pal.accent;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
+        ctx.stroke();
       }
       next.push({ id: node.id, p, r });
     }
 
     // Amas (mode replié).
     for (const cluster of view.clusters) {
-      const p = project(camera, cluster.position, width, height);
+      const p = projectPoint(cluster.position);
       if (!p.visible || p.scale <= 0) continue;
       const r = Math.max(10, cluster.radius * p.scale);
       const color = pal.noteType[cluster.noteType] ?? pal.textMuted;
@@ -289,7 +372,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
 
     ctx.font = GROUP_FONT;
     for (const group of view.groups) {
-      const p = project(camera, { ...group.center, y: group.center.y + group.radius + 4 }, width, height);
+      const p = projectPoint({ ...group.center, y: group.center.y + group.radius + 4 });
       if (!p.visible || p.scale <= 0) continue;
       const w = ctx.measureText(group.label).width + 28;
       const box = { x: p.x - w / 2, y: p.y - 26, w, h: 22 };
@@ -298,12 +381,31 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       ctx.globalAlpha = dimming || searching ? 0.55 : 0.95;
       ctx.fillStyle = pal.labelBackground;
       pill(box.x, box.y, box.w, box.h);
-      ctx.fillStyle = pal.noteType[group.noteType] ?? pal.text;
+      ctx.fillStyle = pal.zones[group.colorIndex % pal.zones.length] ?? pal.noteType[group.noteType] ?? pal.text;
       ctx.beginPath();
       ctx.arc(box.x + 11, box.y + 11, 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = pal.text;
       ctx.fillText(group.label, box.x + 20, box.y + 11.5);
+    }
+
+    ctx.font = LABEL_FONT;
+    for (const community of view.communities) {
+      const p = projectPoint(community.position);
+      if (!p.visible || p.scale <= 0) continue;
+      const w = ctx.measureText(community.label).width + 24;
+      const box = { x: p.x - w / 2, y: p.y - community.radius * p.scale - 22, w, h: 20 };
+      if (!free(box)) continue;
+      taken.push(box);
+      ctx.globalAlpha = dimming || searching ? 0.5 : 0.9;
+      ctx.fillStyle = pal.labelBackground;
+      pill(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = pal.communities[community.colorIndex % pal.communities.length] ?? pal.textMuted;
+      ctx.beginPath();
+      ctx.arc(box.x + 10, box.y + 10, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = pal.text;
+      ctx.fillText(community.label, box.x + 18, box.y + 10.5);
     }
 
     ctx.font = LABEL_FONT;
@@ -336,6 +438,36 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     ctx.globalAlpha = 1;
     ctx.textBaseline = "alphabetic";
     drawn = next;
+  };
+
+  const draw = (): void => {
+    if (!measureNextDraw) {
+      drawFrame();
+      return;
+    }
+    measureNextDraw = false;
+    const name = "studio:vault-atlas:draw";
+    const startMark = `${name}:start`;
+    const endMark = `${name}:end`;
+    const start = typeof performance !== "undefined" ? performance.now() : 0;
+    try {
+      performance.mark(startMark);
+    } catch {
+    }
+    drawFrame();
+    const ms = (typeof performance !== "undefined" ? performance.now() : 0) - start;
+    try {
+      performance.mark(endMark);
+      performance.measure(name, startMark, endMark);
+    } catch {
+    }
+    opts.onRender?.(ms);
+    try {
+      performance.clearMarks(startMark);
+      performance.clearMarks(endMark);
+      performance.clearMeasures(name);
+    } catch {
+    }
   };
 
   const tick = (now: number): void => {
@@ -387,7 +519,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
 
   const onPointerDown = (event: PointerEvent): void => {
     const { x, y } = local(event);
-    drag = { x, y, startX: x, startY: y, pan: event.shiftKey || event.button === 2 || event.button === 1, moved: false };
+    drag = { x, y, startX: x, startY: y, pan: projection === "2d" || event.shiftKey || event.button === 2 || event.button === 1, moved: false };
     canvas.setPointerCapture?.(event.pointerId);
   };
   const onPointerMove = (event: PointerEvent): void => {
@@ -440,11 +572,11 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
   };
   const onKeyDown = (event: KeyboardEvent): void => {
     const step = 24;
-    const moves: Record<string, () => AtlasCamera> = {
-      ArrowLeft: () => orbit(camera, -step, 0),
-      ArrowRight: () => orbit(camera, step, 0),
-      ArrowUp: () => orbit(camera, 0, -step),
-      ArrowDown: () => orbit(camera, 0, step),
+    const cameraMove: Record<string, () => AtlasCamera> = {
+      ArrowLeft: () => (projection === "2d" ? pan(camera, step, 0, height) : orbit(camera, -step, 0)),
+      ArrowRight: () => (projection === "2d" ? pan(camera, -step, 0, height) : orbit(camera, step, 0)),
+      ArrowUp: () => (projection === "2d" ? pan(camera, 0, step, height) : orbit(camera, 0, -step)),
+      ArrowDown: () => (projection === "2d" ? pan(camera, 0, -step, height) : orbit(camera, 0, step)),
       "+": () => zoomAt(camera, 0.8, width / 2, height / 2, width, height),
       "=": () => zoomAt(camera, 0.8, width / 2, height / 2, width, height),
       "-": () => zoomAt(camera, 1.25, width / 2, height / 2, width, height),
@@ -454,7 +586,9 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       api.resetCamera();
       return;
     }
-    const move = moves[event.key];
+    const isArrow = event.key.startsWith("Arrow");
+    if (isArrow && !event.shiftKey) return;
+    const move = cameraMove[event.key];
     if (move === undefined) return;
     event.preventDefault();
     flight = null;
@@ -482,12 +616,14 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       for (const node of next.nodes) byId.set(node.id, node);
       for (const cluster of next.clusters) byId.set(cluster.id, cluster);
       const points = [...next.nodes.map((n) => n.position), ...next.clusters.map((c) => c.position)];
+      globe = boundingSphere(points);
       home = cameraFor(points);
       if (!framed && points.length > 0) {
         camera = home;
         framed = true;
       }
       if (hovered !== null && !byId.has(hovered)) hovered = null;
+      measureNextDraw = true;
       requestRender();
     },
     setSelected(id) {
@@ -497,6 +633,15 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     setHovered(id) {
       hovered = id;
       requestRender();
+    },
+    setMode(mode) {
+      projection = mode;
+      camera = { ...camera, yaw: 0, pitch: 0 };
+      flight = null;
+      requestRender();
+    },
+    getMode() {
+      return projection;
     },
     flyTo(id) {
       const target = positionOf(id);

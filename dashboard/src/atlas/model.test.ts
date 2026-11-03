@@ -81,7 +81,7 @@ describe("atlas model", () => {
     expect(dec.radius).toBeGreaterThan(plain.radius);
   });
 
-  it("spaces notes and keeps group discs apart, with labelled groups", () => {
+  it("spaces notes in 3D and keeps group balls apart, with labelled groups", () => {
     const many = Array.from({ length: 240 }, (_, i) =>
       note(`n${i}`, { note_type: i % 3 === 0 ? "rule" : "decision", scope: i % 5 === 0 ? "project" : "studio", project_id: i % 5 === 0 ? "p1" : null }));
     const graph = buildAtlasGraph(many, false);
@@ -92,16 +92,20 @@ describe("atlas model", () => {
       for (let j = i + 1; j < notes.length; j += 1) {
         const a = notes[i]!.position;
         const b = notes[j]!.position;
-        closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+        closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z));
       }
     }
-    expect(closest).toBeGreaterThan(7);
+    expect(closest).toBeGreaterThan(5);
+    // Volume réel : l'étendue en Z est du même ordre que celle en X.
+    const extent = (axis: "x" | "z"): number =>
+      Math.max(...notes.map((n) => n.position[axis])) - Math.min(...notes.map((n) => n.position[axis]));
+    expect(extent("z")).toBeGreaterThan(extent("x") * 0.5);
     const view = applyFilters(graph, defaultFilters(), new Map([["p1", "Kartouche"]]));
     expect(view.groups).toHaveLength(4);
     for (const g of view.groups) {
       for (const h of view.groups) {
         if (g.id >= h.id) continue;
-        expect(Math.hypot(g.center.x - h.center.x, g.center.y - h.center.y)).toBeGreaterThan(g.radius + h.radius);
+        expect(Math.hypot(g.center.x - h.center.x, g.center.y - h.center.y, g.center.z - h.center.z)).toBeGreaterThan(g.radius + h.radius);
       }
     }
     expect(view.groups.map((g) => g.label)).toContain("Kartouche · Règles (16)");
@@ -135,6 +139,38 @@ describe("atlas model", () => {
     expect([...applyFilters(graph, { ...defaultFilters(), query: "dec-0002" }).matches]).toEqual(["new"]);
     expect(applyFilters(graph, { ...defaultFilters(), query: "redis absent" }).matches.size).toBe(0);
     expect(applyFilters(graph, { ...defaultFilters(), query: "  " }).matches.size).toBe(0);
+  });
+
+  it("labels link communities with their members and a stable colour", () => {
+    const graph = buildAtlasGraph(NOTES, false);
+    layoutAtlas(graph);
+    const view = applyFilters(graph, defaultFilters());
+    expect(view.communities).toHaveLength(1);
+    const community = view.communities[0]!;
+    expect(community.members).toEqual(["new", "rule"]);
+    expect(community.label).toContain("Communauté 1");
+    expect(community.count).toBe(2);
+    expect(community.radius).toBeGreaterThan(0);
+    expect(community.colorIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  it("stays within budget when loading 2000 notes", () => {
+    const many = Array.from({ length: 2000 }, (_, i) =>
+      note(`n${i}`, {
+        note_type: i % 3 === 0 ? "decision" : i % 3 === 1 ? "rule" : "note",
+        scope: i % 4 === 0 ? "project" : "studio",
+        project_id: i % 4 === 0 ? `p${i % 5}` : null,
+        links: i > 0 && i % 7 === 0 ? [{ target_note_id: `n${i - 1}`, kind: "relates_to" }] : [],
+      }),
+    );
+    const start = performance.now();
+    const graph = buildAtlasGraph(many, true);
+    layoutAtlas(graph);
+    const view = applyFilters(graph, defaultFilters());
+    const elapsed = performance.now() - start;
+    expect(graph.nodes.filter((n) => n.kind === "note")).toHaveLength(2000);
+    expect(view.clusters.reduce((sum, c) => sum + c.count, 0)).toBe(2000);
+    expect(elapsed).toBeLessThan(5000);
   });
 
   it("folds into clusters above the threshold", () => {

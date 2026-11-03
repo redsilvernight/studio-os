@@ -25,12 +25,21 @@ class Settings(BaseSettings):
     transfer_project_quota_bytes: int = 100 * 1024**3
     multipart_abandon_after_days: int = 7
 
+    # Execution snapshots (DEC-0199): kept this long after capture, then purged.
+    execution_snapshot_retention_days: int = Field(default=90, ge=1, le=3650)
+
     # Cross-process realtime fan-out (DEC-0156): the API listens for events
     # committed by other processes (mcp, workers) and relays them over SSE.
     realtime_listener_enabled: bool = True
 
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
+
+    # Launch expiry (DEC-0173 base). An overdue non-terminal launch whose
+    # linked work session is still open with activity newer than this window
+    # is prolonged by this window instead of being expired; past it, the
+    # server expires the launch and closes the session + releases claims.
+    launch_activity_grace_seconds: int = Field(default=900, ge=60, le=86400)
 
     # Session presence (C1, DEC-0157): derived at read from last_activity_at,
     # never stored, never a heartbeat. A session with no activity past the

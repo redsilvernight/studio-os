@@ -7,9 +7,12 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 
@@ -84,6 +87,105 @@ async def test_replay_resumes_and_never_starts_a_second_session(
         "/api/v1/sessions", headers=auth_headers, params={"task_id": task_id, "open": "true"}
     )
     assert len(sessions.json()) == 1
+
+
+@pytest.mark.parametrize("resource_owner", [None, "first", "second"])
+async def test_same_machine_other_agent_cannot_silently_replace_claim(
+    client: AsyncClient,
+    auth_headers: Headers,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    db_session: AsyncSession,
+    resource_owner: str | None,
+) -> None:
+    second_agent = AgentModel(machine_id=machine[0].id, display_name="second", agent_kind="codex")
+    db_session.add(second_agent)
+    await db_session.flush()
+    task_id = await _task_id(client, auth_headers, project)
+    first = await client.post(
+        START, headers=auth_headers, json=_body(project, agent, task_id=task_id)
+    )
+    assert first.status_code == 200, first.text
+    conflict = await client.post(
+        START, headers=auth_headers, json=_body(project, second_agent, task_id=task_id)
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"]["error_code"] == "already_claimed"
+    manual_claim = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    assert manual_claim.status_code == 409
+    task = (await client.get(f"/api/v1/tasks/{task_id}", headers=auth_headers)).json()
+    assert task["claimed_by_agent_id"] == str(agent.id)
+    assert task["version"] == first.json()["task"]["version"]
+    sessions = (
+        await client.get(
+            "/api/v1/sessions", headers=auth_headers, params={"task_id": task_id, "open": "true"}
+        )
+    ).json()
+    assert [item["id"] for item in sessions] == [first.json()["session"]["id"]]
+    released = await client.post(
+        f"/api/v1/tasks/{task_id}/release",
+        headers={
+            **auth_headers,
+            "If-Match-Version": str(task["version"]),
+        },
+    )
+    assert released.status_code == 200, released.text
+    transferred = await client.post(
+        START, headers=auth_headers, json=_body(project, second_agent, task_id=task_id)
+    )
+    assert transferred.status_code == 200, transferred.text
+    assert transferred.json()["session"]["id"] != first.json()["session"]["id"]
+    sessions = (
+        await client.get("/api/v1/sessions", headers=auth_headers, params={"task_id": task_id})
+    ).json()
+    assert {item["agent_id"] for item in sessions} == {str(agent.id), str(second_agent.id)}
+    claim = await client.post(
+        "/api/v1/claims",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "task_id": task_id,
+            "resource_path": "src/owned-by-second.py",
+            "resource_type": "file",
+            "ttl_seconds": 600,
+        },
+    )
+    assert claim.status_code == 201, claim.text
+    if resource_owner is not None:
+        await db_session.execute(
+            update(ResourceClaimModel)
+            .where(ResourceClaimModel.id == uuid.UUID(claim.json()["id"]))
+            .values(claimed_by_agent_id=agent.id if resource_owner == "first" else second_agent.id)
+        )
+        await db_session.flush()
+    old_session_id = first.json()["session"]["id"]
+    old_handoff = await client.post(
+        "/api/v1/handoff",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "session_id": old_session_id,
+            "agent_id": str(agent.id),
+            "summary": "Late handoff",
+        },
+    )
+    assert old_handoff.status_code == 409
+    assert old_handoff.json()["detail"]["error_code"] == "already_claimed"
+    ended = await client.patch(f"/api/v1/sessions/{old_session_id}/end", headers=auth_headers)
+    assert ended.status_code == 200, ended.text
+    task = (await client.get(f"/api/v1/tasks/{task_id}", headers=auth_headers)).json()
+    assert task["claimed_by_agent_id"] == str(second_agent.id)
+    claims = (
+        await client.get(
+            "/api/v1/claims", headers=auth_headers, params={"project_id": str(project.id)}
+        )
+    ).json()
+    expected_claim_status = "released" if resource_owner == "first" else "active"
+    assert (
+        next(item for item in claims if item["id"] == claim.json()["id"])["status"]
+        == expected_claim_status
+    )
 
 
 async def test_idempotency_key_replays_the_original_result(

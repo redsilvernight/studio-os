@@ -13,6 +13,8 @@ import { scopeLabel } from "../libraryFormat";
 import {
   createFormFieldsHtml,
   dependenciesTableHtml,
+  dependencyUpdatesHtml,
+  workProfilePackPreviewHtml,
   filterLibraryResources,
   inspectorLinkHtml,
   kindFr,
@@ -20,6 +22,7 @@ import {
   libraryDetailHtml,
   libraryKindPageHtml,
   libraryRootHtml,
+  librarySyncNoticeHtml,
   libraryTabsHtml,
   locksTableHtml,
   resourcesTableHtml,
@@ -30,6 +33,22 @@ import {
   type LibraryListState,
 } from "./library";
 import type { LibraryProjectLock, LibraryResource, LibraryVersion } from "../libraryApi";
+import type { SkillsSyncStatus } from "../skillsApi";
+
+it("explains pinned update previews and escapes definition content", () => {
+  const html = dependencyUpdatesHtml({ resource_id: "source", version: 1, mutates: false, offset: 0, additional_available: 1, items: [{ resource_id: "target", scope: "studio", pinned_version: 1, active_version: 2, deprecated: false, update_available: true, suggested_pin: { resource_id: "target", kind: "rule", stable_key: "<script>bad</script>", version: 2 } }] });
+  expect(html).toContain("lecture seule");
+  expect(html).toContain("épinglée v1, active v2");
+  expect(html).toContain('data-dependency-next="1"');
+  expect(html).not.toContain("<script>");
+});
+
+it("shows a pack preview as non-authoritative and escapes references", () => {
+  const html = workProfilePackPreviewHtml({ accepted: false, authoritative: false, mutates: false, format: "studio.work-profile-pack-preview/v1", observed: [{ kind: "agent_definition", resource_id: "id", stable_key: "<script>", version: 1 }], issues: [], profile: { contract_version: 1, stable_key: "sample", authoritative: false, accepted: false, elements: [], permissions: [], effective_permissions: [], refusals: [] } });
+  expect(html).toContain("Composition conforme");
+  expect(html).toContain("La machine garde la décision finale");
+  expect(html).not.toContain("<script>");
+});
 
 const resource = (overrides: Partial<LibraryResource>): LibraryResource =>
   ({
@@ -64,13 +83,13 @@ const version = (content: Record<string, unknown>, overrides: Partial<LibraryVer
 
 const blank: LibraryListState = { query: "", scope: "all", status: "all" };
 
-/* ---------------- Racine : 5 kinds réels, français, calme ---------------- */
+/* ---------------- Racine : catégories réelles, français, calme ---------------- */
 
 describe("libraryRootHtml (page #/library)", () => {
   const html = libraryRootHtml();
 
-  it("présente les cinq catégories réelles en français", () => {
-    expect(LIBRARY_KIND_FR).toHaveLength(5);
+  it("présente les six catégories réelles en français", () => {
+    expect(LIBRARY_KIND_FR).toHaveLength(6);
     for (const entry of LIBRARY_KIND_FR) {
       expect(html).toContain(entry.plural);
       expect(html).toContain(entry.description);
@@ -80,6 +99,7 @@ describe("libraryRootHtml (page #/library)", () => {
     expect(html).toContain("Définitions d'agents");
     expect(html).toContain("Flux de travail");
     expect(html).toContain("Profils de modèles");
+    expect(html).toContain("Hooks");
   });
 
   it("chaque catégorie ouvre sa liste via une route stable", () => {
@@ -88,6 +108,7 @@ describe("libraryRootHtml (page #/library)", () => {
     expect(html).toContain('href="#/library/agent-definitions"');
     expect(html).toContain('href="#/library/workflows"');
     expect(html).toContain('href="#/library/model-profiles"');
+    expect(html).toContain('href="#/library/hooks"');
   });
 
   it("ne montre aucune information technique au premier plan", () => {
@@ -489,6 +510,48 @@ describe("dependenciesTableHtml", () => {
     expect(html).toContain("v5");
     expect(html).toContain("uses skill");
     expect(dependenciesTableHtml([])).toContain("Aucune dépendance");
+  });
+});
+
+/* ---------------- Synchronisation locale : conflits visibles ---------------- */
+
+describe("librarySyncNoticeHtml", () => {
+  const conflict: SkillsSyncStatus = {
+    state: "conflicts",
+    auto_sync_enabled: true,
+    last_check: "2026-01-01T00:00:00Z",
+    conflicts: [".agents/rules/coding-standard.md", ".claude/agents/reviewer.md"],
+  };
+
+  it("affiche les copies modifiées à la main sans les masquer", () => {
+    const html = librarySyncNoticeHtml(conflict);
+    expect(html).toContain("Conflit local");
+    expect(html).toContain(".agents/rules/coding-standard.md");
+    expect(html).toContain(".claude/agents/reviewer.md");
+    expect(html).toContain("n'ont pas été écrasées");
+    expect(html).toContain('role="alert"');
+  });
+
+  it("nomme les trois familles synchronisées quand la mise à jour a réussi", () => {
+    const html = librarySyncNoticeHtml({ ...conflict, state: "updated", conflicts: [] });
+    expect(html).toContain("skills, règles et agents");
+  });
+
+  it("ne rend rien sans état connu", () => {
+    expect(librarySyncNoticeHtml(null)).toBe("");
+    expect(librarySyncNoticeHtml(undefined)).toBe("");
+  });
+
+  it("la page de liste porte l'avertissement de conflit", () => {
+    const html = libraryKindPageHtml("rule", [resource({})], blank, undefined, conflict);
+    expect(html).toContain("Conflit local");
+  });
+
+  it("signale une lecture de statut impossible", () => {
+    expect(libraryRootHtml(null, true)).toContain('data-library-sync="unavailable"');
+    expect(
+      libraryKindPageHtml("rule", [resource({})], blank, undefined, null, true),
+    ).toContain('data-library-sync="unavailable"');
   });
 });
 

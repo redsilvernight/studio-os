@@ -9,6 +9,7 @@ import {
   shellStatusHtml,
   statusAction,
   statusDetail,
+  statusNextStep,
   summarizeDaemonAnswer,
   summarizeShellStatus,
   type DaemonSummary,
@@ -144,5 +145,41 @@ describe("rendering", () => {
     expect(serverStateLabel(conn("unreachable", "network"))).toBe("Injoignable");
     expect(serverStateLabel(conn("unreachable", "http_503"))).toBe("Réponse inattendue (503)");
     expect(serverStateLabel(conn("auth_expired"))).toContain("session expirée");
+  });
+});
+
+describe("statusNextStep: one readable human action per failure", () => {
+  const next = (input: Parameters<typeof summarizeShellStatus>[0]): string | null =>
+    statusNextStep(summarizeShellStatus(input), input.connection, input.daemon);
+
+  it("incompatible version, daemon down and API down each give a next step", () => {
+    expect(next({ ...base, compatibility: "incompatible" })).toMatch(/Mettez à jour/);
+    expect(next({ ...base, daemon: { kind: "error", code: "daemon_crashed" } })).toMatch(/redémarrez l'application/);
+    expect(next({ ...base, daemon: { kind: "error", code: "daemon_abandoned" } })).toMatch(/exportez un diagnostic/);
+    expect(next({ ...base, connection: conn("unreachable", "network") })).toMatch(/Vérifiez votre connexion/);
+    expect(next({ ...base, connection: conn("unreachable", "http_503") })).toMatch(/\(503\).*Réessayez/);
+    expect(next({ ...base, connection: conn("unreachable", "http_404") })).toMatch(/adresse du serveur/);
+  });
+
+  it("nothing to do when it works or is still connecting", () => {
+    expect(next(base)).toBeNull();
+    expect(next({ ...base, connection: conn("connecting") })).toBeNull();
+  });
+
+  it("a refused machine identity seen by the daemon is a step, not a new status", () => {
+    const daemon: DaemonSummary = {
+      kind: "state",
+      state: "running",
+      health: { heartbeat: "auth_error", outboxReplay: "healthy", gitWatchers: { total: 0, healthy: 0 }, observedAt: "x" },
+    };
+    expect(summarizeShellStatus({ ...base, daemon }).reason).toBe("connected");
+    expect(next({ ...base, daemon })).toMatch(/assistant de configuration/);
+  });
+
+  it("the next step joins the tooltip of the single status", () => {
+    const status = summarizeShellStatus({ ...base, connection: conn("unreachable", "network") });
+    const view = shellConnectionView(status, "Serveur : Injoignable", "Réessayez.");
+    expect(view.title).toBe("Serveur injoignable — Serveur : Injoignable — Réessayez.");
+    expect(shellConnectionView(status).title).toBeUndefined();
   });
 });

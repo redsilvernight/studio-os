@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -208,3 +210,73 @@ def test_cli_agents_ensure_finds_existing(
     cli.main(["agents", "ensure", "--harness", "opencode", "--stable-key", "custom-key"])
     out = capsys.readouterr().out
     assert f"Found agent {AGENT_ID} (studio-opencode)." in out
+
+
+def _opencode_credential_home(home: Path, token: str = "opencode-credential") -> Path:
+    config = home / ".config" / "opencode" / "opencode.jsonc"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        "// commentaire\n{\n"
+        f'  "mcp": {{"studio-os": {{"url": "http://test/mcp", '
+        f'"headers": {{"Authorization": "Bearer {token}"}}}}}}\n'
+        "}\n",
+        encoding="utf-8",
+    )
+    return home
+
+
+def _fake_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+
+
+def test_cli_agents_ensure_adopts_the_harness_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """DEC-0104/DEC-0226 : `agents ensure --harness-credential` authentifie avec
+    le credential de l'outil, donc l'agent appartient a la machine que le MCP du
+    harnais utilise — sans cela `studio_start_work` repond actor_not_owned."""
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
+    monkeypatch.delenv("STUDIO_CLIENT_MACHINE_TOKEN", raising=False)
+    monkeypatch.delenv("STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN", raising=False)
+    _fake_home(monkeypatch, _opencode_credential_home(tmp_path))
+
+    seen_env: dict[str, str | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_env["authorization"] = request.headers.get("Authorization")
+        return httpx.Response(201, json=_ensure_payload(True))
+
+    def fake_run(config: ClientConfig, action: Any) -> Any:
+        seen_env["token"] = os.environ.get("STUDIO_CLIENT_MACHINE_TOKEN")
+        seen_env["origin"] = os.environ.get("STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN")
+
+        async def _go() -> Any:
+            async with _client(handler) as client:
+                return await action(client)
+
+        return asyncio.run(_go())
+
+    monkeypatch.setattr(cli, "_run", fake_run)
+    cli.main(["agents", "ensure", "--harness", "opencode", "--harness-credential"])
+    assert seen_env == {
+        "token": "opencode-credential",
+        "origin": "http://test",
+        "authorization": "Bearer opencode-credential",
+    }
+    capsys.readouterr()
+
+
+def test_cli_agents_ensure_keeps_an_explicit_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "explicit-token")
+    _fake_home(monkeypatch, _opencode_credential_home(tmp_path))
+
+    cli._adopt_harness_credential(
+        "opencode", ClientConfig(api_base_url="http://test"), home=tmp_path
+    )
+    assert os.environ["STUDIO_CLIENT_MACHINE_TOKEN"] == "explicit-token"

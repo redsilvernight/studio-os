@@ -12,9 +12,12 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from studio_contracts.local.harness import HarnessLaunchPreview, LaunchEnvironmentEntry
+
 from studio_client.harness import jsonc
 from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
+    AccessMode,
     AdapterRefusal,
     HarnessContext,
     entry_with_credential,
@@ -161,7 +164,10 @@ class OpenCodeAdapter(JsonMcpAdapter):
             "headers": {"Authorization": f"Bearer {token}"},
         }
 
-    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+    def headless_argv(
+        self, prompt: str, *, mode: AccessMode = AccessMode.WORKSPACE_WRITE
+    ) -> tuple[str, ...]:
+        self.require_mode(mode)
         return ("run", "--auto", prompt)
 
     def headless_environment(
@@ -171,7 +177,10 @@ class OpenCodeAdapter(JsonMcpAdapter):
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
         inline: dict[str, Any] = {
-            "mcp": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}
+            "mcp": {
+                STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential, url=ctx.mcp_url)
+            },
+            "permission": {"external_directory": "deny"},
         }
         if model:
             inline["model"] = model
@@ -189,3 +198,49 @@ class OpenCodeAdapter(JsonMcpAdapter):
             "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
             **machine_token_env(credential),
         }
+
+    def launch_preview(self, ctx: HarnessContext) -> HarnessLaunchPreview:
+        entry = self.read_user_entry(ctx)
+        plugin = ctx.home / self._config_dir(ctx) / "plugins" / _PLUGIN_NAME
+        return HarnessLaunchPreview(
+            adapter_id=self.adapter_id,
+            isolation="isolated",
+            settings_sources=[
+                "Répertoire de configuration temporaire et configuration inline Studio."
+            ],
+            hooks=[
+                LaunchEnvironmentEntry(
+                    name="Identité Studio",
+                    state="included" if plugin.is_file() else "unavailable",
+                    reason="Plugin Studio copié s’il est présent ; autres plugins non copiés.",
+                ),
+                LaunchEnvironmentEntry(
+                    name="Garde Git Studio",
+                    state="unavailable",
+                    reason="Aucune garde Git injectée par cet adaptateur.",
+                ),
+            ],
+            mcp_servers=[
+                LaunchEnvironmentEntry(
+                    name=STUDIO_MCP_SERVER_NAME,
+                    state="included" if entry is not None else "unavailable",
+                    reason=(
+                        "Configuration inline ; credential éphémère au lancement."
+                        if entry is not None
+                        else "Entrée MCP Studio absente ; lancement refusé."
+                    ),
+                )
+            ],
+            exclusions=[
+                "Configuration du projet désactivée pour le lancement.",
+                "Réglages, plugins et autres MCP personnels exclus du répertoire temporaire.",
+            ],
+            limitations=[
+                "Présence du plugin observée ; contenu et exécution non vérifiés.",
+                "Aperçu de ce poste seulement ; configuration revérifiée au lancement.",
+                "Lancement sans autorisation de production et mode lecture seule refusés.",
+                "Les instructions du projet restent distinctes des réglages et des plugins.",
+            ],
+            access_modes=[mode.value for mode in sorted(self.access_modes)],
+            production_approval_required=True,
+        )

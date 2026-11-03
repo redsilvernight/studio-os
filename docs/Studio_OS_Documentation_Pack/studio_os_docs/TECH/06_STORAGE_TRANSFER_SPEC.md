@@ -75,6 +75,24 @@ URL pre-signee a un client sans identifiants AWS).
 ## Download
 URL GET pre-signee courte. Support HTTP Range pour reprise.
 
+## Suppression explicite
+
+Le dashboard propose « Supprimer ce transfert » a l'expediteur et aux administrateurs,
+apres une confirmation nommant le fichier. Le serveur reste l'autorite pour l'acces
+projet et les roles ; un destinataire seul et un role `readonly` ne peuvent supprimer.
+La CLI utilisateur expose `studio-client transfers delete <transfer_id>` avec
+confirmation interactive du nom ; `--yes` confirme explicitement en mode non interactif,
+et `--json` rend le resultat structuré. Le MCP expose `studio_delete_transfer` dans le
+profil `admin` uniquement et exige la confirmation explicite de l'utilisateur avant appel.
+
+Les trois surfaces reutilisent `DELETE /transfers/{id}` ou son service commun :
+etats `created`, `uploading`, `ready`, `downloaded`, `expired` pris en charge ;
+multipart pendants abandonnes avant suppression S3 ; metadonnees conservees sous
+`deleted`. Un rejeu autorise d'un transfert deja `deleted` ne touche ni le stockage
+ni la date historique. `403 forbidden` refuse l'action ; `503 storage_unavailable`
+annonce un echec sans marquer le transfert supprime et permet un nouvel essai.
+Une suppression S3 partiellement executee ne peut etre annulee ; le rejeu est idempotent.
+
 ## Retention suggeree
 - transfer temporaire: 7 jours.
 - build: 30 jours.

@@ -21,6 +21,7 @@ from studio_api.services.authz import (
     ensure_machine_owned,
     ensure_project_access,
     forbidden,
+    owns_agent,
     project_visibility_clause,
 )
 
@@ -137,7 +138,7 @@ async def create_ai_work(
 ) -> AIWorkLogModel:
     authorize_create(principal, work_in.project_id)
     agent = await session.get(AgentModel, work_in.agent_id)
-    if agent is None or agent.machine_id != principal.machine.id:
+    if not owns_agent(agent, principal.machine):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={
@@ -205,7 +206,7 @@ async def _ensure_ai_work_owned(
             raise forbidden("ai_work", "update")
         return
     agent = await session.get(AgentModel, work.agent_id)
-    if agent is None or agent.machine_id != principal.machine.id:
+    if not owns_agent(agent, principal.machine):
         raise forbidden("ai_work", "update")
 
 

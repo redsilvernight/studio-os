@@ -7,6 +7,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.library import BindingRelation, LibraryKind, LibraryScope, VersionOrigin
+from studio_contracts.profiles import (
+    MachinePolicy,
+    ProfilePreview,
+    WorkProfile,
+    resolve_profile,
+)
 from studio_contracts.resolution import (
     MAX_COMPOSITION_DEPTH,
     AgentResolutionSnapshot,
@@ -231,3 +237,26 @@ async def resolve_full(
         return resolve_agent(snapshot)
     except ResolutionFailure as failure:
         raise _map_failure(failure) from None
+
+
+async def preview_profile(
+    session: AsyncSession,
+    principal: Principal,
+    profile: WorkProfile,
+    machine_policy: MachinePolicy,
+    project_id: UUID | None = None,
+    session_overrides: Mapping[tuple[LibraryKind, str], RuntimeTarget] | None = None,
+) -> ProfilePreview:
+    """P04 (DEC-0198): the profile's agent goes through `resolve_full` — same
+    visibility, versioning and runtime precedence — then the pure
+    `resolve_profile` composes the non-authoritative preview."""
+
+    definition = await resolve_full(
+        session,
+        principal,
+        LibraryKind.AGENT_DEFINITION,
+        profile.agent_stable_key,
+        project_id,
+        session_overrides,
+    )
+    return resolve_profile(profile, definition, machine_policy)

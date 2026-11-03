@@ -22,7 +22,18 @@ description: Close a unit of work in one call (L3 studio_handoff) so a zero-hist
 }
 ```
 
-Composes: task status update + releases all claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Emits one `coordination.handoff` signal when `coordination_text` is set (never re-emitted on replay). Compact response: ids + statuses + last bounded `sync` block + `handoff_cursor_seq`.
+Composes: task status update + releases the session agent's eligible claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Emits one `coordination.handoff` signal when `coordination_text` is set (never re-emitted on replay). Compact response: ids + statuses + last bounded `sync` block + `handoff_cursor_seq`.
+
+## Completion by work kind
+
+Pass optional `completion` evidence (`studio.completion/v1`) with the work kind, artifact references and checks. The server checks consistency; it cannot verify a local repository or turn a declaration into a review approval.
+
+- Code: a versioned revision and actual validations. Integration and CI are required when the repository or task says so; name the actual target branch, never assume `dev`.
+- Audit/diagnostic: verified artifacts and validation/review checks; Git and CI are not automatically required. An observed failure may be recorded as a finding, separately from the successful validation of the diagnostic deliverable.
+- Operation: an observed and verified effect. Deployment is recorded separately and still requires its applicable authorization.
+- A command check needs its real exit code. Failed, skipped or unavailable validation cannot complete the task. A tool returning "completed" is not proof of success.
+
+Include `agent_id` and `summary` so the evidence is persisted with the AI work. Without a completed deliverable, omit `task_status` and leave a resumable checkpoint. Always distinguish implemented, tested, integrated and deployed in STATE. Completion evidence does not relax project acceptance or authorization rules.
 
 ## Failure
 

@@ -10,6 +10,7 @@
 import { ApiError, apiBaseUrl, createApiClient, type StudioClient } from "../api";
 import { getToken, hasToken } from "../auth";
 import { joinUrl } from "../config";
+import { isDashboardIdentity } from "../machinesApi";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
 import { dsBadge, dsPageHeader, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
@@ -36,9 +37,11 @@ import type {
 import { esc } from "../ui";
 import { originRefusalMessage } from "../originRefusal";
 import { toWorkspaceViewModel } from "../workspaces/workspaces";
+import { findLinkedWorkspaceId } from "../workspaces/api";
 import { pickWorkspaceFolder, type FolderPickOutcome } from "../views/workspacesPage";
 import { createProject, type Project } from "../creationsApi";
 import { newIdempotencyKey } from "../claimsApi";
+import { daemonGrantsEnroll } from "./enrollGrant";
 import { ONBOARDING_STEPS, nextStep, previousStep, stepById, type OnboardingStep } from "./steps";
 import {
   loadOnboardingState,
@@ -621,26 +624,7 @@ export function enrollErrorMessage(error: LocalError): string {
 const ENROLL_UPDATE_MESSAGE =
   "L'assistant local de cette version ne sait pas enregistrer le poste. Mettez l'application à jour ou demandez à un administrateur.";
 
-/**
- * DEC-0130 : la session ne part que vers un démon qui a accordé
- * `identity.enroll` à l'instant (négociation fraîche : un démon redémarré
- * oublie ses accords). Un ancien démon ne la reçoit jamais.
- */
-export async function daemonGrantsEnroll(platform: Platform): Promise<boolean> {
-  try {
-    const peer = (await platform.desktopInfo())?.peer;
-    if (!peer) return false;
-    const answer = await platform.request("runtime.handshake", { peer });
-    if (!answer.ok) return false;
-    const reply = answer.response.payload as { outcome?: string; granted_capabilities?: string[] };
-    return (
-      (reply.outcome === "compatible" || reply.outcome === "compatible_degraded") &&
-      (reply.granted_capabilities ?? []).includes("identity.enroll")
-    );
-  } catch {
-    return false;
-  }
-}
+export { daemonGrantsEnroll };
 
 const MAX_MACHINE_NAME = 100;
 
@@ -680,7 +664,7 @@ async function readAdoptableMachines(client: StudioClient): Promise<AdoptableMac
     const result = await client.GET("/api/v1/machines");
     if (result?.response?.ok !== true || !Array.isArray(result.data)) return [];
     return result.data
-      .filter((machine) => typeof machine.id === "string" && machine.id !== "")
+      .filter((machine) => typeof machine.id === "string" && machine.id !== "" && !isDashboardIdentity(machine.display_name))
       .map((machine) => ({
         id: machine.id,
         name: machine.display_name.trim() === "" ? "Machine sans nom" : machine.display_name,
@@ -1044,6 +1028,16 @@ async function associateFolder(
   if (!profile) {
     session.error = "Ce poste n'est pas reconnu. Revenez à l'étape « Vérification ».";
     return again();
+  }
+  const linkedId = session.state.workspaceId ? undefined : await findLinkedWorkspaceId(platform, projectId, path);
+  if (linkedId) {
+    session.state = { ...session.state, workspaceId: linkedId, folderName: displayName };
+    session.folder = null;
+    session.statusText = null;
+    session.notice = "Dossier déjà associé à ce projet.";
+    persist(session);
+    go(session, nextStep("dossier") ?? "memoire");
+    return;
   }
   const roots = { workspace_root: path, repo_roots: [] as { name: string; path: string }[] };
   // Le pont exige une confirmation liée à ces racines exactes : l'identifiant

@@ -226,3 +226,42 @@ async def test_http_list_sessions_honours_agent_and_open_params(
     still_open = await client.get("/api/v1/sessions", headers=auth_headers, params=params)
     assert still_open.status_code == 200
     assert still_open.json() == []
+
+
+async def test_model_change_closes_the_previous_identity_session(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    """DEC-0237: the observed model changed, so the machine's presence moves
+    to the new identity — the former session is closed explicitly (`reason=
+    identity_changed`) instead of lingering as a second live session."""
+    machine_model, _ = machine
+    principal = await _principal(db_session, machine, project)
+    task_id = await _task_id(client, auth_headers, project)
+    other_agent = AgentModel(
+        machine_id=machine_model.id, display_name="other-model", agent_kind="model"
+    )
+    db_session.add(other_agent)
+    await db_session.commit()
+    await db_session.refresh(other_agent)
+    settings = get_settings()
+
+    first, _ = await sessions_service.resume_or_start_session(
+        db_session, principal, _session_in(task_id, machine_model.id, agent.id), settings
+    )
+    second, resumed = await sessions_service.resume_or_start_session(
+        db_session, principal, _session_in(task_id, machine_model.id, other_agent.id), settings
+    )
+
+    assert resumed is False
+    assert second.id != first.id
+    closed = await db_session.get(WorkSessionModel, first.id)
+    assert closed is not None and closed.ended_at is not None
+    open_sessions = await sessions_service.list_sessions(
+        db_session, principal, task_id=task_id, open_only=True
+    )
+    assert [row.id for row in open_sessions] == [second.id]
