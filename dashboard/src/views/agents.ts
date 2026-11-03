@@ -413,6 +413,8 @@ export function agentHeroHtml(target: AgentHeroTarget): string {
 /* Page liste.                                                          */
 /* ------------------------------------------------------------------ */
 
+const NO_PROJECT_LABEL = "Sans projet";
+
 const AGENT_GROUPS: Array<{ key: AgentAvailabilityGroup; title: string }> = [
   { key: "active", title: "En activité" },
   { key: "recent", title: "Actifs récemment" },
@@ -461,17 +463,29 @@ export function agentsListHtml(
     const sections = AGENT_GROUPS.map((group) => {
       const members = visible.filter((agent) => agentAvailabilityGroup(activityOf(agent).signal) === group.key);
       if (members.length === 0) return "";
-      const rows = members
-        .map((agent) => {
-          const activity = activityOf(agent);
-          return agentRowHtml(
-            agent,
-            activity,
-            agentPrimaryProject(agent, activity, evidence.aiWork, evidence.tasks, names),
-            agentIdentityNote(agent, agents),
-          );
-        })
-        .join("");
+      const entries = members.map((agent) => {
+        const activity = activityOf(agent);
+        const project = agentPrimaryProject(agent, activity, evidence.aiWork, evidence.tasks, names);
+        return { project: project?.name ?? NO_PROJECT_LABEL, html: agentRowHtml(agent, activity, project, agentIdentityNote(agent, agents)) };
+      });
+      if (group.key === "inactive") {
+        const byProject = new Map<string, string[]>();
+        for (const entry of entries) byProject.set(entry.project, [...(byProject.get(entry.project) ?? []), entry.html]);
+        const cards = [...byProject.entries()]
+          .sort(([a], [b]) => (a === NO_PROJECT_LABEL ? 1 : b === NO_PROJECT_LABEL ? -1 : a.localeCompare(b, "fr")))
+          .map(
+            ([project, rows]) =>
+              `<details class="agents-project"${query !== "" ? " open" : ""}><summary><span class="agents-project-name">${esc(project)}</span> ` +
+              `<span class="ds-list-sub">(${rows.length})</span></summary><ul class="agents-list">${rows.join("")}</ul></details>`,
+          )
+          .join("");
+        return (
+          `<section class="agents-group" aria-label="${esc(group.title)}">` +
+          `<h2 class="agents-group-title">${esc(group.title)} <span class="ds-list-sub">(${members.length})</span></h2>` +
+          `<div class="agents-projects">${cards}</div></section>`
+        );
+      }
+      const rows = entries.map((entry) => entry.html).join("");
       return (
         `<section class="agents-group" aria-label="${esc(group.title)}">` +
         `<h2 class="agents-group-title">${esc(group.title)} <span class="ds-list-sub">(${members.length})</span></h2>` +
@@ -563,13 +577,45 @@ export function agentNotFoundHtml(id: string): string {
   );
 }
 
+const WORK_SUMMARY_MAX = 200;
+const WORK_PAGE_SIZE = 10;
+const EVIDENCE_MARKER = "COMPLETION_EVIDENCE";
+
+/** Résumé lisible : début tronqué, texte complet et preuves JSON repliés. */
+export function workSummaryHtml(summary: string): string {
+  const cut = summary.indexOf(EVIDENCE_MARKER);
+  const head = (cut >= 0 ? summary.slice(0, cut) : summary).trim();
+  const proof = cut >= 0 ? summary.slice(cut + EVIDENCE_MARKER.length).trim() : "";
+  if (head.length <= WORK_SUMMARY_MAX && proof === "") return `<span class="ds-list-title">${esc(head)}</span>`;
+  const long = head.length > WORK_SUMMARY_MAX;
+  const short = long ? `${head.slice(0, WORK_SUMMARY_MAX).trimEnd()}…` : head;
+  return (
+    `<details class="work-summary"><summary class="ds-list-title">${esc(short)}</summary>` +
+    (long ? `<p>${esc(head)}</p>` : "") +
+    (proof !== "" ? `<p class="ds-list-sub">Preuves techniques</p><pre class="work-evidence">${esc(proof)}</pre>` : "") +
+    `</details>`
+  );
+}
+
+/** Premières entrées visibles, le reste dans un volet « Afficher les autres ». */
+function pagedListHtml(items: string[], label: string): string {
+  const first = items.slice(0, WORK_PAGE_SIZE).join("");
+  const rest = items.slice(WORK_PAGE_SIZE);
+  return (
+    `<ul class="ds-list">${first}</ul>` +
+    (rest.length > 0
+      ? `<details class="paged-more"><summary>Afficher les ${rest.length} ${esc(label)} plus anciennes</summary><ul class="ds-list">${rest.join("")}</ul></details>`
+      : "")
+  );
+}
+
 function workRowHtml(work: AIWorkLog, names: AgentNames): string {
   const task = work.task_id !== null && work.task_id !== undefined ? names.tasksById.get(work.task_id) : undefined;
   const taskPart = work.task_id === null || work.task_id === undefined ? "" : ` · sur ${taskLinkHtml(task, work.task_id)}`;
   const projectPart = task !== undefined ? projectSuffixHtml(names, task.project_id) : projectSuffixHtml(names, work.project_id);
   return (
-    `<li class="ds-list-item"><span class="grow"><span class="ds-list-title">${esc(work.summary)}</span>` +
-    `<br /><span class="ds-list-sub">${fmtTime(work.started_at)}${work.ended_at !== null ? ` → ${fmtTime(work.ended_at)}` : ""}${taskPart}${projectPart}</span></span>` +
+    `<li class="ds-list-item"><span class="grow">${workSummaryHtml(work.summary)}` +
+    `<span class="ds-list-sub work-meta">${fmtTime(work.started_at)}${work.ended_at !== null ? ` → ${fmtTime(work.ended_at)}` : ""}${taskPart}${projectPart}</span></span>` +
     `${dsBadge(aiWorkStatusLabel(work.status), aiWorkStatusTone(work.status))}</li>`
   );
 }
@@ -613,12 +659,12 @@ export function agentDetailHtml(
     `<section class="ds-panel" aria-label="Travail réalisé"><header><h2>Travail réalisé</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
     (ownWork.length === 0
       ? `<p class="ds-list-sub">Aucun travail attribué à cet agent.</p>`
-      : `<ul class="ds-list">${ownWork.map((work) => workRowHtml(work, names)).join("")}</ul>`) +
+      : pagedListHtml(ownWork.map((work) => workRowHtml(work, names)), "entrées")) +
     `</div></section>` +
     `<section class="ds-panel" aria-label="Sessions"><header><h2>Sessions</h2><span class="ds-list-sub">${ownSessions.length} session(s) — une session ouverte est un signal, pas une preuve de connexion</span></header><div class="body">` +
     (ownSessions.length === 0
       ? `<p class="ds-list-sub">Aucune session attribuée à cet agent.</p>`
-      : `<ul class="ds-list">${ownSessions.map((session) => sessionRowHtml(session, names)).join("")}</ul>`) +
+      : pagedListHtml(ownSessions.map((session) => sessionRowHtml(session, names)), "sessions")) +
     `</div></section>` +
     `<section class="ds-panel" aria-label="Environnement"><header><h2>Environnement</h2></header><div class="body">` +
     (agent.owner_user_id
