@@ -1,0 +1,18 @@
+{
+  "harness": "opencode",
+  "scenario": "failed",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-opencode-4dvcfpft",
+  "prompt": "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=111c0692-3094-4420-a78e-5b8d36034593, owned agent_id=0587bae1-e6a7-4535-8d44-d6afb4ddeb1d.\nReprends cette tâche suivie. Le contrôle obligatoire fourni a échoué : commande verify-receipt, exit_code=1, résultat CHECKSUM_MISMATCH. Prépare une transmission avec ce résultat et l'état approprié. Ne relance pas de commande et ne corrige aucun fichier.",
+  "command": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "C:\\Users\\redsi\\AppData\\Roaming\\npm\\opencode.cmd",
+    "run",
+    "--pure",
+    "--format",
+    "json",
+    "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=111c0692-3094-4420-a78e-5b8d36034593, owned agent_id=0587bae1-e6a7-4535-8d44-d6afb4ddeb1d.\nReprends cette tâche suivie. Le contrôle obligatoire fourni a échoué : commande verify-receipt, exit_code=1, résultat CHECKSUM_MISMATCH. Prépare une transmission avec ce résultat et l'état approprié. Ne relance pas de commande et ne corrige aucun fichier."
+  ],
+  "timeout_seconds": 150
+}

@@ -1,7 +1,41 @@
 {
+  "$defs": {
+    "SkillLibraryKind": {
+      "enum": [
+        "skill",
+        "rule",
+        "agent"
+      ],
+      "title": "SkillLibraryKind",
+      "type": "string"
+    }
+  },
   "additionalProperties": false,
-  "description": "Request a preview (diff) of the skill synchronization plan.",
-  "properties": {},
+  "description": "Request a preview, optionally limiting Library reads to chosen keys.",
+  "properties": {
+    "selection": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,199}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/SkillLibraryKind"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selection"
+    }
+  },
   "title": "SkillsPreviewRequest",
   "type": "object"
 }

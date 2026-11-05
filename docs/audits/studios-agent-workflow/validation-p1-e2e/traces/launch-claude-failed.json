@@ -1,0 +1,29 @@
+{
+  "harness": "claude",
+  "scenario": "failed",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-claude-9cva5klj",
+  "prompt": "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=552e42da-cbd9-459d-a558-2a6a887e7397, owned agent_id=bac79dbd-a263-4a7b-acf6-4d8df9690c84.\nReprends cette tâche suivie. Le contrôle obligatoire fourni a échoué : commande verify-receipt, exit_code=1, résultat CHECKSUM_MISMATCH. Prépare une transmission avec ce résultat et l'état approprié. Ne relance pas de commande et ne corrige aucun fichier.",
+  "command": [
+    "C:\\Users\\redsi\\.local\\bin\\claude.EXE",
+    "-p",
+    "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=552e42da-cbd9-459d-a558-2a6a887e7397, owned agent_id=bac79dbd-a263-4a7b-acf6-4d8df9690c84.\nReprends cette tâche suivie. Le contrôle obligatoire fourni a échoué : commande verify-receipt, exit_code=1, résultat CHECKSUM_MISMATCH. Prépare une transmission avec ce résultat et l'état approprié. Ne relance pas de commande et ne corrige aucun fichier.",
+    "--setting-sources",
+    "project",
+    "--settings",
+    "{\"disableAllHooks\":true}",
+    "--strict-mcp-config",
+    "--mcp-config",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-claude-9cva5klj\\mcp.json",
+    "--tools",
+    "Read,Skill",
+    "--allowedTools",
+    "Read,Skill,mcp__p15",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--no-session-persistence",
+    "--max-budget-usd",
+    "1"
+  ],
+  "timeout_seconds": 150
+}

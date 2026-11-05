@@ -1,0 +1,52 @@
+{
+  "api_contract_version": 5,
+  "agents": {
+    "claude": "dbe0466e-b578-4fd7-9b99-a9178bafa305",
+    "codex": "639cab89-459f-4a50-af35-577cf691b281",
+    "opencode": "8bf977c6-debb-4ac3-add7-40b07789bf5d",
+    "direct": "1cf3e233-ef35-4a59-b3c1-b7cb32031236"
+  },
+  "tasks": {
+    "claude": {
+      "tracked": "9ee21abb-7966-423b-b208-5794bc10e2bd",
+      "readonly": "6e19f05b-9c0c-49b6-91ed-9c0345528d58",
+      "provided": "cfaf8bd8-7b77-4d07-9237-19658fc11da4",
+      "signal": "9deb5a58-590b-4bcf-b2e5-c74b215ed40d",
+      "failed": "c0e8f0f7-2017-41b8-b500-b6f0a56431c3",
+      "handoff": "64708e11-9ab8-48a0-bcde-fb3299110d97"
+    },
+    "codex": {
+      "tracked": "575ccb84-8ad1-411f-ae42-ff3021ed3fd9",
+      "readonly": "610e3017-7534-4041-940a-196731b583be",
+      "provided": "f67b3820-0131-48f1-83f4-a4e96f028dd0",
+      "signal": "cd998f70-d386-4cc9-ac75-0020290efcaf",
+      "failed": "45264c96-b9e5-40e6-b058-9d658c765b8e",
+      "handoff": "b0a6486f-cfd2-4386-8b89-18b8fb90dd75"
+    },
+    "opencode": {
+      "tracked": "769c3b81-09ca-44e2-885d-d9aee6667064",
+      "readonly": "f26c8c1a-8d82-418b-99b9-68456cc63aed",
+      "provided": "1809dd16-d568-4e37-a096-0a547b572e51",
+      "signal": "e9d36f0f-2af6-48b8-990a-69150e96a7e9",
+      "failed": "dbc9f4b1-e60e-4081-9c5d-b07a77f41335",
+      "handoff": "aff17d87-cd0a-42d8-9646-ae2e3fbff32e",
+      "readonly_01": "9decf5fc-18a3-4544-9157-30f2276c0f6e",
+      "readonly_02": "ea3b5af5-85aa-4c2c-8690-1ad17cf607a8",
+      "readonly_03": "b1689107-3bca-4bc0-bda8-c11d37f2baaa",
+      "readonly_04": "157349f9-ecff-46ae-952f-4a7d7b28a90a",
+      "readonly_05": "3c679fe3-83a9-4dcd-9e5b-2ff11a471914",
+      "readonly_06": "f26c8c1a-8d82-418b-99b9-68456cc63aed"
+    },
+    "direct": {
+      "tracked": "a91db548-bb8e-4623-b11f-d0a5238174f1",
+      "readonly": "658cab00-87b7-462c-964e-5bc3396a8516",
+      "provided": "17464d3c-3f70-42e0-b798-a744631e5d19",
+      "signal": "7cff59e5-4386-45bc-92a3-e66b9a41c373",
+      "failed": "8ae23e7e-5b02-479d-98b9-c85dce7938cd",
+      "handoff": "3ba27dc2-fc7e-44ed-b0a3-de4fddd752bf",
+      "signal_source": "7e38db9d-b7a7-43a6-be11-c498a5fc40fb"
+    }
+  },
+  "project_id": "42de2f9a-2d17-4d54-87ea-96a37def5105",
+  "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078"
+}

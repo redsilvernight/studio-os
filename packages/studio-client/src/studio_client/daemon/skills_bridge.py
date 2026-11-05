@@ -257,13 +257,22 @@ async def fetch_library_projections(
     api: Any,
     project_id: Any,
     limit: int = 100,
+    selection: dict[str, set[str]] | None = None,
 ) -> tuple[LibraryContextItem, ...]:
     provider = LibraryContextProvider(api)
-    textual = await provider.fetch(project_id, limit=limit, kinds=("rule", "skill"))
+    textual = await provider.fetch(
+        project_id,
+        limit=limit,
+        kinds=("rule", "skill"),
+        stable_keys=selection,
+    )
     items = [item for item in textual.items if item.scope in _GLOBAL_SCOPES]
 
     for row in await provider.fetch_effective_versions(
-        project_id, kind="agent_definition", limit=limit
+        project_id,
+        kind="agent_definition",
+        limit=limit,
+        stable_keys=(selection or {}).get("agent_definition"),
     ):
         status = str(getattr(row.resource, "status", "active"))
         if status not in {"active", "deprecated"}:
@@ -617,9 +626,13 @@ def _run_fetch(
 
 
 def _fetch_projections(
-    config: ClientConfig, token_store: TokenStore
+    config: ClientConfig,
+    token_store: TokenStore,
+    selection: dict[str, set[str]] | None = None,
 ) -> tuple[LibraryContextItem, ...]:
-    return _run_fetch(config, token_store, _fetch)
+    if selection is None:
+        return _run_fetch(config, token_store, _fetch)
+    return _run_fetch(config, token_store, lambda c, t: _fetch(c, t, selection))
 
 
 def _fetch_skill_projections(
@@ -641,13 +654,20 @@ def _fetch_and_plan_library(
     config: ClientConfig,
     token_store: TokenStore,
     home: Path,
+    selection: dict[str, set[str]] | None = None,
 ) -> tuple[SkillSyncPlan, DefinitionSyncPlan]:
-    return plan_library_sync(home, _fetch_projections(config, token_store))
+    return plan_library_sync(home, _fetch_projections(config, token_store, selection))
 
 
-async def _fetch(config: ClientConfig, token_store: TokenStore) -> Any:
+async def _fetch(
+    config: ClientConfig,
+    token_store: TokenStore,
+    selection: dict[str, set[str]] | None = None,
+) -> Any:
     async with StudioApiClient(config, token_store) as client:
-        return await fetch_library_projections(client, None, limit=_SKILL_LIMIT)
+        return await fetch_library_projections(
+            client, None, limit=_SKILL_LIMIT, selection=selection
+        )
 
 
 async def _fetch_skills_only(config: ClientConfig, token_store: TokenStore) -> Any:
@@ -704,6 +724,18 @@ def _preview_hash(entry: SkillPlanEntry) -> str:
 
 def _definition_kind(entry: DefinitionPlanEntry) -> SkillLibraryKind:
     return SkillLibraryKind(_manifest_kind(entry.projection.library_kind))
+
+
+def _selection_from_resolutions(
+    resolutions: list[Any],
+) -> dict[str, set[str]]:
+    selected: dict[str, set[str]] = {}
+    for resolution in resolutions:
+        kind = resolution.kind.value
+        if kind == "agent":
+            kind = "agent_definition"
+        selected.setdefault(kind, set()).add(resolution.stable_key)
+    return selected
 
 
 def _definition_preview_hash(entry: DefinitionPlanEntry) -> str:
@@ -783,10 +815,14 @@ def preview_skills(
     token_store: TokenStore,
     *,
     home: Path | None = None,
+    selection: dict[str, list[str]] | None = None,
 ) -> SkillsPreviewResult:
     """Return a preview (unified diff) of the skill, rule and agent synchronization plan."""
     plan, definitions = _fetch_and_plan_library(
-        config, token_store, home if home is not None else Path.home()
+        config,
+        token_store,
+        home if home is not None else Path.home(),
+        {kind: set(keys) for kind, keys in selection.items()} if selection is not None else None,
     )
     entries = [
         SkillPreviewEntry(
@@ -851,7 +887,12 @@ def apply_skills(
     if request.resolutions is None:
         plan = _fetch_and_plan(config, token_store, root)
     else:
-        plan, definitions = _fetch_and_plan_library(config, token_store, root)
+        plan, definitions = _fetch_and_plan_library(
+            config,
+            token_store,
+            root,
+            _selection_from_resolutions(request.resolutions),
+        )
     selected_keys: set[str] | None = None
     selected_definitions: set[tuple[str, str]] = set()
     if request.resolutions is not None and definitions is not None:

@@ -163,6 +163,7 @@ async def update_task(
 ) -> TaskModel:
     ensure_project_access(principal, task.project_id, "write")
     ensure_can_write(principal, "task")
+    await session.refresh(task, with_for_update=True)
     if task.version != expected_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,

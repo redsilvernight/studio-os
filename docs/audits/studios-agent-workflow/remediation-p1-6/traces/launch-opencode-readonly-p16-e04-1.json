@@ -1,0 +1,19 @@
+{
+  "harness": "opencode",
+  "scenario": "readonly",
+  "variant": "p16-e04-1",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-opencode-_n8m4lgd",
+  "prompt": "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=9decf5fc-18a3-4544-9157-30f2276c0f6e, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nFais un audit strictement en lecture seule de cette tâche et rends un diagnostic court. Ne crée ni session, tâche, claim, décision ni handoff. Aucun fichier à changer.",
+  "command": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "C:\\Users\\redsi\\AppData\\Roaming\\npm\\opencode.cmd",
+    "run",
+    "--pure",
+    "--format",
+    "json",
+    "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=9decf5fc-18a3-4544-9157-30f2276c0f6e, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nFais un audit strictement en lecture seule de cette tâche et rends un diagnostic court. Ne crée ni session, tâche, claim, décision ni handoff. Aucun fichier à changer."
+  ],
+  "timeout_seconds": 150
+}

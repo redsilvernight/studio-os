@@ -1,0 +1,212 @@
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-original\project AUDIT=True EXIT=2
+{
+  "mode": "audit",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project",
+  "changed": [],
+  "warnings": [
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\home\\.codex\\agents\\personal-agent.toml",
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\.codex\\agents\\project-agent.toml",
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\AGENTS.md"
+  ],
+  "ok": false
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-original\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\home\\.codex\\agents\\personal-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\.codex\\agents\\project-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\AGENTS.md"
+  ],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-original\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project",
+  "changed": [],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-candidate\project AUDIT=True EXIT=2
+{
+  "mode": "audit",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\project",
+  "changed": [],
+  "warnings": [
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\home\\.codex\\agents\\personal-agent.toml",
+    "stale: C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md"
+  ],
+  "ok": false
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-candidate\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\home\\.codex\\agents\\personal-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md"
+  ],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\canonical-candidate\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\project",
+  "changed": [],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-original\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\home\\.codex\\agents\\personal-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project\\.codex\\agents\\project-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project\\AGENTS.md"
+  ],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-original\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project",
+  "changed": [],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-candidate\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\home\\.codex\\agents\\personal-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project\\.codex\\agents\\project-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project\\.agents\\skills\\studio-task\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project\\AGENTS.md"
+  ],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-agents-candidate\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project",
+  "changed": [],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-original\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\home\\.codex\\agents\\personal-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project\\.codex\\agents\\project-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project\\AGENTS.md"
+  ],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-original\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-original\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project",
+  "changed": [],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-candidate\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\home\\.codex\\agents\\personal-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project\\.codex\\agents\\project-agent.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project\\.agents\\skills\\studio-task\\SKILL.md",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project\\AGENTS.md"
+  ],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.candidate.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-candidate\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\foreign-legacy-candidate\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project",
+  "changed": [],
+  "warnings": [],
+  "ok": true
+}
+
+
+
+SCRIPT=C:\Users\redsi\Documents\Coding\Projet\Studi'os\.studio-os\backups\p1-finalization-20261104T210011Z-dbc47557\sync-claude-config.ps1 FAKE_USERPROFILE=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\provenance\home PROJECT=C:\Users\redsi\AppData\Local\Temp\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\provenance\project AUDIT=False EXIT=0
+{
+  "mode": "sync",
+  "project": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project",
+  "changed": [
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project\\.codex\\agents\\contract-guardian.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project\\.codex\\agents\\dashboard-a11y.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project\\.codex\\agents\\migration-reviewer.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project\\.codex\\agents\\studio-architect.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project\\.codex\\agents\\studio-tester.toml",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\provenance\\project\\.codex\\agents\\sync-debugger.toml"
+  ],
+  "warnings": [],
+  "ok": true
+}
+

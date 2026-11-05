@@ -1,0 +1,19 @@
+{
+  "harness": "opencode",
+  "scenario": "readonly",
+  "variant": "p16-e04-r2-2",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-opencode-8zydzj63",
+  "prompt": "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=3c679fe3-83a9-4dcd-9e5b-2ff11a471914, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nFais une revue readonly de cette tâche et résume ce qui est établi. Ne prends pas la tâche en charge et ne change rien.",
+  "command": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "C:\\Users\\redsi\\AppData\\Roaming\\npm\\opencode.cmd",
+    "run",
+    "--pure",
+    "--format",
+    "json",
+    "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=3c679fe3-83a9-4dcd-9e5b-2ff11a471914, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nFais une revue readonly de cette tâche et résume ce qui est établi. Ne prends pas la tâche en charge et ne change rien."
+  ],
+  "timeout_seconds": 150
+}

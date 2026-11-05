@@ -1,0 +1,19 @@
+{
+  "task_id": "a6d0c5a9-7289-4f86-95b2-632a080e3fc1",
+  "task_status": "in_progress",
+  "task_version": 5,
+  "session_id": "5bac8c87-b194-4eb3-91b7-627b79ea61f4",
+  "released_claims": [
+    "1a70d7f1-6c31-43aa-a3c8-248ac4ada81c",
+    "a3fb07db-8b39-4064-b932-3d15ad03c953"
+  ],
+  "ai_work_id": "260d5d4d-2901-4467-9eff-244b6cd42d31",
+  "sync": {
+    "next_cursor": 0,
+    "items": [],
+    "overflow": {},
+    "resync": true
+  },
+  "handoff_cursor_seq": 0,
+  "coordination_event_id": "50f8b6a3-7aea-5116-ba23-21c9a636d004"
+}

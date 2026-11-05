@@ -109,9 +109,10 @@ class LibraryContextProvider:
         *,
         limit: int = 100,
         kinds: tuple[str, ...] = TEXTUAL_LIBRARY_KINDS,
+        stable_keys: dict[str, set[str]] | None = None,
     ) -> LibraryFetchResult:
-        resources = await self._api.list_library_resources(limit=limit)
         wanted = set(kinds)
+        resources = await self._api.list_library_resources(limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
@@ -119,14 +120,29 @@ class LibraryContextProvider:
         )
         locked_version = {lock.resource_id: lock.locked_version for lock in locks}
 
-        visible = [r for r in resources if self._is_applicable(r, project_id)]
+        # Use the request selection first, then enforce visibility/scope and
+        # scope shadowing. The API listing contains metadata only; no version
+        # history is read until this bounded candidate set is finalized.
+        selected = [
+            resource
+            for resource in resources
+            if str(resource.kind) in wanted
+            and (
+                stable_keys is None
+                or resource.stable_key in stable_keys.get(str(resource.kind), set())
+            )
+        ]
+        visible = [r for r in selected if self._is_applicable(r, project_id)]
         effective = self._apply_shadowing(visible)
+        visible_all = [r for r in resources if self._is_applicable(r, project_id)]
+        all_effective = self._apply_shadowing(visible_all)
 
         items: list[LibraryContextItem] = []
         skipped: dict[str, int] = {}
+        skipped["out_of_scope"] = sum(1 for r in all_effective if str(r.kind) not in wanted)
         for resource in sorted(effective, key=lambda r: (str(r.kind), r.stable_key)):
             kind = str(resource.kind)
-            if kind not in wanted or kind not in TEXTUAL_LIBRARY_KINDS:
+            if kind not in TEXTUAL_LIBRARY_KINDS:
                 skipped["out_of_scope"] = skipped.get("out_of_scope", 0) + 1
                 continue
             version_number = locked_version.get(resource.id, resource.active_version)
@@ -147,22 +163,27 @@ class LibraryContextProvider:
         *,
         kind: str,
         limit: int = 100,
+        stable_keys: set[str] | None = None,
     ) -> list[LibraryEffectiveVersion]:
         """Effective (shadowed, lock-aware) raw versions of one structured
         kind, for local projections that need the full content rather than
         injectable text (e.g. `hook`)."""
-        resources = await self._api.list_library_resources(limit=limit)
+        resources = await self._api.list_library_resources(kind=kind, limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
             else []
         )
         locked_version = {lock.resource_id: lock.locked_version for lock in locks}
-        visible = [r for r in resources if self._is_applicable(r, project_id)]
+        selected = [
+            resource
+            for resource in resources
+            if str(resource.kind) == kind
+            and (stable_keys is None or resource.stable_key in stable_keys)
+        ]
+        visible = [r for r in selected if self._is_applicable(r, project_id)]
         rows: list[LibraryEffectiveVersion] = []
         for resource in sorted(self._apply_shadowing(visible), key=lambda r: r.stable_key):
-            if str(resource.kind) != kind:
-                continue
             version_number = locked_version.get(resource.id, resource.active_version)
             if version_number <= 0:
                 continue

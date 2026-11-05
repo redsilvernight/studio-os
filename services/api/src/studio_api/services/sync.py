@@ -18,6 +18,7 @@ from typing import NamedTuple
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.coordination import CoordinationSignal
 from studio_contracts.project_context import (
@@ -206,14 +207,15 @@ async def sync(
     The cursor starts at `max(stored, ack)` and is persisted monotonically —
     a stale replay changes nothing. `next_cursor` is the `seq` up to
     which every matched event was delivered or absorbed, never past the first
-    matched event the bounds left out (unchanged when nothing is new); ack it
+    matched event the bounds left out or an unacknowledged live-session signal;
+    truncated scans can advance over irrelevant events; ack it
     next call to advance. Own-machine events are
     excluded; items are ids only, `seq` ascending, then live overlapping
     claims; the `ai_work.*` events of one work entry collapse to its latest
     one, the absorbed ones costing neither budget nor overflow counter; the
     remainder surfaces as per-`why` `overflow` counters, and a truncated scan
-    sets `resync` (see `prepare_context` for the full picture — raw history is
-    never dumped).
+    sets `resync` (continue sync/ack to drain; prepare_context supplies additional
+    context, not signal delivery).
     """
     if not 1 <= limit <= SYNC_MAX_LIMIT:
         raise _invalid(f"limit must be between 1 and {SYNC_MAX_LIMIT}")
@@ -280,7 +282,23 @@ async def sync(
 
     my_machine_id = principal.machine.id
     my_session_str = str(work_session.id) if work_session is not None else None
+    target_sessions = {
+        str(row.id): (row.sync_cursor_seq or 0, row.ended_at is not None)
+        for row in (
+            await session.execute(
+                select(
+                    WorkSessionModel.id,
+                    WorkSessionModel.sync_cursor_seq,
+                    WorkSessionModel.ended_at,
+                ).where(
+                    WorkSessionModel.task_id == my_task_id,
+                )
+            )
+        )
+    }
     matched: list[_Candidate] = []
+    pending_floor: int | None = None
+    pending_count = 0
     for event in scanned:
         is_coordination = event.event_type.startswith(_COORDINATION_PREFIX)
         if (
@@ -292,14 +310,35 @@ async def sync(
         signal: CoordinationSignal | None = None
         if is_coordination:
             payload = event.payload or {}
-            if my_session_str is not None and payload.get("from_session_id") == my_session_str:
-                continue
             targets_me = str(payload.get("task_id")) == str(my_task_id)
             target_session = payload.get("session_id")
             if target_session is not None:
-                targets_me = my_session_str is not None and str(target_session) == my_session_str
+                target_id = str(target_session)
+                target_state = target_sessions.get(target_id)
+                if (
+                    targets_me
+                    and target_id != my_session_str
+                    and target_state is not None
+                    and not target_state[1]
+                    and event.seq > target_state[0]
+                ):
+                    pending_floor = (
+                        event.seq if pending_floor is None else min(pending_floor, event.seq)
+                    )
+                    pending_count += 1
+                targets_me = (
+                    my_session_str is not None and target_id == my_session_str
+                ) or (
+                    targets_me
+                    and target_state is not None
+                    and target_state[1]
+                    and event.seq > target_state[0]
+                )
             if not targets_me:
                 continue
+            if my_session_str is not None and payload.get("from_session_id") == my_session_str:
+                if target_session is None or str(target_session) == my_session_str:
+                    continue
             why = "coordination"
             signal = _signal(event.id, event.event_type, payload)
             if signal is None:
@@ -361,10 +400,10 @@ async def sync(
         )
 
     items: list[SyncItem] = []
-    overflow: dict[str, int] = {}
+    overflow: dict[str, int] = {"coordination": pending_count} if pending_count else {}
     chars = 0
-    next_cursor = effective
-    blocked: int | None = None
+    next_cursor = max(effective, scanned[-1].seq) if scanned and truncated else effective
+    blocked: int | None = pending_floor
     for candidate in matched:
         item = candidate.item
         cost = len(item.model_dump_json())

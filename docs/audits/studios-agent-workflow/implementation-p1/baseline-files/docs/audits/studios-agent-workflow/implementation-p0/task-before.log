@@ -1,0 +1,151 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+__ test_stale_independent_transactions_cannot_overwrite_committed_update[0] ___
+
+p0_task = (<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x000001332BDB18D0>, Principal(machine=<studio_api.db.models.mac...se), <studio_api.db.models.task.TaskModel object at 0x000001332C2741A0>, 'E1tbkpQZWgBtNyBOAn5p0AYeNRcKGWWNNTLXYMmq24s')
+first_writer = 0
+
+    @pytest.mark.parametrize("first_writer", [0, 1])
+    async def test_stale_independent_transactions_cannot_overwrite_committed_update(
+        p0_task: tuple[AsyncEngine, Principal, TaskModel, str], first_writer: int
+    ) -> None:
+        engine, principal, initial, _ = p0_task
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        read_barrier = asyncio.Barrier(2)
+        first_committed = asyncio.Event()
+    
+        async def write(index: int) -> tuple[int, object]:
+            async with factory() as session:
+                task = await session.get(TaskModel, initial.id)
+                assert task is not None and task.version == initial.version
+                await read_barrier.wait()
+                if index != first_writer:
+                    await first_committed.wait()
+                try:
+                    updated = await tasks.update_task(
+                        session, principal, task, TaskUpdate(title=f"Writer {index}"), initial.version
+                    )
+                    return 200, updated.title
+                except HTTPException as exc:
+                    await session.rollback()
+                    return exc.status_code, exc.detail
+                finally:
+                    if index == first_writer:
+                        first_committed.set()
+    
+        outcomes = await asyncio.wait_for(asyncio.gather(write(0), write(1)), timeout=15)
+>       assert sorted(code for code, _ in outcomes) == [200, 409], outcomes
+E       AssertionError: [(200, 'Writer 0'), (200, 'Writer 1')]
+E       assert [200, 200] == [200, 409]
+E         
+E         At index 1 diff: 200 != 409
+E         Use -v to get more diff
+
+tests\api\test_p0_task_concurrency.py:107: AssertionError
+__ test_stale_independent_transactions_cannot_overwrite_committed_update[1] ___
+
+p0_task = (<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x000001332B3B4A50>, Principal(machine=<studio_api.db.models.mac...se), <studio_api.db.models.task.TaskModel object at 0x000001332C3609D0>, 'aDJzyqbPSmpf6WbAUA1nl1HGvAQg_TGh6bEK48nR_OA')
+first_writer = 1
+
+    @pytest.mark.parametrize("first_writer", [0, 1])
+    async def test_stale_independent_transactions_cannot_overwrite_committed_update(
+        p0_task: tuple[AsyncEngine, Principal, TaskModel, str], first_writer: int
+    ) -> None:
+        engine, principal, initial, _ = p0_task
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        read_barrier = asyncio.Barrier(2)
+        first_committed = asyncio.Event()
+    
+        async def write(index: int) -> tuple[int, object]:
+            async with factory() as session:
+                task = await session.get(TaskModel, initial.id)
+                assert task is not None and task.version == initial.version
+                await read_barrier.wait()
+                if index != first_writer:
+                    await first_committed.wait()
+                try:
+                    updated = await tasks.update_task(
+                        session, principal, task, TaskUpdate(title=f"Writer {index}"), initial.version
+                    )
+                    return 200, updated.title
+                except HTTPException as exc:
+                    await session.rollback()
+                    return exc.status_code, exc.detail
+                finally:
+                    if index == first_writer:
+                        first_committed.set()
+    
+        outcomes = await asyncio.wait_for(asyncio.gather(write(0), write(1)), timeout=15)
+>       assert sorted(code for code, _ in outcomes) == [200, 409], outcomes
+E       AssertionError: [(200, 'Writer 0'), (200, 'Writer 1')]
+E       assert [200, 200] == [200, 409]
+E         
+E         At index 1 diff: 200 != 409
+E         Use -v to get more diff
+
+tests\api\test_p0_task_concurrency.py:107: AssertionError
+__ test_concurrent_http_updates_with_same_loaded_version_return_200_and_409 ___
+
+p0_task = (<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x000001332C380A10>, Principal(machine=<studio_api.db.models.mac...se), <studio_api.db.models.task.TaskModel object at 0x000001332BCF2CF0>, 'TlRepWRl2MBWE7Y-d_18mvpMffukynRF4iI380Uo2Zs')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001332C28C8C0>
+
+    async def test_concurrent_http_updates_with_same_loaded_version_return_200_and_409(
+        p0_task: tuple[AsyncEngine, Principal, TaskModel, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine, _, initial, token = p0_task
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        barrier = asyncio.Barrier(2)
+        original_get = tasks.get_task
+    
+        async def synchronized_read(session: AsyncSession, task_id: uuid.UUID) -> TaskModel | None:
+            task = await original_get(session, task_id)
+            assert task is not None and task.version == initial.version
+            await barrier.wait()
+            return task
+    
+        async def independent_session() -> AsyncIterator[AsyncSession]:
+            async with factory() as session:
+                yield session
+    
+        monkeypatch.setattr(tasks, "get_task", synchronized_read)
+        previous = app.dependency_overrides.get(get_session)
+        app.dependency_overrides[get_session] = independent_session
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                responses = await asyncio.wait_for(
+                    asyncio.gather(
+                        *(
+                            client.patch(
+                                f"/api/v1/tasks/{initial.id}",
+                                headers={
+                                    "Authorization": f"Bearer {token}",
+                                    "If-Match-Version": str(initial.version),
+                                },
+                                json={"title": f"HTTP writer {index}"},
+                            )
+                            for index in range(2)
+                        )
+                    ),
+                    timeout=15,
+                )
+>           assert sorted(response.status_code for response in responses) == [200, 409], [
+                response.text for response in responses
+            ]
+E           AssertionError: ['{"created_at":"2026-11-04T08:41:30.097900Z","updated_at":"2026-11-04T08:41:30.160779Z","version":2,"id":"9997aaf1-5e...title":"HTTP writer 1","description":null,"status":"created","claimed_by_machine_id":null,"claimed_by_agent_id":null}']
+E           assert [200, 200] == [200, 409]
+E             
+E             At index 1 diff: 200 != 409
+E             Use -v to get more diff
+
+tests\api\test_p0_task_concurrency.py:161: AssertionError
+---------------------------- Captured stdout call -----------------------------
+2026-11-04 09:41:30,325 INFO httpx: HTTP Request: PATCH http://test/api/v1/tasks/9997aaf1-5e1c-4a03-8716-ebb9b11ad7ae "HTTP/1.1 200 OK"
+2026-11-04 09:41:30,341 INFO httpx: HTTP Request: PATCH http://test/api/v1/tasks/9997aaf1-5e1c-4a03-8716-ebb9b11ad7ae "HTTP/1.1 200 OK"
+------------------------------ Captured log call ------------------------------
+INFO     httpx:_client.py:1740 HTTP Request: PATCH http://test/api/v1/tasks/9997aaf1-5e1c-4a03-8716-ebb9b11ad7ae "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: PATCH http://test/api/v1/tasks/9997aaf1-5e1c-4a03-8716-ebb9b11ad7ae "HTTP/1.1 200 OK"
+=========================== short test summary info ===========================
+FAILED tests/api/test_p0_task_concurrency.py::test_stale_independent_transactions_cannot_overwrite_committed_update[0]
+FAILED tests/api/test_p0_task_concurrency.py::test_stale_independent_transactions_cannot_overwrite_committed_update[1]
+FAILED tests/api/test_p0_task_concurrency.py::test_concurrent_http_updates_with_same_loaded_version_return_200_and_409
+3 failed in 2.28s

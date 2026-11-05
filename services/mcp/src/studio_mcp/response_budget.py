@@ -213,9 +213,9 @@ def handoff_ack(result: dict[str, Any]) -> dict[str, Any]:
     warnings: list[str] = []
     signals = sum(1 for item in items if item.get("coordination") is not None)
     if signals:
-        warnings.append(f"coordination_signals_received:{signals}")
+        warnings.append(f"coordination_signals_pending:{signals}")
     if len(items) > signals:
-        warnings.append(f"sync_items_acknowledged:{len(items) - signals}")
+        warnings.append(f"sync_items_pending:{len(items) - signals}")
     overflow = sum((block.get("overflow") or {}).values())
     if overflow:
         warnings.append(f"sync_overflow:{overflow}")
@@ -233,4 +233,5 @@ def handoff_ack(result: dict[str, Any]) -> dict[str, Any]:
     }
     if warnings:
         ack["warnings"] = warnings
+        ack["recovery"] = "studio_start_work then studio_sync; ack only after processing"
     return ack

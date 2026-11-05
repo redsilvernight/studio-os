@@ -1,0 +1,69 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Initial schema � Phase 1 entities (TECH/05_DATA_MODEL.md).
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, Idempotency reservation: pending/completed status, nullable response.
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, Decisions readable_id: Postgres sequence instead of COUNT(*) (roadmap step 2).
+INFO  [alembic.runtime.migration] Running upgrade 0003 -> 0004, Events realtime cursor: add `seq` identity column (roadmap step 4.1, DEC-0018).
+INFO  [alembic.runtime.migration] Running upgrade 0004 -> 0005, Add Transfer.content_md5 (DEC-0025 � server-verified upload integrity).
+INFO  [alembic.runtime.migration] Running upgrade 0005 -> 0006, Add Agent/AIWorkLog additive runtime observability metadata (UC-5).
+INFO  [alembic.runtime.migration] Running upgrade 0006 -> 0007, Add User.password_hash for dashboard human authentication (DASH-4).
+INFO  [alembic.runtime.migration] Running upgrade 0007 -> 0008, Studio Producer foundation (roadmap etape 9.1a, DEC-0059): `github_integrations`,
+`builds` and `producer_jobs` tables plus the additive nullable
+`transfers.build_id` link for build artefacts.
+INFO  [alembic.runtime.migration] Running upgrade 0008 -> 0009, AI Library canonical domain (P1, DEC-0062/0063/0064): `library_resources`
+(active pointer per reusable definition), `library_resource_versions`
+(immutable snapshots), `library_resource_links` (version-pinned dependency
+edges) and `library_project_locks` (`(project_id, resource_id,
+locked_version)` � canonical resource UUID, never `stable_key` alone).
+INFO  [alembic.runtime.migration] Running upgrade 0009 -> 0010, Library Bindings P5 (DEC-0067): typed `relation` on `library_resource_links`
+plus the inverse index on `to_resource_id`.
+INFO  [alembic.runtime.migration] Running upgrade 0010 -> 0011, User/Runtime Bindings P4 (DEC-0068): `runtime_bindings` (stored per-user,
+project and studio runtime choices for logical library keys, plus
+non-secret target payloads).
+INFO  [alembic.runtime.migration] Running upgrade 0011 -> 0012, Runtime Registry P6 (DEC-0070): `runtimes` (declared runtimes with stable
+UUID identity, open harness/provider/model refs, declared capabilities,
+logical revocation). Purely additive: `runtime_bindings` rows are untouched
+and stay valid (P4 inline targets keep resolving without a registry row).
+INFO  [alembic.runtime.migration] Running upgrade 0012 -> 0013, Roadmaps P2 (DEC-0084/DEC-0085): `roadmaps`, `roadmap_phases`,
+`roadmap_steps`, `roadmap_step_dependencies`, `roadmap_step_task_links`,
+`roadmap_revisions`. Purely additive: no existing table is altered (no
+`roadmap_id` on `tasks`, a Task keeps existing without any Roadmap). At most
+one `active` roadmap per project (partial unique index).
+INFO  [alembic.runtime.migration] Running upgrade 0013 -> 0014, Project isolation (DEC-0103 / server DEC-0103): `project_memberships`.
+INFO  [alembic.runtime.migration] 0014 backfill: 0 memberships (every user x every project)
+INFO  [alembic.runtime.migration] Running upgrade 0014 -> 0015, Session cycle and account state (A2, DEC-0110 / DEC-0121).
+INFO  [alembic.runtime.migration] Running upgrade 0015 -> 0016, Account states (A3, DU-0/A): normalized, case-insensitively unique emails.
+INFO  [alembic.runtime.migration] 0016 normalization: 0 of 0 emails rewritten
+INFO  [alembic.runtime.migration] Running upgrade 0016 -> 0017, Account tokens (A4, DU-0/A / DEC-0109): hashed, typed, expiring,
+single-use secrets for e-mail verification and password reset.
+INFO  [alembic.runtime.migration] Running upgrade 0017 -> 0018, Refresh tokens (DEC-0142): hashed, rotating, family-revocable secrets that
+let the desktop renew its 15-minute dashboard JWT without the password.
+INFO  [alembic.runtime.migration] Running upgrade 0018 -> 0019, Agent stable key (AIB-I): local stable key set by `agents ensure`
+(`agents-ensure-{harness}` by default), unique per owning machine � the
+idempotent lookup key for session-start. Never an authorization input, never
+`AgentDefinition.stable_key`.
+INFO  [alembic.runtime.migration] Running upgrade 0019 -> 0020, Session presence (C1, DEC-0157): additive `last_activity_at` on
+work_sessions, backfilled from `started_at` � the read-side presence
+(status/expiry derived at read, never stored) of live work sessions.
+No heartbeat, no session closing here (effective closing is L2).
+INFO  [alembic.runtime.migration] Running upgrade 0020 -> 0021, L3 handoff: add `session_id` to `ai_work_logs` for traceability.
+INFO  [alembic.runtime.migration] Running upgrade 0021 -> 0022, L3 remediation (DEC-0163): index `ai_work_logs.session_id` and set the FK
+`ondelete` to `SET NULL` so deleting a session never orphans or blocks the
+linked work entries.
+INFO  [alembic.runtime.migration] Running upgrade 0022 -> 0023, sync cursors: per-session sync cursor and per-task handoff cursor
+INFO  [alembic.runtime.migration] Running upgrade 0023 -> 0024, machine capabilities: latest reported launch aptitude per machine
+INFO  [alembic.runtime.migration] Running upgrade 0024 -> 0025, AIB-J: `machine_launch_grants`, the owner's explicit launch right.
+INFO  [alembic.runtime.migration] Running upgrade 0025 -> 0026, task launches: typed request to start a task on a target machine (AIB R2)
+INFO  [alembic.runtime.migration] Running upgrade 0026 -> 0027, launch credentials: ephemeral harness credential of a task launch (AIB P9)
+INFO  [alembic.runtime.migration] Running upgrade 0027 -> 0028, vault notes: two-scope server vault, typed links, versions, full-text search (P02)
+INFO  [alembic.runtime.migration] Running upgrade 0028 -> 0029, vault search: note anchors (path/task) and readable_id in the search vector (P04)
+INFO  [alembic.runtime.migration] Running upgrade 0029 -> 0030, task launches: attempt chain and retry trace (P02 recovery)
+INFO  [alembic.runtime.migration] Running upgrade 0030 -> 0031, usage ledger: measured consumption per machine and collector event (DEC-0197)
+INFO  [alembic.runtime.migration] Running upgrade 0031 -> 0032, execution snapshots: immutable effective configuration per launch (DEC-0199)
+INFO  [alembic.runtime.migration] Running upgrade 0032 -> 0033, launch budgets: explicit project policy and per-launch reservations
+INFO  [alembic.runtime.migration] Running upgrade 0033 -> 0034, task launch replay basis: accepted replay preview on the attempt it created
+INFO  [alembic.runtime.migration] Running upgrade 0034 -> 0035, task launch work profile: the pin a profiled launch was admitted against
+INFO  [alembic.runtime.migration] Running upgrade 0035 -> 0036, machine workstation: attach tool machines to their physical workstation
+INFO  [alembic.runtime.migration] Running upgrade 0036 -> 0037, Task launch production approval (DEC-0235).
+INFO  [alembic.runtime.migration] Running upgrade 0037 -> 0038, User-scoped durable model identities (DEC-0237).
+INFO  [alembic.runtime.migration] Running upgrade 0038 -> 0039, Explicit reversible reconciliation of legacy agent identities (DEC-0237).

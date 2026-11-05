@@ -229,7 +229,11 @@ def test_opencode_reader_emits_deltas_and_claims(tmp_path: Path) -> None:
 def test_pricing_estimates_known_models_and_leaves_unknown_alone() -> None:
     tokens = BilledTokens(input=1_000_000, output=1_000_000, cache_read=0, cache_write=0)
     assert BUNDLED_PRICE_TABLE.estimate("claude-sonnet-4-5", tokens) == 18
-    assert BUNDLED_PRICE_TABLE.estimate("gpt-6.1-sol", tokens) == 11.25
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-6.1-sol", tokens) == 12
+    assert BUNDLED_PRICE_TABLE.estimate("claude-opus-4-6-20260101", tokens) == 30
+    assert BUNDLED_PRICE_TABLE.estimate("claude-sonnet-5-5", tokens) == 12
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-5.4-mini", tokens) == 5.25
+    assert BUNDLED_PRICE_TABLE.estimate("claude-opus-99", tokens) is None
     assert BUNDLED_PRICE_TABLE.estimate("muse-spark-1.3-contributor", tokens) is None
     assert BUNDLED_PRICE_TABLE.estimate(None, tokens) is None
 
@@ -245,7 +249,7 @@ def test_price_table_override_document_supersedes_a_family(tmp_path: Path) -> No
     assert table.price_list_id == "perso-v1"
     tokens = BilledTokens(input=1_000_000, output=1_000_000)
     assert table.estimate("claude-sonnet-4-5", tokens) == 3
-    assert table.estimate("gpt-6.1-sol", tokens) == 11.25
+    assert table.estimate("gpt-6.1-sol", tokens) == 12
     path = tmp_path / "pricing.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     assert load_price_table(path).price_list_id == "perso-v1"
@@ -304,7 +308,7 @@ async def test_scanner_enqueues_one_entry_per_bucket_then_a_correction(tmp_path:
     assert payload["cost"]["coverage"] == "estimated"
     assert payload["cost"]["currency"] == "EUR"
     assert payload["cost"]["value"] == "0.001335"
-    assert payload["pricing"]["price_list_id"] == "public-eur-2026-10"
+    assert payload["pricing"]["price_list_id"] == "public-eur-2026-11"
     assert payload["provenance"]["harness"] == "claude-code"
     assert payload["provenance"]["model"] == "claude-sonnet-4-5"
 

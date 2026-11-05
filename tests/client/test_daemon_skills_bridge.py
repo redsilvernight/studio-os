@@ -190,7 +190,7 @@ def _controller(tmp_path: Path, home: Path, token: str | None = "tok") -> Daemon
 
 
 def _patch_fetch(monkeypatch: pytest.MonkeyPatch, result) -> None:
-    async def fake(config, token_store):
+    async def fake(config, token_store, selection=None):
         if isinstance(result, Exception):
             raise result
         return result

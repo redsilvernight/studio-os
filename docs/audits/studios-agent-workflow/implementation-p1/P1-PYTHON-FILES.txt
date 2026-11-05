@@ -1,0 +1,9 @@
+packages/studio-client/src/studio_client/canonical.py
+packages/studio-client/src/studio_client/cli.py
+packages/studio-client/src/studio_client/bootstrap.py
+packages/studio-client/src/studio_client/adapters_check.py
+tests/protocol/test_agent_protocol.py
+tests/protocol/test_p1_projection_migration.py
+tests/protocol/test_p1_workflow_scenarios.py
+tests/client/test_canonical_p3.py
+tests/client/test_bootstrap_p3.py

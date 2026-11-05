@@ -1,45 +1,27 @@
 ---
 name: studio-context
-description: Prepare the minimal Studi'OS context for an objective via studio_prepare_context before any broad exploration. Use when starting work, resuming a task, or taking over after a handoff.
+description: Targeted read-only context and refresh, including zero-history resumption. Tracked mutable work enters through studio-task and reuses start_work context.
 ---
 
-# Studio Context
+# Studio Context — compatible entry point
 
-## Principle
+Use `.agents/skills/studio-task/SKILL.md` for the common lifecycle, permissions
+and entry-mode choice. Do not fetch context again immediately after start.
+Strict read-only observation uses only `studio_prepare_context` and read tools;
+no session, claim, mutable sync, decision or handoff.
 
-**`studio_prepare_context` before broad scan.** A fresh agent must be able to
-start from the Rule plus one bounded call — never by loading the full doc
-pack, all ADRs, all roadmaps, all skills, or the whole history.
+For a needed refresh, call `studio_prepare_context` with project_id, objective,
+and task_id/files if relevant. Inspect `why` / `matched_terms`,
+`additional_available`, `omitted_for_budget`, `truncated`; lexical matches are
+candidates, not obligations. Narrow the request before increasing its budget.
 
-## Sequence
+Send `known_ids` mapping IDs to `content_hash` only when the corresponding text
+is still available locally. Reuse retained text for unchanged items. After
+history loss omit hashes, reload necessary content and inspect the handoff's
+NEXT through `studio_get_ai_work` only if the initial packet is insufficient.
+An idempotent replay is not a context refresh.
 
-1. Call `studio_prepare_context(project_id, objective, task_id?, files?, limit?, max_chars?)`.
-   Keep `max_chars` at its default unless the response says budget was the limit.
-2. Read the response with progressive disclosure:
-   - `why` / `matched_terms` — prefer `requested`, `linked_to_task`, `project_scope`
-     over pure `lexical` matches; lexical-only items are candidates, not requirements.
-   - `additional_available` — fetch selectively (`studio_get_task`, `studio_get_decisions`,
-     `studio_discover_definitions`) only for categories relevant to the objective.
-   - `omitted_for_budget` — if non-empty and needed, narrow the objective or raise
-     `max_chars` (max 50000); never bulk-load everything.
-3. Only if the objective still needs more, in this order:
-   - `studio_resolve_agent` — when acting under an agent role that needs its
-     rules/skills/model profile;
-   - `studio_discover_definitions` — for one specialized rule/skill, never the catalog;
-   - local `graph_query` / `memory_search` (Bloc B) — for file-level or historical detail;
-   - targeted file reads — smallest set that answers the objective.
-
-## Resume after handoff
-
-A new agent with zero history resumes with a single call —
-`studio_prepare_context(objective, task_id)` carries the task, the linked
-decisions and the recent AI work (handoff summary → NEXT). Use
-`studio_get_ai_work(task_id)` only to go deeper. If one bounded call plus
-targeted follow-ups do not yield the next action, the handoff was incomplete —
-say so instead of scanning the repo.
-
-## Don't
-
-- Don't read the whole documentation pack "to be safe".
-- Don't treat a lexical match as a requirement.
-- Don't preload specialized rules/skills for every task.
+Read only necessary decisions, files and definitions. Use
+`studio_discover_definitions` / `studio_resolve_agent` for a specific need,
+not the whole catalog. A missing next action is a handoff gap, not permission
+for an unbounded repository scan.

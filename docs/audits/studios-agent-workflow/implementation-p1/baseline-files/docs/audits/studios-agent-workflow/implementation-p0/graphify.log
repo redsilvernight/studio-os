@@ -1,0 +1,8 @@
+[graphify] Extraction warning (3 issues): 3x missing required field 'source_file' (e.g. Node 19987 (id='dec_0023') missing required field 'source_file')
+[graphify watch] community set changed since labeling (859 saved labels, 863 communities now; renamed 228 community(ies) by their hub). Run `graphify label` to refresh names with the LLM.
+[graphify] backed up semantic+curated graph (6 files) -> 2026-11-04/
+Graph has 19999 nodes (above 5000 limit). Building aggregated community view...
+graph.html written (aggregated: 863 community nodes, 2908 cross-community edges)
+Tip: run with --obsidian for full node-level detail.
+[graphify watch] Rebuilt: 19999 nodes, 58163 edges, 863 communities
+[graphify watch] graph.json, graph.html and GRAPH_REPORT.md updated in E:\Graphify\Studio-OS\graphify-out

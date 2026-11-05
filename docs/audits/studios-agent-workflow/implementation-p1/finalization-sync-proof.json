@@ -1,0 +1,933 @@
+{
+  "passed": true,
+  "assertionCount": 158,
+  "elapsedSeconds": 17.5792101,
+  "scratch": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e",
+  "source": {
+    "candidateSha256": "CF9765F6828FE38359A75BAB7346EF0C6168206DCEBA6E89BAAF7858B3AF91A0",
+    "candidate": "C:\\Users\\redsi\\Documents\\Coding\\Projet\\Studi'os\\.studio-os\\backups\\p1-finalization-20261104T210011Z-dbc47557\\sync-claude-config.candidate.ps1",
+    "original": "C:\\Users\\redsi\\Documents\\Coding\\Projet\\Studi'os\\.studio-os\\backups\\p1-finalization-20261104T210011Z-dbc47557\\sync-claude-config.ps1",
+    "originalSha256": "AF9ADE86F25405E5D767B5B3B66CFB7ED9249DCE0BAAC638D1D6AE7EA3166EDA"
+  },
+  "subprocessCount": 15,
+  "assertions": [
+    {
+      "name": "original exact file AST parse",
+      "passed": true
+    },
+    {
+      "name": "candidate exact file AST parse",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 2",
+      "passed": true
+    },
+    {
+      "name": "canonical original audit home untouched",
+      "passed": true
+    },
+    {
+      "name": "canonical original audit project untouched",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "canonical original preserves personal .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original preserves personal .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original preserves personal .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original preserves personal .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original preserves personal .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical original preserves personal .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical original mutates fixture (sensitivity control)",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "canonical original second run project hashes stable",
+      "passed": true
+    },
+    {
+      "name": "canonical original second run global hashes stable",
+      "passed": true
+    },
+    {
+      "name": "canonical original second run reports no changes",
+      "passed": true
+    },
+    {
+      "name": "canonical original personal ACL .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original personal ACL .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original personal ACL .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original personal ACL .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original personal ACL .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical original personal ACL .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical original existing project ACL .agents\\rules\\studio-protocol.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original existing project ACL .agents\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original existing project ACL .claude\\agents\\project-agent.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original existing project ACL .claude\\rules\\legacy.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original existing project ACL .claude\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical original existing project ACL AGENTS.md",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 2",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate audit home untouched",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate audit project untouched",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate preserves personal .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate preserves personal .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate preserves personal .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate preserves personal .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate preserves personal .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate preserves personal .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate entire project hashes unchanged",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate no project changed entries",
+      "passed": true
+    },
+    {
+      "name": "canonical one generated block retained",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate second run project hashes stable",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate second run global hashes stable",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate second run reports no changes",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate personal ACL .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate personal ACL .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate personal ACL .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate personal ACL .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate personal ACL .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate personal ACL .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate existing project ACL .agents\\rules\\studio-protocol.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate existing project ACL .agents\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate existing project ACL .claude\\agents\\project-agent.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate existing project ACL .claude\\rules\\legacy.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate existing project ACL .claude\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "canonical candidate existing project ACL AGENTS.md",
+      "passed": true
+    },
+    {
+      "name": "canonical global outputs original equal candidate",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original preserves personal .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original preserves personal .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original preserves personal .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original preserves personal .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original preserves personal .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original preserves personal .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original second run project hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original second run global hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original second run reports no changes",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original personal ACL .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original personal ACL .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original personal ACL .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original personal ACL .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original personal ACL .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original personal ACL .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original existing project ACL .agents\\OTHER.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original existing project ACL .claude\\agents\\project-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original existing project ACL .claude\\rules\\legacy.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original existing project ACL .claude\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents original existing project ACL AGENTS.md",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate preserves personal .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate preserves personal .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate preserves personal .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate preserves personal .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate preserves personal .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate preserves personal .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate second run project hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate second run global hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate second run reports no changes",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate personal ACL .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate personal ACL .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate personal ACL .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate personal ACL .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate personal ACL .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate personal ACL .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate existing project ACL .agents\\OTHER.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate existing project ACL .claude\\agents\\project-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate existing project ACL .claude\\rules\\legacy.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate existing project ACL .claude\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents candidate existing project ACL AGENTS.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents global outputs original equal candidate",
+      "passed": true
+    },
+    {
+      "name": "foreign-agents project outputs original equal candidate",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original preserves personal .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original preserves personal .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original preserves personal .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original preserves personal .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original preserves personal .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original preserves personal .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original second run project hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original second run global hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original second run reports no changes",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original personal ACL .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original personal ACL .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original personal ACL .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original personal ACL .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original personal ACL .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original personal ACL .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original existing project ACL .claude\\agents\\project-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original existing project ACL .claude\\rules\\legacy.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original existing project ACL .claude\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy original existing project ACL AGENTS.md",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate preserves personal .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate preserves personal .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate preserves personal .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate preserves personal .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate preserves personal .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate preserves personal .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate second run project hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate second run global hashes stable",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate second run reports no changes",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate personal ACL .agents\\skills\\keep-personal\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate personal ACL .claude\\agents\\personal-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate personal ACL .claude\\rules\\personal.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate personal ACL .claude\\skills\\personal-skill\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate personal ACL .codex\\agents\\keep-personal.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate personal ACL .codex\\config.toml",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate existing project ACL .claude\\agents\\project-agent.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate existing project ACL .claude\\rules\\legacy.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate existing project ACL .claude\\skills\\studio-task\\SKILL.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy candidate existing project ACL AGENTS.md",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy global outputs original equal candidate",
+      "passed": true
+    },
+    {
+      "name": "foreign-legacy project outputs original equal candidate",
+      "passed": true
+    },
+    {
+      "name": "parent HOME untouched",
+      "passed": true
+    },
+    {
+      "name": "parent USERPROFILE untouched",
+      "passed": true
+    },
+    {
+      "name": "subprocess exit expected 0",
+      "passed": true
+    },
+    {
+      "name": "provenance contract-guardian historical sync reproduces A-current",
+      "passed": true
+    },
+    {
+      "name": "provenance dashboard-a11y historical sync reproduces A-current",
+      "passed": true
+    },
+    {
+      "name": "provenance migration-reviewer historical sync reproduces A-current",
+      "passed": true
+    },
+    {
+      "name": "provenance studio-architect historical sync reproduces A-current",
+      "passed": true
+    },
+    {
+      "name": "provenance studio-tester historical sync reproduces A-current",
+      "passed": true
+    },
+    {
+      "name": "provenance sync-debugger historical sync reproduces A-current",
+      "passed": true
+    }
+  ],
+  "cases": [
+    {
+      "kind": "canonical",
+      "version": "original",
+      "globalBefore": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "globalAfter": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".agents\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\agents\\personal-agent.toml": "6797A7608C8C7B564CF644F0C0F057B07BA08F40AF1C5B9F19FC52D037D00574",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "projectBefore": {
+        ".agents\\rules\\studio-protocol.md": "701974A34F5EF8F35584C0AC0AB12AF69804706E76622A65EF6B675429DA81BE",
+        ".agents\\skills\\studio-task\\SKILL.md": "DB67963F1D84A810A390336DD162D7ED044C03128829D09A61DAF2564F98F0BA",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "projectAfter": {
+        ".agents\\rules\\studio-protocol.md": "701974A34F5EF8F35584C0AC0AB12AF69804706E76622A65EF6B675429DA81BE",
+        ".agents\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".codex\\agents\\project-agent.toml": "B714FDD3B16807EBF26549DECD4881A6F5171D012EDE0A4B2881A6196581D123",
+        "AGENTS.md": "8CF07CDF7C6B6DBB680812EF3FCF69B1A4BEF73D7ABC2E35D1E906F0E4D7AD4B"
+      },
+      "aclChecked": true,
+      "firstChanged": [
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\home\\.codex\\agents\\personal-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\.codex\\agents\\project-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-original\\project\\AGENTS.md"
+      ],
+      "secondChanged": []
+    },
+    {
+      "kind": "canonical",
+      "version": "candidate",
+      "globalBefore": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "globalAfter": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".agents\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\agents\\personal-agent.toml": "6797A7608C8C7B564CF644F0C0F057B07BA08F40AF1C5B9F19FC52D037D00574",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "projectBefore": {
+        ".agents\\rules\\studio-protocol.md": "701974A34F5EF8F35584C0AC0AB12AF69804706E76622A65EF6B675429DA81BE",
+        ".agents\\skills\\studio-task\\SKILL.md": "DB67963F1D84A810A390336DD162D7ED044C03128829D09A61DAF2564F98F0BA",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "projectAfter": {
+        ".agents\\rules\\studio-protocol.md": "701974A34F5EF8F35584C0AC0AB12AF69804706E76622A65EF6B675429DA81BE",
+        ".agents\\skills\\studio-task\\SKILL.md": "DB67963F1D84A810A390336DD162D7ED044C03128829D09A61DAF2564F98F0BA",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "aclChecked": true,
+      "firstChanged": [
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\home\\.codex\\agents\\personal-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\canonical-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md"
+      ],
+      "secondChanged": []
+    },
+    {
+      "kind": "foreign-agents",
+      "version": "original",
+      "globalBefore": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "globalAfter": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".agents\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\agents\\personal-agent.toml": "6797A7608C8C7B564CF644F0C0F057B07BA08F40AF1C5B9F19FC52D037D00574",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "projectBefore": {
+        ".agents\\OTHER.md": "4A292CC2F940558C8B1CB46BC6DFE34AD98CCF046BD30826CB366FE4B63B76B0",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "projectAfter": {
+        ".agents\\OTHER.md": "4A292CC2F940558C8B1CB46BC6DFE34AD98CCF046BD30826CB366FE4B63B76B0",
+        ".agents\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".codex\\agents\\project-agent.toml": "B714FDD3B16807EBF26549DECD4881A6F5171D012EDE0A4B2881A6196581D123",
+        "AGENTS.md": "8CF07CDF7C6B6DBB680812EF3FCF69B1A4BEF73D7ABC2E35D1E906F0E4D7AD4B"
+      },
+      "aclChecked": true,
+      "firstChanged": [
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\home\\.codex\\agents\\personal-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project\\.codex\\agents\\project-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-original\\project\\AGENTS.md"
+      ],
+      "secondChanged": []
+    },
+    {
+      "kind": "foreign-agents",
+      "version": "candidate",
+      "globalBefore": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "globalAfter": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".agents\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\agents\\personal-agent.toml": "6797A7608C8C7B564CF644F0C0F057B07BA08F40AF1C5B9F19FC52D037D00574",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "projectBefore": {
+        ".agents\\OTHER.md": "4A292CC2F940558C8B1CB46BC6DFE34AD98CCF046BD30826CB366FE4B63B76B0",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "projectAfter": {
+        ".agents\\OTHER.md": "4A292CC2F940558C8B1CB46BC6DFE34AD98CCF046BD30826CB366FE4B63B76B0",
+        ".agents\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".codex\\agents\\project-agent.toml": "B714FDD3B16807EBF26549DECD4881A6F5171D012EDE0A4B2881A6196581D123",
+        "AGENTS.md": "8CF07CDF7C6B6DBB680812EF3FCF69B1A4BEF73D7ABC2E35D1E906F0E4D7AD4B"
+      },
+      "aclChecked": true,
+      "firstChanged": [
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\home\\.codex\\agents\\personal-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project\\.codex\\agents\\project-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project\\.agents\\skills\\studio-task\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-agents-candidate\\project\\AGENTS.md"
+      ],
+      "secondChanged": []
+    },
+    {
+      "kind": "foreign-legacy",
+      "version": "original",
+      "globalBefore": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "globalAfter": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".agents\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\agents\\personal-agent.toml": "6797A7608C8C7B564CF644F0C0F057B07BA08F40AF1C5B9F19FC52D037D00574",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "projectBefore": {
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "projectAfter": {
+        ".agents\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".codex\\agents\\project-agent.toml": "B714FDD3B16807EBF26549DECD4881A6F5171D012EDE0A4B2881A6196581D123",
+        "AGENTS.md": "8CF07CDF7C6B6DBB680812EF3FCF69B1A4BEF73D7ABC2E35D1E906F0E4D7AD4B"
+      },
+      "aclChecked": true,
+      "firstChanged": [
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\home\\.codex\\agents\\personal-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project\\.codex\\agents\\project-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project\\.agents\\skills\\studio-task\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-original\\project\\AGENTS.md"
+      ],
+      "secondChanged": []
+    },
+    {
+      "kind": "foreign-legacy",
+      "version": "candidate",
+      "globalBefore": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "globalAfter": {
+        ".agents\\skills\\keep-personal\\SKILL.md": "87ADBE127C2395EA05291FB192CC15B0413F69A6611DF89B6760C26276AF6AC0",
+        ".agents\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".claude\\agents\\personal-agent.md": "6BD573F992BDE11802FA9A5FB67A7DB4CC4788978AD8FC3B7378C12100EA27A8",
+        ".claude\\rules\\personal.md": "844609D940E1625BB722C66BE4C8CFF53A467B9CD4B792E3C3C86B04FB1BBE7D",
+        ".claude\\skills\\personal-skill\\SKILL.md": "BA8A90E1056E8CE28893EE36BA6EF137081F1DDEBE314FB8E56593BDDA9BC7D9",
+        ".codex\\agents\\keep-personal.toml": "9E41EEE8F6769733CC1C48DC3FB6E34927B5621E70CBA454BD7BC623033B262A",
+        ".codex\\agents\\personal-agent.toml": "6797A7608C8C7B564CF644F0C0F057B07BA08F40AF1C5B9F19FC52D037D00574",
+        ".codex\\config.toml": "79847A22E1B2E90D89592FB6B31B8E109D9B261C445044FA11C395BC053544A2"
+      },
+      "projectBefore": {
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        "AGENTS.md": "D3F2FD259D47EAE100D55D1D74A645FE499FF13E5A92969835669EF2A28B7B6A"
+      },
+      "projectAfter": {
+        ".agents\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".claude\\agents\\project-agent.md": "60759F61E3279A9F1CB54D2BADE5146D87781C6BBD4529A396909791E8A35C40",
+        ".claude\\rules\\legacy.md": "DC5FB3028CE6288CBEEE46B5F44C69A07A4809101BA08BCB0CAA7033B11D9886",
+        ".claude\\skills\\studio-task\\SKILL.md": "8D03EF784CEF35296A0871A3B2EB309EB77932862C7874A54D8FCB00001D29D8",
+        ".codex\\agents\\project-agent.toml": "B714FDD3B16807EBF26549DECD4881A6F5171D012EDE0A4B2881A6196581D123",
+        "AGENTS.md": "8CF07CDF7C6B6DBB680812EF3FCF69B1A4BEF73D7ABC2E35D1E906F0E4D7AD4B"
+      },
+      "aclChecked": true,
+      "firstChanged": [
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\home\\.codex\\agents\\personal-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\home\\.agents\\skills\\personal-skill\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project\\.codex\\agents\\project-agent.toml",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project\\.agents\\skills\\studio-task\\SKILL.md",
+        "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-sync-proof-537e0082f9fc48bd9c828ac7b116047e\\foreign-legacy-candidate\\project\\AGENTS.md"
+      ],
+      "secondChanged": []
+    }
+  ],
+  "logPath": "C:\\Users\\redsi\\Documents\\Coding\\Projet\\Studi'os\\docs\\audits\\studios-agent-workflow\\implementation-p1\\finalization-sync-proof.log",
+  "limits": [
+    "Synthetic fixtures only; real personal home and real project never passed to sync scripts.",
+    "Hooks and MCP integrations absent in fixtures; no hook or MCP integration behavior verified.",
+    "File hashes exclude pwsh AppData runtime cache; existing-file ACLs checked; timestamps and directory ACLs not compared.",
+    "HOME inherited unchanged; safety relies on inspected scripts using USERPROFILE exclusively.",
+    "Temporary fixture tree retained for review; no deletion performed."
+  ]
+}
