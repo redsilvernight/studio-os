@@ -39,3 +39,10 @@ Stopper le job à la première divergence; ne pas poursuivre une publication par
 
 Avant toute purge de production ou publication, présenter le manifeste exact et les preuves ci-dessus, puis attendre une confirmation explicite dans cet échange. L’autorisation générale contenue dans le brief ne vaut pas cette confirmation spécifique. État actuel: **approbation de production non sollicitée, aucun changement de production**.
 
+
+## Phase 2D — ce que l'environnement isolé prouve (et ne prouve pas)
+
+**Prouvé** (base isolée) : reconstruction Core → Project → Personal (84), rejeu sans effet, confidentialité inter-utilisateurs par l'API réelle, mise à jour, retour de version, reprise après échec partiel, installations par runtime.
+
+**Non prouvé** : aucune purge n'a été exécutée, même isolée ; restauration d'un snapshot, FK, volumes et installations d'une base de production peuplée ; comportement réseau sous charge (429) ; runtimes réellement lancés. Le point d'arrêt humain reste intact : aucune mutation de production, aucune approbation sollicitée.
+

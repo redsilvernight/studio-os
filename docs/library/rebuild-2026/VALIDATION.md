@@ -61,3 +61,28 @@ Les contrôles disponibles montrent que le synchroniseur reste cohérent et que 
 Exécuté : `python scripts/library_packages.py build` puis `check` (OK) ; `uv run pytest tests/harness/test_library_packages.py` (10 passés) ; `ruff check` sur le script et le test (propre). Non lancé : suites PostgreSQL/MinIO, sans rapport avec cette phase.
 
 Couvert : décisions pour les 87 définitions, génération des trois manifestes, schéma, hashes, fichiers présents, collisions de clés, dépendances et cycles (Core ne peut dépendre ni de Project ni de Personal), absence de secrets et de références personnelles dans Core/Project, régénération identique octet pour octet, rétrogradation `NOT_READY` d'une source absente, Personal ignoré par Git.
+
+## Phase 2D — import reproductible et validation isolée
+
+**Environnement** : cluster PostgreSQL privé (initdb dédié, `127.0.0.1:54329`, base `studio_lib_rebuild`), distinct du PostgreSQL partagé (5432, jamais touché). Migrations Alembic appliquées jusqu'à la tête. Les tests refusent de démarrer si l'hôte n'est pas loopback, si le port vaut 5432, si le nom de base ne commence pas par `studio_lib_rebuild` ou si le port rapporté par le serveur diffère ; les tables sont vidées à chaque session de tests, uniquement après cette garde. Comptes de test : admin, installateur (membre du projet), propriétaire Personal, outsider (autre projet), lecture seule.
+
+**Commandes exécutées**
+- Initialisation : `initdb`, `pg_ctl start` (port 54329, loopback), création rôle et base, puis `STUDIO_DATABASE_URL=… uv run alembic upgrade head`.
+- Hors-ligne : `uv run python scripts/library_import.py check` → Core 42, Project 21, Personal 21.
+- Tests : `STUDIO_LIBRARY_REBUILD_DATABASE_URL=postgresql+asyncpg://<rôle>:<mdp>@127.0.0.1:54329/studio_lib_rebuild uv run pytest tests/library_rebuild tests/harness/test_library_packages.py` → **28 passés** (18 Phase 2D + 10 Phase 2C), 0 échec. Sans la variable, les 18 tests sont **ignorés** (skip explicite, non comptés comme passés).
+- CLI sur HTTP réel : API `uvicorn` en loopback (port 8099, `STUDIO_ENVIRONMENT=dev`) sur la base isolée ; `library_import.py import --layer core` puis `--dry-run` → 42 inchangés ; serveur arrêté ensuite.
+
+**Preuves**
+- Reconstruction Core → Project → Personal : 42 + 21 + 21 créés et activés (v1), aucun ignoré. Comparaison au manifeste : kind, scope, version active, `project_id`, propriétaire (Personal), titre, contenu, nombre de dépendances.
+- Idempotence : second passage = 84 « unchanged », 0 activation.
+- Scope : les 21 items Project ne sont pas visibles globalement ; un non-membre reçoit 403 sur le projet.
+- Confidentialité (API réelle) : l'outsider ne liste, ne lit, ne résout aucun item Personal. Un rôle lecture seule ne peut pas publier en scope Studio.
+- Core seul (utilisateur vanilla, dossiers temporaires) : 17 skills et 9 agents projetés pour Claude Code, Codex et OpenCode, avec avertissements explicites (`no_runtime_target`, `tools_not_projected`, `capability_degraded_shell`, `permissions_defaulted`) ; aucun contenu Personal dans les fichiers.
+- Hooks Core : 3 en `needs_consent`, installés seulement après consentement (Claude Code) ; aucun fichier hook Codex. Les 5 hooks Personal sont exclus de tous les packages.
+- Core + Personal (propriétaire) : items privés projetés, les homonymes Personal masquent les items Core.
+- Project : skills Project jamais projetés globalement ; agents Project résolus uniquement avec le projet ; fichiers locaux non gérés préservés.
+- Cycle de vie (skill synthétique) : v1 → v2, resync idempotent, retour v1 par réactivation, dépréciation → copie gérée retirée. Fichier géré modifié localement : conflit levé, contenu conservé.
+- Échec partiel / reprise : entrée invalide → arrêt après les deux premières ; relance → 2 inchangées, 2 créées, puis tout inchangé. Package falsifié refusé.
+
+**Limites** : skills en texte seul, fichiers auxiliaires non stockés (studio-task 2, graphify 9, workstation-setup 18, avertissements émis). Import non transactionnel entre entrées (reprise = relance). Désinstallation = dépréciation + resync, testée sur un skill seulement. Rollback = réactivation d'une version, pas restauration de base. Aucun runtime réel lancé : projections validées comme fichiers générés.
+

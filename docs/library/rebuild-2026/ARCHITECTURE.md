@@ -65,3 +65,12 @@ Aucun nouveau schéma ni orchestration n’est justifié pour le concept Core + 
 ## Phase 2C — packages
 
 Source de vérité : `library/packages/decisions.json` (décision, destination, source, justification). Le générateur lit les sources réelles, calcule les hashes (sha256 par fichier puis par entrée) et écrit trois manifestes `studio.library.package/v1`. Dépendances dérivées du frontmatter (`rules`, `skills`, `model_profile` des agents, participants des workflows) ; Project se compose avec Core, Personal avec Core, jamais l'inverse. Les contenus Personal sont copiés dans `library/packages/personal/content/` (ignoré par Git) ; `STUDIO_PERSONAL_HOME` change la racine source (défaut `~/.claude`). Les profils et le workflow récupérés depuis la Library sont des fichiers sources : `library/project/` (suivi) et `library/private/personal/` (ignoré).
+
+## Phase 2D — importeur et composition
+
+`scripts/library_import.py` lit les manifestes (`check` hors-ligne), vérifie en-tête, scope, hashes de fichiers et d'entrées, valide les contenus, ordonne les entrées dépendances d'abord (cycle = erreur) puis publie via `studio_client.publish` : création, nouvelle version si le contenu change, activation explicite. Scopes : Core → `studio`, Project → `project` (`--project-id`, membre du projet), Personal → `user` (exécuté par le propriétaire, jamais par un admin). Les dépendances sont épinglées par `resource_id` (pas de `pin_ambiguous` quand une clé existe en Core et en Personal). Premier échec = arrêt ; reprise = relance (entrées publiées « unchanged »). `--dry-run` n'écrit rien.
+
+Côté installation, `skill_sync`, `hook_sync` et les adaptateurs `claude-code`, `codex`, `opencode` sont réutilisés sans modification : résolution serveur User > Project > Studio, projection globale limitée aux scopes studio/user, scope Project résolu avec `project_id` seulement.
+
+Seul changement de code existant : `publish.py` étend `PublishKind` (`hook`, `model_profile`, `workflow`) ; `PUBLISH_KINDS` reste limité à rule/skill/agent.
+

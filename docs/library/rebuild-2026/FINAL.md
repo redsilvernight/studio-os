@@ -25,3 +25,23 @@ CORE_PUBLIC 42, PERSONAL_PRIVATE 21, PROJECT_SPECIFIC 21, EXCLUDED_DUPLICATE 6, 
 - La compatibilité réelle des runtimes n'a pas été exercée par une installation; l'import reproductible est la phase suivante.
 - Les ressources historiques (`library/studio/rules/studio-protocol.md` v2) restent en place, non supprimées.
 - Aucune publication, purge ni mutation de production. Rien n'est commité.
+
+
+# État de mission — Phase 2D
+
+## Statut : LOCAL_PARTIAL
+
+Reconstruction, permissions, idempotence, installations et cycle de vie sont démontrés en base isolée (détail : `VALIDATION.md` § Phase 2D). Critères manquants pour `LOCAL_READY` : aucun runtime réel lancé (projections validées comme fichiers), désinstallation seulement par dépréciation et testée sur un skill, fichiers auxiliaires de 3 skills non stockés (Library = texte seul), restauration de snapshot non exercée.
+
+| Élément | Résultat |
+|---|---|
+| Import Core / Project / Personal | 42 / 21 / 21 créés et activés ; rejeu = tout inchangé |
+| Tests | 28 passés (18 isolés + 10 packages), 0 échec ; sans variable d'environnement les 18 sont ignorés |
+| Confidentialité | l'outsider ne voit, lit, résout ni n'installe aucun item Personal |
+| Hooks | Core : 3 avec consentement, Codex non supporté ; 5 hooks Personal exclus (`NOT_READY`) |
+| Production | aucune mutation, aucun import réel, aucune purge |
+
+**Reproduire** : cluster PostgreSQL local (loopback, port ≠ 5432, base `studio_lib_rebuild*`), `STUDIO_DATABASE_URL=… uv run alembic upgrade head`, puis `STUDIO_LIBRARY_REBUILD_DATABASE_URL=… uv run pytest tests/library_rebuild tests/harness/test_library_packages.py`. Import manuel : `uv run python scripts/library_import.py import --layer core|project|personal --api-url URL --token-env VAR [--project-id UUID] [--dry-run]`.
+
+**Fichiers** : `scripts/library_import.py`, `tests/library_rebuild/`, `packages/studio-client/src/studio_client/publish.py`, docs `rebuild-2026/`. Rien n'est commité.
+
