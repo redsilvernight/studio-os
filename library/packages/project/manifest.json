@@ -1,0 +1,717 @@
+{
+ "entries": [
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "rule",
+     "stable_key": "contracts"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "database"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "mcp-tools"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "contract-change"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "graphify"
+    }
+   ],
+   "files": [
+    {
+     "path": ".agents/definitions/contract-guardian.md",
+     "sha256": "48a8d4a9b03ef08c7b17ba26fa0a958f42a8535a022195f0442f45e08a1464a6"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "5277f157dc62fb75429057afceb5172edbbc38144ec010fb13811a39a3fa9db3",
+   "source": ".agents/definitions/contract-guardian.md",
+   "stable_key": "contract-guardian",
+   "status": "ready",
+   "supersedes": "project/agent_definition/contract-guardian v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "rule",
+     "stable_key": "testing"
+    }
+   ],
+   "files": [
+    {
+     "path": ".agents/definitions/dashboard-a11y.md",
+     "sha256": "1a57abda8656ced7138c46330a8cee3a69be7a6e9d6bd1f5beea06ca17bd9f03"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "597e36f91f78c3a3036c5e42fcd5b497888d8ca7ce8f0e258539c02efc4d95be",
+   "source": ".agents/definitions/dashboard-a11y.md",
+   "stable_key": "dashboard-a11y",
+   "status": "ready",
+   "supersedes": "project/agent_definition/dashboard-a11y v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "rule",
+     "stable_key": "database"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "python-conventions"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "testing"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "alembic-migration"
+    }
+   ],
+   "files": [
+    {
+     "path": ".agents/definitions/migration-reviewer.md",
+     "sha256": "4a28900554a5a40646d0b0f3308657b558dfeccfd7802c292aec53ba44d3052f"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "abc4cdb29d1b83f8fd326ddb202a4dc42f1f6da315340c4d8010eb5e3e124205",
+   "source": ".agents/definitions/migration-reviewer.md",
+   "stable_key": "migration-reviewer",
+   "status": "ready",
+   "supersedes": "project/agent_definition/migration-reviewer v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "rule",
+     "stable_key": "contracts"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "database"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "mcp-tools"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "python-conventions"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "graphify"
+    }
+   ],
+   "files": [
+    {
+     "path": ".agents/definitions/studio-architect.md",
+     "sha256": "7763fe3787951d49764647b1f0f268e90eb2b43b4516cdda15e2ea061368800a"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "538aa62b13e9eaf822a35048ad16584a65ae03fb6f8eabcd0613778764854b92",
+   "source": ".agents/definitions/studio-architect.md",
+   "stable_key": "studio-architect",
+   "status": "ready",
+   "supersedes": "project/agent_definition/studio-architect v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "rule",
+     "stable_key": "contracts"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "offline-sync"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "python-conventions"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "storage-transfers"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "contract-change"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "graphify"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "offline-sync-testing"
+    }
+   ],
+   "files": [
+    {
+     "path": ".agents/definitions/studio-tester.md",
+     "sha256": "ce9a12b397229a955d8a2a7c544f81695dd9fc9a84501793374138fe5a81dc40"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "1c2ea2737d0bc271dd649463bba0125523c6094a8197849f7a75f701e6d2fca7",
+   "source": ".agents/definitions/studio-tester.md",
+   "stable_key": "studio-tester",
+   "status": "ready",
+   "supersedes": "project/agent_definition/studio-tester v2",
+   "tier": "base",
+   "version": 3,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "rule",
+     "stable_key": "offline-sync"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "python-conventions"
+    },
+    {
+     "kind": "rule",
+     "stable_key": "storage-transfers"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "graphify"
+    },
+    {
+     "kind": "skill",
+     "stable_key": "offline-sync-testing"
+    }
+   ],
+   "files": [
+    {
+     "path": ".agents/definitions/sync-debugger.md",
+     "sha256": "67302d9e497abd9654dd8b5903bb56926d98dc8bb3c6ef6d76bb852bd55b7f5c"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "134d07fed46113a170ece248422421b991dfaa62da2efc6412fdfcbb66b1e68a",
+   "source": ".agents/definitions/sync-debugger.md",
+   "stable_key": "sync-debugger",
+   "status": "ready",
+   "supersedes": "project/agent_definition/sync-debugger v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/project/profiles/architecture-deep.md",
+     "sha256": "321e0218624161f35d56f0962e24ce54a17a72f47b324e91f638bb3305015107"
+    }
+   ],
+   "kind": "model_profile",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "417fc0a13dc7cb9824fa65e3741fccb9aabc298c6832112076b76c641035a196",
+   "source": "library/project/profiles/architecture-deep.md",
+   "stable_key": "architecture-deep",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/project/profiles/coding-standard.md",
+     "sha256": "2429882d3af7fe5f530100dcace98cd3627a0801448ca096363ccbcfc6c35390"
+    }
+   ],
+   "kind": "model_profile",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "71cea1834b153b5d2cf4653e1c4bfc5d38a893dd9e67410f7e543e9bcbdd87ae",
+   "source": "library/project/profiles/coding-standard.md",
+   "stable_key": "coding-standard",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/contracts.md",
+     "sha256": "c4ccdf0e2a80f2ae0226f0e0f67e83f4cbd70403dacb5d8a3cf805bd8df3803a"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "500be13c4a4e1663b1ac6a3348fc775d335ab6d55ab2c144286f04c7f8ef1117",
+   "source": ".agents/rules/contracts.md",
+   "stable_key": "contracts",
+   "status": "ready",
+   "supersedes": "project/rule/contracts v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/database.md",
+     "sha256": "89a35fca5d1284a1bf6d4ac9550f47ed4b9e2f35aae3e095420caf3ffb89150f"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "41fe3a8c48dd9e5241eb63c988cea96f2412a469eb37f0ddf0607c607d326af9",
+   "source": ".agents/rules/database.md",
+   "stable_key": "database",
+   "status": "ready",
+   "supersedes": "project/rule/database v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/mcp-tools.md",
+     "sha256": "f19a484b1d06ae69744e89e241209d6d0297c8c5f6861216fb4d73b2cfbc50e7"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "78350d6fe2931bedbab8093fcee0d8ea3f5c8598b7ff89c45657b5961077f06f",
+   "source": ".agents/rules/mcp-tools.md",
+   "stable_key": "mcp-tools",
+   "status": "ready",
+   "supersedes": "project/rule/mcp-tools v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/offline-sync.md",
+     "sha256": "b304a31e4718f729a539ccec67625ff44bed02e3c5d6e1d8abdb81b45af89fd9"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "062e2d83cb1ac6c7d72f2de4feedd6b97d39431489a49ecc095e92518c72ed70",
+   "source": ".agents/rules/offline-sync.md",
+   "stable_key": "offline-sync",
+   "status": "ready",
+   "supersedes": "project/rule/offline-sync v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/python-conventions.md",
+     "sha256": "adaef3a4178602340213db3318d2d5584c6b3603618cbf0ebae00e3a52c2a4a7"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "78d043214b67025890397998247723e6e12efe9bc5cfecc5f3d6400203936170",
+   "source": ".agents/rules/python-conventions.md",
+   "stable_key": "python-conventions",
+   "status": "ready",
+   "supersedes": "project/rule/python-conventions v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/storage-transfers.md",
+     "sha256": "7a512ca9173831fce0bc7dd387fa1eacaff783226c91f03393ca2bc874159d8c"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "2c1483e22a8cbf7ec57f927b27b8a0075c546b85e79487055b337b5d1deb9d16",
+   "source": ".agents/rules/storage-transfers.md",
+   "stable_key": "storage-transfers",
+   "status": "ready",
+   "supersedes": "project/rule/storage-transfers v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/testing.md",
+     "sha256": "32c197354d0a6f01da9d3583b350f78d3857369781ca7687f7a2f94344739875"
+    }
+   ],
+   "kind": "rule",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "b78d060b51667ea0bcd4594bf77af8940efbd52631acc1c83e94ee5a7ade5a41",
+   "source": ".agents/rules/testing.md",
+   "stable_key": "testing",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/alembic-migration/SKILL.md",
+     "sha256": "296f5f8af0e46b1511bddffdead4354a968e8e05aae478d1753dd90f41701059"
+    }
+   ],
+   "kind": "skill",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "0f0f3789f444d31886c483ffd115e3ac5609ff7646954c100c8e10278dad4bd0",
+   "source": ".agents/skills/alembic-migration",
+   "stable_key": "alembic-migration",
+   "status": "ready",
+   "supersedes": "project/skill/alembic-migration v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/contract-change/SKILL.md",
+     "sha256": "2eca917228df6a24b1ec02550e5ac3c26b24d6f7872e0570e77c04818922b9d7"
+    }
+   ],
+   "kind": "skill",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "705a753d1108cf6c892349802df1546882ef1ecef92668bc52e42f124cd6cc17",
+   "source": ".agents/skills/contract-change",
+   "stable_key": "contract-change",
+   "status": "ready",
+   "supersedes": "project/skill/contract-change v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/graphify/.graphify_version",
+     "sha256": "e01697854b7e51396a3b6ee810e19de309965d17d98f59d27140ff25dbed413a"
+    },
+    {
+     "path": ".agents/skills/graphify/references/add-watch.md",
+     "sha256": "b3f67570240582689c2834b4831917550c2d1aaf042148868c39dcbf387ce3fd"
+    },
+    {
+     "path": ".agents/skills/graphify/references/exports.md",
+     "sha256": "ee47fae477f106d8aed38798c58493b5a7f060a0d9d2581ce6132302827bc14b"
+    },
+    {
+     "path": ".agents/skills/graphify/references/extraction-spec.md",
+     "sha256": "f72a6d2dfa67446f06f27a8f0053af1adc8d53b02e393c8472045f6740c6183e"
+    },
+    {
+     "path": ".agents/skills/graphify/references/github-and-merge.md",
+     "sha256": "e5ebd90c7686f50363ff7a535556bc2f596d4c47ec1e6c8b95e11e36a0dfea2b"
+    },
+    {
+     "path": ".agents/skills/graphify/references/hooks.md",
+     "sha256": "b9a4e9f66813c6fc720589f1071d1a03c95756ab7101447e14e57291fe7844e5"
+    },
+    {
+     "path": ".agents/skills/graphify/references/query.md",
+     "sha256": "63e5f772dcc2c9454a367a8ee3973ebb7a770aa678ded0ff193af37c86f0799c"
+    },
+    {
+     "path": ".agents/skills/graphify/references/transcribe.md",
+     "sha256": "676a1e39aa6d43cdfcc416ec56616e36f7bad74066a82bd33a9485515b9a865c"
+    },
+    {
+     "path": ".agents/skills/graphify/references/update.md",
+     "sha256": "661f559b3ff4f3db7ba47bc2ba1c7e19f1c1d66a36f647e49221eecb174f2228"
+    },
+    {
+     "path": ".agents/skills/graphify/SKILL.md",
+     "sha256": "931e9f5c55c5672556a608493f80ef03e55c3b711260a7483e7bd427179c9bd0"
+    }
+   ],
+   "kind": "skill",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "0acb828ad60e21fd6a6f2d8e1dd3b2a0879498b993f4aa83543d3e6085498b0f",
+   "source": ".agents/skills/graphify",
+   "stable_key": "graphify",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/offline-sync-testing/SKILL.md",
+     "sha256": "b0f7bde7ea1e1b4df9780868df0ebb27d7b8518a329e3018bd8205b5fd66d987"
+    }
+   ],
+   "kind": "skill",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "b4ca7912884b27f7c8d23974daeaf452cfc018e29b2635555bba0ed214537096",
+   "source": ".agents/skills/offline-sync-testing",
+   "stable_key": "offline-sync-testing",
+   "status": "ready",
+   "supersedes": "project/skill/offline-sync-testing v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/openapi-sync/SKILL.md",
+     "sha256": "fce4c0150b2aaca9da30ed5568634f52fef03c37f3bcf7047df664e4fb173eff"
+    }
+   ],
+   "kind": "skill",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "49bb1f756dfe03d985c7ffc9a67b012311df4e2022a13dc35101d455f6e7d062",
+   "source": ".agents/skills/openapi-sync",
+   "stable_key": "openapi-sync",
+   "status": "ready",
+   "supersedes": "project/skill/openapi-sync v1",
+   "tier": "base",
+   "version": 2,
+   "visibility": "project"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "agent_definition",
+     "stable_key": "contract-guardian"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "studio-architect"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "studio-tester"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/project/workflows/feature-validation.md",
+     "sha256": "9f9c32a893dcd7234dbc0d5481269df4503d3605f6fb38fefe31fac5fd389004"
+    }
+   ],
+   "kind": "workflow",
+   "owner": "project",
+   "requires_consent": false,
+   "scope": "project",
+   "sha256": "2daf7060f2253a825057e10c5ee3c943797caa28d84fb8e806bd9deacfb460ce",
+   "source": "library/project/workflows/feature-validation.md",
+   "stable_key": "feature-validation",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "project"
+  }
+ ],
+ "layer": "project",
+ "package": "studios-project",
+ "schema": "studio.library.package/v1",
+ "visibility": "project"
+}

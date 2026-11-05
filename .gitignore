@@ -59,3 +59,7 @@ docker/backups/
 # Disposable local checkouts and provisioning secrets
 /.worktrees/
 studi-os-credentials-*.txt
+
+# Private Library package: user scope never enters the tracked distribution.
+/library/packages/personal/
+/library/private/personal/
