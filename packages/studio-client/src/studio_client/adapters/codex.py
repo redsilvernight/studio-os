@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from studio_contracts.resolution import ResolvedAgentDefinition
@@ -24,12 +25,8 @@ MANAGED_DIR = ".codex/agents"
 
 
 def _toml_string(value: str) -> str:
-    """Double-quoted TOML basic string, single-quoted only when safe —
-    deterministic: same value always renders the same way."""
-    if '"' not in value and "\\" not in value and "\n" not in value and "'" in value:
-        return value
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    """Encode a TOML basic string with the shared JSON string escapes."""
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _toml_single(value: str) -> str:

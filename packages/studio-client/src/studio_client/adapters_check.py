@@ -32,13 +32,14 @@ def check_adapters(
 ) -> AdaptersCheck:
     from studio_client.adapters import AdapterError, get_adapter, list_adapters
     from studio_client.canonical import (
+        agents_rules_current,
         build_merged_resolved,
         build_offline_resolved,
         canonical_agent_keys,
         canonical_rule_keys,
         load_rule_meta,
-        render_agents_rules_block,
         render_claude_rule,
+        workflow_skill_projections,
     )
 
     adapter_ids = [adapter_id] if adapter_id else list_adapters()
@@ -91,8 +92,19 @@ def check_adapters(
             if on_disk != render_claude_rule(key, applies_to, body):
                 failures.append({"adapter": "rules", "key": key, "error": f"drifted: {current}"})
         checked += 1
-        agents_text = (root / "AGENTS.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-        expected = render_agents_rules_block(root)
-        if expected.rstrip("\n") not in agents_text:
-            failures.append({"adapter": "rules", "key": "*", "error": "AGENTS.md block drifted"})
+        agents_path = root / "AGENTS.md"
+        agents_text = agents_path.read_text(encoding="utf-8") if agents_path.is_file() else ""
+        if not agents_rules_current(root, agents_text):
+            failures.append(
+                {
+                    "adapter": "rules",
+                    "key": "*",
+                    "error": "AGENTS.md block drifted, duplicated or conflicting owner",
+                }
+            )
+        for relative, content in workflow_skill_projections(root).items():
+            checked += 1
+            target = root / relative
+            if not target.is_file() or target.read_text(encoding="utf-8") != content:
+                failures.append({"adapter": "skills", "key": "*", "error": f"drifted: {relative}"})
     return AdaptersCheck(checked=checked, failures=tuple(failures))

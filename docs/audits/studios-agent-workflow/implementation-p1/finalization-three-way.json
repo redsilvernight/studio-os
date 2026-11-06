@@ -1,0 +1,116 @@
+[
+  {
+    "key": "contract-guardian",
+    "base": "HEAD d5912008bf8847835d454d3af5083a779909754c:.codex/agents/contract-guardian.toml",
+    "base_syntax_invalid": true,
+    "unknown_conflicts": [],
+    "classification": {
+      "description": "conversion personnelle doublement quotée ; normalisée, texte identique",
+      "reasoning": "paramètre harnais issu des exigences canoniques ; omission due au convertisseur, valeur C restaurée",
+      "model": "aucun pin A/B/C ; héritage du modèle conservé",
+      "permissions_tools_sandbox": "aucun champ propre aux TOML A/B/C, configurations externes intactes",
+      "instructions": "corps A identique à C après seules substitutions mécaniques .Codex/rules et marqueur ; changements B-C issus des sources P1",
+      "marker": "marqueur claude-code erroné remplacé par codex",
+      "references": "rétablies à la source canonique/projection existante",
+      "personal_customization": "aucune différence inexpliquée détectée ; reproduction du convertisseur à vérifier"
+    },
+    "reasoning_effort": "medium",
+    "B_final_sha256_lf": "50d908eb86ff3725cc53c89110a40f5795d69c15ad647f7b6a169830a4a81e28",
+    "B_final_file_sha256": "13e22368519e3ef7702d77c8cdb90f5047d4cd9ab46a716ff211506eb1a0e71d"
+  },
+  {
+    "key": "dashboard-a11y",
+    "base": "HEAD d5912008bf8847835d454d3af5083a779909754c:.codex/agents/dashboard-a11y.toml",
+    "base_syntax_invalid": false,
+    "unknown_conflicts": [],
+    "classification": {
+      "description": "conversion personnelle doublement quotée ; normalisée, texte identique",
+      "reasoning": "paramètre harnais issu des exigences canoniques ; omission due au convertisseur, valeur C restaurée",
+      "model": "aucun pin A/B/C ; héritage du modèle conservé",
+      "permissions_tools_sandbox": "aucun champ propre aux TOML A/B/C, configurations externes intactes",
+      "instructions": "corps A identique à C après seules substitutions mécaniques .Codex/rules et marqueur ; changements B-C issus des sources P1",
+      "marker": "marqueur claude-code erroné remplacé par codex",
+      "references": "rétablies à la source canonique/projection existante",
+      "personal_customization": "aucune différence inexpliquée détectée ; reproduction du convertisseur à vérifier"
+    },
+    "reasoning_effort": "medium",
+    "B_final_sha256_lf": "a60504f909ccd264fa30bc8d70a2f6cd3df383b2d7cfe14a8545a523f95c6b76",
+    "B_final_file_sha256": "4d9ef134b93a96fd3c4131fb3c146fb66145826a4827a2b577a68fbbd22944c8"
+  },
+  {
+    "key": "migration-reviewer",
+    "base": "HEAD d5912008bf8847835d454d3af5083a779909754c:.codex/agents/migration-reviewer.toml",
+    "base_syntax_invalid": false,
+    "unknown_conflicts": [],
+    "classification": {
+      "description": "conversion personnelle doublement quotée ; normalisée, texte identique",
+      "reasoning": "paramètre harnais issu des exigences canoniques ; omission due au convertisseur, valeur C restaurée",
+      "model": "aucun pin A/B/C ; héritage du modèle conservé",
+      "permissions_tools_sandbox": "aucun champ propre aux TOML A/B/C, configurations externes intactes",
+      "instructions": "corps A identique à C après seules substitutions mécaniques .Codex/rules et marqueur ; changements B-C issus des sources P1",
+      "marker": "marqueur claude-code erroné remplacé par codex",
+      "references": "rétablies à la source canonique/projection existante",
+      "personal_customization": "aucune différence inexpliquée détectée ; reproduction du convertisseur à vérifier"
+    },
+    "reasoning_effort": "medium",
+    "B_final_sha256_lf": "9dc29e42b54ea6fb6de8e26534deef0cc6a8e85795a12d3c037edaf2e621706d",
+    "B_final_file_sha256": "8c6327ee61dd9b92d3775dd0e8095fb3727d725b251d3c1979c1df6e5e7110df"
+  },
+  {
+    "key": "studio-architect",
+    "base": "HEAD d5912008bf8847835d454d3af5083a779909754c:.codex/agents/studio-architect.toml",
+    "base_syntax_invalid": false,
+    "unknown_conflicts": [],
+    "classification": {
+      "description": "conversion personnelle doublement quotée ; normalisée, texte identique",
+      "reasoning": "paramètre harnais issu des exigences canoniques ; omission due au convertisseur, valeur C restaurée",
+      "model": "aucun pin A/B/C ; héritage du modèle conservé",
+      "permissions_tools_sandbox": "aucun champ propre aux TOML A/B/C, configurations externes intactes",
+      "instructions": "corps A identique à C après seules substitutions mécaniques .Codex/rules et marqueur ; changements B-C issus des sources P1",
+      "marker": "marqueur claude-code erroné remplacé par codex",
+      "references": "rétablies à la source canonique/projection existante",
+      "personal_customization": "aucune différence inexpliquée détectée ; reproduction du convertisseur à vérifier"
+    },
+    "reasoning_effort": "high",
+    "B_final_sha256_lf": "fdb5f4a12b967a17f6b11603b7cf9f7f28e51b075abe349d282107b0efcaa64d",
+    "B_final_file_sha256": "5b2db8bdf775bdd721a0811ec485866a71a803d7e945c96dd4b57a440e74ebe7"
+  },
+  {
+    "key": "studio-tester",
+    "base": "HEAD d5912008bf8847835d454d3af5083a779909754c:.codex/agents/studio-tester.toml",
+    "base_syntax_invalid": false,
+    "unknown_conflicts": [],
+    "classification": {
+      "description": "conversion personnelle doublement quotée ; normalisée, texte identique",
+      "reasoning": "paramètre harnais issu des exigences canoniques ; omission due au convertisseur, valeur C restaurée",
+      "model": "aucun pin A/B/C ; héritage du modèle conservé",
+      "permissions_tools_sandbox": "aucun champ propre aux TOML A/B/C, configurations externes intactes",
+      "instructions": "corps A identique à C après seules substitutions mécaniques .Codex/rules et marqueur ; changements B-C issus des sources P1",
+      "marker": "marqueur claude-code erroné remplacé par codex",
+      "references": "rétablies à la source canonique/projection existante",
+      "personal_customization": "aucune différence inexpliquée détectée ; reproduction du convertisseur à vérifier"
+    },
+    "reasoning_effort": "medium",
+    "B_final_sha256_lf": "427021d409a3497b3410d2100c7ea814b83e48576e3d29f4375cc6bafb4f554d",
+    "B_final_file_sha256": "aabbd38b74678340ed453bb67fac7b81406e981299b91ea5d3c49f69ffc5dfc7"
+  },
+  {
+    "key": "sync-debugger",
+    "base": "HEAD d5912008bf8847835d454d3af5083a779909754c:.codex/agents/sync-debugger.toml",
+    "base_syntax_invalid": false,
+    "unknown_conflicts": [],
+    "classification": {
+      "description": "conversion personnelle doublement quotée ; normalisée, texte identique",
+      "reasoning": "paramètre harnais issu des exigences canoniques ; omission due au convertisseur, valeur C restaurée",
+      "model": "aucun pin A/B/C ; héritage du modèle conservé",
+      "permissions_tools_sandbox": "aucun champ propre aux TOML A/B/C, configurations externes intactes",
+      "instructions": "corps A identique à C après seules substitutions mécaniques .Codex/rules et marqueur ; changements B-C issus des sources P1",
+      "marker": "marqueur claude-code erroné remplacé par codex",
+      "references": "rétablies à la source canonique/projection existante",
+      "personal_customization": "aucune différence inexpliquée détectée ; reproduction du convertisseur à vérifier"
+    },
+    "reasoning_effort": "medium",
+    "B_final_sha256_lf": "a32a9fbdfcaa54c96fef88c7f8c38b7b1143c5a7c82a0e4138633c6c2e80d2dd",
+    "B_final_file_sha256": "16a462f1e1d13419ac6cfa1b0a66ca975d92146e44bca25e4bd46bd27bd87ddf"
+  }
+]

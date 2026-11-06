@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, and_, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_contracts.sessions import SessionStatus, WorkSessionCreate
@@ -467,11 +467,31 @@ async def ack_sync_cursor(
     """Advance the session's sync cursor (C2, DEC-0157): the single writer
     of `sync_cursor_seq`. Only moves forward — a stale ack is a no-op.
     Returns the session, or `None` when unknown."""
-    work_session = await session.get(WorkSessionModel, session_id)
-    if work_session is None:
-        return None
-    if work_session.sync_cursor_seq is None or seq > work_session.sync_cursor_seq:
-        work_session.sync_cursor_seq = seq
-        await session.commit()
+    work_session = await session.scalar(
+        update(WorkSessionModel)
+        .where(WorkSessionModel.id == session_id)
+        .values(sync_cursor_seq=func.greatest(WorkSessionModel.sync_cursor_seq, seq))
+        .returning(WorkSessionModel)
+        .execution_options(populate_existing=True)
+    )
+    await session.commit()
+    if work_session is not None:
         await session.refresh(work_session)
     return work_session
+
+
+async def ack_handoff_cursor(
+    session: AsyncSession, task_id: uuid.UUID, seq: int
+) -> TaskModel | None:
+    """Advance the successor's acknowledged baseline without regressing it."""
+    task = await session.scalar(
+        update(TaskModel)
+        .where(TaskModel.id == task_id)
+        .values(handoff_cursor_seq=func.greatest(TaskModel.handoff_cursor_seq, seq))
+        .returning(TaskModel)
+        .execution_options(populate_existing=True)
+    )
+    await session.commit()
+    if task is not None:
+        await session.refresh(task)
+    return task

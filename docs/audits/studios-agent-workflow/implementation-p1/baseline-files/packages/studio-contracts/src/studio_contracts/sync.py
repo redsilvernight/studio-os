@@ -1,0 +1,69 @@
+"""`studio_sync` resynchronisation contract (C2, additive, DEC-0157): the
+single pull point answering "what changed since my last sync that concerns
+my work?", as a compact bounded answer.
+
+HTTP canonical (`GET /api/v1/sync`, DEC-0046) plus the MCP tool
+`studio_sync` (same contract, DEC-0046/DEC-0048: no version in the payload).
+Read-only on business resources; the one write is the per-session `seq`
+cursor, advanced by acknowledgement only (at-least-once delivery, replay
+without effect) — unlike `prepare_context`, which stays side-effect free
+(DEC-0080). A new session of a task inherits that task's handoff cursor.
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+from uuid import UUID
+
+from studio_contracts.common import ContractModel
+from studio_contracts.coordination import CoordinationSignal
+
+SYNC_DEFAULT_LIMIT = 50
+SYNC_MAX_LIMIT = 200
+SYNC_SCAN_CAP = 500
+
+SyncWhy = Literal[
+    "own_task",
+    "decision",
+    "claim_overlap",
+    "roadmap_dependency",
+    "coordination",
+]
+
+SyncItemKind = Literal["event", "claim"]
+
+
+class SyncItem(ContractModel):
+    """One compact sync element, ids only — never a task description nor
+    any long text. `seq`/`event_type` are set on `event` items;
+    `claim_id`/`resource_path` on `claim` items (live claim state, no `seq`).
+    `why` names the deterministic filter branch that surfaced it."""
+
+    kind: SyncItemKind
+    why: SyncWhy
+    seq: int | None = None
+    event_type: str | None = None
+    task_id: UUID | None = None
+    claim_id: UUID | None = None
+    resource_path: str | None = None
+    coordination: CoordinationSignal | None = None
+
+
+class SyncResult(ContractModel):
+    """Bounded sync answer. `next_cursor` is the `seq` up to which every
+    matched event was delivered or absorbed into a delivered item; it stays
+    below the first event the bounds left out, so items above it may come
+    again on the next call. Truncated scans can advance over irrelevant events.
+    Unacknowledged signals to other live sessions of the task also hold back
+    this cursor, without exposing their text. Ack it as is to
+    advance; never derive it from the returned items.
+    `overflow` counts matched-but-unreturned or temporarily withheld signals
+    per `why` category. `resync` (scan truncated) requires further sync/ack;
+    `prepare_context` supplies context, not pending signal contents.
+    An empty answer serializes to
+    well under 300 characters."""
+
+    next_cursor: int
+    items: list[SyncItem] = []
+    overflow: dict[str, int] = {}
+    resync: bool = False

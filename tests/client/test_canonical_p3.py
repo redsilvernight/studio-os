@@ -25,13 +25,13 @@ from studio_client.adapters import (
 from studio_client.adapters.base import AdapterArtifact
 from studio_client.canonical import (
     LibrarySnapshot,
+    agents_rules_current,
     build_merged_resolved,
     build_offline_resolved,
     canonical_agent_keys,
     canonical_rule_keys,
     load_definition,
     load_rule_meta,
-    render_agents_rules_block,
     render_claude_rule,
     to_publish_payload,
 )
@@ -128,7 +128,9 @@ def test_fake_third_party_adapter_needs_no_core_change() -> None:
         def capabilities(self) -> dict[str, CapabilitySupport]:
             return dict.fromkeys(CAPABILITY_DIMENSIONS, CapabilitySupport.SUPPORTED)
 
-        def translate(self, resolved: ResolvedAgentDefinition, *, context=None) -> AdapterResult:
+        def translate(
+            self, resolved: ResolvedAgentDefinition, *, context: Any | None = None
+        ) -> AdapterResult:
             seen["key"] = resolved.agent.stable_key
             return AdapterResult(
                 adapter_id=self.adapter_id,
@@ -140,7 +142,7 @@ def test_fake_third_party_adapter_needs_no_core_change() -> None:
                 ),
             )
 
-    register_adapter(TestHarnessAdapter())  # type: ignore[arg-type]
+    register_adapter(TestHarnessAdapter())
     try:
         assert "test-harness" in list_adapters()
         resolved = build_offline_resolved(REPO, "sync-debugger")
@@ -166,7 +168,9 @@ def test_unsupported_capability_fails_explicit() -> None:
             caps["permissions"] = CapabilitySupport.UNSUPPORTED
             return caps
 
-        def translate(self, resolved: ResolvedAgentDefinition, *, context=None) -> AdapterResult:
+        def translate(
+            self, resolved: ResolvedAgentDefinition, *, context: Any | None = None
+        ) -> AdapterResult:
             from studio_client.adapters.base import ensure_supported
 
             ensure_supported(
@@ -176,7 +180,7 @@ def test_unsupported_capability_fails_explicit() -> None:
             )
             raise AssertionError("must not reach projection")
 
-    register_adapter(NoPermissionsAdapter())  # type: ignore[arg-type]
+    register_adapter(NoPermissionsAdapter())
     try:
         with pytest.raises(AdapterError) as exc_info:
             get_adapter("no-perms").translate(build_offline_resolved(REPO, "studio-tester"))
@@ -201,7 +205,7 @@ def test_anti_drift_all_managed_files() -> None:
             key, applies_to, body
         ):
             drifted.append(f".claude/rules/{key}.md")
-    assert render_agents_rules_block(REPO).rstrip("\n") in _read(REPO / "AGENTS.md")
+    assert agents_rules_current(REPO, _read(REPO / "AGENTS.md"))
     assert drifted == []
 
 

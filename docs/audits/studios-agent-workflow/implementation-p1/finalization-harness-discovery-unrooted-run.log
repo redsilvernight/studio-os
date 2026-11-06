@@ -1,0 +1,40 @@
+{
+  "fixture": "C:\\Users\\redsi\\AppData\\Local\\Temp\\finalization-harness-10e6e1c604b544f98cd5190d81c465a9",
+  "agent_count": 6,
+  "disabled_mcp": [
+    "obsidian-memory",
+    "studio-os",
+    "local-ai-hub",
+    "node_repl",
+    "opencode-dispatch",
+    "context7",
+    "postgres-test"
+  ],
+  "before": {
+    "phase": "empty-fixture",
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_ms": 2694,
+    "json_parsed": true,
+    "stdout_chars": 118804,
+    "stderr_chars": 0,
+    "role_name_hits": [],
+    "contains_fixture_path": false,
+    "model_request": false,
+    "raw_output_persisted": false
+  },
+  "after": {
+    "phase": "six-agent-fixture",
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_ms": 2627,
+    "json_parsed": true,
+    "stdout_chars": 118802,
+    "stderr_chars": 0,
+    "role_name_hits": [],
+    "contains_fixture_path": false,
+    "model_request": false,
+    "raw_output_persisted": false
+  }
+}
+

@@ -185,6 +185,9 @@ def test_version_conflict_and_ownership_discoverable(tools: list[Tool]) -> None:
     ):
         verbose = by_name[name].input_schema["properties"]["verbose"]
         assert verbose["default"] is True
+    for name in ("studio_start_work", "studio_handoff"):
+        verbose = by_name[name].input_schema["properties"]["verbose"]
+        assert verbose["default"] is False
 
 
 def test_workflow_context_controls_are_discoverable(tools: list[Tool]) -> None:

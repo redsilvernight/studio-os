@@ -1,0 +1,128 @@
+.............F....F..................................................... [ 71%]
+.............................                                            [100%]
+================================== FAILURES ===================================
+_______________ test_two_machines_task_events_and_own_exclusion _______________
+
+client = <httpx.AsyncClient object at 0x0000025ABCC16F90>
+auth_headers = {'Authorization': 'Bearer LIxGGLUvddiE5qnq3-vaOdpRQBquhbXs37ZFr31efmw'}
+machine = (<studio_api.db.models.machine.MachineModel object at 0x0000025ABCBD36C0>, 'LIxGGLUvddiE5qnq3-vaOdpRQBquhbXs37ZFr31efmw')
+project = <studio_api.db.models.project.ProjectModel object at 0x0000025ABC037BD0>
+db_session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x0000025ABCC142F0>
+
+    async def test_two_machines_task_events_and_own_exclusion(
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        machine: tuple[MachineModel, str],
+        project: ProjectModel,
+        db_session: AsyncSession,
+    ) -> None:
+        second = await _second_machine(db_session, machine)
+        second_headers = _second_headers(second)
+        task = await _task(client, auth_headers, project)
+        started = await _start(client, auth_headers, str(machine[0].id), task["id"])
+    
+        version = await _patch_title(
+            client, second_headers, task["id"], task["version"], "touched by B"
+        )
+        body = (await _sync(client, auth_headers, session_id=started["id"])).json()
+        assert [(i["why"], i["task_id"]) for i in body["items"]] == [("own_task", task["id"])]
+        assert body["items"][0]["event_type"] == "task.updated"
+        assert body["next_cursor"] > 0
+    
+        await _patch_title(client, auth_headers, task["id"], version, "touched by A")
+        again = (await _sync(client, auth_headers, session_id=started["id"])).json()
+        assert len(again["items"]) == 1
+        assert again["items"][0]["event_type"] == "task.updated"
+>       assert again["next_cursor"] == body["next_cursor"]
+E       assert 959 == 958
+
+tests\api\test_sync.py:231: AssertionError
+---------------------------- Captured stdout call -----------------------------
+2026-11-04 09:49:28,824 INFO httpx: HTTP Request: POST http://test/api/v1/tasks "HTTP/1.1 201 Created"
+2026-11-04 09:49:28,853 INFO httpx: HTTP Request: POST http://test/api/v1/sessions "HTTP/1.1 201 Created"
+2026-11-04 09:49:28,870 INFO httpx: HTTP Request: PATCH http://test/api/v1/tasks/7e168e35-1e1c-4624-8623-66b636af8ab5 "HTTP/1.1 200 OK"
+2026-11-04 09:49:28,888 INFO httpx: HTTP Request: GET http://test/api/v1/sync?session_id=6224a06e-605a-437e-b696-a2e046c088ac "HTTP/1.1 200 OK"
+2026-11-04 09:49:28,906 INFO httpx: HTTP Request: PATCH http://test/api/v1/tasks/7e168e35-1e1c-4624-8623-66b636af8ab5 "HTTP/1.1 200 OK"
+2026-11-04 09:49:28,920 INFO httpx: HTTP Request: GET http://test/api/v1/sync?session_id=6224a06e-605a-437e-b696-a2e046c088ac "HTTP/1.1 200 OK"
+------------------------------ Captured log call ------------------------------
+INFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/v1/tasks "HTTP/1.1 201 Created"
+INFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/v1/sessions "HTTP/1.1 201 Created"
+INFO     httpx:_client.py:1740 HTTP Request: PATCH http://test/api/v1/tasks/7e168e35-1e1c-4624-8623-66b636af8ab5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/sync?session_id=6224a06e-605a-437e-b696-a2e046c088ac "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: PATCH http://test/api/v1/tasks/7e168e35-1e1c-4624-8623-66b636af8ab5 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/sync?session_id=6224a06e-605a-437e-b696-a2e046c088ac "HTTP/1.1 200 OK"
+________________ test_handoff_cursor_inherited_by_next_session ________________
+
+client = <httpx.AsyncClient object at 0x0000025ABCB95790>
+auth_headers = {'Authorization': 'Bearer NWkPX9x7b-2bTH1Q4cjxHin5mwORCJAG9hk4LJenkpg'}
+machine = (<studio_api.db.models.machine.MachineModel object at 0x0000025ABCB968D0>, 'NWkPX9x7b-2bTH1Q4cjxHin5mwORCJAG9hk4LJenkpg')
+project = <studio_api.db.models.project.ProjectModel object at 0x0000025ABCD68100>
+db_session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x0000025ABCE92150>
+
+    async def test_handoff_cursor_inherited_by_next_session(
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        machine: tuple[MachineModel, str],
+        project: ProjectModel,
+        db_session: AsyncSession,
+    ) -> None:
+        second = await _second_machine(db_session, machine)
+        task = await _task(client, auth_headers, project)
+        first = await _start(client, auth_headers, str(machine[0].id), task["id"])
+        await _patch_title(client, _second_headers(second), task["id"], task["version"], "bump")
+        fresh = (await _sync(client, auth_headers, session_id=first["id"])).json()
+        cursor = fresh["next_cursor"]
+        assert cursor > 0
+        acked = (await _sync(client, auth_headers, session_id=first["id"], ack=cursor)).json()
+        assert acked["items"] == []
+    
+        current = (await client.get(f"/api/v1/tasks/{task['id']}", headers=auth_headers)).json()
+        handed = await client.post(
+            "/api/v1/handoff",
+            headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            json={
+                "project_id": str(project.id),
+                "session_id": first["id"],
+                "expected_version": current["version"],
+            },
+        )
+        assert handed.status_code == 200, handed.text
+    
+        second_session = await _start(client, auth_headers, str(machine[0].id), task["id"])
+        listing = await client.get(
+            "/api/v1/sessions", headers=auth_headers, params={"task_id": task["id"]}
+        )
+        row = next(s for s in listing.json() if s["id"] == second_session["id"])
+        assert row["sync_cursor_seq"] == cursor
+        resumed = (await _sync(client, auth_headers, session_id=second_session["id"])).json()
+        assert resumed["items"] == []
+>       assert resumed["next_cursor"] == cursor
+E       assert 986 == 984
+
+tests\api\test_sync.py:360: AssertionError
+---------------------------- Captured stdout call -----------------------------
+2026-11-04 09:49:30,343 INFO httpx: HTTP Request: POST http://test/api/v1/tasks "HTTP/1.1 201 Created"
+2026-11-04 09:49:30,377 INFO httpx: HTTP Request: POST http://test/api/v1/sessions "HTTP/1.1 201 Created"
+2026-11-04 09:49:30,398 INFO httpx: HTTP Request: PATCH http://test/api/v1/tasks/3ad87abf-43a6-4271-9c5b-743dd5652293 "HTTP/1.1 200 OK"
+2026-11-04 09:49:30,416 INFO httpx: HTTP Request: GET http://test/api/v1/sync?session_id=fee0db41-c9fc-493a-83b5-dac79a604dce "HTTP/1.1 200 OK"
+2026-11-04 09:49:30,437 INFO httpx: HTTP Request: GET http://test/api/v1/sync?session_id=fee0db41-c9fc-493a-83b5-dac79a604dce&ack=984 "HTTP/1.1 200 OK"
+2026-11-04 09:49:30,445 INFO httpx: HTTP Request: GET http://test/api/v1/tasks/3ad87abf-43a6-4271-9c5b-743dd5652293 "HTTP/1.1 200 OK"
+2026-11-04 09:49:30,484 INFO httpx: HTTP Request: POST http://test/api/v1/handoff "HTTP/1.1 200 OK"
+2026-11-04 09:49:30,522 INFO httpx: HTTP Request: POST http://test/api/v1/sessions "HTTP/1.1 201 Created"
+2026-11-04 09:49:30,541 INFO httpx: HTTP Request: GET http://test/api/v1/sessions?task_id=3ad87abf-43a6-4271-9c5b-743dd5652293 "HTTP/1.1 200 OK"
+2026-11-04 09:49:30,561 INFO httpx: HTTP Request: GET http://test/api/v1/sync?session_id=7534eda5-ace9-4085-8bc0-474db3df4563 "HTTP/1.1 200 OK"
+------------------------------ Captured log call ------------------------------
+INFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/v1/tasks "HTTP/1.1 201 Created"
+INFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/v1/sessions "HTTP/1.1 201 Created"
+INFO     httpx:_client.py:1740 HTTP Request: PATCH http://test/api/v1/tasks/3ad87abf-43a6-4271-9c5b-743dd5652293 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/sync?session_id=fee0db41-c9fc-493a-83b5-dac79a604dce "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/sync?session_id=fee0db41-c9fc-493a-83b5-dac79a604dce&ack=984 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/tasks/3ad87abf-43a6-4271-9c5b-743dd5652293 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/v1/handoff "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: POST http://test/api/v1/sessions "HTTP/1.1 201 Created"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/sessions?task_id=3ad87abf-43a6-4271-9c5b-743dd5652293 "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1740 HTTP Request: GET http://test/api/v1/sync?session_id=7534eda5-ace9-4085-8bc0-474db3df4563 "HTTP/1.1 200 OK"
+=========================== short test summary info ===========================
+FAILED tests/api/test_sync.py::test_two_machines_task_events_and_own_exclusion
+FAILED tests/api/test_sync.py::test_handoff_cursor_inherited_by_next_session
+2 failed, 99 passed in 19.36s

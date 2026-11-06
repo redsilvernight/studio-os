@@ -227,9 +227,11 @@ class _ReadOnlyApi:
         self.versions = versions
         self.calls: list[str] = []
 
-    async def list_library_resources(self, *, limit: int = 100) -> list[_Resource]:
+    async def list_library_resources(
+        self, *, kind: str | None = None, limit: int = 100
+    ) -> list[_Resource]:
         self.calls.append("list_library_resources")
-        return self.resources[:limit]
+        return [row for row in self.resources if kind is None or row.kind == kind][:limit]
 
     async def list_library_locks(self, *, project_id: UUID | None) -> list[Any]:
         self.calls.append("list_library_locks")

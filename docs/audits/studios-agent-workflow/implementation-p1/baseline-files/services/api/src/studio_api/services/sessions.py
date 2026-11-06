@@ -1,0 +1,497 @@
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime, timedelta
+
+from fastapi import HTTPException, status
+from sqlalchemy import ColumnElement, and_, func, or_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from studio_contracts.events import ActorType, EventCreate, EventType
+from studio_contracts.sessions import SessionStatus, WorkSessionCreate
+
+from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.task import TaskModel
+from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services import claims as claims_service
+from studio_api.services import events as events_service
+from studio_api.services import task_launches as task_launches_service
+from studio_api.services import tasks as tasks_service
+from studio_api.services.authz import (
+    Principal,
+    ProjectAction,
+    ensure_can_write,
+    ensure_machine_owned,
+    ensure_project_access,
+    get_launch_scope,
+    owns_agent,
+    project_visibility_clause,
+)
+from studio_api.settings import Settings
+
+
+def _scoped_launch_id(principal: Principal) -> uuid.UUID | None:
+    """The attempt a launch credential is bound to (DEC-0182), if the caller
+    authenticated with one: its session then links to that exact attempt,
+    so a reconnecting harness never lands on another attempt (P02)."""
+    scope = get_launch_scope(principal.machine)
+    return scope.launch_id if scope is not None else None
+
+
+_SESSION_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os/session-events")
+
+
+def _derive_session_event_id(session_id: uuid.UUID, event_type: EventType) -> uuid.UUID:
+    """Deterministic on (session_id, event_type): ending the same session twice
+    resolves to the same event via get-or-create, never a duplicate — the same
+    pattern AI work and Producer jobs use."""
+    return uuid.uuid5(_SESSION_EVENT_NAMESPACE, f"{session_id}:{event_type.value}")
+
+
+def derive_session_event_id(session_id: uuid.UUID, event_type: EventType) -> uuid.UUID:
+    """Public seam for other services that close a session server-side (e.g.
+    the launch expiry's server-side handoff) so they reuse the exact same
+    deterministic event id scheme."""
+    return _derive_session_event_id(session_id, event_type)
+
+
+async def close_session_server_side(
+    session: AsyncSession,
+    work_session: WorkSessionModel,
+    *,
+    project_id: uuid.UUID,
+    emitter_machine_id: uuid.UUID,
+    reason: str,
+) -> WorkSessionModel:
+    """Close one open session on the server's behalf (launch expiry, task
+    63a909ea): the session is ended and its `session.ended` staged with the
+    same derived event id as `end_session`, actor `system`, so a concurrent
+    client end or a replayed expiry never emits a second event. The caller
+    commits, keeping the closure atomic with the launch expiry."""
+    now = datetime.now(UTC)
+    work_session.ended_at = now
+    work_session.last_activity_at = now
+    await events_service.stage_event(
+        session,
+        EventCreate(
+            event_id=derive_session_event_id(work_session.id, EventType.SESSION_ENDED),
+            event_type=EventType.SESSION_ENDED,
+            project_id=project_id,
+            task_id=work_session.task_id,
+            machine_id=emitter_machine_id,
+            actor_type="system",
+            actor_id=emitter_machine_id,
+            client_timestamp=now,
+            payload={"session_id": str(work_session.id), "reason": reason},
+        ),
+    )
+    return work_session
+
+
+async def _session_project_id(
+    session: AsyncSession, work_session: WorkSessionModel
+) -> uuid.UUID | None:
+    """Sessions hang off an optional task; without one there is no project
+    scope to publish under, so no event is emitted."""
+    if work_session.task_id is None:
+        return None
+    task = await tasks_service.get_task(session, work_session.task_id)
+    return task.project_id if task is not None else None
+
+
+async def _emit_session_event(
+    session: AsyncSession,
+    principal: Principal,
+    work_session: WorkSessionModel,
+    event_type: EventType,
+    reason: str | None = None,
+) -> None:
+    project_id = await _session_project_id(session, work_session)
+    if project_id is None:
+        return
+    if work_session.agent_id is not None:
+        actor_type: ActorType = "agent"
+        actor_id = work_session.agent_id
+    else:
+        actor_type = "system"
+        actor_id = principal.machine.id
+    payload: dict[str, object] = {"session_id": str(work_session.id)}
+    if reason is not None:
+        payload["reason"] = reason
+    await events_service.create_event(
+        session,
+        EventCreate(
+            event_id=_derive_session_event_id(work_session.id, event_type),
+            event_type=event_type,
+            project_id=project_id,
+            task_id=work_session.task_id,
+            machine_id=principal.machine.id,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            client_timestamp=datetime.now(UTC),
+            payload=payload,
+        ),
+    )
+
+
+async def _ensure_task_project_access(
+    session: AsyncSession, principal: Principal, task_id: uuid.UUID | None, action: ProjectAction
+) -> None:
+    """A session has no project of its own: it is visible through
+    session -> task -> project only (DEC-0103 §11). An unknown task has no
+    project to check; the caller's own not-found handling applies."""
+    if task_id is None:
+        return
+    task = await tasks_service.get_task(session, task_id)
+    if task is not None:
+        ensure_project_access(principal, task.project_id, action)
+
+
+async def list_sessions(
+    session: AsyncSession,
+    principal: Principal,
+    task_id: uuid.UUID | None = None,
+    agent_id: uuid.UUID | None = None,
+    open_only: bool = False,
+    project_id: uuid.UUID | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    offset: int = 0,
+    limit: int | None = None,
+) -> list[WorkSessionModel]:
+    stmt = select(WorkSessionModel).order_by(
+        WorkSessionModel.started_at.desc(), WorkSessionModel.id.desc()
+    )
+    if project_id is not None:
+        ensure_project_access(principal, project_id)
+        stmt = stmt.where(
+            WorkSessionModel.task_id.in_(
+                select(TaskModel.id).where(TaskModel.project_id == project_id)
+            )
+        )
+    if task_id is not None:
+        await _ensure_task_project_access(session, principal, task_id, "read")
+        stmt = stmt.where(WorkSessionModel.task_id == task_id)
+    elif (visible := project_visibility_clause(principal, TaskModel.project_id)) is not None:
+        stmt = stmt.join(TaskModel, WorkSessionModel.task_id == TaskModel.id).where(visible)
+    if agent_id is not None:
+        stmt = stmt.where(WorkSessionModel.agent_id == agent_id)
+    if open_only:
+        stmt = stmt.where(WorkSessionModel.ended_at.is_(None))
+    if since is not None or until is not None:
+        ranges = []
+        for column in (WorkSessionModel.started_at, WorkSessionModel.ended_at):
+            bounds: list[ColumnElement[bool]] = [column.is_not(None)]
+            if since is not None:
+                bounds.append(column >= since)
+            if until is not None:
+                bounds.append(column < until)
+            ranges.append(and_(*bounds))
+        stmt = stmt.where(or_(*ranges))
+    stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def _find_open_session(
+    session: AsyncSession,
+    task_id: uuid.UUID,
+    agent_id: uuid.UUID | None,
+    machine_id: uuid.UUID,
+) -> WorkSessionModel | None:
+    """The calling machine's open session (never ended) for this agent on
+    the task, newest first (AIB-H). Ownership mirrors `end_session`: a
+    session is that machine's live presence on the work, so another machine
+    never resumes it."""
+    stmt = (
+        select(WorkSessionModel)
+        .where(
+            WorkSessionModel.task_id == task_id,
+            WorkSessionModel.machine_id == machine_id,
+            WorkSessionModel.ended_at.is_(None),
+        )
+        .order_by(WorkSessionModel.started_at.desc())
+    )
+    if agent_id is None:
+        stmt = stmt.where(WorkSessionModel.agent_id.is_(None))
+    else:
+        stmt = stmt.where(WorkSessionModel.agent_id == agent_id)
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+
+async def authorize_start(
+    session: AsyncSession,
+    principal: Principal,
+    task_id: uuid.UUID | None,
+    agent_id: uuid.UUID | None = None,
+) -> None:
+    """Project (via the task) then role check of a session start, run ahead
+    of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    await _ensure_task_project_access(session, principal, task_id, "write")
+    ensure_can_write(principal, "session")
+    if agent_id is not None and not owns_agent(
+        await session.get(AgentModel, agent_id), principal.machine
+    ):
+        raise HTTPException(409, detail={"error_code": "actor_not_owned"})
+
+
+async def _close_sessions_for_another_identity(
+    session: AsyncSession,
+    session_in: WorkSessionCreate,
+    now: datetime,
+) -> list[WorkSessionModel]:
+    """A live session on the same task and machine but for another agent
+    identity (DEC-0237): the observed model changed, so the previous presence
+    is closed explicitly (`session.ended` with `reason=identity_changed`)
+    instead of lingering until it expires and leaving two live sessions for
+    one machine on the same task."""
+    if session_in.task_id is None:
+        return []
+    stmt = select(WorkSessionModel).where(
+        WorkSessionModel.task_id == session_in.task_id,
+        WorkSessionModel.machine_id == session_in.machine_id,
+        WorkSessionModel.ended_at.is_(None),
+    )
+    if session_in.agent_id is None:
+        stmt = stmt.where(WorkSessionModel.agent_id.is_not(None))
+    else:
+        stmt = stmt.where(
+            or_(
+                WorkSessionModel.agent_id.is_(None),
+                WorkSessionModel.agent_id != session_in.agent_id,
+            )
+        )
+    closed = list((await session.execute(stmt)).scalars().all())
+    for work_session in closed:
+        work_session.ended_at = now
+        work_session.last_activity_at = now
+    if closed:
+        await session.flush()
+    return closed
+
+
+async def resume_or_start_session(
+    session: AsyncSession,
+    principal: Principal,
+    session_in: WorkSessionCreate,
+    settings: Settings,
+) -> tuple[WorkSessionModel, bool]:
+    """Resume-or-create (AIB-H), the session half of `studio_start_work`:
+    the calling machine's open session for the same agent on the task is
+    resumed (touched, `resumed=True`); an open session whose derived
+    presence is `expired` is **closed first** (the effective closing C1
+    deferred to L2) and a fresh one created (`resumed=False`), as is the
+    case with no open session. An `ended` session is never reused. The
+    caller is authorized exactly like a start; closing emits `session.ended`
+    then the new one `session.started`. Returns `(session, resumed)`."""
+    await authorize_start(session, principal, session_in.task_id, session_in.agent_id)
+    # Same ownership rule as `end_session`: a session is a machine's own
+    # presence, so it never resumes (nor closes) another machine's session.
+    ensure_machine_owned(principal, session_in.machine_id, "session", "resume")
+    if session_in.task_id is not None:
+        await session.execute(
+            select(TaskModel.id).where(TaskModel.id == session_in.task_id).with_for_update()
+        )
+    else:
+        await session.execute(
+            select(MachineModel.id)
+            .where(MachineModel.id == session_in.machine_id)
+            .with_for_update()
+        )
+    now = datetime.now(UTC)
+    existing = await _find_open_session(
+        session, session_in.task_id, session_in.agent_id, session_in.machine_id
+    )
+    if existing is not None and (
+        derive_session_status(existing, settings) is not SessionStatus.EXPIRED
+    ):
+        existing.last_activity_at = now
+        await session.commit()
+        await session.refresh(existing)
+        await task_launches_service.link_session_to_launch(
+            session, existing, _scoped_launch_id(principal)
+        )
+        return existing, True
+    if existing is not None:
+        existing.ended_at = now
+        existing.last_activity_at = now
+        await session.flush()
+    superseded = await _close_sessions_for_another_identity(session, session_in, now)
+    handoff_cursor = None
+    if session_in.task_id is not None:
+        task = await tasks_service.get_task(session, session_in.task_id)
+        if task is not None:
+            handoff_cursor = task.handoff_cursor_seq
+    work_session = WorkSessionModel(
+        task_id=session_in.task_id,
+        machine_id=session_in.machine_id,
+        agent_id=session_in.agent_id,
+        started_at=now,
+        last_activity_at=now,
+        sync_cursor_seq=handoff_cursor,
+    )
+    session.add(work_session)
+    await session.commit()
+    await session.refresh(work_session)
+    if existing is not None:
+        await _emit_session_event(session, principal, existing, EventType.SESSION_ENDED)
+    for previous in superseded:
+        await _emit_session_event(
+            session, principal, previous, EventType.SESSION_ENDED, reason="identity_changed"
+        )
+    await task_launches_service.link_session_to_launch(
+        session, work_session, _scoped_launch_id(principal)
+    )
+    await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
+    return work_session, False
+
+
+async def start_session(
+    session: AsyncSession, principal: Principal, session_in: WorkSessionCreate
+) -> WorkSessionModel:
+    await authorize_start(session, principal, session_in.task_id, session_in.agent_id)
+    ensure_machine_owned(principal, session_in.machine_id, "session", "start")
+    now = datetime.now(UTC)
+    superseded = await _close_sessions_for_another_identity(session, session_in, now)
+    handoff_cursor = None
+    if session_in.task_id is not None:
+        task = await tasks_service.get_task(session, session_in.task_id)
+        if task is not None:
+            handoff_cursor = task.handoff_cursor_seq
+    work_session = WorkSessionModel(
+        task_id=session_in.task_id,
+        machine_id=session_in.machine_id,
+        agent_id=session_in.agent_id,
+        started_at=now,
+        last_activity_at=now,
+        sync_cursor_seq=handoff_cursor,
+    )
+    session.add(work_session)
+    await session.commit()
+    await session.refresh(work_session)
+    await task_launches_service.link_session_to_launch(
+        session, work_session, _scoped_launch_id(principal)
+    )
+    for previous in superseded:
+        await _emit_session_event(
+            session, principal, previous, EventType.SESSION_ENDED, reason="identity_changed"
+        )
+    await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
+    return work_session
+
+
+async def end_session(
+    session: AsyncSession, principal: Principal, session_id: uuid.UUID
+) -> WorkSessionModel:
+    work_session = await session.get(WorkSessionModel, session_id)
+    if work_session is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
+    await _ensure_task_project_access(session, principal, work_session.task_id, "write")
+    ensure_machine_owned(principal, work_session.machine_id, "session", "end")
+    # L3 fallback: release the task's claims before marking the session ended
+    # so a mid-call failure retries cleanly, and also on the already-ended
+    # path so a previous partial failure still converges (DEC-0163). Releases
+    # are idempotent with one `resource.released` per claim.
+    if work_session.task_id is not None:
+        task = await tasks_service.get_task(session, work_session.task_id)
+        if task is not None:
+            await claims_service.release_task_claims_by_task(
+                session, principal, task, agent_id=work_session.agent_id
+            )
+    if work_session.ended_at is not None:
+        return work_session
+    now = datetime.now(UTC)
+    work_session.ended_at = now
+    work_session.last_activity_at = now
+    await session.commit()
+    await session.refresh(work_session)
+    await _emit_session_event(session, principal, work_session, EventType.SESSION_ENDED)
+    return work_session
+
+
+def _effective_activity(work_session: WorkSessionModel) -> datetime | None:
+    """Newest known activity: explicit touches win, `started_at` is the
+    fallback for rows predating C1 (migration 0020 backfilled them)."""
+    return work_session.last_activity_at or work_session.started_at
+
+
+def derive_session_status(work_session: WorkSessionModel, settings: Settings) -> SessionStatus:
+    """Presence derived at read with configurable thresholds (C1, DEC-0157)
+    — never stored, never a heartbeat. `ended` wins over every age; an
+    expired session still reads `expired` until L2 (l2-resume) closes it."""
+    if work_session.ended_at is not None:
+        return SessionStatus.ENDED
+    reference = _effective_activity(work_session)
+    if reference is None:
+        return SessionStatus.ACTIVE
+    age = datetime.now(UTC) - reference
+    if age > timedelta(seconds=settings.session_expire_after_seconds):
+        return SessionStatus.EXPIRED
+    if age > timedelta(seconds=settings.session_idle_after_seconds):
+        return SessionStatus.IDLE
+    return SessionStatus.ACTIVE
+
+
+def derive_session_expiry(work_session: WorkSessionModel, settings: Settings) -> datetime | None:
+    """When this session will read `expired` if nothing touches it — `None`
+    for ended sessions. L2 (l2-resume) is the consumer that closes them."""
+    if work_session.ended_at is not None:
+        return None
+    reference = _effective_activity(work_session)
+    if reference is None:
+        return None
+    return reference + timedelta(seconds=settings.session_expire_after_seconds)
+
+
+async def touch_session(session: AsyncSession, session_id: uuid.UUID) -> WorkSessionModel | None:
+    """Record authenticated activity attached to a session (C1): the single
+    writer of `last_activity_at`. Call only from an already-authorized
+    session-attached call (start/end today; start_work, sync, event
+    emission, ai_work and handoff in their own L2/L3/C2/C4 steps). Returns
+    the session, or `None` when unknown. Never touches heartbeats."""
+    work_session = await session.get(WorkSessionModel, session_id)
+    if work_session is None:
+        return None
+    work_session.last_activity_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(work_session)
+    return work_session
+
+
+async def ack_sync_cursor(
+    session: AsyncSession, session_id: uuid.UUID, seq: int
+) -> WorkSessionModel | None:
+    """Advance the session's sync cursor (C2, DEC-0157): the single writer
+    of `sync_cursor_seq`. Only moves forward — a stale ack is a no-op.
+    Returns the session, or `None` when unknown."""
+    work_session = await session.scalar(
+        update(WorkSessionModel)
+        .where(WorkSessionModel.id == session_id)
+        .values(sync_cursor_seq=func.greatest(WorkSessionModel.sync_cursor_seq, seq))
+        .returning(WorkSessionModel)
+        .execution_options(populate_existing=True)
+    )
+    await session.commit()
+    if work_session is not None:
+        await session.refresh(work_session)
+    return work_session
+
+
+async def ack_handoff_cursor(
+    session: AsyncSession, task_id: uuid.UUID, seq: int
+) -> TaskModel | None:
+    """Advance the successor's acknowledged baseline without regressing it."""
+    task = await session.scalar(
+        update(TaskModel)
+        .where(TaskModel.id == task_id)
+        .values(handoff_cursor_seq=func.greatest(TaskModel.handoff_cursor_seq, seq))
+        .returning(TaskModel)
+        .execution_options(populate_existing=True)
+    )
+    await session.commit()
+    if task is not None:
+        await session.refresh(task)
+    return task

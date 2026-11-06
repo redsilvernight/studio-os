@@ -1,0 +1,286 @@
+{
+  "date": "2026-11-04T09:35:50.9892152+01:00",
+  "branch": "dev",
+  "head": "d5912008bf8847835d454d3af5083a779909754c",
+  "status": [
+    "# branch.oid d5912008bf8847835d454d3af5083a779909754c",
+    "# branch.head dev",
+    "# branch.upstream origin/dev",
+    "# branch.ab +0 -9",
+    "1 .M N... 100644 100644 100644 5236b25702ccf3b0e9ceddb60219131d8e4f05b9 5236b25702ccf3b0e9ceddb60219131d8e4f05b9 .codex/agents/contract-guardian.toml",
+    "1 .M N... 100644 100644 100644 9ef9fa345fbe19c8f8561a67367d7f2e227bce8a 9ef9fa345fbe19c8f8561a67367d7f2e227bce8a .codex/agents/dashboard-a11y.toml",
+    "1 .M N... 100644 100644 100644 5de66091205f49b293117718205223b25084d48e 5de66091205f49b293117718205223b25084d48e .codex/agents/migration-reviewer.toml",
+    "1 .M N... 100644 100644 100644 82293c4f6eff50252a0734f40cfe2e5ce660f67e 82293c4f6eff50252a0734f40cfe2e5ce660f67e .codex/agents/studio-architect.toml",
+    "1 .M N... 100644 100644 100644 f60a98c6e9c3a68d54ac5fb52970532870673d20 f60a98c6e9c3a68d54ac5fb52970532870673d20 .codex/agents/studio-tester.toml",
+    "1 .M N... 100644 100644 100644 d927ef9da57f21e627a39a134d409d0f1c7861bb d927ef9da57f21e627a39a134d409d0f1c7861bb .codex/agents/sync-debugger.toml",
+    "1 .M N... 100644 100644 100644 5237ea677fb8094d63d95a08ec66787213cc16f2 5237ea677fb8094d63d95a08ec66787213cc16f2 .codex/config.toml",
+    "1 .M N... 100644 100644 100644 d26fb3bb3be381a76fe61f441327c3b1b7e14248 d26fb3bb3be381a76fe61f441327c3b1b7e14248 AGENTS.md",
+    "1 .M N... 100644 100644 100644 cd1fb14642b7006e5516bcc45f2c13437789711b cd1fb14642b7006e5516bcc45f2c13437789711b docs/mission-control/local-collectors.md",
+    "1 .M N... 100644 100644 100644 62890a220d74e1ba8ea775796d6ae2c96592c135 62890a220d74e1ba8ea775796d6ae2c96592c135 opencode.json",
+    "1 .M N... 100644 100644 100644 267ded1b9c91cacfca73501a58631386a9721191 267ded1b9c91cacfca73501a58631386a9721191 packages/studio-client/src/studio_client/usage/local/pricing.py",
+    "1 .M N... 100644 100644 100644 f0b58e5cbe541a70bd76c06bfac4ff9d664a9b77 f0b58e5cbe541a70bd76c06bfac4ff9d664a9b77 tests/usage_local/test_usage_local.py",
+    "? docs/audits/",
+    "? library/"
+  ],
+  "worktrees": [
+    "worktree C:/Users/redsi/Documents/Coding/Projet/Studi'os",
+    "HEAD d5912008bf8847835d454d3af5083a779909754c",
+    "branch refs/heads/dev",
+    "",
+    "worktree C:/Users/redsi/AppData/Local/Temp/claude/C--Users-redsi-Documents-Coding-Projet-Studi-os/8ea72ebe-8a50-4d5d-8d5e-3e7434f8bf23/scratchpad/wt-compact",
+    "HEAD 18c14aede157fc32e5a1b6835e6b22d54aee29b0",
+    "detached",
+    "",
+    "worktree C:/Users/redsi/Documents/Coding/Projet/Studi'os/.worktrees/bina-monitor-caddy",
+    "HEAD 7e6b92a998b5d362d911f96b7d0b93f358cd8c7c",
+    "branch refs/heads/codex/bina-monitor-caddy",
+    ""
+  ],
+  "files": [
+    {
+      "path": "docs/audits/studios-agent-workflow/01-MCP-INVENTORY.md",
+      "sha256": "527601F919B01AFDC8ED9D75F3B89B61CEA51591D64F1E47BE6D8D022DFA346C"
+    },
+    {
+      "path": "docs/audits/studios-agent-workflow/02-CURRENT-WORKFLOWS.md",
+      "sha256": "6AC7B328D82A7CDF44511B1CC4431C9AE2B9724E29B191AC98D7B2FDB8CADEBD"
+    },
+    {
+      "path": "docs/audits/studios-agent-workflow/03-OPTIMAL-WORKFLOWS.md",
+      "sha256": "5FEAE080CEB761A088C696DAEB6E9C2E0A2281F01E71C7F4CE2F5FBC19A576DE"
+    },
+    {
+      "path": "docs/audits/studios-agent-workflow/04-SKILLS-ARCHITECTURE.md",
+      "sha256": "D4CD2D2F061048453DB7CEA3307BE11BF1849CC6D35D21558A7064DAE7014747"
+    },
+    {
+      "path": "docs/audits/studios-agent-workflow/05-OPTIMIZATION-OPPORTUNITIES.md",
+      "sha256": "3535636D36FA45CD65375A8547CE19C1AD055212B86D6907D56392444155B678"
+    },
+    {
+      "path": "docs/audits/studios-agent-workflow/06-IMPLEMENTATION-ROADMAP.md",
+      "sha256": "9C1BEE81DEC2361C472F6BE441C7BF50AFB5ACB36002D15E9B2D2B83A2C5124A"
+    },
+    {
+      "path": "docs/audits/studios-agent-workflow/FINAL-AUDIT.md",
+      "sha256": "ED18871CBAFA3C36A9433A0802A538ED2FA04F0D1E71C2B3379869C5DDC4C248"
+    },
+    {
+      "path": "library/studio/README.md",
+      "sha256": "CA66324B0DA683D7EB0EBBC6A0EE101433BB7191D72588137F5A9D67ACACE458"
+    },
+    {
+      "path": "library/studio/agents/chef-marketing.md",
+      "sha256": "DCC25B8A302AFDCB0F95541AD46176047A321BF9351EAFC741E7EBE8DE99C33D"
+    },
+    {
+      "path": "library/studio/agents/devops.md",
+      "sha256": "B8F85356D0391E36E1CFCFD449C784CAD6239071DF72CCBF6CB5EE495D4D9B35"
+    },
+    {
+      "path": "library/studio/agents/godot-tester.md",
+      "sha256": "6587D8B21FD56499F029661EC9D61A118C66B8B1FF8E87542BF7F3A4EEF7AFDE"
+    },
+    {
+      "path": "library/studio/agents/graphiste.md",
+      "sha256": "F86B3AD1631439A67A4521149688315510016C7E2ABD99DD6BBF8BA86A9E0C3C"
+    },
+    {
+      "path": "library/studio/agents/monteur-video.md",
+      "sha256": "9D841893034ED24D91CA1C6E5ABE373073C49AAFEA9CBFF70EE676E163C72794"
+    },
+    {
+      "path": "library/studio/agents/reader.md",
+      "sha256": "28431AA9BEBC36D11B3D296A62054625C4C24ABCDFB5E9EE5ADF674ED32BD641"
+    },
+    {
+      "path": "library/studio/agents/sound-designer.md",
+      "sha256": "72B963E216BD064DE01B562723DF8E0325CDCF2E8C029BF03DD934F87F653A32"
+    },
+    {
+      "path": "library/studio/agents/verifier.md",
+      "sha256": "160D94353DD2CA78D7492E168E787C0DCF3070F1B751FC707FFCC7457903AB9D"
+    },
+    {
+      "path": "library/studio/agents/worker.md",
+      "sha256": "9A35B3AFA9F0BEC35514EBFF206E9467A846A7AD0D2E676E67D1C32BF8E4EC97"
+    },
+    {
+      "path": "library/studio/hooks/git-guard.md",
+      "sha256": "F066F69214221390A7E51BA97448043FEB3786D68A4AFCC76F8B7375A5AD2089"
+    },
+    {
+      "path": "library/studio/hooks/git-guard.ps1",
+      "sha256": "2866CC63CD53CBBC639B43C429E719C49891F59F9FCCE64F4B5F04CCE3698277"
+    },
+    {
+      "path": "library/studio/hooks/session-start.md",
+      "sha256": "D6E0953CC9F926E2BDC430A28277EBDE0902D7540BB4F056040F947B2E8C993C"
+    },
+    {
+      "path": "library/studio/hooks/session-start.ps1",
+      "sha256": "1ABB66ED661BEF7EE1F00054D423D2507EADE64CE91934778961D45E8AACE163"
+    },
+    {
+      "path": "library/studio/hooks/stop-check.md",
+      "sha256": "CA32938192B562A435818E80E2BAABA41E93EA2F8C055FB5C4EE73C2C3AFB28A"
+    },
+    {
+      "path": "library/studio/hooks/stop-check.ps1",
+      "sha256": "746BC3307B93A6818B8676FA04E1ADA4BF2F6948B2AC5E0B4806286AAD6498BC"
+    },
+    {
+      "path": "library/studio/profiles/single-agent.md",
+      "sha256": "38930921FB73994926A04310201DFD79C3F8293F24C14BF315EB8ED6B76A120F"
+    },
+    {
+      "path": "library/studio/rules/code-minimal.md",
+      "sha256": "5076E3BDF3E1530DCA16FB7B6DD39C8B76FAA9D6B752C0BA49F579974612B166"
+    },
+    {
+      "path": "library/studio/rules/core.md",
+      "sha256": "CDE7E563D468D41A597B0307284D33F99003CC5E188ACE433844A48FE9889EA3"
+    },
+    {
+      "path": "library/studio/rules/git-flow.md",
+      "sha256": "668EA0F6385D1111ADA632FCB9EE102B37F4F7AF361619283108E94DFF1C9B8B"
+    },
+    {
+      "path": "library/studio/rules/memory.md",
+      "sha256": "1C0A143D9AB5CB17D075BD9FD119BCC16CD4B07143B6915EB276D737B404CFFF"
+    },
+    {
+      "path": "library/studio/rules/routing.md",
+      "sha256": "BECDA71423995EEE97BD3BFD42A1906DB2DB7A34623806312F148FC0CC51630B"
+    },
+    {
+      "path": "library/studio/rules/studio-protocol.md",
+      "sha256": "C6F44CD50A828FB1A91B1D8933B29AA2309C0EA996CCC9479B7C30AFBF548132"
+    },
+    {
+      "path": "library/studio/rules/studio-workflow.md",
+      "sha256": "BC23386EFE2DC2449F86D5FA362CECAEF847A74CC830370310A0691D0A92E7A1"
+    },
+    {
+      "path": "library/studio/skills/delegate/SKILL.md",
+      "sha256": "CC7A961BBE07747B71B9E06568F10810244F8F80B396E5124906DA9CDDDFF7F9"
+    },
+    {
+      "path": "library/studio/skills/itch-io-publish/SKILL.md",
+      "sha256": "565CCF328ECA4754F0907E48702EEC545D9008426044DFD7DDAD2490B46D0A00"
+    },
+    {
+      "path": "library/studio/skills/new-project/SKILL.md",
+      "sha256": "57DD5363A6B5D6C207A14D5C849E9417BDC23E54C91DF233D8F4B7574F7418F8"
+    },
+    {
+      "path": "library/studio/skills/next/SKILL.md",
+      "sha256": "680E57EFCE7BCB33D98A9CA7A294861A005812675A455307EDE2A0E5B687626E"
+    },
+    {
+      "path": "library/studio/skills/phase/SKILL.md",
+      "sha256": "5F2E33840FEBC01BF058C71B2EEB4C27CBDECADF315EF345DC476845B7B59A1A"
+    },
+    {
+      "path": "library/studio/skills/pixel-art-direction/SKILL.md",
+      "sha256": "5159418DDFC1AF4E952CA03474F72F18E4196310AAD6437A646D3252851F1541"
+    },
+    {
+      "path": "library/studio/skills/release/SKILL.md",
+      "sha256": "10B6E11484F607CEBB924235EFA680C5958D82BD661547D655760BB650BEA1EB"
+    },
+    {
+      "path": "library/studio/skills/review-pr/SKILL.md",
+      "sha256": "85BDE02EF4BF118D317B32674A378FD802FA20A3E3B3E89923120A962BF11D74"
+    },
+    {
+      "path": "library/studio/skills/roadmap-builder/SKILL.md",
+      "sha256": "14BE53CDD101BBC24EAAF7B0024658AB8265889751416B4164BB895CF97334CE"
+    },
+    {
+      "path": "library/studio/skills/sound-design/SKILL.md",
+      "sha256": "B52C0F86C19288C36197E0C25062B735E39A5BC2F74DA248C07785D31BE7EF70"
+    },
+    {
+      "path": "library/studio/skills/tiktok-pipeline/SKILL.md",
+      "sha256": "78280201EEEDBB213C703EA43C72CBE6C7094A8C114C97440ABAE6D895936CFB"
+    },
+    {
+      "path": "library/studio/skills/triage/SKILL.md",
+      "sha256": "DBC08506A9E6411A22F753D15A3E8CD864146B0121E6853785C21B801507B500"
+    },
+    {
+      "path": "library/studio/skills/workstation-setup/SKILL.md",
+      "sha256": "424AFDAF6130E0F3E3ABB837063A0202565E4E44C005313871424BDB91597D4C"
+    },
+    {
+      "path": "library/studio/workflows/hotfix.md",
+      "sha256": "49B2D3E92FD9109E651D9AE651250576317AC24760EF69E389F487C63F40D9AD"
+    },
+    {
+      "path": "library/studio/workflows/new-project.md",
+      "sha256": "8C504B6626BAAB3D4D122AA9DB6FF773F033859E6AD32B1547E1A3DFA3FC869E"
+    },
+    {
+      "path": "library/studio/workflows/phase.md",
+      "sha256": "CABB5957E7A5049FA9182490459A2DBF0601C865DAA782F423779C4E02EAD5BA"
+    },
+    {
+      "path": "library/studio/workflows/release.md",
+      "sha256": "491742880F505FBBAEB34084E52FC554AFD302C198C22962BEF570399CF45420"
+    },
+    {
+      "path": "library/studio/workflows/task.md",
+      "sha256": "EB884A3EAF0D4BE794785B037E57FAE640FBDF194A34192084C3AB4C1EFF8358"
+    },
+    {
+      "path": ".codex/agents/contract-guardian.toml",
+      "sha256": "25E14805B6ABF67BFA71AA6172798094BF24568624BB905D353B199A14287831"
+    },
+    {
+      "path": ".codex/agents/dashboard-a11y.toml",
+      "sha256": "7A0229E728D5851C69A82383C0BD30849D2F35B760370A0FEDDFADC5E8A5FEEB"
+    },
+    {
+      "path": ".codex/agents/migration-reviewer.toml",
+      "sha256": "926733748B46C39BAB555634988CD4BFE3215DD9B87F8BD0E8DE5134839CA8B7"
+    },
+    {
+      "path": ".codex/agents/studio-architect.toml",
+      "sha256": "1BC6C35031D2979361689375E205FCC6B98111E6ECFBF1CAB92C1F2954816D71"
+    },
+    {
+      "path": ".codex/agents/studio-tester.toml",
+      "sha256": "4286252A3A74FF9D0CE825D0437263D7A5F4B0B1E967029288476D3CC89A0C72"
+    },
+    {
+      "path": ".codex/agents/sync-debugger.toml",
+      "sha256": "F898A50F97E15B90ACE5819F06854AAD28EF5D91F9DA48CE77C1A9DCB0775863"
+    },
+    {
+      "path": ".codex/config.toml",
+      "sha256": "3407F8E2D681033E2FF4E8DD14CF089C3609BC8C9F01630C9B33B4A995CE3D87"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "3BB5AF5C12BD718884983F0C3A53CFE2F2D2645AF617DD0FE87E15D1EABA4205"
+    },
+    {
+      "path": "docs/mission-control/local-collectors.md",
+      "sha256": "4312A66588F5117309FD40C4E3739B50FAF662B9B4D55B59D31D0585B7F4E543"
+    },
+    {
+      "path": "opencode.json",
+      "sha256": "69B2CB2606F38455E1C3143E12DA720D0B99F025FCA870C35CE6841C1160BF3E"
+    },
+    {
+      "path": "packages/studio-client/src/studio_client/usage/local/pricing.py",
+      "sha256": "B8EA6713374C0363D3948D05A99E486CF4C91D3142B1F27B051CFFE690091106"
+    },
+    {
+      "path": "tests/usage_local/test_usage_local.py",
+      "sha256": "F18A25963F58B935E0FB495C7F0C3835B62FB45334927F4A917C1D6ACAD8A157"
+    }
+  ],
+  "staged": []
+}

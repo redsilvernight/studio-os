@@ -1,0 +1,31 @@
+{
+  "harness": "codex",
+  "scenario": "readonly",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-codex-kda61uqn",
+  "prompt": "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=810ee999-9310-4583-8340-cc7e01a79b3f, owned agent_id=de8c07fa-ca3c-4e80-b8a6-65703ee6f85f.\nFais un audit strictement en lecture seule de cette tâche et rends un diagnostic court. Ne crée ni session, tâche, claim, décision ni handoff. Aucun fichier à changer.",
+  "command": [
+    "C:\\Users\\redsi\\AppData\\Local\\OpenAI\\Codex\\bin\\a159911ff70742e9\\codex.EXE",
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "read-only",
+    "--json",
+    "-c",
+    "features.apps=false",
+    "-c",
+    "features.plugins=false",
+    "-c",
+    "features.memories=false",
+    "-c",
+    "mcp_servers.p15.command=\"C:\\\\Users\\\\redsi\\\\Documents\\\\Coding\\\\Projet\\\\Studi'os\\\\.venv\\\\Scripts\\\\python.exe\"",
+    "-c",
+    "mcp_servers.p15.args=[\"-m\",\"studio_mcp.server\"]",
+    "-c",
+    "mcp_servers.p15.env_vars=[\"STUDIO_DATABASE_URL\",\"STUDIO_MCP_MACHINE_TOKEN\",\"STUDIO_ENVIRONMENT\",\"STUDIO_MCP_TOOL_PROFILE\"]",
+    "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=810ee999-9310-4583-8340-cc7e01a79b3f, owned agent_id=de8c07fa-ca3c-4e80-b8a6-65703ee6f85f.\nFais un audit strictement en lecture seule de cette tâche et rends un diagnostic court. Ne crée ni session, tâche, claim, décision ni handoff. Aucun fichier à changer."
+  ],
+  "timeout_seconds": 150
+}

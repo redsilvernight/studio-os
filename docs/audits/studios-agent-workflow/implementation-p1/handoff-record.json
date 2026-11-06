@@ -1,0 +1,19 @@
+{
+  "task_id": "a6d0c5a9-7289-4f86-95b2-632a080e3fc1",
+  "task_status": "in_progress",
+  "task_version": 3,
+  "session_id": "be4a34d5-351a-4085-801f-080c5ceb0536",
+  "released_claims": [
+    "166ed841-0f02-4590-9270-cfcc8cd33d6d",
+    "a7b77c33-6594-4f09-be41-801609da2eb1"
+  ],
+  "ai_work_id": "574b3c25-77af-4692-aec6-e7db33b2369b",
+  "sync": {
+    "next_cursor": 0,
+    "items": [],
+    "overflow": {},
+    "resync": true
+  },
+  "handoff_cursor_seq": 0,
+  "coordination_event_id": "aa010823-32f2-5d9d-b26e-cf561da5c817"
+}

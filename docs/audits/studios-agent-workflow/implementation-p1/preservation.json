@@ -1,0 +1,10 @@
+{
+  "checked": 107,
+  "identical": 106,
+  "expected_changes": [
+    "AGENTS.md"
+  ],
+  "head_unchanged": true,
+  "index_unchanged": true,
+  "six_codex_identical": true
+}

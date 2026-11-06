@@ -1,0 +1,35 @@
+{
+  "checked": 35,
+  "failures": [
+    {
+      "adapter": "codex",
+      "key": "contract-guardian",
+      "error": "drifted or missing: .codex/agents/contract-guardian.toml"
+    },
+    {
+      "adapter": "codex",
+      "key": "dashboard-a11y",
+      "error": "drifted or missing: .codex/agents/dashboard-a11y.toml"
+    },
+    {
+      "adapter": "codex",
+      "key": "migration-reviewer",
+      "error": "drifted or missing: .codex/agents/migration-reviewer.toml"
+    },
+    {
+      "adapter": "codex",
+      "key": "studio-architect",
+      "error": "drifted or missing: .codex/agents/studio-architect.toml"
+    },
+    {
+      "adapter": "codex",
+      "key": "studio-tester",
+      "error": "drifted or missing: .codex/agents/studio-tester.toml"
+    },
+    {
+      "adapter": "codex",
+      "key": "sync-debugger",
+      "error": "drifted or missing: .codex/agents/sync-debugger.toml"
+    }
+  ]
+}

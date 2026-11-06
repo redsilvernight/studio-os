@@ -1,0 +1,26 @@
+{
+  "utc": "2026-11-04T20:03:39.9080144Z",
+  "executable": "C:/Users/redsi/.local/bin/claude.exe",
+  "cwd": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studios-p1-harness-e56ce3c50ed54786902d521d5684a675",
+  "args_without_prompt": [
+    "--print",
+    "--bare",
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--mcp-config",
+    "{\"mcpServers\":{}}",
+    "--no-session-persistence",
+    "--disable-slash-commands",
+    "--no-chrome",
+    "--setting-sources",
+    "",
+    "--output-format",
+    "json"
+  ],
+  "prompt_file": "harness-claude-prompt.txt",
+  "timeout_seconds": 90,
+  "timed_out": false,
+  "exit_code": 1,
+  "duration_seconds": 2.57
+}

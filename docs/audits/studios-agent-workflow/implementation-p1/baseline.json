@@ -1,0 +1,566 @@
+{
+  "head": "d5912008bf8847835d454d3af5083a779909754c",
+  "branch": "dev",
+  "status": " M .codex/agents/contract-guardian.toml\n M .codex/agents/dashboard-a11y.toml\n M .codex/agents/migration-reviewer.toml\n M .codex/agents/studio-architect.toml\n M .codex/agents/studio-tester.toml\n M .codex/agents/sync-debugger.toml\n M .codex/config.toml\n M AGENTS.md\n M docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/02_API_CONTRACT.md\n M docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/07_MCP_CONTRACT.md\n M docs/mission-control/local-collectors.md\n M opencode.json\n M packages/studio-client/src/studio_client/usage/local/pricing.py\n M packages/studio-contracts/src/studio_contracts/__init__.py\n M packages/studio-contracts/src/studio_contracts/handoff.py\n M packages/studio-contracts/src/studio_contracts/sync.py\n M services/api/src/studio_api/services/handoff.py\n M services/api/src/studio_api/services/sessions.py\n M services/api/src/studio_api/services/sync.py\n M services/api/src/studio_api/services/tasks.py\n M services/mcp/src/studio_mcp/response_budget.py\n M services/mcp/src/studio_mcp/server.py\n M services/mcp/src/studio_mcp/tools/handoff.py\n M tests/contracts/test_version_compatibility.py\n M tests/mcp/test_handoff.py\n M tests/mcp/test_response_budget.py\n M tests/usage_local/test_usage_local.py\n?? docs/audits/studios-agent-workflow/01-MCP-INVENTORY.md\n?? docs/audits/studios-agent-workflow/02-CURRENT-WORKFLOWS.md\n?? docs/audits/studios-agent-workflow/03-OPTIMAL-WORKFLOWS.md\n?? docs/audits/studios-agent-workflow/04-SKILLS-ARCHITECTURE.md\n?? docs/audits/studios-agent-workflow/05-OPTIMIZATION-OPPORTUNITIES.md\n?? docs/audits/studios-agent-workflow/06-IMPLEMENTATION-ROADMAP.md\n?? docs/audits/studios-agent-workflow/FINAL-AUDIT.md\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-BASELINE.json\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-DESIGN.md\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-FINAL.md\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-IMPLEMENTATION.md\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-PRESERVATION.json\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-PYTHON-FILES.txt\n?? docs/audits/studios-agent-workflow/implementation-p0/P0-TEST-REPORT.md\n?? docs/audits/studios-agent-workflow/implementation-p0/contracts.log\n?? docs/audits/studios-agent-workflow/implementation-p0/cursor-after.log\n?? docs/audits/studios-agent-workflow/implementation-p0/cursor-before.log\n?? docs/audits/studios-agent-workflow/implementation-p0/delivery-after.log\n?? docs/audits/studios-agent-workflow/implementation-p0/delivery-before.log\n?? docs/audits/studios-agent-workflow/implementation-p0/delivery-race-before.log\n?? docs/audits/studios-agent-workflow/implementation-p0/final-targeted.log\n?? docs/audits/studios-agent-workflow/implementation-p0/final-validation.log\n?? docs/audits/studios-agent-workflow/implementation-p0/graphify.log\n?? docs/audits/studios-agent-workflow/implementation-p0/migrations.log\n?? docs/audits/studios-agent-workflow/implementation-p0/mypy.log\n?? docs/audits/studios-agent-workflow/implementation-p0/openapi-comparison.json\n?? docs/audits/studios-agent-workflow/implementation-p0/p0-targeted.log\n?? docs/audits/studios-agent-workflow/implementation-p0/postgres-stop.log\n?? docs/audits/studios-agent-workflow/implementation-p0/regression.log\n?? docs/audits/studios-agent-workflow/implementation-p0/resync-before.log\n?? docs/audits/studios-agent-workflow/implementation-p0/ruff.log\n?? docs/audits/studios-agent-workflow/implementation-p0/task-after.log\n?? docs/audits/studios-agent-workflow/implementation-p0/task-before.log\n?? docs/audits/studios-agent-workflow/implementation-p0/test-env.log\n?? library/studio/README.md\n?? library/studio/agents/chef-marketing.md\n?? library/studio/agents/devops.md\n?? library/studio/agents/godot-tester.md\n?? library/studio/agents/graphiste.md\n?? library/studio/agents/monteur-video.md\n?? library/studio/agents/reader.md\n?? library/studio/agents/sound-designer.md\n?? library/studio/agents/verifier.md\n?? library/studio/agents/worker.md\n?? library/studio/hooks/git-guard.md\n?? library/studio/hooks/git-guard.ps1\n?? library/studio/hooks/session-start.md\n?? library/studio/hooks/session-start.ps1\n?? library/studio/hooks/stop-check.md\n?? library/studio/hooks/stop-check.ps1\n?? library/studio/profiles/single-agent.md\n?? library/studio/rules/code-minimal.md\n?? library/studio/rules/core.md\n?? library/studio/rules/git-flow.md\n?? library/studio/rules/memory.md\n?? library/studio/rules/routing.md\n?? library/studio/rules/studio-protocol.md\n?? library/studio/rules/studio-workflow.md\n?? library/studio/skills/delegate/SKILL.md\n?? library/studio/skills/itch-io-publish/SKILL.md\n?? library/studio/skills/new-project/SKILL.md\n?? library/studio/skills/next/SKILL.md\n?? library/studio/skills/phase/SKILL.md\n?? library/studio/skills/pixel-art-direction/SKILL.md\n?? library/studio/skills/release/SKILL.md\n?? library/studio/skills/review-pr/SKILL.md\n?? library/studio/skills/roadmap-builder/SKILL.md\n?? library/studio/skills/sound-design/SKILL.md\n?? library/studio/skills/tiktok-pipeline/SKILL.md\n?? library/studio/skills/triage/SKILL.md\n?? library/studio/skills/workstation-setup/SKILL.md\n?? library/studio/workflows/hotfix.md\n?? library/studio/workflows/new-project.md\n?? library/studio/workflows/phase.md\n?? library/studio/workflows/release.md\n?? library/studio/workflows/task.md\n?? tests/api/test_p0_task_concurrency.py\n?? tests/mcp/test_p0_cursor_concurrency.py\n?? tests/mcp/test_p0_delivery.py\n?? tests/mcp/test_p0_delivery_races.py\n",
+  "index": "",
+  "worktrees": "worktree C:/Users/redsi/Documents/Coding/Projet/Studi'os\nHEAD d5912008bf8847835d454d3af5083a779909754c\nbranch refs/heads/dev\n\nworktree C:/Users/redsi/AppData/Local/Temp/claude/C--Users-redsi-Documents-Coding-Projet-Studi-os/8ea72ebe-8a50-4d5d-8d5e-3e7434f8bf23/scratchpad/wt-compact\nHEAD 18c14aede157fc32e5a1b6835e6b22d54aee29b0\ndetached\n\nworktree C:/Users/redsi/Documents/Coding/Projet/Studi'os/.worktrees/bina-monitor-caddy\nHEAD 7e6b92a998b5d362d911f96b7d0b93f358cd8c7c\nbranch refs/heads/codex/bina-monitor-caddy\n\n",
+  "files": {
+    ".codex/agents/contract-guardian.toml": {
+      "sha256": "25e14805b6abf67bfa71aa6172798094bf24568624bb905d353b199a14287831",
+      "bytes": 53030,
+      "status": " M"
+    },
+    ".codex/agents/dashboard-a11y.toml": {
+      "sha256": "7a0229e728d5851c69a82383c0bd30849d2f35b760370a0feddfadc5e8a5feeb",
+      "bytes": 3874,
+      "status": " M"
+    },
+    ".codex/agents/migration-reviewer.toml": {
+      "sha256": "926733748b46c39bab555634988cd4bfe3215dd9b87f8bd0e8de5134839ca8b7",
+      "bytes": 10280,
+      "status": " M"
+    },
+    ".codex/agents/studio-architect.toml": {
+      "sha256": "1bc6c35031d2979361689375e205fcc6b98111e6ecfbf1cab92c1f2954816d71",
+      "bytes": 53144,
+      "status": " M"
+    },
+    ".codex/agents/studio-tester.toml": {
+      "sha256": "4286252a3a74ff9d0ce825d0437263d7a5f4b0b1e967029288476d3cc89a0c72",
+      "bytes": 60966,
+      "status": " M"
+    },
+    ".codex/agents/sync-debugger.toml": {
+      "sha256": "f898a50f97e15b90ace5819f06854aad28ef5d91f9da48ce77c1a9dcb0775863",
+      "bytes": 56117,
+      "status": " M"
+    },
+    ".codex/config.toml": {
+      "sha256": "3407f8e2d681033e2ff4e8dd14cf089c3609bc8c9f01630c9b33b4a995ce3d87",
+      "bytes": 702,
+      "status": " M"
+    },
+    "AGENTS.md": {
+      "sha256": "3bb5af5c12bd718884983f0c3a53cfe2f2d2645af617dd0fe87e15d1eaba4205",
+      "bytes": 32605,
+      "status": " M"
+    },
+    "docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/02_API_CONTRACT.md": {
+      "sha256": "3a56769fa9d73c5961886d335a96c14e9ba84cb5a9e8de6bdcaf06b48816ac97",
+      "bytes": 115087,
+      "status": " M"
+    },
+    "docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/07_MCP_CONTRACT.md": {
+      "sha256": "eb30bb6dd0bc2f7378374e1f70f4ef66abbce475e56777663b7d16cd84504c93",
+      "bytes": 53400,
+      "status": " M"
+    },
+    "docs/mission-control/local-collectors.md": {
+      "sha256": "4312a66588f5117309fd40c4e3739b50faf662b9b4d55b59d31d0585b7f4e543",
+      "bytes": 5480,
+      "status": " M"
+    },
+    "opencode.json": {
+      "sha256": "69b2cb2606f38455e1c3143e12da720d0b99f025fca870c35ce6841c1160bf3e",
+      "bytes": 230,
+      "status": " M"
+    },
+    "packages/studio-client/src/studio_client/usage/local/pricing.py": {
+      "sha256": "b8ea6713374c0363d3948d05a99e486cf4c91d3142b1f27b051cffe690091106",
+      "bytes": 8392,
+      "status": " M"
+    },
+    "packages/studio-contracts/src/studio_contracts/__init__.py": {
+      "sha256": "7b8f0a75133f606babf3d91c3c0af07da441094808280d982bc782e4977f52ee",
+      "bytes": 331,
+      "status": " M"
+    },
+    "packages/studio-contracts/src/studio_contracts/handoff.py": {
+      "sha256": "6c12e0270caae0d08335897d5b234e2f9043897e1cd12fb237f4af82ea835a4d",
+      "bytes": 3569,
+      "status": " M"
+    },
+    "packages/studio-contracts/src/studio_contracts/sync.py": {
+      "sha256": "f55f39863e7120a2bf823ab0407faed685ec1fd4fe0596131203e957958b44b3",
+      "bytes": 2563,
+      "status": " M"
+    },
+    "services/api/src/studio_api/services/handoff.py": {
+      "sha256": "5a012b0fff2094812ed515560e524cf5a255e949ae702b436aec6af317e6998c",
+      "bytes": 11507,
+      "status": " M"
+    },
+    "services/api/src/studio_api/services/sessions.py": {
+      "sha256": "ca60a97b4cfd6f95f19a5345535c619ee835d418f8747c8b249905e14fc211c9",
+      "bytes": 20123,
+      "status": " M"
+    },
+    "services/api/src/studio_api/services/sync.py": {
+      "sha256": "b28300d66a632824054d43fab0f92ce05d0ebc378c044670344e94896e8da6ad",
+      "bytes": 16813,
+      "status": " M"
+    },
+    "services/api/src/studio_api/services/tasks.py": {
+      "sha256": "8214f613c32f5fc5b695c3397ce2874402c296fe5fd85bdb90ce7bd9c6e523e0",
+      "bytes": 9967,
+      "status": " M"
+    },
+    "services/mcp/src/studio_mcp/response_budget.py": {
+      "sha256": "20ee4f87ed6edb94f399bce25406ad1d20396d970018e73974c2699c746286f6",
+      "bytes": 8652,
+      "status": " M"
+    },
+    "services/mcp/src/studio_mcp/server.py": {
+      "sha256": "55e4d686451d7f79ebb60c1294cd83ca352cfbb9bf17008319299ddbe999249e",
+      "bytes": 45984,
+      "status": " M"
+    },
+    "services/mcp/src/studio_mcp/tools/handoff.py": {
+      "sha256": "96ec72d7aae587a5ba3cf906bf09b147184e1d816f62f0f60b090a46d75f6443",
+      "bytes": 6417,
+      "status": " M"
+    },
+    "tests/contracts/test_version_compatibility.py": {
+      "sha256": "0ceeb07d98067304733ae0a3f42c789d1ee14368a34dbe21c0c4121269050acc",
+      "bytes": 3700,
+      "status": " M"
+    },
+    "tests/mcp/test_handoff.py": {
+      "sha256": "fc03aa93a731271dbd4d95133c90b088355231c5878f9255931ec2e7d5b48b53",
+      "bytes": 7530,
+      "status": " M"
+    },
+    "tests/mcp/test_response_budget.py": {
+      "sha256": "49d99db7414a3beca8c441bb2c35531f4291020c3833889a2e5446ba62336858",
+      "bytes": 9639,
+      "status": " M"
+    },
+    "tests/usage_local/test_usage_local.py": {
+      "sha256": "f18a25963f58b935e0fb495c7f0c3835b62fb45334927f4a917c1d6acad8a157",
+      "bytes": 16596,
+      "status": " M"
+    },
+    "docs/audits/studios-agent-workflow/01-MCP-INVENTORY.md": {
+      "sha256": "527601f919b01afdc8ed9d75f3b89b61cea51591d64f1e47be6d8d022dfa346c",
+      "bytes": 563426,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/02-CURRENT-WORKFLOWS.md": {
+      "sha256": "6ac7b328d82a7cdf44511b1cc4431c9ae2b9724e29b191ac98d7b2fdb8cadebd",
+      "bytes": 14451,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/03-OPTIMAL-WORKFLOWS.md": {
+      "sha256": "5feae080ceb761a088c696daeb6e9c2e0a2281f01e71c7f4ce2f5fbc19a576de",
+      "bytes": 17400,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/04-SKILLS-ARCHITECTURE.md": {
+      "sha256": "d4cd2d2f061048453db7cea3307be11bf1849cc6d35d21558a7064dae7014747",
+      "bytes": 10473,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/05-OPTIMIZATION-OPPORTUNITIES.md": {
+      "sha256": "3535636d36fa45cd65375a8547ce19c1ad055212b86d6907d56392444155b678",
+      "bytes": 12543,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/06-IMPLEMENTATION-ROADMAP.md": {
+      "sha256": "9c1bee81dec2361c472f6be441c7bf50afb5acb36002d15e9b2d2b83a2c5124a",
+      "bytes": 10449,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/FINAL-AUDIT.md": {
+      "sha256": "ed18871cbafa3c36a9433a0802a538ed2fa04f0d1e71c2b3379869c5ddc4c248",
+      "bytes": 20778,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-BASELINE.json": {
+      "sha256": "aed2bc07b20b3d88921c0a7ce8ebb39097c1f1e0adddece89577ca4b10e5329b",
+      "bytes": 12394,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-DESIGN.md": {
+      "sha256": "7dd33e56b0280fbd69678c0452f17edf02a521869aa15e5ad56a9ca95a45ca16",
+      "bytes": 5266,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-FINAL.md": {
+      "sha256": "19ae2ba63716bf9cded092e525eb0da419c63423de486471f94a7076fa0fbe4b",
+      "bytes": 5597,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-IMPLEMENTATION.md": {
+      "sha256": "1ec42c6cee40b003400a9a98cac5e1f10b9f0dac30a6763ab26dbe1f234a2902",
+      "bytes": 5062,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-PRESERVATION.json": {
+      "sha256": "e0414f01e052eb8826b1a263f4329e8f25ded8b233f80b70d1307aabde1b61f3",
+      "bytes": 771,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-PYTHON-FILES.txt": {
+      "sha256": "8b93ef039594a67b659705028f74ef66f5b9545fbe3de41d7651fad38f43eeeb",
+      "bytes": 757,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/P0-TEST-REPORT.md": {
+      "sha256": "e4e66f2704c032cf6c7c29f809ecf70493f2ad5f7003a97964a604b16876a011",
+      "bytes": 10041,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/contracts.log": {
+      "sha256": "d9f576c23a3923b1b6b48380fd811d29b02335a77b1c382761c35441d271ce70",
+      "bytes": 372,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/cursor-after.log": {
+      "sha256": "a04c1e2a405695868a873a2fae9c74231808ad661b5964b388cd17bb74dbf431",
+      "bytes": 101,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/cursor-before.log": {
+      "sha256": "318009b46362cdc6cdff24049992c7520756f0079250e4560ee728f01a0e747d",
+      "bytes": 4924,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/delivery-after.log": {
+      "sha256": "0663f07a673a89e1e7896e55e790edff33a5142f4626119d1cb6c35220c278cb",
+      "bytes": 101,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/delivery-before.log": {
+      "sha256": "85c142392cb4b457e2e03638a97b4618ae8964bc4b09b3a70eab7a9a1f721111",
+      "bytes": 50994,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/delivery-race-before.log": {
+      "sha256": "34798c469373bddd4636400ac1abcf85b825b6214e2cc4af19600f2987545a17",
+      "bytes": 3046,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/final-targeted.log": {
+      "sha256": "65b335758a0ddcea78ce061a8835d556e334d75a835fc048eff6ebefa64f9943",
+      "bytes": 265,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/final-validation.log": {
+      "sha256": "49de6bf9ba8335a8ccfbdb8a45923884f84e4f2546f18e0695bf79f54bad44f3",
+      "bytes": 265,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/graphify.log": {
+      "sha256": "2b95456f329c74a6c5276735dcb3ee76efd53748a1e23a6ed03028be3acd6a31",
+      "bytes": 806,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/migrations.log": {
+      "sha256": "15523e731e66e34d4b68d3709fce19b7b9c02db9d689023dbef34d0e5a49868b",
+      "bytes": 7248,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/mypy.log": {
+      "sha256": "f645b10e21546f038559fbaaffb91f957d61ada15bed410cfd1fd85e15524598",
+      "bytes": 44,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/openapi-comparison.json": {
+      "sha256": "ea83ab4568bb8ffebd7482d57900f2519535e2bae61dccbd12842c59fcb4f5eb",
+      "bytes": 2904,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/p0-targeted.log": {
+      "sha256": "418c05e6ee7953108031ba3d3e74e15315e5269b38e3742f576755033c3175df",
+      "bytes": 102,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/postgres-stop.log": {
+      "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb",
+      "bytes": 58,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/regression.log": {
+      "sha256": "343bafa271514af5aa8790713d988296106b0c4210400741f04a739f67e272b6",
+      "bytes": 9265,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/resync-before.log": {
+      "sha256": "92ca861491ea5710f5024e01bf76824a45227b2598be84f929ca10f8bdeace87",
+      "bytes": 9960,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/ruff.log": {
+      "sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+      "bytes": 20,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/task-after.log": {
+      "sha256": "626a1e17b84ff0c2603c1cec81df83addeafdfdfb2fb072869ab1158b81b3a1a",
+      "bytes": 100,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/task-before.log": {
+      "sha256": "9b0442c31c79f1ed62e2d1d8883d61fb25cd58d0e6e16b026da3a7e453b1a771",
+      "bytes": 8528,
+      "status": "??"
+    },
+    "docs/audits/studios-agent-workflow/implementation-p0/test-env.log": {
+      "sha256": "80dd3f56fdeee22ff657ecbf6a159273e1952fe0b3a24406b3c49b2ccb864a71",
+      "bytes": 153,
+      "status": "??"
+    },
+    "library/studio/README.md": {
+      "sha256": "ca66324b0da683d7eb0ebbc6a0ee101433bb7191d72588137f5a9d67acace458",
+      "bytes": 2334,
+      "status": "??"
+    },
+    "library/studio/agents/chef-marketing.md": {
+      "sha256": "dcc25b8a302afdcb0f95541ad46176047a321bf9351eafc741e7ebe8de99c33d",
+      "bytes": 7375,
+      "status": "??"
+    },
+    "library/studio/agents/devops.md": {
+      "sha256": "b8f85356d0391e36e1cfcfd449c784cad6239071df72ccbf6cb5ee495d4d9b35",
+      "bytes": 4292,
+      "status": "??"
+    },
+    "library/studio/agents/godot-tester.md": {
+      "sha256": "6587d8b21fd56499f029661ec9d61a118c66b8b1ff8e87542bf7f3a4eef7afde",
+      "bytes": 6581,
+      "status": "??"
+    },
+    "library/studio/agents/graphiste.md": {
+      "sha256": "f86b3ad1631439a67a4521149688315510016c7e2abd99dd6bbf8ba86a9e0c3c",
+      "bytes": 5011,
+      "status": "??"
+    },
+    "library/studio/agents/monteur-video.md": {
+      "sha256": "9d841893034ed24d91ca1c6e5abe373073c49aafea9cbff70ee676e163c72794",
+      "bytes": 5394,
+      "status": "??"
+    },
+    "library/studio/agents/reader.md": {
+      "sha256": "28431aa9bebc36d11b3d296a62054625c4c24abcdfb5e9ee5adf674ed32bd641",
+      "bytes": 902,
+      "status": "??"
+    },
+    "library/studio/agents/sound-designer.md": {
+      "sha256": "72b963e216bd064de01b562723df8e0325cdcf2e8c029bf03dd934f87f653a32",
+      "bytes": 4937,
+      "status": "??"
+    },
+    "library/studio/agents/verifier.md": {
+      "sha256": "160d94353dd2ca78d7492e168e787c0dcf3070f1b751fc707ffcc7457903ab9d",
+      "bytes": 971,
+      "status": "??"
+    },
+    "library/studio/agents/worker.md": {
+      "sha256": "9a35b3afa9f0bec35514ebff206e9467a846a7ad0d2e676e67d1c32bf8e4ec97",
+      "bytes": 1048,
+      "status": "??"
+    },
+    "library/studio/hooks/git-guard.md": {
+      "sha256": "f066f69214221390a7e51ba97448043feb3786d68a4afcc76f8b7375a5ad2089",
+      "bytes": 506,
+      "status": "??"
+    },
+    "library/studio/hooks/git-guard.ps1": {
+      "sha256": "2866cc63cd53cbbc639b43c429e719c49891f59f9fcce64f4b5f04cce3698277",
+      "bytes": 1540,
+      "status": "??"
+    },
+    "library/studio/hooks/session-start.md": {
+      "sha256": "d6e0953cc9f926e2bdc430a28277ebde0902d7540bb4f056040f947b2e8c993c",
+      "bytes": 504,
+      "status": "??"
+    },
+    "library/studio/hooks/session-start.ps1": {
+      "sha256": "1abb66ed661bef7ee1f00054d423d2507eade64ce91934778961d45e8aace163",
+      "bytes": 2457,
+      "status": "??"
+    },
+    "library/studio/hooks/stop-check.md": {
+      "sha256": "ca32938192b562a435818e80e2baaba41e93ea2f8c055fb5c4ee73c2c3afb28a",
+      "bytes": 394,
+      "status": "??"
+    },
+    "library/studio/hooks/stop-check.ps1": {
+      "sha256": "746bc3307b93a6818b8676fa04e1ada4bf2f6948b2ac5e0b4806286aad6498bc",
+      "bytes": 1161,
+      "status": "??"
+    },
+    "library/studio/profiles/single-agent.md": {
+      "sha256": "38930921fb73994926a04310201dfd79c3f8293f24c14bf315eb8ed6b76a120f",
+      "bytes": 576,
+      "status": "??"
+    },
+    "library/studio/rules/code-minimal.md": {
+      "sha256": "5076e3bdf3e1530dca16fb7b6dd39c8b76faa9d6b752c0ba49f579974612b166",
+      "bytes": 1743,
+      "status": "??"
+    },
+    "library/studio/rules/core.md": {
+      "sha256": "cde7e563d468d41a597b0307284d33f99003cc5e188ace433844a48fe9889ea3",
+      "bytes": 1072,
+      "status": "??"
+    },
+    "library/studio/rules/git-flow.md": {
+      "sha256": "668ea0f6385d1111ada632fcb9ee102b37f4f7af361619283108e94dff1c9b8b",
+      "bytes": 1549,
+      "status": "??"
+    },
+    "library/studio/rules/memory.md": {
+      "sha256": "1c0a143d9ab5cb17d075bd9fd119bcc16cd4b07143b6915eb276d737b404cfff",
+      "bytes": 1991,
+      "status": "??"
+    },
+    "library/studio/rules/routing.md": {
+      "sha256": "becda71423995eee97bd3bfd42a1906db2db7a34623806312f148fc0cc51630b",
+      "bytes": 1794,
+      "status": "??"
+    },
+    "library/studio/rules/studio-protocol.md": {
+      "sha256": "c6f44cd50a828fb1a91b1d8933b29aa2309c0ea996ccc9479b7c30afbf548132",
+      "bytes": 1384,
+      "status": "??"
+    },
+    "library/studio/rules/studio-workflow.md": {
+      "sha256": "bc23386efe2dc2449f86d5fa362cecaef847a74cc830370310a0691d0a92e7a1",
+      "bytes": 1735,
+      "status": "??"
+    },
+    "library/studio/skills/delegate/SKILL.md": {
+      "sha256": "cc7a961bbe07747b71b9e06568f10810244f8f80b396e5124906da9cdddff7f9",
+      "bytes": 2149,
+      "status": "??"
+    },
+    "library/studio/skills/itch-io-publish/SKILL.md": {
+      "sha256": "565ccf328eca4754f0907e48702eec545d9008426044dfd7ddad2490b46d0a00",
+      "bytes": 4433,
+      "status": "??"
+    },
+    "library/studio/skills/new-project/SKILL.md": {
+      "sha256": "57dd5363a6b5d6c207a14d5c849e9417bdc23e54c91df233d8f4b7574f7418f8",
+      "bytes": 1966,
+      "status": "??"
+    },
+    "library/studio/skills/next/SKILL.md": {
+      "sha256": "680e57efce7bcb33d98a9ca7a294861a005812675a455307ede2a0e5b687626e",
+      "bytes": 2928,
+      "status": "??"
+    },
+    "library/studio/skills/phase/SKILL.md": {
+      "sha256": "5f2e33840febc01bf058c71b2eeb4c27cbdecadf315ef345dc476845b7b59a1a",
+      "bytes": 1803,
+      "status": "??"
+    },
+    "library/studio/skills/pixel-art-direction/SKILL.md": {
+      "sha256": "5159418ddfc1af4e952ca03474f72f18e4196310aad6437a646d3252851f1541",
+      "bytes": 5964,
+      "status": "??"
+    },
+    "library/studio/skills/release/SKILL.md": {
+      "sha256": "10b6e11484f607cebb924235efa680c5958d82bd661547d655760bb650bea1eb",
+      "bytes": 1656,
+      "status": "??"
+    },
+    "library/studio/skills/review-pr/SKILL.md": {
+      "sha256": "85bde02ef4bf118d317b32674a378fd802fa20a3e3b3e89923120a962bf11d74",
+      "bytes": 1705,
+      "status": "??"
+    },
+    "library/studio/skills/roadmap-builder/SKILL.md": {
+      "sha256": "14be53cdd101bbc24eaaf7b0024658ab8265889751416b4164bb895cf97334ce",
+      "bytes": 3174,
+      "status": "??"
+    },
+    "library/studio/skills/sound-design/SKILL.md": {
+      "sha256": "b52c0f86c19288c36197e0c25062b735e39a5bc2f74da248c07785d31be7ef70",
+      "bytes": 1494,
+      "status": "??"
+    },
+    "library/studio/skills/tiktok-pipeline/SKILL.md": {
+      "sha256": "78280201eeedbb213c703ea43c72cbe6c7094a8c114c97440abae6d895936cfb",
+      "bytes": 11982,
+      "status": "??"
+    },
+    "library/studio/skills/triage/SKILL.md": {
+      "sha256": "dbc08506a9e6411a22f753d15a3e8cd864146b0121e6853785c21b801507b500",
+      "bytes": 1652,
+      "status": "??"
+    },
+    "library/studio/skills/workstation-setup/SKILL.md": {
+      "sha256": "424afdaf6130e0f3e3abb837063a0202565e4e44c005313871424bdb91597d4c",
+      "bytes": 2551,
+      "status": "??"
+    },
+    "library/studio/workflows/hotfix.md": {
+      "sha256": "49b2d3e92fd9109e651d9ae651250576317ac24760ef69e389f487c63f40d9ad",
+      "bytes": 978,
+      "status": "??"
+    },
+    "library/studio/workflows/new-project.md": {
+      "sha256": "8c504b6626baab3d4d122aa9db6ff773f033859e6ad32b1547e1a3dfa3fc869e",
+      "bytes": 1003,
+      "status": "??"
+    },
+    "library/studio/workflows/phase.md": {
+      "sha256": "cabb5957e7a5049fa9182490459a2dbf0601c865daa782f423779c4e02ead5ba",
+      "bytes": 1236,
+      "status": "??"
+    },
+    "library/studio/workflows/release.md": {
+      "sha256": "491742880f505fbbaeb34084e52fc554afd302c198c22962bef570399cf45420",
+      "bytes": 968,
+      "status": "??"
+    },
+    "library/studio/workflows/task.md": {
+      "sha256": "eb884a3eaf0d4be794785b037e57fae640fbdf194a34192084c3ab4c1eff8358",
+      "bytes": 1262,
+      "status": "??"
+    },
+    "tests/api/test_p0_task_concurrency.py": {
+      "sha256": "5a9e3d048c13c569b6dffb78aa4ee6a326a226fb898ea4d172b55f8f2d56a39c",
+      "bytes": 7808,
+      "status": "??"
+    },
+    "tests/mcp/test_p0_cursor_concurrency.py": {
+      "sha256": "836a57220b9e7aeaafb77d38d9925cf46b7ba6417611b1b364fed0611742bc30",
+      "bytes": 5843,
+      "status": "??"
+    },
+    "tests/mcp/test_p0_delivery.py": {
+      "sha256": "2238d305927f7ca8ffc5c246ba79aeae94d55da0427cbc36318f22877bec1ef2",
+      "bytes": 8606,
+      "status": "??"
+    },
+    "tests/mcp/test_p0_delivery_races.py": {
+      "sha256": "f7bcbdefc10ec72b1fea4c7044ad3dffc6879ebe7c4cc34ad13e9381533461af",
+      "bytes": 3629,
+      "status": "??"
+    }
+  },
+  "metrics": {
+    "AGENTS.md": {
+      "chars": 32383,
+      "bytes": 32605
+    },
+    ".agents/rules/studio-protocol.md": {
+      "chars": 978,
+      "bytes": 980
+    },
+    ".agents/skills/studio-task/SKILL.md": {
+      "chars": 3199,
+      "bytes": 3213
+    },
+    ".agents/skills/studio-context/SKILL.md": {
+      "chars": 2203,
+      "bytes": 2225
+    },
+    ".agents/skills/studio-handoff/SKILL.md": {
+      "chars": 3445,
+      "bytes": 3449
+    }
+  }
+}

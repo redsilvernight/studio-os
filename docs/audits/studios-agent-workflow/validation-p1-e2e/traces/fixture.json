@@ -1,0 +1,45 @@
+{
+  "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+  "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+  "api_contract_version": 5,
+  "tasks": {
+    "claude": {
+      "tracked": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "readonly": "d498cda8-505d-45cb-b67a-bde3d1d652f4",
+      "provided": "0546ebd5-c65a-4e8b-93ec-106a7e8f8566",
+      "signal": "75c26025-2b20-4c3b-8aed-5f2bd8ec51ad",
+      "failed": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "conflict": "d5934a57-65e8-4ca7-bffc-ed7d6ee052f1"
+    },
+    "codex": {
+      "tracked": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+      "readonly": "810ee999-9310-4583-8340-cc7e01a79b3f",
+      "provided": "988f9734-998c-49ff-9bae-6546ff1221eb",
+      "signal": "5a48036c-58eb-4920-b2d9-d53528e64ae2",
+      "failed": "36dc8b64-dfe3-40a7-8f71-366ed351174d",
+      "conflict": "962c23fc-9c5f-401c-833b-0b728e9bed0e"
+    },
+    "opencode": {
+      "tracked": "bb8194f9-88ae-4958-a5bd-1443cc9e7426",
+      "readonly": "ab649fb1-5238-4eba-88d5-fe53930223b6",
+      "provided": "e3ebe19f-828e-4135-8483-ad86aaff4b15",
+      "signal": "939cb4b5-9429-4faf-af37-b3734b581d02",
+      "failed": "111c0692-3094-4420-a78e-5b8d36034593",
+      "conflict": "9a94c512-9e16-402a-835b-62fe00abed6b"
+    },
+    "direct": {
+      "tracked": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "readonly": "425c04a3-cff5-4b2d-bd88-ab4aac3112b9",
+      "provided": "6960d4cd-bad4-48d0-9b93-e28e9e0d63e7",
+      "signal": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+      "failed": "e721206a-3dde-45fd-8d4a-70ffa5f3d84a",
+      "conflict": "69bd9d20-48da-4fcb-a18f-40efd729ab66"
+    }
+  },
+  "agents": {
+    "claude": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+    "codex": "de8c07fa-ca3c-4e80-b8a6-65703ee6f85f",
+    "opencode": "0587bae1-e6a7-4535-8d44-d6afb4ddeb1d",
+    "direct": "2d1f7ed1-b986-4827-828d-b5e482893d6d"
+  }
+}

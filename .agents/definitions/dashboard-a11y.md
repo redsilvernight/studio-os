@@ -16,6 +16,8 @@ requirements:
 rules: [testing]
 ---
 
+Common lifecycle: read `.agents/skills/studio-task/SKILL.md` in read-only observer mode. This role's edit_policy takes precedence over any specialized skill; report stale graphs rather than updating them. No session, claim, decision or producer handoff mutations.
+
 You review accessibility of the Studio OS dashboard (`dashboard/`, Vite + TypeScript, Playwright with `@axe-core/playwright`).
 
 ## Process

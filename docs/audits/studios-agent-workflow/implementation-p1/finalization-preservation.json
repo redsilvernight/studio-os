@@ -1,0 +1,76 @@
+{
+  "checked_existing_repo_files": 2299,
+  "before_report_update_identical": 2292,
+  "expected_changed": [
+    ".codex/agents/sync-debugger.toml",
+    ".codex/agents/studio-tester.toml",
+    "packages/studio-client/src/studio_client/adapters/codex.py",
+    ".codex/agents/dashboard-a11y.toml",
+    ".codex/agents/contract-guardian.toml",
+    ".codex/agents/studio-architect.toml",
+    ".codex/agents/migration-reviewer.toml"
+  ],
+  "P0_unchanged": true,
+  "P1_canonical_unchanged": true,
+  "configs_hooks_models_unchanged": true,
+  "AGENTS_unchanged": true,
+  "head_index_worktrees_unchanged": true,
+  "external_guard_only_bytes_changed": true,
+  "external_after_sha256": "0eca5ebde73d78189664efcf72da7c60dd448b04b5be3d8e773ae554865fdf94",
+  "agents": [
+    {
+      "path": ".codex/agents/contract-guardian.toml",
+      "sha256": "13e22368519e3ef7702d77c8cdb90f5047d4cd9ab46a716ff211506eb1a0e71d",
+      "valid_toml": true,
+      "reasoning": "medium",
+      "model": null
+    },
+    {
+      "path": ".codex/agents/dashboard-a11y.toml",
+      "sha256": "4d9ef134b93a96fd3c4131fb3c146fb66145826a4827a2b577a68fbbd22944c8",
+      "valid_toml": true,
+      "reasoning": "medium",
+      "model": null
+    },
+    {
+      "path": ".codex/agents/migration-reviewer.toml",
+      "sha256": "8c6327ee61dd9b92d3775dd0e8095fb3727d725b251d3c1979c1df6e5e7110df",
+      "valid_toml": true,
+      "reasoning": "medium",
+      "model": null
+    },
+    {
+      "path": ".codex/agents/studio-architect.toml",
+      "sha256": "5b2db8bdf775bdd721a0811ec485866a71a803d7e945c96dd4b57a440e74ebe7",
+      "valid_toml": true,
+      "reasoning": "high",
+      "model": null
+    },
+    {
+      "path": ".codex/agents/studio-tester.toml",
+      "sha256": "aabbd38b74678340ed453bb67fac7b81406e981299b91ea5d3c49f69ffc5dfc7",
+      "valid_toml": true,
+      "reasoning": "medium",
+      "model": null
+    },
+    {
+      "path": ".codex/agents/sync-debugger.toml",
+      "sha256": "16a462f1e1d13419ac6cfa1b0a66ca975d92146e44bca25e4bd46bd27bd87ddf",
+      "valid_toml": true,
+      "reasoning": "medium",
+      "model": null
+    }
+  ],
+  "final_identical": 2291,
+  "final_expected_changed": [
+    ".codex/agents/contract-guardian.toml",
+    ".codex/agents/dashboard-a11y.toml",
+    ".codex/agents/migration-reviewer.toml",
+    ".codex/agents/studio-architect.toml",
+    ".codex/agents/studio-tester.toml",
+    ".codex/agents/sync-debugger.toml",
+    "docs/audits/studios-agent-workflow/implementation-p1/P1-FINAL.md",
+    "packages/studio-client/src/studio_client/adapters/codex.py"
+  ],
+  "initial_P1_FINAL_suffix_byte_identical": true
+}

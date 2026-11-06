@@ -1,0 +1,14 @@
+{
+  "task": {
+    "id": "9decf5fc-18a3-4544-9157-30f2276c0f6e",
+    "status": "created",
+    "version": 1,
+    "claimed_by_machine_id": null,
+    "claimed_by_agent_id": null
+  },
+  "database": "studio_p16_test",
+  "work_sessions": 0,
+  "resource_claims": 0,
+  "events": 0,
+  "ai_work_logs": 0
+}

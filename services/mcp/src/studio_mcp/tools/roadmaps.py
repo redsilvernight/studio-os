@@ -59,6 +59,7 @@ from studio_contracts.roadmaps import (
 )
 
 from studio_mcp.errors import run_tool
+from studio_mcp.response_budget import fit_roadmap
 from studio_mcp.util import parse_uuid
 
 DEFAULT_LIMIT = 20
@@ -210,7 +211,9 @@ async def studio_get_roadmap(
     max_chars: int = DEFAULT_MAX_CHARS,
 ) -> dict[str, Any]:
     """Read a project's roadmap summary and the current phase/step position.
-    Absence of a roadmap is a normal state, not an error."""
+    Absence of a roadmap is a normal state, not an error. `max_chars` bounds
+    the whole serialized answer; trimmed units are counted in
+    `trimmed_for_budget`."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
@@ -249,14 +252,17 @@ async def studio_get_roadmap(
         drafts = sum(
             1 for s in summaries if s.status in (RoadmapStatus.DRAFT, RoadmapStatus.PROPOSED)
         )
-        return {
-            "project_id": project_id,
-            "roadmaps": roadmaps,
-            "active": active,
-            "draft_pending": drafts,
-            "pending_proposals": pending_proposals,
-            "omitted_for_budget": max(0, len(summaries) - bounded_limit),
-        }
+        return fit_roadmap(
+            {
+                "project_id": project_id,
+                "roadmaps": roadmaps,
+                "active": active,
+                "draft_pending": drafts,
+                "pending_proposals": pending_proposals,
+                "omitted_for_budget": max(0, len(summaries) - bounded_limit),
+            },
+            bounded_chars,
+        )
 
     return await run_tool(ctx, _handler)
 

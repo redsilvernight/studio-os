@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
@@ -190,7 +191,7 @@ def _controller(tmp_path: Path, home: Path, token: str | None = "tok") -> Daemon
 
 
 def _patch_fetch(monkeypatch: pytest.MonkeyPatch, result) -> None:
-    async def fake(config, token_store):
+    async def fake(config, token_store, selection=None):
         if isinstance(result, Exception):
             raise result
         return result
@@ -264,6 +265,59 @@ def test_locally_modified_and_outdated_reported(tmp_path: Path, monkeypatch) -> 
     _patch_fetch(monkeypatch, [_projection(version=4)])
     result = _controller(tmp_path, home).skills_check()
     assert result.outdated + result.locally_modified >= 1 and not result.in_sync
+
+
+def _multi(version: int = 3, files=(("refs/a.md", "A\n"), ("refs/b.md", "B\n"))):
+    return replace(_projection(version=version), files=tuple(files))
+
+
+def _claude_state(result) -> str:
+    return next(t.state.value for t in result.skills[0].targets if t.harness.value == "assistant")
+
+
+def test_auxiliary_file_drift_is_reported_like_apply_sees_it(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    skill_dir = home / ".claude" / "skills" / "studio-git-flow"
+    _patch_fetch(monkeypatch, [_multi()])
+    controller = _controller(tmp_path, home)
+    apply_skill_sync(plan_skill_sync(home, [_multi()]))
+
+    clean = controller.skills_check()
+    assert clean.in_sync and _claude_state(clean) == "current"
+    apply_skill_sync(plan_skill_sync(home, [_multi()]))
+    assert controller.skills_check().in_sync
+
+    aux = skill_dir / "refs" / "a.md"
+    aux.write_text("local\n", encoding="utf-8")
+    modified = controller.skills_check()
+    assert not modified.in_sync and modified.locally_modified == 1
+    assert _claude_state(modified) == "locally_modified"
+
+    aux.unlink()
+    removed = controller.skills_check()
+    assert not removed.in_sync and removed.missing == 1 and _claude_state(removed) == "missing"
+
+    aux.write_text("A\n", encoding="utf-8")
+    assert controller.skills_check().in_sync
+
+    extra = skill_dir / "refs" / "mine.md"
+    extra.write_text("unmanaged\n", encoding="utf-8")
+    assert controller.skills_check().in_sync
+    apply_skill_sync(plan_skill_sync(home, [_multi()]))
+    assert extra.read_text(encoding="utf-8") == "unmanaged\n"
+
+
+def test_legacy_single_file_skill_state_unchanged(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    _patch_fetch(monkeypatch, [_projection()])
+    apply_skill_sync(plan_skill_sync(home, [_projection()]))
+    result = _controller(tmp_path, home).skills_check()
+    assert result.in_sync and _claude_state(result) == "current"
+    main = home / ".claude" / "skills" / "studio-git-flow" / "SKILL.md"
+    main.write_text(main.read_text(encoding="utf-8") + "x", encoding="utf-8")
+    assert _claude_state(_controller(tmp_path, home).skills_check()) == "locally_modified"
 
 
 def test_served_over_bridge_without_path_or_content(tmp_path: Path, monkeypatch) -> None:

@@ -1,0 +1,21 @@
+{
+  "checked": 61,
+  "mismatches": [],
+  "head": "d5912008bf8847835d454d3af5083a779909754c",
+  "branch": "dev",
+  "staged": [],
+  "worktrees": [
+    "worktree C:/Users/redsi/Documents/Coding/Projet/Studi'os",
+    "HEAD d5912008bf8847835d454d3af5083a779909754c",
+    "branch refs/heads/dev",
+    "",
+    "worktree C:/Users/redsi/AppData/Local/Temp/claude/C--Users-redsi-Documents-Coding-Projet-Studi-os/8ea72ebe-8a50-4d5d-8d5e-3e7434f8bf23/scratchpad/wt-compact",
+    "HEAD 18c14aede157fc32e5a1b6835e6b22d54aee29b0",
+    "detached",
+    "",
+    "worktree C:/Users/redsi/Documents/Coding/Projet/Studi'os/.worktrees/bina-monitor-caddy",
+    "HEAD 7e6b92a998b5d362d911f96b7d0b93f358cd8c7c",
+    "branch refs/heads/codex/bina-monitor-caddy",
+    ""
+  ]
+}
