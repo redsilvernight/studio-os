@@ -74,3 +74,9 @@ Côté installation, `skill_sync`, `hook_sync` et les adaptateurs `claude-code`,
 
 Seul changement de code existant : `publish.py` étend `PublishKind` (`hook`, `model_profile`, `workflow`) ; `PUBLISH_KINDS` reste limité à rule/skill/agent.
 
+
+## Phase 2E — fichiers auxiliaires de skill
+
+Contrat `studio.library.skill/v1` : champ optionnel `files` (`path`, `text`, `sha256`) ; absent = skill mono-fichier inchangé (compatibilité ascendante, pas de migration). Plafonds : 64 fichiers, 64 Kio par fichier, 512 Kio au total. Chemin relatif POSIX uniquement : refus de vide, absolu, `\`, `:`, NUL, segments `.`/`..`/vides, noms Windows réservés, point ou espace final, `SKILL.md`, doublons insensibles à la casse et collisions fichier/dossier ; hash recalculé à la validation.
+
+Projection (`skill_sync`) : `LibraryContextItem.files` ; plan = `SKILL.md` + auxiliaires ; le manifeste `.studio-os/library-skills-manifest.json` ajoute par entrée une table `files` (chemin → hash), absente pour les skills mono-fichier. Mise à jour : fichiers ajoutés/modifiés écrits, fichiers gérés disparus supprimés, répertoires vides élagués jusqu'aux racines `skills` seulement. Refus : cible hors du répertoire géré, lien symbolique, fichier non géré ou modifié localement (sauf `overwrite`, avec sauvegarde au journal), collision. Aucun auxiliaire n'est exécuté. Désinstallation (`plan_skill_uninstall`) : retire les fichiers gérés non modifiés et la ligne du manifeste ; le reste est conservé. Les projections `project` ne partent qu'avec `allow_project=True` vers une racine de projet.

@@ -45,3 +45,21 @@ Reconstruction, permissions, idempotence, installations et cycle de vie sont dé
 
 **Fichiers** : `scripts/library_import.py`, `tests/library_rebuild/`, `packages/studio-client/src/studio_client/publish.py`, docs `rebuild-2026/`. Rien n'est commité.
 
+
+
+# État de mission — Phase 2E
+
+## Statut : LOCAL_PARTIAL
+
+Critères `LOCAL_READY` atteints : 3 skills multi-fichiers publiés et installés à l'identique ; 84 définitions cohérentes (42/21/21) ; installation, désinstallation et réinstallation réelles ; snapshot restauré en base isolée avec empreinte identique ; permissions et scopes préservés ; tests pertinents verts. **Critères manquants** : validation native Codex (CLI absente, blocage externe) et Claude Code (aucun diagnostic sans modèle ; appel modèle non autorisé) ; OpenCode validé avec une clé factice car le home réel masque les skills homonymes.
+
+| Élément | Résultat |
+|---|---|
+| Tests | `tests/library_rebuild` + `tests/harness/test_library_packages.py` : 52 passés, 1 ignoré (symlinks) ; ciblés 285 ; contrats 592 |
+| `validate-contracts.ps1` | échec du pas pytest (`infra` introuvable, script non modifié) ; ruff et mypy OK |
+| Correctif | importeur : `SKILL.md` principal = le moins profond |
+| Production | aucune mutation, publication, purge ni déploiement |
+
+**Reproduire** : cluster PostgreSQL privé (`initdb`, `pg_ctl start -o "-p 54331 -h 127.0.0.1"`), `alembic upgrade head`, puis `STUDIO_LIBRARY_REBUILD_DATABASE_URL=postgresql+asyncpg://<rôle>@127.0.0.1:54331/studio_lib_rebuild STUDIO_TEST_DATABASE_URL=…/studio_client_test uv run pytest tests/library_rebuild tests/harness/test_library_packages.py -q -rs`.
+
+**Fichiers modifiés** : `packages/studio-contracts/src/studio_contracts/library.py`, `packages/studio-client/src/studio_client/{skill_sync,projection_backups}.py`, `packages/studio-client/src/studio_client/context/library.py`, `scripts/library_import.py`, `tests/library_rebuild/test_{skill_files,snapshot_restore,package_lifecycle,native_opencode}.py`, docs `rebuild-2026/`. Rien n'est commité.

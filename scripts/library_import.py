@@ -97,7 +97,8 @@ def _split(text: str) -> tuple[dict[str, Any], str]:
 def _content(entry: dict[str, Any], texts: dict[str, str]) -> tuple[str, dict[str, Any], list[str]]:
     """(title, Library content, warnings) of one entry, from its verified files."""
     key, kind = entry["stable_key"], entry["kind"]
-    main = next((p for p in texts if Path(p).name in (f"{key}.md", "SKILL.md")), None)
+    named = [p for p in texts if Path(p).name in (f"{key}.md", "SKILL.md")]
+    main = min(named, key=lambda p: (p.count("/"), p), default=None)
     main = main or next(p for p in texts if p.endswith(".md"))
     meta, body = _split(texts[main])
     warnings: list[str] = []
@@ -106,16 +107,21 @@ def _content(entry: dict[str, Any], texts: dict[str, str]) -> tuple[str, dict[st
     if kind in ("rule", "skill"):
         if len(body) > SKILL_TEXT_MAX:
             raise ImportErrorReport(f"{kind} {key}: text exceeds {SKILL_TEXT_MAX} chars")
-        extra = len(texts) - 1
-        if extra:
-            warnings.append(
-                f"{kind} {key}: {extra} auxiliary file(s) not stored (Library skill = text only)"
-            )
-        return (
-            (key if kind == "rule" else title),
-            {"content_schema": f"studio.library.{kind}/v1", "text": body},
-            warnings,
-        )
+        content: dict[str, Any] = {"content_schema": f"studio.library.{kind}/v1", "text": body}
+        if kind == "skill" and len(texts) > 1:
+            root = main.rsplit("/", 1)[0] + "/"
+            content["files"] = [
+                {
+                    "path": path.removeprefix(root),
+                    "text": text,
+                    "sha256": lp.sha256(text.encode("utf-8")),
+                }
+                for path, text in sorted(texts.items())
+                if path != main
+            ]
+        elif len(texts) > 1:
+            warnings.append(f"{kind} {key}: {len(texts) - 1} auxiliary file(s) not stored")
+        return (key if kind == "rule" else title), content, warnings
     if kind == "agent_definition":
         summary = str(meta.get("summary") or meta.get("description") or key)
         return (

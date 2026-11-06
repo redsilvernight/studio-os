@@ -52,6 +52,8 @@ class LibraryContextItem:
     content_schema: str
     deprecated: bool = False
     description: str | None = None
+    files: tuple[tuple[str, str], ...] = ()
+    """Auxiliary skill files as (relative path, text); never part of the Context Package."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -267,6 +269,7 @@ class LibraryContextProvider:
             text=parsed.text,
             content_schema=str(parsed.content_schema),
             deprecated=status == "deprecated",
+            files=tuple((f.path, f.text) for f in getattr(parsed, "files", ())),
         )
 
 

@@ -46,3 +46,7 @@ Avant toute purge de production ou publication, présenter le manifeste exact et
 
 **Non prouvé** : aucune purge n'a été exécutée, même isolée ; restauration d'un snapshot, FK, volumes et installations d'une base de production peuplée ; comportement réseau sous charge (429) ; runtimes réellement lancés. Le point d'arrêt humain reste intact : aucune mutation de production, aucune approbation sollicitée.
 
+
+## Phase 2E — implications des skills multi-fichiers
+
+Les auxiliaires vivent dans le contenu JSON des versions (aucun artefact objet) : une sauvegarde de base les inclut, aucune étape MinIO supplémentaire. Après une restauration de production, resynchroniser les postes : un arbre local peut contenir des auxiliaires d'une version plus récente que la base restaurée (dérive signalée par le manifeste, `overwrite` explicite requis). Prévoir dans l'estimation le volume des versions de `studio-task`, `graphify`, `workstation-setup`. Un `pg_dump`/`pg_restore` a été rejoué en base isolée (`VALIDATION.md` § Phase 2E) ; il ne remplace pas une répétition sur une copie de production, qui reste un prérequis. Point d'arrêt humain inchangé : aucune mutation de production.
