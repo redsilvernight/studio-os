@@ -326,9 +326,7 @@ async def sync(
                         event.seq if pending_floor is None else min(pending_floor, event.seq)
                     )
                     pending_count += 1
-                targets_me = (
-                    my_session_str is not None and target_id == my_session_str
-                ) or (
+                targets_me = (my_session_str is not None and target_id == my_session_str) or (
                     targets_me
                     and target_state is not None
                     and target_state[1]

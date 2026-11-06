@@ -44,25 +44,29 @@ async def test_compact_lost_handoff_response_recovers_content_in_successor(
     task = await studio_create_task(str(project.id), "recipient", auth_ctx)
     source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
     source = await studio_start_session(source_task["id"], other_auth_ctx)
-    first = await studio_start_work(
-        str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
-    )
+    first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     session_id = first["session"]["id"]
     count = 6 if mode == "budget" else 3
     texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
 
     async def send(index: int) -> str:
-        emitted = dump(await studio_coordinate(
-            source["id"], "question", task["id"], texts[index], other_auth_ctx,
-            session_id=session_id if directed else None,
-        ))
+        emitted = dump(
+            await studio_coordinate(
+                source["id"],
+                "question",
+                task["id"],
+                texts[index],
+                other_auth_ctx,
+                session_id=session_id if directed else None,
+            )
+        )
         assert "error_code" not in emitted, emitted
         return emitted["event_id"]
 
     ids = [await send(index) for index in range(count - (mode == "late"))]
     if mode in {"presented", "acked", "late"}:
         received = dump(await studio_sync(auth_ctx, session_id=session_id))
-        assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+        assert [signal["text"] for signal in signals(received)] == texts[: len(ids)]
         if mode in {"acked", "late"}:
             await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
     if mode == "late":
@@ -71,15 +75,21 @@ async def test_compact_lost_handoff_response_recovers_content_in_successor(
     if mode == "resync":
         monkeypatch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
     closed = await studio_handoff(
-        str(project.id), session_id, auth_ctx,
-        idempotency_key="p0-lost-response", coordination_text="next step",
+        str(project.id),
+        session_id,
+        auth_ctx,
+        idempotency_key="p0-lost-response",
+        coordination_text="next step",
     )
     assert "error_code" not in closed, closed
     assert "sync" not in closed
     assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
     retry = await studio_handoff(
-        str(project.id), session_id, auth_ctx,
-        idempotency_key="p0-lost-response", coordination_text="next step",
+        str(project.id),
+        session_id,
+        auth_ctx,
+        idempotency_key="p0-lost-response",
+        coordination_text="next step",
     )
     assert retry == closed
     successor = await studio_start_work(
@@ -92,12 +102,20 @@ async def test_compact_lost_handoff_response_recovers_content_in_successor(
     order: list[str] = []
     effects: set[str] = set()
     for _ in range(20):
-        block = dump(await studio_sync(
-            auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
-        ))
-        repeated = dump(await studio_sync(
-            auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
-        ))
+        block = dump(
+            await studio_sync(
+                auth_ctx,
+                session_id=new_id,
+                max_chars=1000 if mode == "budget" else 12000,
+            )
+        )
+        repeated = dump(
+            await studio_sync(
+                auth_ctx,
+                session_id=new_id,
+                max_chars=1000 if mode == "budget" else 12000,
+            )
+        )
         assert repeated == block
         for signal in signals(block):
             if signal["event_id"] in ids:
@@ -134,10 +152,16 @@ async def test_handoff_interruption_between_commits_preserves_signal(
     source = await studio_start_session(source_task["id"], other_auth_ctx)
     first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     session_id = first["session"]["id"]
-    emitted = dump(await studio_coordinate(
-        source["id"], "heads_up", task["id"], "recover exact content", other_auth_ctx,
-        session_id=session_id,
-    ))
+    emitted = dump(
+        await studio_coordinate(
+            source["id"],
+            "heads_up",
+            task["id"],
+            "recover exact content",
+            other_auth_ctx,
+            session_id=session_id,
+        )
+    )
     original_end = handoff_service.sessions_service.end_session
 
     async def interrupted_end(*args: Any, **kwargs: Any) -> None:
@@ -153,7 +177,8 @@ async def test_handoff_interruption_between_commits_preserves_signal(
             assert machine is not None
             principal = await load_principal(db_session, machine)
             await handoff_service.handoff(
-                db_session, principal,
+                db_session,
+                principal,
                 HandoffRequest(project_id=project.id, session_id=session_id),
             )
     retry = await studio_handoff(str(project.id), session_id, auth_ctx)
@@ -177,20 +202,33 @@ async def test_completed_task_recovers_via_stateless_sync(
     first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     sender_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
     sender = await studio_start_session(sender_task["id"], other_auth_ctx)
-    sent = dump(await studio_coordinate(
-        sender["id"], "question", task["id"], "recover after completion", other_auth_ctx,
-        session_id=first["session"]["id"],
-    ))
+    sent = dump(
+        await studio_coordinate(
+            sender["id"],
+            "question",
+            task["id"],
+            "recover after completion",
+            other_auth_ctx,
+            session_id=first["session"]["id"],
+        )
+    )
     current = await studio_get_task(task["id"], auth_ctx)
     closed = await studio_handoff(
-        str(project.id), first["session"]["id"], auth_ctx,
-        task_status="completed", expected_version=current["version"],
+        str(project.id),
+        first["session"]["id"],
+        auth_ctx,
+        task_status="completed",
+        expected_version=current["version"],
     )
     assert closed["task_status"] == "completed"
-    recovered = dump(await studio_sync(
-        auth_ctx, agent_id=str(agent.id), task_id=task["id"],
-        ack=closed["handoff_cursor_seq"],
-    ))
+    recovered = dump(
+        await studio_sync(
+            auth_ctx,
+            agent_id=str(agent.id),
+            task_id=task["id"],
+            ack=closed["handoff_cursor_seq"],
+        )
+    )
     assert {item["event_id"]: item["text"] for item in signals(recovered)} == {
         sent["event_id"]: "recover after completion"
     }

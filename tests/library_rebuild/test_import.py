@@ -144,6 +144,10 @@ async def test_readonly_cannot_publish(world: World, rebuilt: object) -> None:
         )
 
 
+@pytest.mark.skipif(
+    not (li.ROOT / "library/packages/personal/manifest.json").is_file(),
+    reason="Personal package is git-ignored: absent from a clean checkout",
+)
 def test_personal_hooks_excluded_from_all_packages() -> None:
     for layer in ("project", "personal"):
         assert not [i for i in li.load_plan(layer).items if i.kind == "hook"]

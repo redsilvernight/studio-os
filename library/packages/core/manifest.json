@@ -323,14 +323,14 @@
     },
     {
      "path": "library/studio/hooks/stop-check.ps1",
-     "sha256": "746bc3307b93a6818b8676fa04e1ada4bf2f6948b2ac5e0b4806286aad6498bc"
+     "sha256": "abb160048b94efb105acab9879ede6f4e47ec030ae3ec60efc7267737ea75302"
     }
    ],
    "kind": "hook",
    "owner": "studio",
    "requires_consent": true,
    "scope": "studio",
-   "sha256": "f04105f175c84a4b5f382c73a896c0f38d591b1d09a8bda4146e6a9408c4cdfc",
+   "sha256": "3207856fd6fdfedbe08da3ace325647ee64e7fca984d7ef37f05a58422a9c5b4",
    "source": "library/studio/hooks/stop-check",
    "stable_key": "stop-check",
    "status": "ready",

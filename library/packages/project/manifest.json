@@ -332,14 +332,14 @@
    "files": [
     {
      "path": ".agents/rules/contracts.md",
-     "sha256": "c4ccdf0e2a80f2ae0226f0e0f67e83f4cbd70403dacb5d8a3cf805bd8df3803a"
+     "sha256": "f620103d26d9be594de8ec281766b4f4a7e6e755b6534f06fd6b4f709f960d36"
     }
    ],
    "kind": "rule",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "500be13c4a4e1663b1ac6a3348fc775d335ab6d55ab2c144286f04c7f8ef1117",
+   "sha256": "b8e417ddea3c76eb8a1101c6d11bfe0cc1975f0a5b91699d18342136232128bc",
    "source": ".agents/rules/contracts.md",
    "stable_key": "contracts",
    "status": "ready",
@@ -358,14 +358,14 @@
    "files": [
     {
      "path": ".agents/rules/database.md",
-     "sha256": "89a35fca5d1284a1bf6d4ac9550f47ed4b9e2f35aae3e095420caf3ffb89150f"
+     "sha256": "6d34c9d206e9fdac91af103870d5d4ab3242b99a1be502ce61c4cbf5a039831f"
     }
    ],
    "kind": "rule",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "41fe3a8c48dd9e5241eb63c988cea96f2412a469eb37f0ddf0607c607d326af9",
+   "sha256": "2227b081cc0033b97fd5a827de108a8ed1843a6b76fc1208b044b4510a497ff2",
    "source": ".agents/rules/database.md",
    "stable_key": "database",
    "status": "ready",
@@ -410,14 +410,14 @@
    "files": [
     {
      "path": ".agents/rules/offline-sync.md",
-     "sha256": "b304a31e4718f729a539ccec67625ff44bed02e3c5d6e1d8abdb81b45af89fd9"
+     "sha256": "29e31f6cbcbf8d1a4da6bf9b594528b20d6538057687f29183ddc3c7b96fe13f"
     }
    ],
    "kind": "rule",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "062e2d83cb1ac6c7d72f2de4feedd6b97d39431489a49ecc095e92518c72ed70",
+   "sha256": "48c1f897f4c3a656a8e6db1035470a54f36c6a0446261be96f9221bb1cc0076f",
    "source": ".agents/rules/offline-sync.md",
    "stable_key": "offline-sync",
    "status": "ready",
@@ -436,14 +436,14 @@
    "files": [
     {
      "path": ".agents/rules/python-conventions.md",
-     "sha256": "adaef3a4178602340213db3318d2d5584c6b3603618cbf0ebae00e3a52c2a4a7"
+     "sha256": "16b1c2e36b23503beaf7df4d32098a271ebb58d2c8e9e38fe0e81b434f4d5b93"
     }
    ],
    "kind": "rule",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "78d043214b67025890397998247723e6e12efe9bc5cfecc5f3d6400203936170",
+   "sha256": "dfd8c61c42e403e5a75482389a343b5c0cafc09c668b0cc8d4f3329e8303d910",
    "source": ".agents/rules/python-conventions.md",
    "stable_key": "python-conventions",
    "status": "ready",
@@ -462,14 +462,14 @@
    "files": [
     {
      "path": ".agents/rules/storage-transfers.md",
-     "sha256": "7a512ca9173831fce0bc7dd387fa1eacaff783226c91f03393ca2bc874159d8c"
+     "sha256": "6b670259ce7b59e973fa9ae6d85ea6df85360bfe423f866ffe3b762cf1cb155c"
     }
    ],
    "kind": "rule",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "2c1483e22a8cbf7ec57f927b27b8a0075c546b85e79487055b337b5d1deb9d16",
+   "sha256": "629aafd6a65399a48e0d9121a881b4774a07bf8eab0c560055f98a08174d5c27",
    "source": ".agents/rules/storage-transfers.md",
    "stable_key": "storage-transfers",
    "status": "ready",
@@ -540,14 +540,14 @@
    "files": [
     {
      "path": ".agents/skills/contract-change/SKILL.md",
-     "sha256": "2eca917228df6a24b1ec02550e5ac3c26b24d6f7872e0570e77c04818922b9d7"
+     "sha256": "59487f932e3d12eb5d6f553e6e830859606f94fa89ef736e3af825a4bc85294c"
     }
    ],
    "kind": "skill",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "705a753d1108cf6c892349802df1546882ef1ecef92668bc52e42f124cd6cc17",
+   "sha256": "58d3353021c0c3f71b3e9dbd22aa9aff01de0e59dcf3ccce533889296cbb4c56",
    "source": ".agents/skills/contract-change",
    "stable_key": "contract-change",
    "status": "ready",

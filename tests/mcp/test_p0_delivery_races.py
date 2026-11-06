@@ -27,14 +27,25 @@ async def test_live_peer_ack_cannot_hide_a_directed_signal_from_successor(
     a = await studio_start_session(task["id"], auth_ctx)
     b = await studio_start_session(task["id"], other_auth_ctx)
     sender = await studio_start_session(sender_task["id"], auth_ctx)
-    directed = dump(await studio_coordinate(
-        b["id"] if self_emitted else sender["id"],
-        "question", task["id"], "content exclusively delivered to A",
-        other_auth_ctx if self_emitted else auth_ctx, session_id=a["id"],
-    ))
-    marker = dump(await studio_coordinate(
-        sender["id"], "heads_up", task["id"], "later broadcast processed by B", auth_ctx,
-    ))
+    directed = dump(
+        await studio_coordinate(
+            b["id"] if self_emitted else sender["id"],
+            "question",
+            task["id"],
+            "content exclusively delivered to A",
+            other_auth_ctx if self_emitted else auth_ctx,
+            session_id=a["id"],
+        )
+    )
+    marker = dump(
+        await studio_coordinate(
+            sender["id"],
+            "heads_up",
+            task["id"],
+            "later broadcast processed by B",
+            auth_ctx,
+        )
+    )
     assert "error_code" not in directed, directed
     assert "error_code" not in marker, marker
     pulled_by_b = dump(await studio_sync(other_auth_ctx, session_id=b["id"]))
@@ -62,10 +73,16 @@ async def test_target_ack_releases_the_live_peer_cursor(
     task = await studio_create_task(str(project.id), "live target ack", auth_ctx)
     a = await studio_start_session(task["id"], auth_ctx)
     b = await studio_start_session(task["id"], other_auth_ctx)
-    sent = dump(await studio_coordinate(
-        b["id"], "question", task["id"], "ack releases floor", other_auth_ctx,
-        session_id=a["id"],
-    ))
+    sent = dump(
+        await studio_coordinate(
+            b["id"],
+            "question",
+            task["id"],
+            "ack releases floor",
+            other_auth_ctx,
+            session_id=a["id"],
+        )
+    )
     blocked = dump(await studio_sync(other_auth_ctx, session_id=b["id"]))
     assert blocked["overflow"] == {"coordination": 1}
     received = dump(await studio_sync(auth_ctx, session_id=a["id"]))

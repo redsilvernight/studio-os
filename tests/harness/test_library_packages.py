@@ -16,6 +16,10 @@ lp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lp)
 
 HOME = lp.personal_home()
+requires_personal = pytest.mark.skipif(
+    not (ROOT / "library/packages/personal/manifest.json").is_file(),
+    reason="Personal package is git-ignored: absent from a clean checkout",
+)
 
 
 def _read(layer: str) -> dict:
@@ -36,6 +40,7 @@ def test_every_historical_definition_has_a_justified_decision() -> None:
         assert (d["decision"] in lp.DEST) == bool(d["destination"])
 
 
+@requires_personal
 def test_committed_manifests_are_valid() -> None:
     assert lp.check(ROOT) == []
 
@@ -65,6 +70,7 @@ def test_generation_is_deterministic(tmp_path: Path) -> None:
         ).read_bytes()
 
 
+@requires_personal
 def test_hash_tamper_missing_file_and_leaks_are_detected() -> None:
     mans = _mans()
     bad = copy.deepcopy(mans)
@@ -75,6 +81,7 @@ def test_hash_tamper_missing_file_and_leaks_are_detected() -> None:
     assert any("fichier absent" in e for e in lp.validate(bad, ROOT, ROOT))
 
 
+@requires_personal
 def test_collision_unresolved_dependency_and_cycle_are_detected() -> None:
     mans = _mans()
     bad = copy.deepcopy(mans)
@@ -90,6 +97,7 @@ def test_collision_unresolved_dependency_and_cycle_are_detected() -> None:
     assert any("cycle" in e for e in lp.validate(bad, ROOT, ROOT))
 
 
+@requires_personal
 def test_core_cannot_depend_on_project() -> None:
     bad = copy.deepcopy(_mans())
     target = bad["project"]["entries"][0]
