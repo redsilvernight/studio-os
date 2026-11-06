@@ -569,6 +569,10 @@
      "sha256": "e01697854b7e51396a3b6ee810e19de309965d17d98f59d27140ff25dbed413a"
     },
     {
+     "path": ".agents/skills/graphify/SKILL.md",
+     "sha256": "931e9f5c55c5672556a608493f80ef03e55c3b711260a7483e7bd427179c9bd0"
+    },
+    {
      "path": ".agents/skills/graphify/references/add-watch.md",
      "sha256": "b3f67570240582689c2834b4831917550c2d1aaf042148868c39dcbf387ce3fd"
     },
@@ -599,17 +603,13 @@
     {
      "path": ".agents/skills/graphify/references/update.md",
      "sha256": "661f559b3ff4f3db7ba47bc2ba1c7e19f1c1d66a36f647e49221eecb174f2228"
-    },
-    {
-     "path": ".agents/skills/graphify/SKILL.md",
-     "sha256": "931e9f5c55c5672556a608493f80ef03e55c3b711260a7483e7bd427179c9bd0"
     }
    ],
    "kind": "skill",
    "owner": "project",
    "requires_consent": false,
    "scope": "project",
-   "sha256": "0acb828ad60e21fd6a6f2d8e1dd3b2a0879498b993f4aa83543d3e6085498b0f",
+   "sha256": "f8e006c424bd93ad98499f100acde4a1b939c30a417b7c2d58db6500cc106e61",
    "source": ".agents/skills/graphify",
    "stable_key": "graphify",
    "status": "ready",

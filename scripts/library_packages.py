@@ -79,7 +79,8 @@ def frontmatter(text: str) -> dict:
 def _files(base: Path) -> list[Path]:
     if base.is_file():
         return [base]
-    return sorted(p for p in base.rglob("*") if p.is_file() and not (set(p.parts) & SKIP_NAMES))
+    found = (p for p in base.rglob("*") if p.is_file() and not (set(p.parts) & SKIP_NAMES))
+    return sorted(found, key=Path.as_posix)
 
 
 def resolve_source(source: str, root: Path, home: Path) -> Path:
@@ -95,7 +96,8 @@ def source_files(spec: dict, root: Path, home: Path) -> list[Path]:
     """Files of one entry; a hook is its `.md` plus its sibling scripts."""
     base = resolve_source(spec["source"], root, home)
     if spec["kind"] == "hook" and spec["source"].startswith("library/"):
-        return sorted(p for p in base.parent.glob(f"{base.name}.*") if p.is_file())
+        found = (p for p in base.parent.glob(f"{base.name}.*") if p.is_file())
+        return sorted(found, key=Path.as_posix)
     return _files(base) if base.exists() else []
 
 

@@ -894,23 +894,23 @@
    "dependencies": [],
    "files": [
     {
+     "path": ".agents/skills/studio-task/SKILL.md",
+     "sha256": "c7606f0b28b2af7dd5233d99acd6b687a64e3a47cb533efed7793bbcddfec3d6"
+    },
+    {
      "path": ".agents/skills/studio-task/references/completion.md",
      "sha256": "dbbf1ac662106966200824c3060c1dfb70b00e4b912980aa2676cd4892cff9cb"
     },
     {
      "path": ".agents/skills/studio-task/references/roles.md",
      "sha256": "74c794b0fb6f0995b94962ffde51dad62ea4db31e287bd64c5765773fbede642"
-    },
-    {
-     "path": ".agents/skills/studio-task/SKILL.md",
-     "sha256": "c7606f0b28b2af7dd5233d99acd6b687a64e3a47cb533efed7793bbcddfec3d6"
     }
    ],
    "kind": "skill",
    "owner": "studio",
    "requires_consent": false,
    "scope": "studio",
-   "sha256": "ea6d95a8eca2be02437dad1e2657eedda366a82ba467b6efa4c562ce2e921e26",
+   "sha256": "4e13368e5d7c079ff4add4b2370b39673242d4014f42af3a05e4bf99ab3627bd",
    "source": ".agents/skills/studio-task",
    "stable_key": "studio-task",
    "status": "ready",
