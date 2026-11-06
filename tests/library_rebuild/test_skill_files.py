@@ -16,7 +16,13 @@ from studio_client.skill_sync import (
     plan_skill_sync,
     plan_skill_uninstall,
 )
-from studio_contracts.library import SkillContent
+from studio_contracts.library import (
+    RULE_SKILL_TEXT_MAX_LENGTH,
+    SKILL_FILE_TEXT_MAX_LENGTH,
+    SKILL_FILES_MAX,
+    SKILL_FILES_TOTAL_MAX_LENGTH,
+    SkillContent,
+)
 
 from .conftest import World
 
@@ -82,6 +88,51 @@ def test_contract_refuses_bad_hash_duplicates_and_file_dir_clash() -> None:
         SkillContent.model_validate(build(ok, {**ok, "path": "A.md"}))
     with pytest.raises(ValidationError):
         SkillContent.model_validate(build(ok, {**ok, "path": "a.md/b.md"}))
+
+
+def _aux(count: int, size: int = 1) -> dict[str, str]:
+    return {f"f{i}.md": "x" * size for i in range(count)}
+
+
+def _contract_files(files: dict[str, str]) -> dict[str, object]:
+    return {
+        "content_schema": SCHEMA,
+        "text": "x",
+        "files": [{"path": p, "text": t, "sha256": _sha(t)} for p, t in files.items()],
+    }
+
+
+def test_limits_have_one_definition_shared_by_contract_and_importer() -> None:
+    assert (SKILL_FILES_MAX, SKILL_FILE_TEXT_MAX_LENGTH, SKILL_FILES_TOTAL_MAX_LENGTH) == (
+        64,
+        65_536,
+        524_288,
+    )
+    assert li.SKILL_TEXT_MAX == RULE_SKILL_TEXT_MAX_LENGTH == SKILL_FILE_TEXT_MAX_LENGTH
+
+
+@pytest.mark.parametrize(
+    ("files", "accepted"),
+    [
+        (_aux(SKILL_FILES_MAX), True),
+        (_aux(SKILL_FILES_MAX + 1), False),
+        ({"a.md": "x" * SKILL_FILE_TEXT_MAX_LENGTH}, True),
+        ({"a.md": "x" * (SKILL_FILE_TEXT_MAX_LENGTH + 1)}, False),
+        (_aux(8, SKILL_FILE_TEXT_MAX_LENGTH), True),
+        ({**_aux(8, SKILL_FILE_TEXT_MAX_LENGTH), "z.md": "x"}, False),
+    ],
+)
+def test_contract_and_importer_apply_the_same_limits(files: dict[str, str], accepted: bool) -> None:
+    texts = {"s/SKILL.md": "---\ndescription: d\n---\nbody\n"}
+    texts.update({f"s/{p}": t for p, t in files.items()})
+    if accepted:
+        _, content, _ = li._content({"stable_key": "s", "kind": "skill"}, texts)
+        assert SkillContent.model_validate(content).files
+        return
+    with pytest.raises(ValidationError):
+        SkillContent.model_validate(_contract_files(files))
+    with pytest.raises(li.ImportErrorReport, match="skill s:"):
+        li._content({"stable_key": "s", "kind": "skill"}, texts)
 
 
 def test_legacy_single_file_skill_installs_without_manifest_files(tmp_path: Path) -> None:

@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import threading
+from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -675,28 +676,38 @@ async def _fetch_skills_only(config: ClientConfig, token_store: TokenStore) -> A
         return await fetch_skill_projections(client, None, limit=_SKILL_LIMIT)
 
 
+_STATE_SEVERITY = {"current": 0, "missing": 1, "outdated": 2, "locally_modified": 3}
+
+
+def _target_states(entry: SkillPlanEntry) -> list[SkillTargetState]:
+    """One state per harness: the worst over SKILL.md and its auxiliary files."""
+    worst: dict[str, str] = {}
+    for target in entry.all_files:
+        previous = worst.get(target.harness, "current")
+        worst[target.harness] = max(previous, target.state, key=_STATE_SEVERITY.__getitem__)
+    return [
+        SkillTargetState(harness=_HARNESS[harness], state=SkillSyncState(state))
+        for harness, state in worst.items()
+    ]
+
+
 def summarize(plan: SkillSyncPlan, *, checked_at: datetime | None = None) -> SkillsCheckResult:
     entries = [
         SkillCheckEntry(
             stable_key=entry.projection.stable_key,
             version=entry.projection.version,
-            targets=[
-                SkillTargetState(
-                    harness=_HARNESS[target.harness], state=SkillSyncState(target.state)
-                )
-                for target in entry.all_targets
-            ],
+            targets=_target_states(entry),
         )
         for entry in plan.entries
     ]
-    drifted = len(plan.drifted)
+    counts = Counter(target.state for entry in entries for target in entry.targets)
     return SkillsCheckResult(
         skills=entries,
-        current=len(plan.current),
-        missing=len(plan.missing),
-        outdated=len(plan.outdated),
-        locally_modified=len(plan.locally_modified),
-        in_sync=not plan.missing and not plan.retired and drifted == 0,
+        current=counts[SkillSyncState.CURRENT],
+        missing=counts[SkillSyncState.MISSING],
+        outdated=counts[SkillSyncState.OUTDATED],
+        locally_modified=counts[SkillSyncState.LOCALLY_MODIFIED],
+        in_sync=not plan.missing and not plan.retired and not plan.drifted,
         checked_at=checked_at or datetime.now(UTC),
     )
 

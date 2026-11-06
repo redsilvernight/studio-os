@@ -43,6 +43,10 @@ from studio_client.publish import (  # noqa: E402
     _publish_one,
 )
 from studio_contracts.library import (  # noqa: E402
+    RULE_SKILL_TEXT_MAX_LENGTH,
+    SKILL_FILE_TEXT_MAX_LENGTH,
+    SKILL_FILES_MAX,
+    SKILL_FILES_TOTAL_MAX_LENGTH,
     DependencyPin,
     LibraryKind,
     LibraryScope,
@@ -58,7 +62,22 @@ SCOPE = {
 KIND_ALIAS = {"agent_definition": "agent"}  # manifest kind -> PublishKind
 _MARKER_RE = re.compile(r"^<!-- studio-os-library:.*?-->\n*", re.M)
 _FM_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)\Z", re.S)
-SKILL_TEXT_MAX = 65_536
+SKILL_TEXT_MAX = RULE_SKILL_TEXT_MAX_LENGTH
+
+
+def _check_skill_files(key: str, files: dict[str, str]) -> None:
+    """Same limits as the server contract, reported before any API call."""
+    if len(files) > SKILL_FILES_MAX:
+        raise ImportErrorReport(f"skill {key}: {len(files)} auxiliary files, max {SKILL_FILES_MAX}")
+    for path, text in files.items():
+        if len(text) > SKILL_FILE_TEXT_MAX_LENGTH:
+            raise ImportErrorReport(
+                f"skill {key}: {path} exceeds {SKILL_FILE_TEXT_MAX_LENGTH} chars"
+            )
+    if sum(len(text) for text in files.values()) > SKILL_FILES_TOTAL_MAX_LENGTH:
+        raise ImportErrorReport(
+            f"skill {key}: auxiliary files exceed {SKILL_FILES_TOTAL_MAX_LENGTH} chars in total"
+        )
 
 
 class ImportErrorReport(Exception):
@@ -110,14 +129,15 @@ def _content(entry: dict[str, Any], texts: dict[str, str]) -> tuple[str, dict[st
         content: dict[str, Any] = {"content_schema": f"studio.library.{kind}/v1", "text": body}
         if kind == "skill" and len(texts) > 1:
             root = main.rsplit("/", 1)[0] + "/"
-            content["files"] = [
-                {
-                    "path": path.removeprefix(root),
-                    "text": text,
-                    "sha256": lp.sha256(text.encode("utf-8")),
-                }
+            aux = {
+                path.removeprefix(root): text
                 for path, text in sorted(texts.items())
                 if path != main
+            }
+            _check_skill_files(key, aux)
+            content["files"] = [
+                {"path": path, "text": text, "sha256": lp.sha256(text.encode("utf-8"))}
+                for path, text in aux.items()
             ]
         elif len(texts) > 1:
             warnings.append(f"{kind} {key}: {len(texts) - 1} auxiliary file(s) not stored")
