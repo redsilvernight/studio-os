@@ -289,18 +289,18 @@
    "files": [
     {
      "path": "library/studio/hooks/session-start.md",
-     "sha256": "d6e0953cc9f926e2bdc430a28277ebde0902d7540bb4f056040f947b2e8c993c"
+     "sha256": "aae0410f165b8a2b7d0d741b2ef6dae89ac465d765a6d76a8d78212fb60eb25a"
     },
     {
      "path": "library/studio/hooks/session-start.ps1",
-     "sha256": "1abb66ed661bef7ee1f00054d423d2507eade64ce91934778961d45e8aace163"
+     "sha256": "b3953aa8af347d8dd827c4b7aa58f62d50b04bce16d6f8f67d29aaeb63fcbed7"
     }
    ],
    "kind": "hook",
    "owner": "studio",
    "requires_consent": true,
    "scope": "studio",
-   "sha256": "50f2eafb38d21d74082401ee43179bfbaa68374b09a24e161ee7e5154ae73d9f",
+   "sha256": "d052225987c92edf778e21ee87c221b72e226d586ca24d79e17608115d4bb22b",
    "source": "library/studio/hooks/session-start",
    "stable_key": "session-start",
    "status": "ready",
@@ -609,14 +609,14 @@
    "files": [
     {
      "path": "library/studio/skills/new-project/SKILL.md",
-     "sha256": "57dd5363a6b5d6c207a14d5c849e9417bdc23e54c91df233d8f4b7574f7418f8"
+     "sha256": "6da655797c5ddfe3a7a429c6963b1b9bbf927fd08237f7246f42196d679388ca"
     }
    ],
    "kind": "skill",
    "owner": "studio",
    "requires_consent": false,
    "scope": "studio",
-   "sha256": "14b8e614fe39c19968807301b215d8576293416c72bc65e969d657e673cdc8e8",
+   "sha256": "8aadf93849e994d8e8b01a0f2160e04a9f3c7a5ccc3347dc2eacca3261f9c5a0",
    "source": "library/studio/skills/new-project",
    "stable_key": "new-project",
    "status": "ready",
@@ -981,14 +981,14 @@
    "files": [
     {
      "path": "library/studio/skills/workstation-setup/SKILL.md",
-     "sha256": "424afdaf6130e0f3e3abb837063a0202565e4e44c005313871424bdb91597d4c"
+     "sha256": "5461aebd7c09b1872f115709445eda0524aba29f40a7928d91727fdab1e5bedf"
     }
    ],
    "kind": "skill",
    "owner": "studio",
    "requires_consent": false,
    "scope": "studio",
-   "sha256": "93664c58dcba786c52a51b3879201f56cb448e50cf4e9d632e568520f82a661c",
+   "sha256": "b06b7f512963c0304503a0cbca9a5b34f7c20a5dabc921d35cf8396e84489e6c",
    "source": "library/studio/skills/workstation-setup",
    "stable_key": "workstation-setup",
    "status": "ready",
