@@ -246,7 +246,7 @@ def _source_files(layer: str, key: str) -> dict[str, str]:
     base = li.ROOT / ("library/packages/personal" if layer == "personal" else "")
     out: dict[str, str] = {}
     for f in entry["files"]:
-        data = (base / f["path"]).read_bytes()
+        data = (base / f["path"]).read_bytes().replace(b"\r\n", b"\n")
         assert hashlib.sha256(data).hexdigest() == f["sha256"]
         out[f["path"]] = data.decode("utf-8").replace("\r\n", "\n")
     return out

@@ -41,7 +41,7 @@ function Invoke-Step([string]$Name, [int]$FailCode, [string[]]$UvArgs) {
 }
 
 $results = @(
-    Invoke-Step "pytest" 1 @("run", "pytest", "tests/contracts", "-q", "-p", "no:cacheprovider", "-m", "not infra")
+    Invoke-Step "pytest" 1 @("run", "pytest", "tests/contracts", "-q", "-p", "no:cacheprovider", "-m", '"not infra"')
     Invoke-Step "ruff" 2 @("run", "ruff", "check", $contracts, "tests/contracts")
     Invoke-Step "mypy" 3 @("run", "mypy", "$contracts/src")
 )
