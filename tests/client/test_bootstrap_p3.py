@@ -280,6 +280,10 @@ def test_rules_sync_backs_up_agents_md(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
     cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    rule = repo / ".agents/rules/testing.md"
+    rule.write_text(
+        rule.read_text(encoding="utf-8").replace("tests/**/*.py", "tests/**"), encoding="utf-8"
+    )
     cli.main(["rules", "sync", "--repo-root", str(repo), "--overwrite"])
     backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("AGENTS.md"))
     assert backups

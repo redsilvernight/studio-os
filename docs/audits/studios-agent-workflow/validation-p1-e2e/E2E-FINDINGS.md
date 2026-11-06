@@ -1,0 +1,11 @@
+# P1.5 — findings
+
+1. **Bloquant — audit readonly muté par OpenCode.** Répété avec consigne métier readonly : appels `studio_start_work` observés avant les refus de lecture du second run. Écart comportemental démontré dans cette configuration. Aucun agent ne doit être déclaré certifié sur cette preuve. Correction proposée : améliorer l’injection/hiérarchie du workflow et refaire des essais spontanés indépendants.
+2. **Élevé — ack invalide après handoff.** Claude, Codex et OpenCode tentent `studio_sync` avec une session terminée ; serveur répond `session_not_found`. Une partie traite correctement le contenu mais ne le confirme pas. La reprise doit être stateless avec agent + task après clôture.
+3. **Moyen — preuve OpenCode rejetée.** Handoff déclaré completed avec contrôle SHA sans exit code observé ; serveur refuse `completion_incomplete`. L’agent réessaie avec contenu analogue. La preuve doit correspondre à une commande réellement exécutée et son code de sortie.
+4. **Moyen — profil outil session non appliqué en stdio.** Serveur annonce 63 outils au lieu des 29 outils session documentés ; test réel, pas une assertion de permission.
+5. **Moyen — chargement de skill Codex incomplet.** Lire le skill local échoue sous `exec --sandbox read-only`, et la résolution MCP distante renvoie `definition_not_found`. Identifié comme limite de configuration/runtime et de bibliothèque distante ; ne prouve pas un défaut du contenu du skill.
+6. **Préparation OpenCode non isolée au premier run.** Des lectures hors fixture ont été tentées. Corps retirés des traces ; permissions temporaires bornées ensuite. Le second run reste valide pour l’appel readonly observé avant toute lecture externe.
+7. **Infrastructure serveur distante non attestée.** API 5 non vérifiable via endpoints disponibles ; aucun test mutation P0 sur serveur ancien/inconnu.
+
+Limites : tests natifs des signaux et handoffs échantillonnés ; panne réseau réelle, perte de réponse MCP, collisions concurrentes modèle, toutes les variantes overflow/resync, 15 scénarios complets par harnais, Claude Desktop, Codex App et Dispatcher OpenCode non validés. PostgreSQL P1.5 local isolé et régressions PostgreSQL ciblées passées ; MinIO indisponible.

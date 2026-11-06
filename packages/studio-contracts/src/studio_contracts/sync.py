@@ -53,11 +53,14 @@ class SyncResult(ContractModel):
     """Bounded sync answer. `next_cursor` is the `seq` up to which every
     matched event was delivered or absorbed into a delivered item; it stays
     below the first event the bounds left out, so items above it may come
-    again on the next call (unchanged when nothing new). Ack it as is to
+    again on the next call. Truncated scans can advance over irrelevant events.
+    Unacknowledged signals to other live sessions of the task also hold back
+    this cursor, without exposing their text. Ack it as is to
     advance; never derive it from the returned items.
-    `overflow` counts matched-but-unreturned items per `why` category;
-    `resync` (scan truncated) refers to `prepare_context` for the full
-    picture — raw history is never dumped. An empty answer serializes to
+    `overflow` counts matched-but-unreturned or temporarily withheld signals
+    per `why` category. `resync` (scan truncated) requires further sync/ack;
+    `prepare_context` supplies context, not pending signal contents.
+    An empty answer serializes to
     well under 300 characters."""
 
     next_cursor: int

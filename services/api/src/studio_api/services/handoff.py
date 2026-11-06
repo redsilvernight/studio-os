@@ -115,11 +115,6 @@ async def handoff(
             + json.dumps(request.completion.model_dump(mode="json"), sort_keys=True)
         )
 
-    # C4: last bounded sync, then the optional `coordination.handoff` signal,
-    # both while the session is live and before the task can be closed (a
-    # completed target refuses signals). The sync is acknowledged: the caller
-    # receives it in this very response. A retry after the session already
-    # ended skips both — the handoff cursor below converges on what was acked.
     last_sync: SyncResult | None = None
     coordination_event_id: uuid.UUID | None = None
     if work_session.ended_at is None:
@@ -129,7 +124,6 @@ async def handoff(
             session_id=request.session_id,
             ack=work_session.sync_cursor_seq,
         )
-        await sessions_service.ack_sync_cursor(session, request.session_id, last_sync.next_cursor)
         if request.coordination is not None:
             emitted = await coordination_service.emit(
                 session,
@@ -264,10 +258,8 @@ async def handoff(
     # End the session
     await sessions_service.end_session(session, principal, request.session_id)
 
-    # Advance the task's handoff cursor to the session's sync cursor (if any)
     if work_session.sync_cursor_seq is not None:
-        task.handoff_cursor_seq = work_session.sync_cursor_seq
-        await session.commit()
+        await sessions_service.ack_handoff_cursor(session, task.id, work_session.sync_cursor_seq)
 
     return HandoffResult(
         task_id=task.id,

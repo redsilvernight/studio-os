@@ -1,0 +1,82 @@
+{
+  "AGENTS.md": {
+    "before": {
+      "bytes": 32605,
+      "chars_lf": 32383
+    },
+    "after": {
+      "bytes": 3869,
+      "chars_lf": 3774
+    }
+  },
+  ".agents/rules/studio-protocol.md": {
+    "before": {
+      "bytes": 980,
+      "chars_lf": 978
+    },
+    "after": {
+      "bytes": 1037,
+      "chars_lf": 1035
+    }
+  },
+  ".agents/skills/studio-task/SKILL.md": {
+    "before": {
+      "bytes": 3213,
+      "chars_lf": 3199
+    },
+    "after": {
+      "bytes": 5420,
+      "chars_lf": 5418
+    }
+  },
+  ".agents/skills/studio-context/SKILL.md": {
+    "before": {
+      "bytes": 2225,
+      "chars_lf": 2203
+    },
+    "after": {
+      "bytes": 1438,
+      "chars_lf": 1436
+    }
+  },
+  ".agents/skills/studio-handoff/SKILL.md": {
+    "before": {
+      "bytes": 3449,
+      "chars_lf": 3445
+    },
+    "after": {
+      "bytes": 1243,
+      "chars_lf": 1241
+    }
+  },
+  ".claude/agents": {
+    "before": {
+      "bytes": 237485,
+      "chars_lf": 236870
+    },
+    "after": {
+      "bytes": 243148,
+      "chars_lf": 238577
+    }
+  },
+  ".opencode/agents": {
+    "before": {
+      "bytes": 237310,
+      "chars_lf": 236695
+    },
+    "after": {
+      "bytes": 242979,
+      "chars_lf": 238402
+    }
+  },
+  ".codex/agents": {
+    "before": {
+      "bytes": 237411,
+      "chars_lf": 236796
+    },
+    "after": {
+      "bytes": 237411,
+      "chars_lf": 236796
+    }
+  }
+}

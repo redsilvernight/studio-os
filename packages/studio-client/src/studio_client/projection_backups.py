@@ -31,18 +31,9 @@ def _managed_path(relative: str) -> bool:
         return True
     parts = relative.split("/")
     key: str | None = None
-    if (
-        len(parts) == 4
-        and parts[0] in {".agents", ".claude"}
-        and parts[1] == "skills"
-        and parts[3] == "SKILL.md"
-    ):
-        key = parts[2]
-    elif (
-        len(parts) == 5
-        and parts[:3] == [".config", "opencode", "skills"]
-        and parts[4] == "SKILL.md"
-    ):
+    if len(parts) >= 4 and parts[0] in {".agents", ".claude"} and parts[1] == "skills":
+        key = parts[2]  # SKILL.md or an auxiliary file below the skill directory
+    elif len(parts) >= 5 and parts[:3] == [".config", "opencode", "skills"]:
         key = parts[3]
     elif (
         len(parts) == 3
@@ -56,7 +47,12 @@ def _managed_path(relative: str) -> bool:
         and parts[2].endswith(".md")
     ):
         key = parts[2][:-3]
-    return key is not None and _KEY.fullmatch(key) is not None and ".." not in key
+    return (
+        key is not None
+        and _KEY.fullmatch(key) is not None
+        and ".." not in key
+        and ".." not in parts
+    )
 
 
 @dataclass(frozen=True)

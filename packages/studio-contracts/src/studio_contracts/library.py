@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import re
 from collections import deque
 from collections.abc import Sequence
 from datetime import datetime
@@ -7,7 +9,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 from studio_contracts.local.common import contains_secret_material
@@ -350,12 +352,84 @@ class RuleContent(ContractModel):
     text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
 
 
+SKILL_FILES_MAX = 64
+SKILL_FILE_TEXT_MAX_LENGTH = RULE_SKILL_TEXT_MAX_LENGTH
+SKILL_FILES_TOTAL_MAX_LENGTH = 524_288
+_SKILL_FILE_SEGMENT = re.compile(
+    r"^[A-Za-z0-9_][A-Za-z0-9._ -]{0,127}$|^\.[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$"
+)
+
+
+def skill_file_path_error(path: str) -> str | None:
+    """Why `path` cannot be an auxiliary skill file path (None if safe).
+
+    Relative POSIX only: no absolute path, drive, backslash, `.`/`..` segment,
+    reserved name or trailing dot/space; `SKILL.md` is the main file."""
+
+    if not path or path.startswith("/") or "\\" in path or ":" in path or "\x00" in path:
+        return "must be a relative POSIX path"
+    segments = path.split("/")
+    for segment in segments:
+        if segment in {"", ".", ".."} or not _SKILL_FILE_SEGMENT.match(segment):
+            return "unsafe path segment"
+        if segment.endswith((".", " ")) or segment.split(".", 1)[0].upper() in _WINDOWS_RESERVED:
+            return "reserved or non-portable name"
+    if path.lower() == "skill.md":
+        return "SKILL.md is the main file"
+    return None
+
+
+_WINDOWS_RESERVED = {
+    "AUX",
+    "CON",
+    "NUL",
+    "PRN",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+
+class SkillFile(ContractModel):
+    """One auxiliary text file of a multi-file skill: relative path, UTF-8
+    text and the SHA-256 of that text (verified on write)."""
+
+    path: str = Field(min_length=1, max_length=512)
+    text: str = Field(max_length=SKILL_FILE_TEXT_MAX_LENGTH)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def _check(self) -> SkillFile:
+        error = skill_file_path_error(self.path)
+        if error:
+            raise ValueError(f"skill file {self.path!r}: {error}")
+        if hashlib.sha256(self.text.encode("utf-8")).hexdigest() != self.sha256:
+            raise ValueError(f"skill file {self.path!r}: sha256 mismatch")
+        return self
+
+
 class SkillContent(ContractModel):
-    """Semantic shape of a `skill` version (P3/DEC-0066): free prose, nothing
-    else. Never a provider, model, harness or capability reference."""
+    """Semantic shape of a `skill` version (P3/DEC-0066): free prose plus
+    optional auxiliary text files (additive, absent = historical single-file
+    skill). Never a provider, model, harness or capability reference."""
 
     content_schema: Literal["studio.library.skill/v1"]
     text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    files: list[SkillFile] = Field(default_factory=list, max_length=SKILL_FILES_MAX)
+
+    @model_validator(mode="after")
+    def _check_files(self) -> SkillContent:
+        seen: set[str] = set()
+        for file in self.files:
+            folded = file.path.casefold()
+            if folded in seen:
+                raise ValueError(f"duplicate skill file path {file.path!r}")
+            seen.add(folded)
+        for a in seen:
+            if any(b.startswith(a + "/") for b in seen):
+                raise ValueError(f"skill file path {a!r} is also a directory")
+        if sum(len(f.text) for f in self.files) > SKILL_FILES_TOTAL_MAX_LENGTH:
+            raise ValueError("skill files exceed the total size limit")
+        return self
 
 
 class ModelProfileContent(ContractModel):

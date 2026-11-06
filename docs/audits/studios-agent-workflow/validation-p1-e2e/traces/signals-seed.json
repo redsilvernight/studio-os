@@ -1,0 +1,265 @@
+[
+  {
+    "tool": "studio_start_work",
+    "arguments": {
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "task_id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+      "idempotency_key": "p15-sender"
+    },
+    "response": {
+      "sync": {
+        "items": [],
+        "resync": false,
+        "overflow": {},
+        "next_cursor": 0
+      },
+      "task": {
+        "id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+        "title": "P15 direct signal",
+        "status": "in_progress",
+        "version": 2,
+        "readable_id": null,
+        "claimed_by_agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+        "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078"
+      },
+      "claimed": true,
+      "resumed": false,
+      "session": {
+        "id": "cd55b29f-d37a-4e7d-a08c-6126479b6442",
+        "status": "active",
+        "task_id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+        "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+        "expires_at": "2026-11-05T05:37:40.306155Z"
+      },
+      "candidates": [],
+      "prepared_context": {
+        "task": {
+          "id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+          "why": {
+            "reason": "requested",
+            "matched_terms": []
+          },
+          "title": "P15 direct signal",
+          "status": "in_progress",
+          "truncated": false,
+          "description": "Isolated validation fixture; no production data",
+          "readable_id": null,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "claimed_by_self": true,
+          "source_references": [],
+          "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078"
+        },
+        "rules": [],
+        "limits": {
+          "limit": 5,
+          "max_chars": 12000,
+          "chars_used": 332,
+          "item_text_cap": 1500,
+          "library_scan_capped": false
+        },
+        "skills": [],
+        "ai_work": [
+          {
+            "id": "df33de10-1aee-4235-b0aa-3b125f0461b7",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "p15"
+              ]
+            },
+            "status": "completed",
+            "summary": "P15 directed transport diagnostic; replay verified",
+            "ended_at": "2026-11-04T21:32:21.183243Z",
+            "tests_run": [
+              "real MCP stdio replay and version conflict"
+            ],
+            "truncated": false,
+            "started_at": "2026-11-04T21:32:21.183243Z",
+            "content_hash": "5e61fec931353869e87ba0e0d7bc125fb433e39a5505b9ad1d228fa902c5157b",
+            "changed_files": []
+          }
+        ],
+        "project": {
+          "id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+          "name": "P15 E2E ONLY",
+          "slug": "p15-e2e",
+          "truncated": false,
+          "description": null
+        },
+        "returned": {
+          "task": 1,
+          "rules": 0,
+          "claims": 0,
+          "skills": 0,
+          "ai_work": 1,
+          "decisions": 0,
+          "related_tasks": 5
+        },
+        "decisions": [],
+        "active_work": {
+          "claims": []
+        },
+        "query_terms": [
+          "reprendre",
+          "tache",
+          "p15",
+          "direct",
+          "signal"
+        ],
+        "related_tasks": [
+          {
+            "id": "75c26025-2b20-4c3b-8aed-5f2bd8ec51ad",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "signal"
+              ]
+            },
+            "title": "P15 claude signal",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "5a48036c-58eb-4920-b2d9-d53528e64ae2",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "signal"
+              ]
+            },
+            "title": "P15 codex signal",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "69bd9d20-48da-4fcb-a18f-40efd729ab66",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            },
+            "title": "P15 direct conflict",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "e721206a-3dde-45fd-8d4a-70ffa5f3d84a",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            },
+            "title": "P15 direct failed",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "6960d4cd-bad4-48d0-9b93-e28e9e0d63e7",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            },
+            "title": "P15 direct provided",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          }
+        ],
+        "omitted_for_budget": {},
+        "additional_available": {
+          "rules": 0,
+          "claims": 0,
+          "skills": 0,
+          "ai_work": 0,
+          "decisions": 0,
+          "related_tasks": 18
+        }
+      }
+    }
+  },
+  {
+    "tool": "studio_coordinate",
+    "arguments": {
+      "from_session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442",
+      "intent": "heads_up",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "text": "Validation requirement claude: retain marker P15-SIGNAL-CLAUDE in the durable audit handoff summary before acknowledging this message.",
+      "event_id": "4945f2b0-a07b-58c1-ab5b-83fa1b7c35b2"
+    },
+    "response": {
+      "event_id": "4945f2b0-a07b-58c1-ab5b-83fa1b7c35b2",
+      "event_type": "coordination.heads_up",
+      "seq": 11,
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "session_id": null
+    }
+  },
+  {
+    "tool": "studio_coordinate",
+    "arguments": {
+      "from_session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442",
+      "intent": "heads_up",
+      "task_id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+      "text": "Validation requirement codex: retain marker P15-SIGNAL-CODEX in the durable audit handoff summary before acknowledging this message.",
+      "event_id": "58e4fbfd-7153-56ae-8389-3d1a696e064e"
+    },
+    "response": {
+      "event_id": "58e4fbfd-7153-56ae-8389-3d1a696e064e",
+      "event_type": "coordination.heads_up",
+      "seq": 12,
+      "task_id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+      "session_id": null
+    }
+  },
+  {
+    "tool": "studio_coordinate",
+    "arguments": {
+      "from_session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442",
+      "intent": "heads_up",
+      "task_id": "bb8194f9-88ae-4958-a5bd-1443cc9e7426",
+      "text": "Validation requirement opencode: retain marker P15-SIGNAL-OPENCODE in the durable audit handoff summary before acknowledging this message.",
+      "event_id": "01561739-8623-528f-a304-f71d068abac2"
+    },
+    "response": {
+      "event_id": "01561739-8623-528f-a304-f71d068abac2",
+      "event_type": "coordination.heads_up",
+      "seq": 13,
+      "task_id": "bb8194f9-88ae-4958-a5bd-1443cc9e7426",
+      "session_id": null
+    }
+  }
+]

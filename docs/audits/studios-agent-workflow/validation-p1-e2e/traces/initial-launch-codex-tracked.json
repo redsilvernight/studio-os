@@ -1,0 +1,31 @@
+{
+  "harness": "codex",
+  "scenario": "tracked",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-codex-2dfj7fef",
+  "prompt": "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=0eb70f7d-631a-4580-bb2c-ad5d274f5fdd, owned agent_id=de8c07fa-ca3c-4e80-b8a6-65703ee6f85f.\nPrends en charge cette tâche d'audit suivie : vérifie receipt.txt et son empreinte SHA256, consigne une preuve vérifiable puis transmets le travail avec un état honnête. Aucun code à modifier. Termine cette unité si ses vérifications sont réussies.",
+  "command": [
+    "C:\\Users\\redsi\\AppData\\Local\\OpenAI\\Codex\\bin\\a159911ff70742e9\\codex.EXE",
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "read-only",
+    "--json",
+    "-c",
+    "features.apps=false",
+    "-c",
+    "features.plugins=false",
+    "-c",
+    "features.memories=false",
+    "-c",
+    "mcp_servers.p15.command=\"C:\\\\Users\\\\redsi\\\\Documents\\\\Coding\\\\Projet\\\\Studi'os\\\\.venv\\\\Scripts\\\\python.exe\"",
+    "-c",
+    "mcp_servers.p15.args=[\"-m\",\"studio_mcp.server\"]",
+    "-c",
+    "mcp_servers.p15.env_vars=[\"STUDIO_DATABASE_URL\",\"STUDIO_MCP_MACHINE_TOKEN\",\"STUDIO_ENVIRONMENT\",\"STUDIO_MCP_TOOL_PROFILE\"]",
+    "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=0eb70f7d-631a-4580-bb2c-ad5d274f5fdd, owned agent_id=de8c07fa-ca3c-4e80-b8a6-65703ee6f85f.\nPrends en charge cette tâche d'audit suivie : vérifie receipt.txt et son empreinte SHA256, consigne une preuve vérifiable puis transmets le travail avec un état honnête. Aucun code à modifier. Termine cette unité si ses vérifications sont réussies."
+  ],
+  "timeout_seconds": 150
+}

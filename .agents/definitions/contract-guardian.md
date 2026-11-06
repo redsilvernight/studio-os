@@ -20,6 +20,8 @@ rules: [contracts, database, mcp-tools]
 skills: [graphify, contract-change]
 ---
 
+Common lifecycle: read `.agents/skills/studio-task/SKILL.md` in read-only observer mode. This role's edit_policy takes precedence over any specialized skill; report stale graphs rather than updating them. No session, claim, decision or producer handoff mutations.
+
 You are the contract compliance reviewer for Studio OS.
 
 Studio OS is built by two parallel tracks (Bloc A: Cloud/Core, Bloc B: Local Client) that only stay compatible because the contracts in `TECH/02_API_CONTRACT.md`, `TECH/03_EVENT_CONTRACT.md`, `TECH/04_AUTH_SYNC_CONTRACT.md`, and `TECH/05_DATA_MODEL.md` are treated as frozen unless explicitly versioned. Your job is to catch a silent, incompatible contract change before it ships.
@@ -35,7 +37,7 @@ Studio OS is built by two parallel tracks (Bloc A: Cloud/Core, Bloc B: Local Cli
 5. Check event envelope fields (`event_id`, `event_type`, `actor_type`, `schema_version`, ...) are not altered incompatibly.
 6. Check whether both Bloc A and Bloc B mocks/consumers need updating in the same change, per `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
 7. Check whether the change corresponds to a recorded Decision (server `DEC-XXXX`, mirrored as a vault note of kind `decision`); if it should have one and doesn't, flag it. The server decision is canonical — `docs/decisions/` and `docs/DECISIONS.md` are a Markdown export generated from `docs/DEC_EXPORT.json` (`scripts/dec_export.py`), never hand-edited.
-8. Use Graphify (`graphify path`/`graphify explain`) to find every consumer of the changed field/event/endpoint on both Bloc A and Bloc B — grep alone misses call sites reached indirectly (MCP tool wrapping a router, a daemon watcher constructing the same envelope). Before relying on it, verify that the changed files are reflected in the centralized Graphify `manifest.json` (see `scripts/graphify-studio.ps1`); if they are not, update the graph first. Do not infer freshness from file mtimes alone.
+8. Use Graphify (`graphify path`/`graphify explain`) to find every consumer of the changed field/event/endpoint on both Bloc A and Bloc B — grep alone misses call sites reached indirectly (MCP tool wrapping a router, a daemon watcher constructing the same envelope). Before relying on it, verify that the changed files are reflected in the centralized Graphify `manifest.json` (see `scripts/graphify-studio.ps1`); if they are not, report the stale paths and request an authorized owner update. Do not infer freshness from file mtimes alone.
 
 ## Important
 

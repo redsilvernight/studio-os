@@ -1,0 +1,29 @@
+{
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-opencode-js7wx50p",
+  "copied_roles": [
+    "contract-guardian.md",
+    "dashboard-a11y.md",
+    "migration-reviewer.md",
+    "studio-architect.md",
+    "studio-tester.md",
+    "sync-debugger.md"
+  ],
+  "mcp": {
+    "p15": {
+      "command": "C:\\Users\\redsi\\Documents\\Coding\\Projet\\Studi'os\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "studio_mcp.server"
+      ]
+    }
+  },
+  "env_keys": [
+    "STUDIO_DATABASE_URL",
+    "STUDIO_ENVIRONMENT",
+    "STUDIO_MCP_MACHINE_TOKEN",
+    "STUDIO_MCP_TOOL_PROFILE",
+    "STUDIO_REALTIME_LISTENER_ENABLED",
+    "STUDIO_S3_ENDPOINT_URL",
+    "STUDIO_TEST_DATABASE_URL"
+  ]
+}

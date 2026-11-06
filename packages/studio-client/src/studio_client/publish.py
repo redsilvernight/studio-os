@@ -29,14 +29,19 @@ from studio_client.canonical import (
     to_publish_payload,
 )
 
-PublishKind = Literal["rule", "skill", "agent"]
+PublishKind = Literal["rule", "skill", "agent", "hook", "model_profile", "workflow"]
 PUBLISH_KINDS: tuple[PublishKind, ...] = ("rule", "skill", "agent")
+# `hook`, `model_profile` and `workflow` are publishable (package import) but have no
+# `.agents/` canonical source, so `build_publish_items` never lists them.
 PublishAction = Literal["created", "new_version", "unchanged"]
 
 _LIBRARY_KIND: dict[str, LibraryKind] = {
     "rule": LibraryKind.RULE,
     "skill": LibraryKind.SKILL,
     "agent": LibraryKind.AGENT_DEFINITION,
+    "hook": LibraryKind.HOOK,
+    "model_profile": LibraryKind.MODEL_PROFILE,
+    "workflow": LibraryKind.WORKFLOW,
 }
 _LISTING_PAGE = 500
 

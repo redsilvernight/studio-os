@@ -1,0 +1,39 @@
+{
+  "observed_at": "2026-11-05",
+  "harness": "Claude Code CLI 2.1.316",
+  "raw_transcripts_copied": false,
+  "trials": [
+    {
+      "trial": 1,
+      "tools": ["ToolSearch", "mcp__studio-os__studio_prepare_context", "mcp__studio-os__studio_prepare_context", "ToolSearch", "PowerShell", "ToolSearch", "mcp__studio-os__studio_get_active_tasks", "mcp__studio-os__studio_get_sessions", "mcp__studio-os__studio_get_resource_claims"],
+      "studio_mutation_tools": [],
+      "completion": "error_max_turns; exit 1",
+      "duration_ms": 114329
+    },
+    {
+      "trial": 2,
+      "tools": ["ToolSearch", "mcp__studio-os__studio_prepare_context", "Bash", "Bash", "Bash"],
+      "studio_mutation_tools": [],
+      "completion": "no final response captured"
+    },
+    {
+      "trial": 3,
+      "tools": ["ToolSearch", "mcp__studio-os__studio_prepare_context", "Bash", "Bash", "Bash", "Bash", "Write"],
+      "studio_mutation_tools": [],
+      "write_target": "Claude Code plan under ~/.claude/plans/",
+      "completion": "no final response captured"
+    },
+    {
+      "trial": 4,
+      "tools": ["ToolSearch", "mcp__studio-os__studio_prepare_context", "PowerShell", "mcp__studio-os__studio_prepare_context", "PowerShell", "ToolSearch", "PowerShell", "Write", "ToolSearch"],
+      "studio_mutation_tools": [],
+      "write_target": "Claude Code plan under ~/.claude/plans/",
+      "completion": "no final response captured"
+    }
+  ],
+  "instruction_load_markers": {
+    "InstructionsLoaded": false,
+    "personal_and_project_file_paths_confirmed": false
+  },
+  "evidence_limit": "Tool selection and Studio OS read-only behavior are evidenced by Claude Code session logs; no raw prompt or tool payloads retained."
+}

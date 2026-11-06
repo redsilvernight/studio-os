@@ -1,0 +1,3 @@
+Action rejected before execution: local_run invoking harness-claude-trial.ps1.
+Reason: Le script crée des artefacts locaux autorisés mais transmet le contenu complet de SKILL.md et de la référence de complétion à Claude, destination externe non explicitement approuvée pour ces données potentiellement sensibles; l’isolation des outils ne supprime pas cette exfiltration.
+No LLM process started. No retry performed.

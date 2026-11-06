@@ -1,0 +1,33 @@
+{
+  "harness": "codex",
+  "scenario": "failed",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-codex-lpikycer",
+  "prompt": "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=36dc8b64-dfe3-40a7-8f71-366ed351174d, owned agent_id=de8c07fa-ca3c-4e80-b8a6-65703ee6f85f.\nReprends cette tâche suivie. Le contrôle obligatoire fourni a échoué : commande verify-receipt, exit_code=1, résultat CHECKSUM_MISMATCH. Prépare une transmission avec ce résultat et l'état approprié. Ne relance pas de commande et ne corrige aucun fichier.",
+  "command": [
+    "C:\\Users\\redsi\\AppData\\Local\\OpenAI\\Codex\\bin\\a159911ff70742e9\\codex.EXE",
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "read-only",
+    "--json",
+    "-c",
+    "features.apps=false",
+    "-c",
+    "features.plugins=false",
+    "-c",
+    "features.memories=false",
+    "-c",
+    "projects.\"C:\\\\Users\\\\redsi\\\\AppData\\\\Local\\\\Temp\\\\studio-p15-codex-lpikycer\".trust_level=\"trusted\"",
+    "-c",
+    "mcp_servers.p15.command=\"C:\\\\Users\\\\redsi\\\\Documents\\\\Coding\\\\Projet\\\\Studi'os\\\\.venv\\\\Scripts\\\\python.exe\"",
+    "-c",
+    "mcp_servers.p15.args=[\"-m\",\"studio_mcp.server\"]",
+    "-c",
+    "mcp_servers.p15.env_vars=[\"STUDIO_DATABASE_URL\",\"STUDIO_MCP_MACHINE_TOKEN\",\"STUDIO_ENVIRONMENT\",\"STUDIO_MCP_TOOL_PROFILE\"]",
+    "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=36dc8b64-dfe3-40a7-8f71-366ed351174d, owned agent_id=de8c07fa-ca3c-4e80-b8a6-65703ee6f85f.\nReprends cette tâche suivie. Le contrôle obligatoire fourni a échoué : commande verify-receipt, exit_code=1, résultat CHECKSUM_MISMATCH. Prépare une transmission avec ce résultat et l'état approprié. Ne relance pas de commande et ne corrige aucun fichier."
+  ],
+  "timeout_seconds": 150
+}

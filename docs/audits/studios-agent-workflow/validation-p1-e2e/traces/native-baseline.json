@@ -1,0 +1,72 @@
+{
+  "commands": [
+    {
+      "command": [
+        "C:\\Users\\redsi\\.local\\bin\\claude.EXE",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "2.1.316 (Claude Code)\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "C:\\Users\\redsi\\AppData\\Local\\OpenAI\\Codex\\bin\\a159911ff70742e9\\codex.EXE",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "codex-cli 0.166.0-alpha.6\n",
+      "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Acc\u00e8s refus\u00e9. (os error 5)\nWARNING: proceeding, even though we could not create PATH aliases: Acc\u00e8s refus\u00e9. (os error 5) at path \"C:\\\\Users\\\\redsi\\\\.codex\\\\tmp\\\\arg0-windows\\\\codex-arg0QDdk9x\"\n"
+    },
+    {
+      "command": [
+        "cmd.exe",
+        "/d",
+        "/c",
+        "C:\\Users\\redsi\\AppData\\Roaming\\npm\\opencode.cmd",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "1.18.32\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "C:\\Users\\redsi\\.local\\bin\\claude.EXE",
+        "auth",
+        "status"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"loggedIn\": true,\n  \"authMethod\": \"oauth_token\",\n  \"apiProvider\": \"firstParty\",\n  \"analyticsDisabled\": false,\n  \"projectsDirectory\": \"C:\\\\Users\\\\redsi\\\\.claude\\\\projects\",\n  \"configDirectory\": \"C:\\\\Users\\\\redsi\\\\.claude\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "C:\\Users\\redsi\\AppData\\Local\\OpenAI\\Codex\\bin\\a159911ff70742e9\\codex.EXE",
+        "login",
+        "status"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "WARNING: failed to clean up stale arg0 temp dirs: Acc\u00e8s refus\u00e9. (os error 5)\nWARNING: proceeding, even though we could not create PATH aliases: Acc\u00e8s refus\u00e9. (os error 5) at path \"C:\\\\Users\\\\redsi\\\\.codex\\\\tmp\\\\arg0-windows\\\\codex-arg09EhyKY\"\nLogged in using ChatGPT\n"
+    }
+  ],
+  "configs": [
+    {
+      "path": ".codex/config.toml",
+      "sha256": "3407f8e2d681033e2ff4e8dd14cf089c3609bc8c9f01630c9b33b4a995ce3d87"
+    },
+    {
+      "path": "opencode.json",
+      "sha256": "69b2cb2606f38455e1c3143e12da720d0b99f025fca870c35ce6841c1160bf3e"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "46ccc45fc2fe5f64a646796184cd110c6faf4ed91c292bf53b385e48a5758ed6"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "af2aba72a2f0bf84c5c61fa317fbabe38e7e57d4fcd98a487f883e92ad8ca5ec"
+    }
+  ]
+}

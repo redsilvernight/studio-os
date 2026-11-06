@@ -1,0 +1,33 @@
+{
+  ".codex/config.toml": {
+    "studio-os": {
+      "enabled": "unspecified",
+      "profile": "not explicitly selected",
+      "transport": "remote"
+    },
+    "context7": {
+      "enabled": "unspecified",
+      "profile": "not explicitly selected",
+      "transport": "remote"
+    },
+    "opencode-dispatch": {
+      "enabled": "unspecified",
+      "profile": "not explicitly selected",
+      "transport": "stdio"
+    },
+    "postgres-test": {
+      "enabled": "unspecified",
+      "profile": "not explicitly selected",
+      "transport": "stdio"
+    }
+  },
+  "opencode.json": {},
+  "live_connection": {
+    "advertised_central_tools": 63,
+    "local_session_count": 29,
+    "local_admin_count": 63,
+    "remote_revision": "not established; local P0 not deployed",
+    "credentials_changed": false,
+    "profile_is_authorization": false
+  }
+}

@@ -54,9 +54,11 @@ class _FakeApi:
         self.versions = versions
         self.calls: list[tuple[str, Any]] = []
 
-    async def list_library_resources(self, *, limit: int) -> list[_Resource]:
+    async def list_library_resources(
+        self, *, kind: str | None = None, limit: int
+    ) -> list[_Resource]:
         self.calls.append(("resources", limit))
-        return self.resources[:limit]
+        return [row for row in self.resources if kind is None or row.kind == kind][:limit]
 
     async def list_library_locks(self, *, project_id: UUID | None) -> list[Any]:
         self.calls.append(("locks", project_id))

@@ -78,7 +78,17 @@ de `config.toml` (prioritaires), sans redémarrage.
 propre confirmation, le chemin explicite de la ligne de commande valant choix
 de l'utilisateur. Idempotent (active les watchers d'un lien existant, refuse
 un dossier lié à un autre projet). Réservé à la ligne de commande : ne jamais
-l'exposer à un appelant non interactif (bridge, API locale).
+l'exposer au bridge, à l'API locale ni à un outil MCP.
+
+`studio-client workspaces auto-link --path` (`studio_client/auto_link.py`, DEC-0285) est
+le seul appelant non interactif autorisé (hook `session-start`). Il lie le dépôt au
+`project_id` déclaré par `AGENTS.md` (`Projet Studio OS : <id>`), uniquement après un
+consentement unique du poste (`workspaces auto-link-consent grant|revoke|status`, fichier
+`auto-link.json` du profil) qui fixe l'origine d'API. Sans `config.toml`, l'origine est
+déduite de l'URL du serveur MCP `studio-os` (champ `url` seul) et le fichier est créé
+sans jamais en écraser un existant, si elle égale l'origine consentie. Statuts : `linked`,
+`already_linked`, `no_project_id`, `no_consent`, `conflict`, `config_unavailable`,
+`config_mismatch`, `failed` ; aucun n'écrit hors lien/config.
 
 ## Dette P6/P7
 

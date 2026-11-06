@@ -1,5 +1,22 @@
 # API Contract v1
 
+Version contractuelle 5 — révision sémantique P0 livraison (2026-11-04),
+`studio_contracts.API_CONTRACT_VERSION=5`, transport `/api/v1` conservé :
+le bloc sync de handoff cesse d'être auto-acquitté. Ce changement de sens est
+explicite, et non une simple addition de champ. Migration compatible des
+clients : accepter les représentations répétées, dédupliquer par event_id et
+acquitter explicitement après traitement. Aucun client n'a de nouveau champ
+obligatoire ; les anciens clients restent acceptés. Les avertissements MCP
+`coordination_signals_received` et `sync_items_acknowledged` sont remplacés
+par `coordination_signals_pending` et `sync_items_pending`, car les anciens
+libellés affirmaient une consommation qui n'a plus lieu. Aucun consommateur
+code de ces libellés n'a été trouvé dans les deux Blocs ; les parseurs externes
+doivent accepter les nouvelles valeurs. Rejeu des clés historiques inchangé.
+La matrice de compatibilité classe cette révision `API_BREAKING` : les clients
+N-1 doivent mettre à jour leur interprétation du handoff et des warnings
+(`UPGRADE_REQUIRED` selon la politique de compatibilité);
+les requêtes historiques restent acceptées, sans suppression d'outil ou de champ.
+
 Version contractuelle 3 (DEC-0235, 2026-10-24) : admission des lancements protégés.
 Chaque création/retry exige `capabilities.launch_safety=true` ; sinon 409
 `launch_safety_unsupported_by_machine`. Le transport reste `/api/v1`. Mettre à jour
@@ -21,7 +38,7 @@ contourne ni le profil lecture seule ni les permissions du poste. Une opération
 nécessitant une commande en mode protégé exige `studio_handoff(task_status=blocked)`
 avec commande et cible ; une nouvelle demande humaine est nécessaire.
 
-Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 4`.
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 5`.
 
 Version 4 : un claim protege le couple machine/agent. Une autre identite
 d'agent (y compris `null`) ne remplace plus silencieusement le detenteur sur
@@ -410,12 +427,35 @@ public de bootstrap, pas de secret d'environnement dedie.
   `coordination.handoff` sur la tache, avant la mise a jour du statut (une
   tache `completed` refuse les signaux), apres le dernier sync (le signal
   n'y figure pas) ; `event_id` = uuid5(session) : rejeu sans doublon.
-  `HandoffResult` gagne `sync` (dernier `studio_sync`, acquitte),
+  `HandoffResult` gagne `sync` (dernier `studio_sync`, non acquitte),
   `handoff_cursor_seq` et `coordination_event_id`. Sync et emission sont
   sautes si la session est deja terminee (rejeu apres echec partiel) ;
   `coordination_event_id` est alors retrouve par son id derive, `sync` reste
   `null`. Un
   client qui ignore ces champs n'observe aucun changement.
+
+Correction de fiabilite P0 (2026-11-04) : le handoff ne consomme jamais son
+dernier sync, meme en mode verbose. `handoff_cursor_seq` propage seulement
+le dernier curseur explicitement acquitte, monotonement sous concurrence.
+Le successeur utilise start-work puis sync sans ack pour recuperer le contenu;
+apres traitement et deduplication par `event_id`, il acquitte `next_cursor`.
+Une reponse perdue ou compacte peut donc entrainer une nouvelle presentation,
+sans perte logique. Les signaux non acquittes ciblant une session terminee de
+la meme tache sont recuperables par ce successeur. Une session encore vivante
+garde son ciblage propre. Un sync stateless `agent_id` + `task_id` depuis le
+curseur connu permet aussi la recuperation sans rouvrir une tache terminee;
+depuis 0 il permet la relecture historique (deduplication requise).
+Un scan tronque peut avancer sur les evenements non pertinents, y compris une
+page entiere hors perimetre : `resync=true` demande de poursuivre sync/ack, sans
+franchir le premier evenement pertinent omis par les limites. Le budget peut
+etre augmente si un item ne tient pas dans une page.
+Un signal non acquitte adresse a une autre session vivante de la meme tache
+retient aussi le curseur avant son seq (`overflow.coordination`), sans exposer
+son texte. Ce verrou de progression est leve lorsque la cible acquitte ou
+termine sa session; il s'applique aussi aux signaux emis par la session lisante.
+Les cles idempotentes historiques rejouent leur ancienne reponse telle quelle;
+les anciens curseurs trop avances ne sont pas automatiquement rembobines.
+Signatures, champs obligatoires, statuts HTTP et enveloppes restent identiques.
 
 ### Handoff (L3, additif, DEC-0163)
 - POST /handoff — `HandoffRequest` body, `HandoffResult` response + MCP

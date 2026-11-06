@@ -50,7 +50,7 @@ workspace enregistré, rien n'est envoyé (compté `unattributed`).
   sortie + réflexion) ; Codex fournit un `input_tokens` inclusif, le lecteur
   soustrait les sous-ensembles cache avant de compter.
 - Le coût est une **estimation EUR** (couverture `estimated`, jamais présentée comme
-  un montant exact) calculée sur une grille datée (`public-eur-2026-10`) :
+  un montant exact) calculée sur une grille datée (`public-eur-2026-11`) :
   entrée / sortie / cache lu / cache écrit, prix au million de jetons. Un modèle
   inconnu de la grille reste « inconnu » — aucun prix par défaut n'est inventé.
 - Grille surchargeable sans code : `<data_root>/pricing.json`

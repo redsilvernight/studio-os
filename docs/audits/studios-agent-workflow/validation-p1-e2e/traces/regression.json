@@ -1,0 +1,35 @@
+[
+  {
+    "name": "preflight",
+    "command": [
+      "pwsh",
+      "-NoProfile",
+      "-File",
+      "scripts/test-env.ps1",
+      "-TimeoutSeconds",
+      "3"
+    ],
+    "exit_code": 2,
+    "seconds": 3.208196899999166
+  },
+  {
+    "name": "p0-regression",
+    "command": [
+      "C:\\Users\\redsi\\Documents\\Coding\\Projet\\Studi'os\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/api/test_p0_task_concurrency.py",
+      "tests/mcp/test_p0_cursor_concurrency.py",
+      "tests/mcp/test_p0_delivery.py",
+      "tests/mcp/test_p0_delivery_races.py",
+      "tests/mcp/test_sync.py",
+      "tests/mcp/test_handoff.py",
+      "tests/mcp/test_response_budget.py",
+      "tests/contracts/test_version_compatibility.py",
+      "--require-infra",
+      "-q"
+    ],
+    "exit_code": 0,
+    "seconds": 19.15701640000043
+  }
+]

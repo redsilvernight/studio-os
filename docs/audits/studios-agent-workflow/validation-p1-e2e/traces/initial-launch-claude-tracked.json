@@ -1,0 +1,29 @@
+{
+  "harness": "claude",
+  "scenario": "tracked",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-claude-u6zd0bgn",
+  "prompt": "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=3427904c-1b71-4b1a-9b9d-5c7a61877a53, owned agent_id=bac79dbd-a263-4a7b-acf6-4d8df9690c84.\nPrends en charge cette tâche d'audit suivie : vérifie receipt.txt et son empreinte SHA256, consigne une preuve vérifiable puis transmets le travail avec un état honnête. Aucun code à modifier. Termine cette unité si ses vérifications sont réussies.",
+  "command": [
+    "C:\\Users\\redsi\\.local\\bin\\claude.EXE",
+    "-p",
+    "Environment: project_id=751d6265-2643-4d51-8a51-d8f2c5b139bf, task_id=3427904c-1b71-4b1a-9b9d-5c7a61877a53, owned agent_id=bac79dbd-a263-4a7b-acf6-4d8df9690c84.\nPrends en charge cette tâche d'audit suivie : vérifie receipt.txt et son empreinte SHA256, consigne une preuve vérifiable puis transmets le travail avec un état honnête. Aucun code à modifier. Termine cette unité si ses vérifications sont réussies.",
+    "--setting-sources",
+    "project",
+    "--settings",
+    "{\"disableAllHooks\":true}",
+    "--strict-mcp-config",
+    "--mcp-config",
+    "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-claude-u6zd0bgn\\mcp.json",
+    "--tools",
+    "Read,Skill",
+    "--allowedTools",
+    "Read,Skill,mcp__p15",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--no-session-persistence",
+    "--max-budget-usd",
+    "1"
+  ],
+  "timeout_seconds": 150
+}

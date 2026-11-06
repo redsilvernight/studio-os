@@ -1,0 +1,104 @@
+F.F...                                                                   [100%]
+================================== FAILURES ===================================
+___________ test_sync_ack_with_stale_reads_is_monotone[None-20-10] ____________
+
+engine = <sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x0000017F6BFC98D0>
+cursor_rows = (UUID('c73078b5-7df4-46a5-8841-e2b4d2544ae7'), UUID('cd6beab3-70e7-4b2f-96a5-97b221431a18'))
+first = 20, second = 10, initial = None
+
+    @pytest.mark.parametrize("first,second", [(20, 10), (10, 20)])
+    @pytest.mark.parametrize("initial", [None, 5, 30])
+    async def test_sync_ack_with_stale_reads_is_monotone(
+        engine: AsyncEngine,
+        cursor_rows: tuple[uuid.UUID, uuid.UUID],
+        first: int,
+        second: int,
+        initial: int | None,
+    ) -> None:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        work_id, _ = cursor_rows
+        async with factory() as setup:
+            row = await setup.get(WorkSessionModel, work_id)
+            assert row is not None
+            row.sync_cursor_seq = initial
+            await setup.commit()
+        both_read = asyncio.Barrier(2)
+        first_committed = asyncio.Event()
+    
+        async def ack(seq: int, is_first: bool) -> None:
+            async with factory() as transaction:
+                stale = await transaction.get(WorkSessionModel, work_id)
+                assert stale is not None and stale.sync_cursor_seq == initial
+                await both_read.wait()
+                if not is_first:
+                    await first_committed.wait()
+                try:
+                    result = await sessions.ack_sync_cursor(transaction, work_id, seq)
+                    assert result is not None
+                finally:
+                    if is_first:
+                        first_committed.set()
+    
+        await asyncio.wait_for(asyncio.gather(ack(first, True), ack(second, False)), timeout=10)
+        async with factory() as check:
+            final = await check.scalar(
+                select(WorkSessionModel.sync_cursor_seq).where(WorkSessionModel.id == work_id)
+            )
+>           assert final == max(initial or 0, first, second)
+E           assert 10 == 20
+E            +  where 20 = max((None or 0), 20, 10)
+
+tests\mcp\test_p0_cursor_concurrency.py:89: AssertionError
+_____________ test_sync_ack_with_stale_reads_is_monotone[5-20-10] _____________
+
+engine = <sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x0000017F6BFC98D0>
+cursor_rows = (UUID('7ed7cb6a-347d-4c01-8b37-5746c71c4aab'), UUID('252ab051-5b6c-4f00-95a2-5a0c78a52a35'))
+first = 20, second = 10, initial = 5
+
+    @pytest.mark.parametrize("first,second", [(20, 10), (10, 20)])
+    @pytest.mark.parametrize("initial", [None, 5, 30])
+    async def test_sync_ack_with_stale_reads_is_monotone(
+        engine: AsyncEngine,
+        cursor_rows: tuple[uuid.UUID, uuid.UUID],
+        first: int,
+        second: int,
+        initial: int | None,
+    ) -> None:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        work_id, _ = cursor_rows
+        async with factory() as setup:
+            row = await setup.get(WorkSessionModel, work_id)
+            assert row is not None
+            row.sync_cursor_seq = initial
+            await setup.commit()
+        both_read = asyncio.Barrier(2)
+        first_committed = asyncio.Event()
+    
+        async def ack(seq: int, is_first: bool) -> None:
+            async with factory() as transaction:
+                stale = await transaction.get(WorkSessionModel, work_id)
+                assert stale is not None and stale.sync_cursor_seq == initial
+                await both_read.wait()
+                if not is_first:
+                    await first_committed.wait()
+                try:
+                    result = await sessions.ack_sync_cursor(transaction, work_id, seq)
+                    assert result is not None
+                finally:
+                    if is_first:
+                        first_committed.set()
+    
+        await asyncio.wait_for(asyncio.gather(ack(first, True), ack(second, False)), timeout=10)
+        async with factory() as check:
+            final = await check.scalar(
+                select(WorkSessionModel.sync_cursor_seq).where(WorkSessionModel.id == work_id)
+            )
+>           assert final == max(initial or 0, first, second)
+E           assert 10 == 20
+E            +  where 20 = max((5), 20, 10)
+
+tests\mcp\test_p0_cursor_concurrency.py:89: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/mcp/test_p0_cursor_concurrency.py::test_sync_ack_with_stale_reads_is_monotone[None-20-10]
+FAILED tests/mcp/test_p0_cursor_concurrency.py::test_sync_ack_with_stale_reads_is_monotone[5-20-10]
+2 failed, 4 passed in 1.50s

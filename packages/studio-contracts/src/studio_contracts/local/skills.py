@@ -97,7 +97,9 @@ class SkillSyncStatusState(StrEnum):
 
 
 class SkillsPreviewRequest(LocalContractModel):
-    """Request a preview (diff) of the skill synchronization plan."""
+    """Request a preview, optionally limiting Library reads to chosen keys."""
+
+    selection: dict[SkillLibraryKind, list[SkillStableKey]] | None = None
 
 
 class SkillPreviewEntry(LocalContractModel):

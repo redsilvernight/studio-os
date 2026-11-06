@@ -418,6 +418,9 @@ def _adopt_harness_credential(
     os.environ["STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN"] = credential.origin
 
 
+_SINGLE_VENDOR_HARNESS_PROVIDER = {"claude-code": "anthropic", "codex": "openai"}
+
+
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
@@ -427,6 +430,11 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
     if args.harness_credential:
         _adopt_harness_credential(args.harness, config)
+    if args.model_ref:
+        provider, _, model = args.model_ref.rpartition("/")
+        args.provider = provider or _SINGLE_VENDOR_HARNESS_PROVIDER.get(args.harness)
+        args.model = model
+        args.model_identity = bool(args.provider and model)
     if args.model_identity:
         identity = _run(
             config,
@@ -1238,6 +1246,59 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
         print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
 
 
+def _workspaces_auto_link(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.auto_link import AutoLinkStatus, auto_link
+
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    result = auto_link(Path(args.path).resolve(), registry_dir)
+    summary = {
+        "status": result.status.value,
+        "project_id": str(result.project_id) if result.project_id else None,
+        "server_origin": result.server_origin,
+        "config_written": result.config_written,
+        "detail": result.detail,
+    }
+    print(json.dumps(summary) if args.json else f"{summary['status']}	{result.detail}")
+    ok = (AutoLinkStatus.LINKED, AutoLinkStatus.ALREADY_LINKED)
+    if result.status not in ok and result.status is not AutoLinkStatus.NO_PROJECT_ID:
+        raise SystemExit(1)
+
+
+def _workspaces_auto_link_consent(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client import auto_link
+
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    if args.action == "revoke":
+        print("revoked" if auto_link.revoke_consent(registry_dir) else "no consent recorded")
+        return
+    if args.action == "status":
+        print(auto_link.read_consent(registry_dir) or "none")
+        return
+    origin = (
+        origin_of(args.api_base_url)
+        if args.api_base_url
+        else auto_link.mcp_origin(Path.cwd(), Path.home())
+    )
+    if origin is None:
+        print("error: no studio-os MCP url found; pass --api-base-url", file=sys.stderr)
+        raise SystemExit(1)
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print(
+                "error: confirmation needed; rerun with --yes after the user agrees",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        answer = input(
+            f"Link repos declaring a Studio OS project automatically, API {origin}? [y/N] "
+        )
+        if answer.strip().lower() not in ("y", "yes", "o", "oui"):
+            print("refused")
+            raise SystemExit(1)
+    auto_link.grant_consent(registry_dir, origin)
+    print(f"granted	{origin}")
+
+
 def _optional_config() -> ClientConfig | None:
     """This machine's configuration when it has one, without failing the
     command: a prune must stay runnable on a machine that never enrolled, with
@@ -1520,47 +1581,58 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
     AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
     backed up first."""
-    import re
-
     from studio_client.bootstrap import backup_file, backup_root_for
     from studio_client.canonical import (
         canonical_rule_keys,
         load_rule_meta,
-        render_agents_rules_block,
+        merge_agents_rules,
         render_claude_rule,
+        workflow_skill_projections,
     )
 
     _ = config
     root = Path(args.repo_root)
+    agents_md = root / "AGENTS.md"
+    text = agents_md.read_text(encoding="utf-8") if agents_md.exists() else ""
+    try:
+        updated = merge_agents_rules(root, text)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
     backup_root = backup_root_for(root)
     written: list[str] = []
     for key in canonical_rule_keys(root):
         applies_to, body = load_rule_meta(root, key)
         target = root / ".claude" / "rules" / f"{key}.md"
+        content = render_claude_rule(key, applies_to, body)
+        if target.is_file() and target.read_text(encoding="utf-8") == content:
+            continue
         if target.exists() and not args.overwrite:
             print(f"skip {target} (exists, pass --overwrite)")
             continue
         if target.exists():
             backup_file(root, target.relative_to(root).as_posix(), backup_root)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(render_claude_rule(key, applies_to, body), encoding="utf-8")
+        target.write_text(content, encoding="utf-8")
         written.append(str(target))
 
-    agents_md = root / "AGENTS.md"
-    text = agents_md.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"<!-- BEGIN (SYNCED CLAUDE RULES|GENERATED RULES from \.agents/rules) -->"
-        r".*?<!-- END (SYNCED CLAUDE RULES|GENERATED RULES) -->",
-        re.S,
-    )
-    replacement = render_agents_rules_block(root).rstrip("\n")
-    updated, count = pattern.subn(replacement, text, count=1)
-    if count != 1:
-        print("error: AGENTS.md rules block markers not found", file=sys.stderr)
-        raise SystemExit(1) from None
-    backup_file(root, "AGENTS.md", backup_root)
-    agents_md.write_text(updated, encoding="utf-8")
-    written.append(str(agents_md))
+    if updated != text:
+        if agents_md.exists():
+            backup_file(root, "AGENTS.md", backup_root)
+        agents_md.write_text(updated, encoding="utf-8")
+        written.append(str(agents_md))
+    for relative, content in workflow_skill_projections(root).items():
+        target = root / relative
+        if target.is_file() and target.read_text(encoding="utf-8") == content:
+            continue
+        if target.exists() and not args.overwrite:
+            print(f"skip {target} (exists, pass --overwrite)")
+            continue
+        if target.exists():
+            backup_file(root, relative, backup_root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        written.append(str(target))
     if args.json:
         print(json.dumps({"written": written}))
     else:
@@ -1867,6 +1939,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "falls back to the harness agent when the model is unknown.",
     )
     agents_ensure.add_argument(
+        "--model-ref",
+        help="Model as reported by the harness, 'model' or 'provider/model'. Implies "
+        "--model-identity; the provider defaults to the vendor of claude-code and codex, "
+        "and the harness agent is used when it stays unknown.",
+    )
+    agents_ensure.add_argument(
         "--harness-credential",
         action="store_true",
         help="Authenticate with the credential of this harness's own Studi'OS MCP "
@@ -1959,6 +2037,25 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(workspaces_register)
     workspaces_register.set_defaults(func=_workspaces_register)
+
+    workspaces_auto = workspaces_sub.add_parser(
+        "auto-link",
+        help="Link a folder to the project its AGENTS.md declares (needs consent; DEC-0285).",
+    )
+    workspaces_auto.add_argument("--path", required=True, help="Repository root.")
+    workspaces_auto.add_argument("--registry-dir", help="Workspace registry directory.")
+    _add_json_flag(workspaces_auto)
+    workspaces_auto.set_defaults(func=_workspaces_auto_link)
+    workspaces_consent = workspaces_sub.add_parser(
+        "auto-link-consent", help="Grant, revoke or show the one-time auto-link consent."
+    )
+    workspaces_consent.add_argument("action", choices=("grant", "revoke", "status"))
+    workspaces_consent.add_argument(
+        "--api-base-url", help="Studio OS API (default: from the MCP url)."
+    )
+    workspaces_consent.add_argument("--yes", action="store_true", help="Skip the prompt.")
+    workspaces_consent.add_argument("--registry-dir", help="Workspace registry directory.")
+    workspaces_consent.set_defaults(func=_workspaces_auto_link_consent)
 
     worktrees_parser = subparsers.add_parser(
         "worktrees",
@@ -2092,6 +2189,17 @@ def _build_parser() -> argparse.ArgumentParser:
     adapters_list = adapters_sub.add_parser("list", help="List local adapters.")
     _add_json_flag(adapters_list)
     adapters_list.set_defaults(func=_adapters_list)
+
+    adapters_sync = adapters_sub.add_parser(
+        "sync",
+        help="Generate project rule and workflow projections from .agents (legacy: rules sync).",
+    )
+    adapters_sync.add_argument("--repo-root", default=".", help="Repository root.")
+    adapters_sync.add_argument(
+        "--overwrite", action="store_true", help="Back up and replace projections."
+    )
+    _add_json_flag(adapters_sync)
+    adapters_sync.set_defaults(func=_rules_sync)
 
     adapters_export = adapters_sub.add_parser(
         "export", help="Resolve an agent (P7 HTTP) and translate it locally."
@@ -2420,13 +2528,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if (
-        getattr(args, "adapters_command", None) in ("check",)
+        getattr(args, "adapters_command", None) in ("check", "sync")
         or (
             getattr(args, "adapters_command", None) == "export"
             and getattr(args, "from_canonical", False)
         )
         or getattr(args, "rules_command", None) in ("sync",)
         or getattr(args, "worktrees_command", None) in ("prune",)
+        or getattr(args, "workspaces_command", None) in ("auto-link", "auto-link-consent")
         or getattr(args, "bootstrap_command", None)
         in ("init", "check", "diff", "sync", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)

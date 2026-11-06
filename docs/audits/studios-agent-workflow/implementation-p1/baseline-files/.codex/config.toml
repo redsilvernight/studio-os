@@ -1,0 +1,29 @@
+[mcp_servers.studio-os]
+url = "https://studio.flosrent.fr/mcp"
+bearer_token_env_var = "STUDIO_MCP_MACHINE_TOKEN"
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+
+[mcp_servers.opencode-dispatch]
+command = 'C:\Users\redsi\Documents\Coding\Projet\opencode-dispatch\.venv\Scripts\python.exe'
+args = [
+    "-m",
+    "ocdispatch",
+    "--config",
+    'C:\Users\redsi\Documents\Coding\Projet\opencode-dispatch\config.json',
+]
+
+[mcp_servers.postgres-test]
+command = "uvx"
+args = [
+    "--python",
+    "3.12",
+    "--with",
+    "mcp<2",
+    "postgres-mcp",
+    "--access-mode=restricted",
+]
+
+[mcp_servers.postgres-test.env]
+DATABASE_URI = "postgresql://studio:studio@127.0.0.1:5432/studio_os_test"

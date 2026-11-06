@@ -1,0 +1,17 @@
+packages/studio-contracts/src/studio_contracts/__init__.py
+packages/studio-contracts/src/studio_contracts/handoff.py
+packages/studio-contracts/src/studio_contracts/sync.py
+services/api/src/studio_api/services/handoff.py
+services/api/src/studio_api/services/sessions.py
+services/api/src/studio_api/services/sync.py
+services/api/src/studio_api/services/tasks.py
+services/mcp/src/studio_mcp/response_budget.py
+services/mcp/src/studio_mcp/server.py
+services/mcp/src/studio_mcp/tools/handoff.py
+tests/contracts/test_version_compatibility.py
+tests/mcp/test_handoff.py
+tests/mcp/test_response_budget.py
+tests/mcp/test_p0_delivery.py
+tests/mcp/test_p0_delivery_races.py
+tests/mcp/test_p0_cursor_concurrency.py
+tests/api/test_p0_task_concurrency.py

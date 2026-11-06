@@ -148,7 +148,7 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.9.3"
+DAEMON_VERSION = "0.10.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
@@ -450,8 +450,21 @@ class DaemonController:
     def hooks_check(self) -> SetupHooksCheckResult:
         return check_hooks(self.config, self._token_store, home=self._skills_home())
 
-    def skills_preview(self) -> SkillsPreviewResult:
-        return preview_skills(self.config, self._token_store, home=self._skills_home())
+    def skills_preview(self, request: SkillsPreviewRequest | None = None) -> SkillsPreviewResult:
+        selection = request.selection if request is not None else None
+        return preview_skills(
+            self.config,
+            self._token_store,
+            home=self._skills_home(),
+            selection=(
+                {
+                    ("agent_definition" if kind.value == "agent" else kind.value): keys
+                    for kind, keys in selection.items()
+                }
+                if selection is not None
+                else None
+            ),
+        )
 
     def skills_apply(self, request: SkillsApplyRequest) -> SkillsApplyResult:
         return apply_skills(
@@ -969,8 +982,8 @@ class BridgeService:
             SetupHooksCheckRequest.model_validate(request.payload)
             return self.controller.hooks_check()
         if request.command is BridgeCommand.SKILLS_PREVIEW:
-            SkillsPreviewRequest.model_validate(request.payload)
-            return self.controller.skills_preview()
+            preview_request = SkillsPreviewRequest.model_validate(request.payload)
+            return self.controller.skills_preview(preview_request)
         if request.command is BridgeCommand.SKILLS_APPLY:
             apply_request = SkillsApplyRequest.model_validate(request.payload)
             return self.controller.skills_apply(apply_request)

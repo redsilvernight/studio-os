@@ -1,0 +1,19 @@
+2026-11-04 09:56:31,134 WARNING studio_api.main: STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); set a strong secret in production
+2026-11-04 09:56:31,221 WARNING studio_api.main: STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); set a strong secret in production
+{
+  "changed_schemas": [
+    {
+      "schema": "HandoffResult",
+      "description_only": true,
+      "old_description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result � no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, acknowledged), the task's new\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested.",
+      "new_description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result � no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+    },
+    {
+      "schema": "SyncResult",
+      "description_only": true,
+      "old_description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call (unchanged when nothing new). Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned items per `why` category;\n`resync` (scan truncated) refers to `prepare_context` for the full\npicture � raw history is never dumped. An empty answer serializes to\nwell under 300 characters.",
+      "new_description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call. Truncated scans can advance over irrelevant events.\nUnacknowledged signals to other live sessions of the task also hold back\nthis cursor, without exposing their text. Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned or temporarily withheld signals\nper `why` category. `resync` (scan truncated) requires further sync/ack;\n`prepare_context` supplies context, not pending signal contents.\nAn empty answer serializes to\nwell under 300 characters."
+    }
+  ],
+  "paths_equal": true
+}
