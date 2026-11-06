@@ -1573,47 +1573,58 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
     AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
     backed up first."""
-    import re
-
     from studio_client.bootstrap import backup_file, backup_root_for
     from studio_client.canonical import (
         canonical_rule_keys,
         load_rule_meta,
-        render_agents_rules_block,
+        merge_agents_rules,
         render_claude_rule,
+        workflow_skill_projections,
     )
 
     _ = config
     root = Path(args.repo_root)
+    agents_md = root / "AGENTS.md"
+    text = agents_md.read_text(encoding="utf-8") if agents_md.exists() else ""
+    try:
+        updated = merge_agents_rules(root, text)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
     backup_root = backup_root_for(root)
     written: list[str] = []
     for key in canonical_rule_keys(root):
         applies_to, body = load_rule_meta(root, key)
         target = root / ".claude" / "rules" / f"{key}.md"
+        content = render_claude_rule(key, applies_to, body)
+        if target.is_file() and target.read_text(encoding="utf-8") == content:
+            continue
         if target.exists() and not args.overwrite:
             print(f"skip {target} (exists, pass --overwrite)")
             continue
         if target.exists():
             backup_file(root, target.relative_to(root).as_posix(), backup_root)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(render_claude_rule(key, applies_to, body), encoding="utf-8")
+        target.write_text(content, encoding="utf-8")
         written.append(str(target))
 
-    agents_md = root / "AGENTS.md"
-    text = agents_md.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"<!-- BEGIN (SYNCED CLAUDE RULES|GENERATED RULES from \.agents/rules) -->"
-        r".*?<!-- END (SYNCED CLAUDE RULES|GENERATED RULES) -->",
-        re.S,
-    )
-    replacement = render_agents_rules_block(root).rstrip("\n")
-    updated, count = pattern.subn(replacement, text, count=1)
-    if count != 1:
-        print("error: AGENTS.md rules block markers not found", file=sys.stderr)
-        raise SystemExit(1) from None
-    backup_file(root, "AGENTS.md", backup_root)
-    agents_md.write_text(updated, encoding="utf-8")
-    written.append(str(agents_md))
+    if updated != text:
+        if agents_md.exists():
+            backup_file(root, "AGENTS.md", backup_root)
+        agents_md.write_text(updated, encoding="utf-8")
+        written.append(str(agents_md))
+    for relative, content in workflow_skill_projections(root).items():
+        target = root / relative
+        if target.is_file() and target.read_text(encoding="utf-8") == content:
+            continue
+        if target.exists() and not args.overwrite:
+            print(f"skip {target} (exists, pass --overwrite)")
+            continue
+        if target.exists():
+            backup_file(root, relative, backup_root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        written.append(str(target))
     if args.json:
         print(json.dumps({"written": written}))
     else:
@@ -2165,6 +2176,17 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(adapters_list)
     adapters_list.set_defaults(func=_adapters_list)
 
+    adapters_sync = adapters_sub.add_parser(
+        "sync",
+        help="Generate project rule and workflow projections from .agents (legacy: rules sync).",
+    )
+    adapters_sync.add_argument("--repo-root", default=".", help="Repository root.")
+    adapters_sync.add_argument(
+        "--overwrite", action="store_true", help="Back up and replace projections."
+    )
+    _add_json_flag(adapters_sync)
+    adapters_sync.set_defaults(func=_rules_sync)
+
     adapters_export = adapters_sub.add_parser(
         "export", help="Resolve an agent (P7 HTTP) and translate it locally."
     )
@@ -2492,7 +2514,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if (
-        getattr(args, "adapters_command", None) in ("check",)
+        getattr(args, "adapters_command", None) in ("check", "sync")
         or (
             getattr(args, "adapters_command", None) == "export"
             and getattr(args, "from_canonical", False)

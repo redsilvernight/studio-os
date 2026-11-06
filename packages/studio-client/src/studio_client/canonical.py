@@ -570,16 +570,106 @@ def render_claude_md_block(repo_root: Path | str) -> str:
 
 
 def render_agents_rules_block(repo_root: Path | str) -> str:
-    """The AGENTS.md rules section, generated from `.agents/rules/`."""
-    parts = []
+    """Permanent protocol and on-demand path rules, from one canonical source."""
+    protocol = Path(repo_root) / ".agents/rules/studio-protocol.md"
+    parts = [protocol.read_text(encoding="utf-8").strip()] if protocol.is_file() else []
+    parts.append(
+        "Before editing matching paths, read the canonical rule below; "
+        "scopes are not automatic in every harness."
+    )
     for key in canonical_rule_keys(repo_root):
-        applies_to, body = load_rule_meta(repo_root, key)
-        parts.append(f"## {key} — applies to {_glob_list(applies_to)}\n\n{body.rstrip()}")
+        applies_to, _ = load_rule_meta(repo_root, key)
+        parts.append(f"- `.agents/rules/{key}.md` — applies to {_glob_list(applies_to)}")
     return (
         AGENTS_BEGIN_MARKER
-        + "\n# Claude rules imported for Codex\n\n"
+        + "\n# Project rules (studio-client)\n\n"
         + "\n\n".join(parts)
         + "\n"
         + AGENTS_END_MARKER
         + "\n"
     )
+
+
+def merge_agents_rules(repo_root: Path | str, text: str) -> str:
+    """Migrate only verified legacy blocks; preserve every byte outside spans."""
+    text = text.replace("\r\n", "\n")
+    legacy_parts = []
+    for key in canonical_rule_keys(repo_root):
+        paths, body = load_rule_meta(repo_root, key)
+        legacy_parts.append(f"## {key} — applies to {_glob_list(paths)}\n\n{body.rstrip()}")
+    legacy = "# Claude rules imported for Codex\n\n" + "\n\n".join(legacy_parts)
+    markers = {
+        AGENTS_BEGIN_MARKER: AGENTS_END_MARKER,
+        "<!-- BEGIN SYNCED CLAUDE RULES -->": "<!-- END SYNCED CLAUDE RULES -->",
+    }
+    spans: list[tuple[int, int]] = []
+    token_pattern = r"<!-- (?:BEGIN|END) [^\n]*RULES[^\n]* -->"
+    tokens = list(re.finditer(token_pattern, text))
+    index = 0
+    while index < len(tokens):
+        begin = tokens[index]
+        end_marker = markers.get(begin.group())
+        if end_marker is None or index + 1 >= len(tokens):
+            raise ValueError(
+                "AGENTS.md: unknown owner or unbalanced rules markers; manual review required"
+            )
+        end_token = tokens[index + 1]
+        if end_token.group() != end_marker:
+            raise ValueError(
+                "AGENTS.md: nested or mismatched rules markers; manual review required"
+            )
+        body = text[begin.end() : end_token.start()].strip()
+        owned = begin.group() == AGENTS_BEGIN_MARKER and body.startswith(
+            "# Project rules (studio-client)\n"
+        )
+        if not owned and body != legacy:
+            raise ValueError(
+                "AGENTS.md: legacy rules differ from canonical source; "
+                "preserve and review before migration"
+            )
+        spans.append((begin.start(), end_token.end()))
+        index += 2
+    outside = text
+    for start, end in reversed(spans):
+        outside = outside[:start] + outside[end:]
+    if "# Claude rules imported for Codex" in outside:
+        if outside.count(legacy) != 1 or outside.count("# Claude rules imported for Codex") != 1:
+            raise ValueError("AGENTS.md: ambiguous orphaned rules; manual review required")
+        candidates = [
+            match.start()
+            for match in re.finditer(re.escape(legacy), text)
+            if not any(a <= match.start() < b for a, b in spans)
+        ]
+        if len(candidates) != 1:
+            raise ValueError("AGENTS.md: ambiguous orphaned rules; manual review required")
+        start = candidates[0]
+        spans.append((start, start + len(legacy)))
+    spans.sort()
+    block = render_agents_rules_block(repo_root).rstrip("\n")
+    if not spans:
+        separator = "\n\n" if text and not text.endswith("\n") else "\n" if text else ""
+        return text + separator + block + "\n"
+    for start, end in reversed(spans[1:]):
+        text = text[:start] + text[end:]
+    start, end = spans[0]
+    merged = text[:start] + block + text[end:]
+    return merged.rstrip("\n") + "\n" if not text[end:].strip() else merged
+
+
+def agents_rules_current(repo_root: Path | str, text: str) -> bool:
+    try:
+        return merge_agents_rules(repo_root, text) == text.replace("\r\n", "\n")
+    except ValueError:
+        return False
+
+
+def workflow_skill_projections(repo_root: Path | str) -> dict[str, str]:
+    """Project compatible workflow entry points; references stay canonical."""
+    root = Path(repo_root)
+    result: dict[str, str] = {}
+    for key in ("studio-task", "studio-context", "studio-handoff"):
+        source = root / ".agents/skills" / key / "SKILL.md"
+        if source.is_file():
+            for harness in (".claude", ".codex", ".opencode"):
+                result[f"{harness}/skills/{key}/SKILL.md"] = source.read_text(encoding="utf-8")
+    return result

@@ -1,0 +1,1188 @@
+{
+ "entries": [
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/agents/chef-marketing.md",
+     "sha256": "dcc25b8a302afdcb0f95541ad46176047a321bf9351eafc741e7ebe8de99c33d"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "265fa567f299c4ea0cf3c882fa193754d24068b31e9556f9e3eba3a12a75f0a6",
+   "source": "library/studio/agents/chef-marketing.md",
+   "stable_key": "chef-marketing",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/agents/devops.md",
+     "sha256": "b8f85356d0391e36e1cfcfd449c784cad6239071df72ccbf6cb5ee495d4d9b35"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "c0fc700a197fd0384226a9fe42fee8361324d7921f9f916518bb85b1c660b27a",
+   "source": "library/studio/agents/devops.md",
+   "stable_key": "devops",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/agents/godot-tester.md",
+     "sha256": "6587d8b21fd56499f029661ec9d61a118c66b8b1ff8e87542bf7f3a4eef7afde"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "e0a1828444ed701e347c8f4d64b5b7379008fd355549a863dd701714697a3ea4",
+   "source": "library/studio/agents/godot-tester.md",
+   "stable_key": "godot-tester",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/agents/graphiste.md",
+     "sha256": "f86b3ad1631439a67a4521149688315510016c7e2abd99dd6bbf8ba86a9e0c3c"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "b293f24b56ccdf0cfc790a9e46f04b7fd26888d17813b9942a8d9313bcf2ecdb",
+   "source": "library/studio/agents/graphiste.md",
+   "stable_key": "graphiste",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/agents/monteur-video.md",
+     "sha256": "9d841893034ed24d91ca1c6e5abe373073c49aafea9cbff70ee676e163c72794"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "fbe080766b2a51350fb469e3855b9d74d022a87c0c4b6ae6ec41afedefe3b655",
+   "source": "library/studio/agents/monteur-video.md",
+   "stable_key": "monteur-video",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "model_profile",
+     "stable_key": "single-agent"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/agents/reader.md",
+     "sha256": "28431aa9bebc36d11b3d296a62054625c4c24abcdfb5e9ee5adf674ed32bd641"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "4df8e48c6b2d4608940cedb4b7d76f0079566fd12a0aa406d0b5f7d0ce36f3f9",
+   "source": "library/studio/agents/reader.md",
+   "stable_key": "reader",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/agents/sound-designer.md",
+     "sha256": "72b963e216bd064de01b562723df8e0325cdcf2e8c029bf03dd934f87f653a32"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "fd33e8c2d64de3a66e9d710ba6cb1cfd578ba2fde24cf01903fad1235bbb537a",
+   "source": "library/studio/agents/sound-designer.md",
+   "stable_key": "sound-designer",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "model_profile",
+     "stable_key": "single-agent"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/agents/verifier.md",
+     "sha256": "160d94353dd2ca78d7492e168e787c0dcf3070f1b751fc707ffcc7457903ab9d"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "ccb9570bcb488011188894f9791186b4248c289370e32889d28b7d26698984e2",
+   "source": "library/studio/agents/verifier.md",
+   "stable_key": "verifier",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "model_profile",
+     "stable_key": "single-agent"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/agents/worker.md",
+     "sha256": "9a35b3afa9f0bec35514ebff206e9467a846a7ad0d2e676e67d1c32bf8e4ec97"
+    }
+   ],
+   "kind": "agent_definition",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "457b4606e59ef68d3f2bee3140947ed7b61593be43bf2cee1091fabf96b2b88c",
+   "source": "library/studio/agents/worker.md",
+   "stable_key": "worker",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "unverified",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/hooks/git-guard.md",
+     "sha256": "f066f69214221390a7e51ba97448043feb3786d68a4afcc76f8b7375a5ad2089"
+    },
+    {
+     "path": "library/studio/hooks/git-guard.ps1",
+     "sha256": "2866cc63cd53cbbc639b43c429e719c49891f59f9fcce64f4b5f04cce3698277"
+    }
+   ],
+   "kind": "hook",
+   "owner": "studio",
+   "requires_consent": true,
+   "scope": "studio",
+   "sha256": "dadd9a33739d0562ca538aba7b53d28a193d3dc931c47c53b5a76926cb94aee6",
+   "source": "library/studio/hooks/git-guard",
+   "stable_key": "git-guard",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "unverified",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/hooks/session-start.md",
+     "sha256": "aae0410f165b8a2b7d0d741b2ef6dae89ac465d765a6d76a8d78212fb60eb25a"
+    },
+    {
+     "path": "library/studio/hooks/session-start.ps1",
+     "sha256": "b3953aa8af347d8dd827c4b7aa58f62d50b04bce16d6f8f67d29aaeb63fcbed7"
+    }
+   ],
+   "kind": "hook",
+   "owner": "studio",
+   "requires_consent": true,
+   "scope": "studio",
+   "sha256": "d052225987c92edf778e21ee87c221b72e226d586ca24d79e17608115d4bb22b",
+   "source": "library/studio/hooks/session-start",
+   "stable_key": "session-start",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "unverified",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/hooks/stop-check.md",
+     "sha256": "ca32938192b562a435818e80e2baaba41e93ea2f8c055fb5c4ee73c2c3afb28a"
+    },
+    {
+     "path": "library/studio/hooks/stop-check.ps1",
+     "sha256": "abb160048b94efb105acab9879ede6f4e47ec030ae3ec60efc7267737ea75302"
+    }
+   ],
+   "kind": "hook",
+   "owner": "studio",
+   "requires_consent": true,
+   "scope": "studio",
+   "sha256": "3207856fd6fdfedbe08da3ace325647ee64e7fca984d7ef37f05a58422a9c5b4",
+   "source": "library/studio/hooks/stop-check",
+   "stable_key": "stop-check",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/profiles/single-agent.md",
+     "sha256": "38930921fb73994926a04310201dfd79c3f8293f24c14bf315eb8ed6b76a120f"
+    }
+   ],
+   "kind": "model_profile",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "c6dbb29abaacd92dc82ba6863097278c783569d2f161d9f4cde7dc2a12cfb31a",
+   "source": "library/studio/profiles/single-agent.md",
+   "stable_key": "single-agent",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/rules/code-minimal.md",
+     "sha256": "5076e3bdf3e1530dca16fb7b6dd39c8b76faa9d6b752c0ba49f579974612b166"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "a284a5a1d6b26e8a9aebcbca87a08ac490c5b7c8ee3360ef92b01eefaae4504f",
+   "source": "library/studio/rules/code-minimal.md",
+   "stable_key": "code-minimal",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/rules/core.md",
+     "sha256": "cde7e563d468d41a597b0307284d33f99003cc5e188ace433844a48fe9889ea3"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "43f3ad2af878e65b5fd277e09fe64ad98a04a15e28e21106ba387783c708dbc7",
+   "source": "library/studio/rules/core.md",
+   "stable_key": "core",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/rules/git-flow.md",
+     "sha256": "668ea0f6385d1111ada632fcb9ee102b37f4f7af361619283108e94dff1c9b8b"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "9b2cfbf72be327a94602f3f197b8a153ae7aabd7a6153fa2e3f9c438f660f11f",
+   "source": "library/studio/rules/git-flow.md",
+   "stable_key": "git-flow",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/rules/memory.md",
+     "sha256": "1c0a143d9ab5cb17d075bd9fd119bcc16cd4b07143b6915eb276d737b404cfff"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "c69e73f328613e9d81c6de47b483a8d9d7c9f02ba322a822e39f353e47e0bddb",
+   "source": "library/studio/rules/memory.md",
+   "stable_key": "memory",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/rules/routing.md",
+     "sha256": "becda71423995eee97bd3bfd42a1906db2db7a34623806312f148fc0cc51630b"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "a8ee2ae8d05990dfe433da73d18a7a5b20e9f9374bb4de0372d2d69f00bf8fcf",
+   "source": "library/studio/rules/routing.md",
+   "stable_key": "routing",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/rules/studio-protocol.md",
+     "sha256": "49946ce48f272c5d98ca4a8a1089b7115984227338d619671c25883d82756e07"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "934dd3278d0182aea45fd364b5f9c4f8467804ab3e93c2857eba1ec4aa0fe102",
+   "source": ".agents/rules/studio-protocol.md",
+   "stable_key": "studio-protocol",
+   "status": "ready",
+   "supersedes": "studio/rule/studio-protocol v2 (library/studio/rules/studio-protocol.md)",
+   "tier": "base",
+   "version": 3,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/rules/studio-workflow.md",
+     "sha256": "bc23386efe2dc2449f86d5fa362cecaef847a74cc830370310a0691d0a92e7a1"
+    }
+   ],
+   "kind": "rule",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "f1b39a883a19e436ce29ed5625b8307cd5890fa63fde5390fadf9d78e525df0d",
+   "source": "library/studio/rules/studio-workflow.md",
+   "stable_key": "studio-workflow",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 2,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/delegate/SKILL.md",
+     "sha256": "cc7a961bbe07747b71b9e06568f10810244f8f80b396e5124906da9cdddff7f9"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "6c4dd9920fafd43aac6dbb27b24b3b0ac19267cc38728adafad3ddf2b763653e",
+   "source": "library/studio/skills/delegate",
+   "stable_key": "delegate",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/itch-io-publish/SKILL.md",
+     "sha256": "565ccf328eca4754f0907e48702eec545d9008426044dfd7ddad2490b46d0a00"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "5a0ccd60c613266e5234e6384a904b9a1339b4bcdf870cc45914b626ed86497f",
+   "source": "library/studio/skills/itch-io-publish",
+   "stable_key": "itch-io-publish",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/new-project/SKILL.md",
+     "sha256": "6da655797c5ddfe3a7a429c6963b1b9bbf927fd08237f7246f42196d679388ca"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "8aadf93849e994d8e8b01a0f2160e04a9f3c7a5ccc3347dc2eacca3261f9c5a0",
+   "source": "library/studio/skills/new-project",
+   "stable_key": "new-project",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/next/SKILL.md",
+     "sha256": "680e57efce7bcb33d98a9ca7a294861a005812675a455307ede2a0e5b687626e"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "1b7c62b4678c0badb309bca9c0ee5047638ce21e2c52939ab781ac791bbc43c7",
+   "source": "library/studio/skills/next",
+   "stable_key": "next",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 2,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/phase/SKILL.md",
+     "sha256": "5f2e33840febc01bf058c71b2eeb4c27cbdecadf315ef345dc476845b7b59a1a"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "bfaf8206997372bf296052cfd60ccfbb2a5ca8728d8637152c9aa8fdbd03b7da",
+   "source": "library/studio/skills/phase",
+   "stable_key": "phase",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 2,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/pixel-art-direction/SKILL.md",
+     "sha256": "5159418ddfc1af4e952ca03474f72f18e4196310aad6437a646d3252851f1541"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "3080bf8fab78139fc96708e6f1ea4cde60c108494bb8d8bd7e1dcf879fe40324",
+   "source": "library/studio/skills/pixel-art-direction",
+   "stable_key": "pixel-art-direction",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/release/SKILL.md",
+     "sha256": "10b6e11484f607cebb924235efa680c5958d82bd661547d655760bb650bea1eb"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "8d11d0208b9aa38b26bc34671476dbc3c9da850406febab623777c11750b689c",
+   "source": "library/studio/skills/release",
+   "stable_key": "release",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/review-pr/SKILL.md",
+     "sha256": "85bde02ef4bf118d317b32674a378fd802fa20a3e3b3e89923120a962bf11d74"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "d82b3e0b0bb215c2ef3501bc75d8c70a73dff48b8354fd11f4a808b002bbe563",
+   "source": "library/studio/skills/review-pr",
+   "stable_key": "review-pr",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/roadmap-builder/SKILL.md",
+     "sha256": "14be53cdd101bbc24eaaf7b0024658ab8265889751416b4164bb895cf97334ce"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "525e2d8c6b5f53ea66537e619f394e6526287e6b911f151155fc162a7b32926c",
+   "source": "library/studio/skills/roadmap-builder",
+   "stable_key": "roadmap-builder",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/sound-design/SKILL.md",
+     "sha256": "b52c0f86c19288c36197e0c25062b735e39a5bc2f74da248c07785d31be7ef70"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "8dd28a19e1e3749c08bf4aac634a2e7801fd8e20cb88f9642b6acc86329bd416",
+   "source": "library/studio/skills/sound-design",
+   "stable_key": "sound-design",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/studio-context/SKILL.md",
+     "sha256": "275b06bc05ae8563d92132789485f0fdb02cbac3afd707f07e48d84f945deb63"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "31b983c0ecf0336cbb193cf800620ff29c2717c1c65cc0c90cc6a246ce1e93bd",
+   "source": ".agents/skills/studio-context",
+   "stable_key": "studio-context",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/studio-decision/SKILL.md",
+     "sha256": "97f44fbc4877ffe63d7a5e6f1a39bb454835e424de1b281fbe8fffa04bbe08cc"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "1d4861285267999c8bf3c6ea126a7c0ec40ede03b00b92eda512511b92eab128",
+   "source": ".agents/skills/studio-decision",
+   "stable_key": "studio-decision",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/studio-handoff/SKILL.md",
+     "sha256": "d6f85a6a71f144c270a619d7d9f5f26f4b6d1d440b48656e6e10a1f7d3ee46a7"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "fbc093bc1b9fbf7785cfdc2f10204152ece7cdb3a6f6f696f4cad0b4c596cad1",
+   "source": ".agents/skills/studio-handoff",
+   "stable_key": "studio-handoff",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": ".agents/skills/studio-task/SKILL.md",
+     "sha256": "c7606f0b28b2af7dd5233d99acd6b687a64e3a47cb533efed7793bbcddfec3d6"
+    },
+    {
+     "path": ".agents/skills/studio-task/references/completion.md",
+     "sha256": "dbbf1ac662106966200824c3060c1dfb70b00e4b912980aa2676cd4892cff9cb"
+    },
+    {
+     "path": ".agents/skills/studio-task/references/roles.md",
+     "sha256": "74c794b0fb6f0995b94962ffde51dad62ea4db31e287bd64c5765773fbede642"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "4e13368e5d7c079ff4add4b2370b39673242d4014f42af3a05e4bf99ab3627bd",
+   "source": ".agents/skills/studio-task",
+   "stable_key": "studio-task",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/tiktok-pipeline/SKILL.md",
+     "sha256": "78280201eeedbb213c703ea43c72cbe6c7094a8c114c97440abae6d895936cfb"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "e7813a2f65c55abf9792b4e7af9dc5c90a37f0711395ba63091032ee9f737d2a",
+   "source": "library/studio/skills/tiktok-pipeline",
+   "stable_key": "tiktok-pipeline",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "specialized",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/triage/SKILL.md",
+     "sha256": "dbc08506a9e6411a22f753d15a3e8cd864146b0121e6853785c21b801507b500"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "2db5392ef706254ef728d517d0c833f9fffa7644f741331f2c538115894942aa",
+   "source": "library/studio/skills/triage",
+   "stable_key": "triage",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [],
+   "files": [
+    {
+     "path": "library/studio/skills/workstation-setup/SKILL.md",
+     "sha256": "5461aebd7c09b1872f115709445eda0524aba29f40a7928d91727fdab1e5bedf"
+    }
+   ],
+   "kind": "skill",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "b06b7f512963c0304503a0cbca9a5b34f7c20a5dabc921d35cf8396e84489e6c",
+   "source": "library/studio/skills/workstation-setup",
+   "stable_key": "workstation-setup",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "agent_definition",
+     "stable_key": "verifier"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "worker"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/workflows/hotfix.md",
+     "sha256": "49b2d3e92fd9109e651d9ae651250576317ac24760ef69e389f487c63f40d9ad"
+    }
+   ],
+   "kind": "workflow",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "84c6140d68eb36ad499074de74fc3ed5c5ee2ab3a30c1ad545b8424d2520c75b",
+   "source": "library/studio/workflows/hotfix.md",
+   "stable_key": "hotfix",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "agent_definition",
+     "stable_key": "reader"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "worker"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/workflows/new-project.md",
+     "sha256": "8c504b6626baab3d4d122aa9db6ff773f033859e6ad32b1547e1a3dfa3fc869e"
+    }
+   ],
+   "kind": "workflow",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "111c00a2a1a33ca6bc4309271a7b947bd7cb07f3749593da0fb433ceccab0754",
+   "source": "library/studio/workflows/new-project.md",
+   "stable_key": "new-project",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "agent_definition",
+     "stable_key": "reader"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "verifier"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "worker"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/workflows/phase.md",
+     "sha256": "cabb5957e7a5049fa9182490459a2dbf0601c865daa782f423779c4e02ead5ba"
+    }
+   ],
+   "kind": "workflow",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "c3b825f7f2732e288af59ea20e22b0acaee8dad3854f4ce95890de0422388869",
+   "source": "library/studio/workflows/phase.md",
+   "stable_key": "phase",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "agent_definition",
+     "stable_key": "reader"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "verifier"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/workflows/release.md",
+     "sha256": "491742880f505fbbaeb34084e52fc554afd302c198c22962bef570399cf45420"
+    }
+   ],
+   "kind": "workflow",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "bf32f9e0bee0459a1e9d83af414f471fed2c940a0280a9781e3a793bce2ae1b7",
+   "source": "library/studio/workflows/release.md",
+   "stable_key": "release",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  },
+  {
+   "compatibility": {
+    "claude-code": "supported",
+    "codex": "supported",
+    "opencode": "supported"
+   },
+   "dependencies": [
+    {
+     "kind": "agent_definition",
+     "stable_key": "reader"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "verifier"
+    },
+    {
+     "kind": "agent_definition",
+     "stable_key": "worker"
+    }
+   ],
+   "files": [
+    {
+     "path": "library/studio/workflows/task.md",
+     "sha256": "eb884a3eaf0d4be794785b037e57fae640fbdf194a34192084c3ab4c1eff8358"
+    }
+   ],
+   "kind": "workflow",
+   "owner": "studio",
+   "requires_consent": false,
+   "scope": "studio",
+   "sha256": "935697ca0a61a956e8a1e6f35cd6c1742cf8dd79391c6a3b501c7159707467e5",
+   "source": "library/studio/workflows/task.md",
+   "stable_key": "task",
+   "status": "ready",
+   "supersedes": null,
+   "tier": "base",
+   "version": 1,
+   "visibility": "public"
+  }
+ ],
+ "layer": "core",
+ "package": "studios-core",
+ "schema": "studio.library.package/v1",
+ "visibility": "public"
+}

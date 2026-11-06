@@ -1,0 +1,1118 @@
+{
+  "tasks": [
+    {
+      "id": "d498cda8-505d-45cb-b67a-bde3d1d652f4",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 claude readonly",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "0546ebd5-c65a-4e8b-93ec-106a7e8f8566",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 claude provided",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "75c26025-2b20-4c3b-8aed-5f2bd8ec51ad",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 claude signal",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "d5934a57-65e8-4ca7-bffc-ed7d6ee052f1",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 claude conflict",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 codex tracked",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "810ee999-9310-4583-8340-cc7e01a79b3f",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 codex readonly",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "988f9734-998c-49ff-9bae-6546ff1221eb",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 codex provided",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "5a48036c-58eb-4920-b2d9-d53528e64ae2",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 codex signal",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "36dc8b64-dfe3-40a7-8f71-366ed351174d",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 codex failed",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "962c23fc-9c5f-401c-833b-0b728e9bed0e",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 codex conflict",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "bb8194f9-88ae-4958-a5bd-1443cc9e7426",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 opencode tracked",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "e3ebe19f-828e-4135-8483-ad86aaff4b15",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 opencode provided",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "939cb4b5-9429-4faf-af37-b3734b581d02",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 opencode signal",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "111c0692-3094-4420-a78e-5b8d36034593",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 opencode failed",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "9a94c512-9e16-402a-835b-62fe00abed6b",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 opencode conflict",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "425c04a3-cff5-4b2d-bd88-ab4aac3112b9",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 direct readonly",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "6960d4cd-bad4-48d0-9b93-e28e9e0d63e7",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 direct provided",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "e721206a-3dde-45fd-8d4a-70ffa5f3d84a",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 direct failed",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "69bd9d20-48da-4fcb-a18f-40efd729ab66",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:31:01.739527+01:00",
+      "version": 1,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 direct conflict",
+      "description": "Isolated validation fixture; no production data",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:32:21.20795+01:00",
+      "version": 3,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 direct tracked",
+      "description": "Isolated validation fixture; no production data",
+      "status": "in_progress",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": 0
+    },
+    {
+      "id": "ab649fb1-5238-4eba-88d5-fe53930223b6",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:35:21.625503+01:00",
+      "version": 2,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 opencode readonly",
+      "description": "Isolated validation fixture; no production data",
+      "status": "in_progress",
+      "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "claimed_by_agent_id": "0587bae1-e6a7-4535-8d44-d6afb4ddeb1d",
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:37:40.169732+01:00",
+      "version": 2,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 direct signal",
+      "description": "Isolated validation fixture; no production data",
+      "status": "in_progress",
+      "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "claimed_by_agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "handoff_cursor_seq": null
+    },
+    {
+      "id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:43:49.00304+01:00",
+      "version": 6,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 claude tracked",
+      "description": "Isolated validation fixture; no production data",
+      "status": "completed",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": 0
+    },
+    {
+      "id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "created_at": "2026-11-04T22:31:01.739527+01:00",
+      "updated_at": "2026-11-04T22:45:16.470321+01:00",
+      "version": 3,
+      "readable_id": null,
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "title": "P15 claude failed",
+      "description": "Isolated validation fixture; no production data",
+      "status": "in_progress",
+      "claimed_by_machine_id": null,
+      "claimed_by_agent_id": null,
+      "handoff_cursor_seq": 0
+    }
+  ],
+  "work_sessions": [
+    {
+      "id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "started_at": "2026-11-04T22:32:20.986788+01:00",
+      "ended_at": "2026-11-04T22:32:21.200221+01:00",
+      "last_activity_at": "2026-11-04T22:32:21.200221+01:00",
+      "sync_cursor_seq": 0
+    },
+    {
+      "id": "42502cfe-d6ce-4076-86cb-91e60967fa97",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "agent_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "started_at": "2026-11-04T22:45:06.200342+01:00",
+      "ended_at": "2026-11-04T22:45:16.462883+01:00",
+      "last_activity_at": "2026-11-04T22:45:16.462883+01:00",
+      "sync_cursor_seq": 0
+    },
+    {
+      "id": "cd55b29f-d37a-4e7d-a08c-6126479b6442",
+      "task_id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "started_at": "2026-11-04T22:37:40.198968+01:00",
+      "ended_at": null,
+      "last_activity_at": "2026-11-04T22:38:20.28027+01:00",
+      "sync_cursor_seq": 0
+    },
+    {
+      "id": "63d7a5ea-5caf-4450-ac86-a8d07aeee6e1",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "agent_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "started_at": "2026-11-04T22:39:01.633424+01:00",
+      "ended_at": "2026-11-04T22:39:23.615975+01:00",
+      "last_activity_at": "2026-11-04T22:39:23.615975+01:00",
+      "sync_cursor_seq": 0
+    },
+    {
+      "id": "2074a6d1-398d-4421-98c7-a8069c3b57cd",
+      "task_id": "ab649fb1-5238-4eba-88d5-fe53930223b6",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "agent_id": "0587bae1-e6a7-4535-8d44-d6afb4ddeb1d",
+      "started_at": "2026-11-04T22:35:21.676172+01:00",
+      "ended_at": null,
+      "last_activity_at": "2026-11-04T22:42:22.738235+01:00",
+      "sync_cursor_seq": 0
+    },
+    {
+      "id": "fd5b7236-3975-4709-9f79-bd1435d4c099",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "agent_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "started_at": "2026-11-04T22:43:33.115062+01:00",
+      "ended_at": "2026-11-04T22:43:48.993557+01:00",
+      "last_activity_at": "2026-11-04T22:43:48.993557+01:00",
+      "sync_cursor_seq": 0
+    }
+  ],
+  "resource_claims": [],
+  "events": [
+    {
+      "id": "3b1b785f-b3b8-41fb-9f6a-94193fcf0118",
+      "event_type": "task.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:32:20.962969+01:00",
+      "server_timestamp": "2026-11-04T22:32:20.969784+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 2,
+        "transition": "claimed",
+        "previous_status": "created"
+      },
+      "schema_version": 1,
+      "seq": 1
+    },
+    {
+      "id": "3f2b08df-b534-5af8-a279-b3d503fa15be",
+      "event_type": "session.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:32:21.008863+01:00",
+      "server_timestamp": "2026-11-04T22:32:21.01125+01:00",
+      "payload": {
+        "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef"
+      },
+      "schema_version": 1,
+      "seq": 2
+    },
+    {
+      "id": "085032cc-0040-4053-8f69-79dd6ef87d34",
+      "event_type": "task.updated",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:32:21.176378+01:00",
+      "server_timestamp": "2026-11-04T22:32:21.177121+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 3,
+        "transition": "released"
+      },
+      "schema_version": 1,
+      "seq": 3
+    },
+    {
+      "id": "42e45645-57e1-5262-a3f6-0d1bb763e378",
+      "event_type": "ai_work.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:32:21.190639+01:00",
+      "server_timestamp": "2026-11-04T22:32:21.191528+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "P15 directed transport diagnostic; replay verified",
+        "ai_work_id": "df33de10-1aee-4235-b0aa-3b125f0461b7"
+      },
+      "schema_version": 1,
+      "seq": 4
+    },
+    {
+      "id": "35acfc2d-7644-54df-aad2-4f6c8d490306",
+      "event_type": "ai_work.completed",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:32:21.195259+01:00",
+      "server_timestamp": "2026-11-04T22:32:21.195988+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "P15 directed transport diagnostic; replay verified",
+        "ai_work_id": "df33de10-1aee-4235-b0aa-3b125f0461b7"
+      },
+      "schema_version": 1,
+      "seq": 5
+    },
+    {
+      "id": "64b50460-39c3-57dd-8137-2d3b429fd2b6",
+      "event_type": "session.ended",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:32:21.203279+01:00",
+      "server_timestamp": "2026-11-04T22:32:21.204129+01:00",
+      "payload": {
+        "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef"
+      },
+      "schema_version": 1,
+      "seq": 6
+    },
+    {
+      "id": "54990834-b590-494f-b3da-f18556053ae7",
+      "event_type": "task.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "ab649fb1-5238-4eba-88d5-fe53930223b6",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "0587bae1-e6a7-4535-8d44-d6afb4ddeb1d",
+      "client_timestamp": "2026-11-04T22:35:21.657374+01:00",
+      "server_timestamp": "2026-11-04T22:35:21.66288+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 2,
+        "transition": "claimed",
+        "previous_status": "created"
+      },
+      "schema_version": 1,
+      "seq": 7
+    },
+    {
+      "id": "7f15b2a7-1084-52be-bc15-b2c3cfa644b6",
+      "event_type": "session.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "ab649fb1-5238-4eba-88d5-fe53930223b6",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "0587bae1-e6a7-4535-8d44-d6afb4ddeb1d",
+      "client_timestamp": "2026-11-04T22:35:21.694531+01:00",
+      "server_timestamp": "2026-11-04T22:35:21.695304+01:00",
+      "payload": {
+        "session_id": "2074a6d1-398d-4421-98c7-a8069c3b57cd"
+      },
+      "schema_version": 1,
+      "seq": 8
+    },
+    {
+      "id": "77399aac-5936-42d1-9d0a-3c155c738369",
+      "event_type": "task.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:37:40.177349+01:00",
+      "server_timestamp": "2026-11-04T22:37:40.183857+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 2,
+        "transition": "claimed",
+        "previous_status": "created"
+      },
+      "schema_version": 1,
+      "seq": 9
+    },
+    {
+      "id": "8bd8371b-a3e0-59b4-b639-52a9027e5a10",
+      "event_type": "session.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "d86a5538-d9ec-40f4-889a-ace6545fdf74",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:37:40.216134+01:00",
+      "server_timestamp": "2026-11-04T22:37:40.216892+01:00",
+      "payload": {
+        "session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442"
+      },
+      "schema_version": 1,
+      "seq": 10
+    },
+    {
+      "id": "4945f2b0-a07b-58c1-ab5b-83fa1b7c35b2",
+      "event_type": "coordination.heads_up",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:38:20.223498+01:00",
+      "server_timestamp": "2026-11-04T22:38:20.224061+01:00",
+      "payload": {
+        "refs": {
+          "paths": [],
+          "task_ids": [],
+          "decision_ids": []
+        },
+        "text": "Validation requirement claude: retain marker P15-SIGNAL-CLAUDE in the durable audit handoff summary before acknowledging this message.",
+        "intent": "heads_up",
+        "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+        "from_session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442"
+      },
+      "schema_version": 1,
+      "seq": 11
+    },
+    {
+      "id": "58e4fbfd-7153-56ae-8389-3d1a696e064e",
+      "event_type": "coordination.heads_up",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:38:20.258653+01:00",
+      "server_timestamp": "2026-11-04T22:38:20.259194+01:00",
+      "payload": {
+        "refs": {
+          "paths": [],
+          "task_ids": [],
+          "decision_ids": []
+        },
+        "text": "Validation requirement codex: retain marker P15-SIGNAL-CODEX in the durable audit handoff summary before acknowledging this message.",
+        "intent": "heads_up",
+        "task_id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+        "from_session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442"
+      },
+      "schema_version": 1,
+      "seq": 12
+    },
+    {
+      "id": "01561739-8623-528f-a304-f71d068abac2",
+      "event_type": "coordination.heads_up",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "bb8194f9-88ae-4958-a5bd-1443cc9e7426",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "client_timestamp": "2026-11-04T22:38:20.276557+01:00",
+      "server_timestamp": "2026-11-04T22:38:20.277233+01:00",
+      "payload": {
+        "refs": {
+          "paths": [],
+          "task_ids": [],
+          "decision_ids": []
+        },
+        "text": "Validation requirement opencode: retain marker P15-SIGNAL-OPENCODE in the durable audit handoff summary before acknowledging this message.",
+        "intent": "heads_up",
+        "task_id": "bb8194f9-88ae-4958-a5bd-1443cc9e7426",
+        "from_session_id": "cd55b29f-d37a-4e7d-a08c-6126479b6442"
+      },
+      "schema_version": 1,
+      "seq": 13
+    },
+    {
+      "id": "9e1c4712-6be7-4b7f-95a7-9028eab70022",
+      "event_type": "task.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:01.599459+01:00",
+      "server_timestamp": "2026-11-04T22:39:01.607261+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 2,
+        "transition": "claimed",
+        "previous_status": "created"
+      },
+      "schema_version": 1,
+      "seq": 14
+    },
+    {
+      "id": "84053b6a-8825-57a8-9564-9cd1c0fd3dd8",
+      "event_type": "session.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:01.664628+01:00",
+      "server_timestamp": "2026-11-04T22:39:01.666273+01:00",
+      "payload": {
+        "session_id": "63d7a5ea-5caf-4450-ac86-a8d07aeee6e1"
+      },
+      "schema_version": 1,
+      "seq": 15
+    },
+    {
+      "id": "65d5f5f6-11dd-5464-aafe-4f6fd6e9a128",
+      "event_type": "coordination.handoff",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:23.571552+01:00",
+      "server_timestamp": "2026-11-04T22:39:23.572254+01:00",
+      "payload": {
+        "refs": {
+          "paths": [],
+          "task_ids": [],
+          "decision_ids": []
+        },
+        "text": "Checkpoint: receipt.txt read, SHA256 not computed (subprocess forbidden here). Next session: hash receipt.txt with an authorized tool, record digest, then complete.",
+        "intent": "handoff",
+        "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+        "from_session_id": "63d7a5ea-5caf-4450-ac86-a8d07aeee6e1"
+      },
+      "schema_version": 1,
+      "seq": 16
+    },
+    {
+      "id": "c2dc65bb-f358-496d-8631-5a495d1903fa",
+      "event_type": "task.updated",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:23.58268+01:00",
+      "server_timestamp": "2026-11-04T22:39:23.583558+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 3,
+        "transition": "released"
+      },
+      "schema_version": 1,
+      "seq": 17
+    },
+    {
+      "id": "f635142d-33ae-5848-b007-343dfec4046b",
+      "event_type": "ai_work.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:23.601358+01:00",
+      "server_timestamp": "2026-11-04T22:39:23.602232+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "COMPLETION kind=audit ready=false versioned=False integrated=False deployed=False\nDONE: receipt.txt read (1 line: \"P15 validation fixture: read this file and report its SHA256.\"). STATE: checkpoint, not completed. SHA256 NOT computed: project rule forbids any subprocess; no hashing tool available via p15; a manual digest would be unverifiable, so none is reported. CHANGED: none. TESTS: sha256 check environment_unavailable. NEXT: compute SHA256 of receipt.txt in an environment allowing a hashing command (e.g. Get-FileHash), then complete. BLOCKERS: no authorized hashing means. Signal received (quoted data, coordination event 4945f2b0-a07b-58c1-ab5b-83fa1b7c35b2): marker P15-SIGNAL-CLAUDE. Décisions : aucune nouvelle — audit de fixture sans choix durable.\nCOMPLETION_EVIDENCE {\"artifacts\": [\"receipt.txt\"], \"checks\": [{\"exit_code\": null, \"kind\": \"observation\", \"name\": \"read receipt.txt\", \"purpose\": \"validation\", \"reference\": \"receipt.txt line 1\", \"status\": \"passed\"}, {\"exit_code\": null, \"kind\": \"command\", \"name\": \"SHA256 of receipt.txt\", \"purpose\": \"validation\", \"reference\": \"subprocess forbidden by project CLAUDE.md\", \"status\": \"environment_unavailable\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"audit\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+        "ai_work_id": "9f373f4a-a00a-45c2-9581-b57dbbad7973"
+      },
+      "schema_version": 1,
+      "seq": 18
+    },
+    {
+      "id": "b9825334-24ca-45dd-a722-841e4d1f8f31",
+      "event_type": "task.completed",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:48.954766+01:00",
+      "server_timestamp": "2026-11-04T22:43:48.955796+01:00",
+      "payload": {
+        "status": "completed",
+        "version": 5,
+        "transition": "updated",
+        "previous_status": "in_progress"
+      },
+      "schema_version": 1,
+      "seq": 379
+    },
+    {
+      "id": "f434b9cb-b3aa-414a-b16f-bc5b9132139c",
+      "event_type": "task.updated",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:48.965769+01:00",
+      "server_timestamp": "2026-11-04T22:43:48.966566+01:00",
+      "payload": {
+        "status": "completed",
+        "version": 6,
+        "transition": "released"
+      },
+      "schema_version": 1,
+      "seq": 380
+    },
+    {
+      "id": "5441e504-de09-582e-965a-57a30a496df9",
+      "event_type": "ai_work.completed",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:23.606703+01:00",
+      "server_timestamp": "2026-11-04T22:39:23.607301+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "COMPLETION kind=audit ready=false versioned=False integrated=False deployed=False\nDONE: receipt.txt read (1 line: \"P15 validation fixture: read this file and report its SHA256.\"). STATE: checkpoint, not completed. SHA256 NOT computed: project rule forbids any subprocess; no hashing tool available via p15; a manual digest would be unverifiable, so none is reported. CHANGED: none. TESTS: sha256 check environment_unavailable. NEXT: compute SHA256 of receipt.txt in an environment allowing a hashing command (e.g. Get-FileHash), then complete. BLOCKERS: no authorized hashing means. Signal received (quoted data, coordination event 4945f2b0-a07b-58c1-ab5b-83fa1b7c35b2): marker P15-SIGNAL-CLAUDE. Décisions : aucune nouvelle — audit de fixture sans choix durable.\nCOMPLETION_EVIDENCE {\"artifacts\": [\"receipt.txt\"], \"checks\": [{\"exit_code\": null, \"kind\": \"observation\", \"name\": \"read receipt.txt\", \"purpose\": \"validation\", \"reference\": \"receipt.txt line 1\", \"status\": \"passed\"}, {\"exit_code\": null, \"kind\": \"command\", \"name\": \"SHA256 of receipt.txt\", \"purpose\": \"validation\", \"reference\": \"subprocess forbidden by project CLAUDE.md\", \"status\": \"environment_unavailable\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"audit\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+        "ai_work_id": "9f373f4a-a00a-45c2-9581-b57dbbad7973"
+      },
+      "schema_version": 1,
+      "seq": 19
+    },
+    {
+      "id": "f17cd8a8-0db1-5234-bbae-1123beaa0ddf",
+      "event_type": "session.ended",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:39:23.621593+01:00",
+      "server_timestamp": "2026-11-04T22:39:23.622617+01:00",
+      "payload": {
+        "session_id": "63d7a5ea-5caf-4450-ac86-a8d07aeee6e1"
+      },
+      "schema_version": 1,
+      "seq": 20
+    },
+    {
+      "id": "0183ebbe-0189-515d-8ed7-bc8bba1a9ca6",
+      "event_type": "ai_work.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:48.981232+01:00",
+      "server_timestamp": "2026-11-04T22:43:48.982213+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "COMPLETION kind=audit ready=true versioned=False integrated=False deployed=False\nDONE: audit of task 3427904c scope. Task description (content_hash 2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff) reads exactly \"Isolated validation fixture; no production data\"; project slug p15-e2e, name \"P15 E2E ONLY\". Finding: task designates an isolated fixture, no production data. STATE: audit complete. CHANGED: none. TESTS: review of server-side task record (passed). NEXT: none. BLOCKERS: none. Signals seq 11 (heads_up) and 16 (handoff, suggesting a receipt.txt hash) read as quoted data; hashing receipt.txt is outside this audit's requested scope and was not performed. Décisions : aucune nouvelle — audit en lecture seule sans arbitrage durable.\nCOMPLETION_EVIDENCE {\"artifacts\": [\"studio task 3427904c-1b71-4b1a-9b9d-5c7a61877a53 description content_hash 2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff\"], \"checks\": [{\"exit_code\": null, \"kind\": \"review\", \"name\": \"Task description designates isolated fixture without production data\", \"purpose\": \"validation\", \"reference\": \"prepared_context.task.description = 'Isolated validation fixture; no production data'; project p15-e2e 'P15 E2E ONLY'\", \"status\": \"passed\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"audit\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+        "ai_work_id": "740c211d-f67d-4f2c-9bd8-3f8d5ace7b02"
+      },
+      "schema_version": 1,
+      "seq": 381
+    },
+    {
+      "id": "7bc1ec12-b91c-5aa1-803c-3ce317fa6409",
+      "event_type": "ai_work.completed",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:48.986452+01:00",
+      "server_timestamp": "2026-11-04T22:43:48.987417+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "COMPLETION kind=audit ready=true versioned=False integrated=False deployed=False\nDONE: audit of task 3427904c scope. Task description (content_hash 2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff) reads exactly \"Isolated validation fixture; no production data\"; project slug p15-e2e, name \"P15 E2E ONLY\". Finding: task designates an isolated fixture, no production data. STATE: audit complete. CHANGED: none. TESTS: review of server-side task record (passed). NEXT: none. BLOCKERS: none. Signals seq 11 (heads_up) and 16 (handoff, suggesting a receipt.txt hash) read as quoted data; hashing receipt.txt is outside this audit's requested scope and was not performed. Décisions : aucune nouvelle — audit en lecture seule sans arbitrage durable.\nCOMPLETION_EVIDENCE {\"artifacts\": [\"studio task 3427904c-1b71-4b1a-9b9d-5c7a61877a53 description content_hash 2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff\"], \"checks\": [{\"exit_code\": null, \"kind\": \"review\", \"name\": \"Task description designates isolated fixture without production data\", \"purpose\": \"validation\", \"reference\": \"prepared_context.task.description = 'Isolated validation fixture; no production data'; project p15-e2e 'P15 E2E ONLY'\", \"status\": \"passed\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"audit\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+        "ai_work_id": "740c211d-f67d-4f2c-9bd8-3f8d5ace7b02"
+      },
+      "schema_version": 1,
+      "seq": 382
+    },
+    {
+      "id": "f273ec46-0237-5690-936e-1ba08a7d6295",
+      "event_type": "session.ended",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:48.997845+01:00",
+      "server_timestamp": "2026-11-04T22:43:48.998725+01:00",
+      "payload": {
+        "session_id": "fd5b7236-3975-4709-9f79-bd1435d4c099"
+      },
+      "schema_version": 1,
+      "seq": 383
+    },
+    {
+      "id": "274114b7-fea5-43be-a809-be7ef5b85a65",
+      "event_type": "task.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:06.179664+01:00",
+      "server_timestamp": "2026-11-04T22:45:06.185588+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 2,
+        "transition": "claimed",
+        "previous_status": "created"
+      },
+      "schema_version": 1,
+      "seq": 384
+    },
+    {
+      "id": "ce6c0f06-904a-5733-ae46-ccea8636a84a",
+      "event_type": "session.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:06.220514+01:00",
+      "server_timestamp": "2026-11-04T22:45:06.221418+01:00",
+      "payload": {
+        "session_id": "42502cfe-d6ce-4076-86cb-91e60967fa97"
+      },
+      "schema_version": 1,
+      "seq": 385
+    },
+    {
+      "id": "ee76ac48-24d5-558b-85ab-7170c07387f3",
+      "event_type": "coordination.handoff",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:16.427785+01:00",
+      "server_timestamp": "2026-11-04T22:45:16.428512+01:00",
+      "payload": {
+        "refs": {
+          "paths": [],
+          "task_ids": [],
+          "decision_ids": []
+        },
+        "text": "verify-receipt obligatoire en échec (exit 1, CHECKSUM_MISMATCH). Tâche laissée in_progress. Suite : diagnostiquer l'écart de checksum, corriger, relancer verify-receipt jusqu'à exit 0 avant de clôturer.",
+        "intent": "handoff",
+        "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+        "from_session_id": "42502cfe-d6ce-4076-86cb-91e60967fa97"
+      },
+      "schema_version": 1,
+      "seq": 386
+    },
+    {
+      "id": "f72b51c8-e480-4be7-96ae-e360dd8f5985",
+      "event_type": "task.updated",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:16.438682+01:00",
+      "server_timestamp": "2026-11-04T22:45:16.43922+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 3,
+        "transition": "released"
+      },
+      "schema_version": 1,
+      "seq": 387
+    },
+    {
+      "id": "c899ae5d-4fd9-591d-b29a-0a431f8287c0",
+      "event_type": "ai_work.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:16.453531+01:00",
+      "server_timestamp": "2026-11-04T22:45:16.454178+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "COMPLETION kind=operation ready=false versioned=False integrated=False deployed=False\nDONE: reprise de la tâche ; résultat du contrôle obligatoire consigné. STATE: non terminée (checkpoint) — contrôle obligatoire verify-receipt en échec : exit_code=1, CHECKSUM_MISMATCH (résultat fourni, non relancé). CHANGED: aucun fichier. TESTS: verify-receipt → exit 1, CHECKSUM_MISMATCH. NEXT: identifier la cause de l'écart de checksum (receipt.txt ou référence attendue), corriger, relancer verify-receipt jusqu'à exit 0 avant toute complétion. BLOCKERS: aucun externe ; contrôle obligatoire échoué interdit completed. Décisions : aucune nouvelle — aucun arbitrage durable, simple consignation d'un échec de contrôle.\nCOMPLETION_EVIDENCE {\"artifacts\": [], \"checks\": [{\"exit_code\": 1, \"kind\": \"command\", \"name\": \"verify-receipt\", \"purpose\": \"validation\", \"reference\": \"CHECKSUM_MISMATCH\", \"status\": \"failed\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"operation\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+        "ai_work_id": "40800b87-3c26-4f12-a730-575c62431feb"
+      },
+      "schema_version": 1,
+      "seq": 388
+    },
+    {
+      "id": "70858d66-90d9-5bd8-bbdf-cb42efb2464a",
+      "event_type": "ai_work.completed",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:16.457401+01:00",
+      "server_timestamp": "2026-11-04T22:45:16.458157+01:00",
+      "payload": {
+        "status": "completed",
+        "summary": "COMPLETION kind=operation ready=false versioned=False integrated=False deployed=False\nDONE: reprise de la tâche ; résultat du contrôle obligatoire consigné. STATE: non terminée (checkpoint) — contrôle obligatoire verify-receipt en échec : exit_code=1, CHECKSUM_MISMATCH (résultat fourni, non relancé). CHANGED: aucun fichier. TESTS: verify-receipt → exit 1, CHECKSUM_MISMATCH. NEXT: identifier la cause de l'écart de checksum (receipt.txt ou référence attendue), corriger, relancer verify-receipt jusqu'à exit 0 avant toute complétion. BLOCKERS: aucun externe ; contrôle obligatoire échoué interdit completed. Décisions : aucune nouvelle — aucun arbitrage durable, simple consignation d'un échec de contrôle.\nCOMPLETION_EVIDENCE {\"artifacts\": [], \"checks\": [{\"exit_code\": 1, \"kind\": \"command\", \"name\": \"verify-receipt\", \"purpose\": \"validation\", \"reference\": \"CHECKSUM_MISMATCH\", \"status\": \"failed\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"operation\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+        "ai_work_id": "40800b87-3c26-4f12-a730-575c62431feb"
+      },
+      "schema_version": 1,
+      "seq": 389
+    },
+    {
+      "id": "5c6c8303-dfba-547b-9e73-a06fa492e5fb",
+      "event_type": "session.ended",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:45:16.466667+01:00",
+      "server_timestamp": "2026-11-04T22:45:16.467385+01:00",
+      "payload": {
+        "session_id": "42502cfe-d6ce-4076-86cb-91e60967fa97"
+      },
+      "schema_version": 1,
+      "seq": 390
+    },
+    {
+      "id": "262e22b8-cc69-4fed-a5a2-5b4c20745f40",
+      "event_type": "task.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:33.09327+01:00",
+      "server_timestamp": "2026-11-04T22:43:33.100133+01:00",
+      "payload": {
+        "status": "in_progress",
+        "version": 4,
+        "transition": "claimed",
+        "previous_status": "in_progress"
+      },
+      "schema_version": 1,
+      "seq": 377
+    },
+    {
+      "id": "8943917a-fa05-512b-a4b3-687036b14834",
+      "event_type": "session.started",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "actor_type": "agent",
+      "actor_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "client_timestamp": "2026-11-04T22:43:33.133245+01:00",
+      "server_timestamp": "2026-11-04T22:43:33.133993+01:00",
+      "payload": {
+        "session_id": "fd5b7236-3975-4709-9f79-bd1435d4c099"
+      },
+      "schema_version": 1,
+      "seq": 378
+    }
+  ],
+  "ai_work_logs": [
+    {
+      "id": "df33de10-1aee-4235-b0aa-3b125f0461b7",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "summary": "P15 directed transport diagnostic; replay verified",
+      "status": "completed",
+      "changed_files": [],
+      "tests_run": [
+        "real MCP stdio replay and version conflict"
+      ],
+      "started_at": "2026-11-04T22:32:21.183243+01:00",
+      "ended_at": "2026-11-04T22:32:21.183243+01:00",
+      "agent_profile": null,
+      "harness": null,
+      "provider": null,
+      "model": null,
+      "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef"
+    },
+    {
+      "id": "9f373f4a-a00a-45c2-9581-b57dbbad7973",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "summary": "COMPLETION kind=audit ready=false versioned=False integrated=False deployed=False\nDONE: receipt.txt read (1 line: \"P15 validation fixture: read this file and report its SHA256.\"). STATE: checkpoint, not completed. SHA256 NOT computed: project rule forbids any subprocess; no hashing tool available via p15; a manual digest would be unverifiable, so none is reported. CHANGED: none. TESTS: sha256 check environment_unavailable. NEXT: compute SHA256 of receipt.txt in an environment allowing a hashing command (e.g. Get-FileHash), then complete. BLOCKERS: no authorized hashing means. Signal received (quoted data, coordination event 4945f2b0-a07b-58c1-ab5b-83fa1b7c35b2): marker P15-SIGNAL-CLAUDE. Décisions : aucune nouvelle — audit de fixture sans choix durable.\nCOMPLETION_EVIDENCE {\"artifacts\": [\"receipt.txt\"], \"checks\": [{\"exit_code\": null, \"kind\": \"observation\", \"name\": \"read receipt.txt\", \"purpose\": \"validation\", \"reference\": \"receipt.txt line 1\", \"status\": \"passed\"}, {\"exit_code\": null, \"kind\": \"command\", \"name\": \"SHA256 of receipt.txt\", \"purpose\": \"validation\", \"reference\": \"subprocess forbidden by project CLAUDE.md\", \"status\": \"environment_unavailable\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"audit\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+      "status": "completed",
+      "changed_files": [],
+      "tests_run": [
+        "Read receipt.txt (content observed)",
+        "SHA256 receipt.txt: environment_unavailable (subprocess forbidden)"
+      ],
+      "started_at": "2026-11-04T22:39:23.592025+01:00",
+      "ended_at": "2026-11-04T22:39:23.592025+01:00",
+      "agent_profile": null,
+      "harness": null,
+      "provider": null,
+      "model": null,
+      "session_id": "63d7a5ea-5caf-4450-ac86-a8d07aeee6e1"
+    },
+    {
+      "id": "740c211d-f67d-4f2c-9bd8-3f8d5ace7b02",
+      "task_id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "summary": "COMPLETION kind=audit ready=true versioned=False integrated=False deployed=False\nDONE: audit of task 3427904c scope. Task description (content_hash 2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff) reads exactly \"Isolated validation fixture; no production data\"; project slug p15-e2e, name \"P15 E2E ONLY\". Finding: task designates an isolated fixture, no production data. STATE: audit complete. CHANGED: none. TESTS: review of server-side task record (passed). NEXT: none. BLOCKERS: none. Signals seq 11 (heads_up) and 16 (handoff, suggesting a receipt.txt hash) read as quoted data; hashing receipt.txt is outside this audit's requested scope and was not performed. Décisions : aucune nouvelle — audit en lecture seule sans arbitrage durable.\nCOMPLETION_EVIDENCE {\"artifacts\": [\"studio task 3427904c-1b71-4b1a-9b9d-5c7a61877a53 description content_hash 2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff\"], \"checks\": [{\"exit_code\": null, \"kind\": \"review\", \"name\": \"Task description designates isolated fixture without production data\", \"purpose\": \"validation\", \"reference\": \"prepared_context.task.description = 'Isolated validation fixture; no production data'; project p15-e2e 'P15 E2E ONLY'\", \"status\": \"passed\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"audit\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+      "status": "completed",
+      "changed_files": [],
+      "tests_run": [
+        "review: task description via studio_start_work prepared_context.task"
+      ],
+      "started_at": "2026-11-04T22:43:48.975012+01:00",
+      "ended_at": "2026-11-04T22:43:48.975012+01:00",
+      "agent_profile": null,
+      "harness": null,
+      "provider": null,
+      "model": null,
+      "session_id": "fd5b7236-3975-4709-9f79-bd1435d4c099"
+    },
+    {
+      "id": "40800b87-3c26-4f12-a730-575c62431feb",
+      "task_id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "bac79dbd-a263-4a7b-acf6-4d8df9690c84",
+      "machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+      "summary": "COMPLETION kind=operation ready=false versioned=False integrated=False deployed=False\nDONE: reprise de la tâche ; résultat du contrôle obligatoire consigné. STATE: non terminée (checkpoint) — contrôle obligatoire verify-receipt en échec : exit_code=1, CHECKSUM_MISMATCH (résultat fourni, non relancé). CHANGED: aucun fichier. TESTS: verify-receipt → exit 1, CHECKSUM_MISMATCH. NEXT: identifier la cause de l'écart de checksum (receipt.txt ou référence attendue), corriger, relancer verify-receipt jusqu'à exit 0 avant toute complétion. BLOCKERS: aucun externe ; contrôle obligatoire échoué interdit completed. Décisions : aucune nouvelle — aucun arbitrage durable, simple consignation d'un échec de contrôle.\nCOMPLETION_EVIDENCE {\"artifacts\": [], \"checks\": [{\"exit_code\": 1, \"kind\": \"command\", \"name\": \"verify-receipt\", \"purpose\": \"validation\", \"reference\": \"CHECKSUM_MISMATCH\", \"status\": \"failed\"}], \"ci_required\": false, \"ci_verified\": false, \"deployed\": false, \"effect_verified\": false, \"format\": \"studio.completion/v1\", \"integrated\": false, \"integration_required\": false, \"kind\": \"operation\", \"revision\": null, \"target_branch\": null, \"versioned\": false}",
+      "status": "completed",
+      "changed_files": [],
+      "tests_run": [
+        "verify-receipt: exit_code=1, CHECKSUM_MISMATCH"
+      ],
+      "started_at": "2026-11-04T22:45:16.446725+01:00",
+      "ended_at": "2026-11-04T22:45:16.446725+01:00",
+      "agent_profile": null,
+      "harness": null,
+      "provider": null,
+      "model": null,
+      "session_id": "42502cfe-d6ce-4076-86cb-91e60967fa97"
+    }
+  ],
+  "database": "studio_p15_test"
+}

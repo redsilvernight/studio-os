@@ -61,7 +61,7 @@ class HandoffResult(ContractModel):
     Replaying the same `Idempotency-Key` with the same body returns the
     original result — no second status update, no duplicate claim
     releases, no duplicate AI work entry, no second session end. C4 adds:
-    `sync` (last bounded `studio_sync` answer, acknowledged), the task's new
+    `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
     `handoff_cursor_seq` that the next session inherits, and the emitted
     `coordination_event_id` when a `coordination` signal was requested."""
 

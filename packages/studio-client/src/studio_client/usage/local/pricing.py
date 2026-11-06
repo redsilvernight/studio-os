@@ -28,8 +28,8 @@ from studio_client.usage.local.base import BilledTokens
 
 logger = logging.getLogger(__name__)
 
-BUNDLED_PRICE_LIST_ID = "public-eur-2026-10"
-BUNDLED_EFFECTIVE_FROM = datetime(2026, 10, 1, tzinfo=UTC)
+BUNDLED_PRICE_LIST_ID = "public-eur-2026-11"
+BUNDLED_EFFECTIVE_FROM = datetime(2026, 11, 3, tzinfo=UTC)
 
 _MILLION = Decimal(1_000_000)
 
@@ -77,26 +77,54 @@ def _rate(input: str, output: str, cache_read: str, cache_write: str) -> ModelRa
 
 # Ordered longest-prefix-first: the first matching family wins.
 _BUNDLED: tuple[tuple[str, ModelRate], ...] = (
-    ("claude-opus-4-5", _rate("15", "75", "1.5", "18.75")),
-    ("claude-opus-4-1", _rate("15", "75", "1.5", "18.75")),
+    ("claude-fable-5-1", _rate("10", "50", "0.25", "12.5")),
+    ("claude-fable-5", _rate("10", "50", "1", "12.5")),
+    ("claude-mythos-5-1", _rate("10", "50", "0.25", "12.5")),
+    ("claude-mythos-5", _rate("10", "50", "1", "12.5")),
+    ("claude-opus-5-5", _rate("4", "20", "0.2", "5")),
+    ("claude-opus-5", _rate("5", "25", "0.5", "6.25")),
+    ("claude-opus-4-8", _rate("5", "25", "0.5", "6.25")),
+    ("claude-opus-4-7", _rate("5", "25", "0.5", "6.25")),
+    ("claude-opus-4-6", _rate("5", "25", "0.5", "6.25")),
+    ("claude-opus-4-5", _rate("5", "25", "0.5", "6.25")),
     ("claude-opus-4", _rate("15", "75", "1.5", "18.75")),
-    ("claude-sonnet-5", _rate("3", "15", "0.3", "3.75")),
-    ("claude-sonnet-4-5", _rate("3", "15", "0.3", "3.75")),
+    ("claude-sonnet-5-5", _rate("2", "10", "0.1", "2.5")),
+    ("claude-sonnet-5", _rate("2", "10", "0.2", "2.5")),
     ("claude-sonnet-4", _rate("3", "15", "0.3", "3.75")),
+    # shortcut: Haiku 5.5 costs 5x above 100k prompt tokens; daily buckets use the base tier.
+    ("claude-haiku-5-5", _rate("0.1", "0.5", "0.01", "0.125")),
     ("claude-haiku-4-5", _rate("1", "5", "0.1", "1.25")),
     ("claude-haiku-3-5", _rate("0.8", "4", "0.08", "1")),
-    ("claude-haiku", _rate("0.8", "4", "0.08", "1")),
-    ("gpt-6.1", _rate("1.25", "10", "0.125", "1.25")),
-    ("gpt-6", _rate("1.25", "10", "0.125", "1.25")),
+    ("gpt-6.1-sol", _rate("2", "10", "0.1", "2")),
+    ("gpt-6.1-terra", _rate("1", "5", "0.05", "1")),
+    ("gpt-6-astra", _rate("10", "50", "1", "10")),
+    ("gpt-6-sol", _rate("2", "10", "0.2", "2")),
+    ("gpt-6-luna", _rate("0.1", "0.5", "0.01", "0.1")),
+    ("gpt-5.6-sol", _rate("4", "20", "0.4", "4")),
+    ("gpt-5.6-terra", _rate("2", "12", "0.2", "2")),
+    ("gpt-5.6-luna", _rate("0.2", "1.2", "0.02", "0.2")),
+    ("gpt-5.6-cyber", _rate("12.5", "75", "1.25", "12.5")),
+    ("gpt-5.5-pro", _rate("30", "180", "30", "30")),
+    ("gpt-5.5-cyber", _rate("12.5", "75", "1.25", "12.5")),
+    ("gpt-5.5", _rate("5", "30", "0.5", "5")),
+    ("gpt-5.4-mini", _rate("0.75", "4.5", "0.075", "0.75")),
+    ("gpt-5.4-nano", _rate("0.2", "1.25", "0.02", "0.2")),
+    ("gpt-5.4", _rate("2.5", "15", "0.25", "2.5")),
+    ("gpt-5.3-codex", _rate("1.75", "14", "0.175", "1.75")),
+    ("gpt-5.2", _rate("1.75", "14", "0.175", "1.75")),
     ("gpt-5.1-codex", _rate("1.25", "10", "0.125", "1.25")),
+    ("gpt-5.1", _rate("1.25", "10", "0.125", "1.25")),
     ("gpt-5-codex", _rate("1.25", "10", "0.125", "1.25")),
+    ("gpt-5-mini", _rate("0.25", "2", "0.025", "0.25")),
+    ("gpt-5-nano", _rate("0.05", "0.4", "0.005", "0.05")),
     ("gpt-5", _rate("1.25", "10", "0.125", "1.25")),
+    ("gpt-4.1-mini", _rate("0.4", "1.6", "0.1", "0.4")),
     ("gpt-4.1", _rate("2", "8", "0.5", "2")),
+    ("gpt-4o-mini", _rate("0.15", "0.6", "0.075", "0.15")),
+    ("gpt-4o", _rate("2.5", "10", "1.25", "2.5")),
     ("o4-mini", _rate("1.1", "4.4", "0.275", "1.1")),
+    ("o3-pro", _rate("20", "80", "20", "20")),
     ("o3", _rate("2", "8", "0.5", "2")),
-    ("claude-opus", _rate("15", "75", "1.5", "18.75")),
-    ("claude-sonnet", _rate("3", "15", "0.3", "3.75")),
-    ("claude-haiku", _rate("0.8", "4", "0.08", "1")),
 )
 
 

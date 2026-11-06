@@ -1,0 +1,19 @@
+{
+  "harness": "opencode",
+  "scenario": "readonly",
+  "variant": "p16-e04-r2-3",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-opencode-js7wx50p",
+  "prompt": "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=f26c8c1a-8d82-418b-99b9-68456cc63aed, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nObserve les informations de cette tâche pour un audit court. Garde l'opération sans écriture et sans démarrage de travail.",
+  "command": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "C:\\Users\\redsi\\AppData\\Roaming\\npm\\opencode.cmd",
+    "run",
+    "--pure",
+    "--format",
+    "json",
+    "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=f26c8c1a-8d82-418b-99b9-68456cc63aed, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nObserve les informations de cette tâche pour un audit court. Garde l'opération sans écriture et sans démarrage de travail."
+  ],
+  "timeout_seconds": 150
+}

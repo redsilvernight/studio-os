@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
+from studio_contracts.library import skill_file_path_error
+
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
 from studio_client.drift import SyncState, classify_state
 from studio_client.projection_backups import (
@@ -55,6 +57,8 @@ class SkillTargetPlan:
     current_text: str | None
     current_sha256: str | None
     desired_text: str | None = None
+    rel: str | None = None
+    """Path relative to the skill directory for an auxiliary file (None = SKILL.md)."""
 
 
 @dataclass(frozen=True)
@@ -69,12 +73,20 @@ class SkillPlanEntry:
     sha256: str
     targets: tuple[SkillTargetPlan, SkillTargetPlan]
     opencode: SkillTargetPlan | None = None
+    aux: tuple[SkillTargetPlan, ...] = ()
+    """Auxiliary files of a multi-file skill, one per harness copy."""
+    aux_hashes: tuple[tuple[str, str], ...] = ()
+    """(relative path, sha256) of every auxiliary file, recorded in the manifest."""
 
     @property
     def all_targets(self) -> tuple[SkillTargetPlan, ...]:
         if self.opencode is None:
             return self.targets
         return (*self.targets, self.opencode)
+
+    @property
+    def all_files(self) -> tuple[SkillTargetPlan, ...]:
+        return (*self.all_targets, *self.aux)
 
 
 @dataclass(frozen=True)
@@ -102,7 +114,7 @@ class SkillSyncPlan:
         return tuple(
             target
             for entry in self.entries
-            for target in entry.all_targets
+            for target in entry.all_files
             if target.state in {"outdated", "locally_modified"}
         )
 
@@ -116,10 +128,7 @@ class SkillSyncPlan:
 
     def _targets_with_state(self, state: SyncState) -> tuple[SkillTargetPlan, ...]:
         return tuple(
-            target
-            for entry in self.entries
-            for target in entry.all_targets
-            if target.state == state
+            target for entry in self.entries for target in entry.all_files if target.state == state
         )
 
 
@@ -155,10 +164,10 @@ async def fetch_skill_projections(
     )
 
 
-def render_skill(projection: LibraryContextItem) -> str:
+def render_skill(projection: LibraryContextItem, *, allow_project: bool = False) -> str:
     """Render a Library skill as a harness-compatible ``SKILL.md``."""
 
-    _validate_projection(projection)
+    _validate_projection(projection, allow_project=allow_project)
     description = " ".join((projection.description or "").split())
     if not description:
         description = " ".join(projection.title.split())
@@ -185,6 +194,7 @@ def plan_skill_sync(
     projections: Sequence[LibraryContextItem],
     *,
     include_opencode: bool = False,
+    allow_project: bool = False,
 ) -> SkillSyncPlan:
     """Inspect global skill targets without changing the filesystem.
 
@@ -196,16 +206,28 @@ def plan_skill_sync(
     manifest_before = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else None
     managed_hashes = _load_managed_hashes(manifest_path)
     opencode_hashes = _load_managed_hashes(manifest_path, target="opencode")
+    managed_files = _load_managed_files(manifest_path)
     entries: list[SkillPlanEntry] = []
     retired: list[SkillTargetPlan] = []
     seen: set[str] = set()
     for projection in sorted(projections, key=lambda item: item.stable_key):
-        _validate_projection(projection)
+        _validate_projection(projection, allow_project=allow_project)
         if projection.stable_key in seen:
             raise SkillSyncError(f"duplicate skill stable_key: {projection.stable_key!r}")
         seen.add(projection.stable_key)
-        rendered = render_skill(projection)
+        rendered = render_skill(projection, allow_project=allow_project)
+        _validate_files(projection.files)
+        previous_files = managed_files.get(projection.stable_key, {})
         if projection.deprecated:
+            retired.extend(
+                _plan_removed_files(
+                    root,
+                    projection.stable_key,
+                    previous_files,
+                    frozenset(),
+                    include_opencode=include_opencode,
+                )
+            )
             retired.extend(
                 _plan_retired_targets(
                     root,
@@ -244,6 +266,22 @@ def plan_skill_sync(
             if include_opencode
             else None
         )
+        aux = _plan_aux_targets(
+            root,
+            projection.stable_key,
+            projection.files,
+            previous_files,
+            include_opencode=include_opencode,
+        )
+        retired.extend(
+            _plan_removed_files(
+                root,
+                projection.stable_key,
+                previous_files,
+                frozenset(path for path, _ in projection.files),
+                include_opencode=include_opencode,
+            )
+        )
         entries.append(
             SkillPlanEntry(
                 projection=projection,
@@ -251,6 +289,8 @@ def plan_skill_sync(
                 sha256=desired_hash,
                 targets=targets,
                 opencode=opencode,
+                aux=aux,
+                aux_hashes=tuple((path, _sha256(text)) for path, text in projection.files),
             )
         )
 
@@ -262,6 +302,7 @@ def plan_skill_sync(
                 "sha256": entry.sha256,
                 "stable_key": entry.projection.stable_key,
                 **({"target_sha256": {"opencode": entry.sha256}} if entry.opencode else {}),
+                **({"files": dict(entry.aux_hashes)} if entry.aux_hashes else {}),
                 "version": entry.projection.version,
                 "version_origin": entry.projection.version_origin,
             }
@@ -287,12 +328,69 @@ def plan_skill_sync(
     )
 
 
+def plan_skill_uninstall(
+    home: Path | str,
+    stable_keys: Sequence[str],
+    *,
+    include_opencode: bool = True,
+) -> SkillSyncPlan:
+    """Plan the local removal of managed skills (SKILL.md and auxiliary files).
+
+    Only unmodified copies recorded in the manifest are removed; modified, unmanaged
+    or unlisted files stay. The manifest rows of the removed keys are dropped.
+    Library data is untouched: this is local uninstall, not deprecation."""
+
+    root = Path(home).expanduser().resolve()
+    manifest_path = root / ".studio-os" / "library-skills-manifest.json"
+    before = manifest_path.read_text(encoding="utf-8") if manifest_path.is_file() else None
+    payload: dict[str, Any] = (
+        json.loads(before) if before else {"schema_version": _MANIFEST_SCHEMA_VERSION}
+    )
+    rows = [r for r in payload.get("skills", []) if isinstance(r, dict)]
+    managed = {r["stable_key"]: r for r in rows if isinstance(r.get("stable_key"), str)}
+    managed_hashes = _load_managed_hashes(manifest_path)
+    opencode_hashes = _load_managed_hashes(manifest_path, target="opencode")
+    managed_files = _load_managed_files(manifest_path)
+    retired: list[SkillTargetPlan] = []
+    for key in stable_keys:
+        if key not in managed:
+            raise SkillSyncError(f"skill {key!r} is not managed in this home")
+        retired.extend(
+            _plan_retired_targets(
+                root,
+                key,
+                None,
+                managed_hashes.get(key),
+                opencode_hashes.get(key),
+                include_opencode=include_opencode,
+            )
+        )
+        retired.extend(
+            _plan_removed_files(
+                root,
+                key,
+                managed_files.get(key, {}),
+                frozenset(),
+                include_opencode=include_opencode,
+            )
+        )
+    payload["skills"] = [r for r in rows if r["stable_key"] not in set(stable_keys)]
+    return SkillSyncPlan(
+        home=root,
+        entries=(),
+        manifest_path=manifest_path,
+        manifest_text=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        retired=tuple(retired),
+        manifest_before=before,
+    )
+
+
 def diff_skill_plan(plan: SkillSyncPlan) -> str:
     """Return deterministic unified diffs for missing and drifted targets."""
 
     chunks: list[str] = []
     for entry in plan.entries:
-        for target in entry.all_targets:
+        for target in entry.all_files:
             if target.state == "current":
                 continue
             desired_lines = _desired_text(entry, target).splitlines(keepends=True)
@@ -362,7 +460,7 @@ def apply_skill_sync(
     desired: dict[Path, str | None] = {
         target.path: _desired_text(entry, target)
         for entry in plan.entries
-        for target in entry.all_targets
+        for target in entry.all_files
         if target.state != "current"
     }
     desired.update({target.path: None for target in plan.retired})
@@ -376,20 +474,21 @@ def apply_skill_sync(
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         backup_root = plan.home / ".studio-os" / "backups" / "skills" / timestamp
         for entry in plan.entries:
-            for target in entry.all_targets:
+            for target in entry.all_files:
                 if target.state != "locally_modified" or target.current_text is None:
                     continue
                 backup_path = _backup_path(
                     backup_root,
                     entry.projection.stable_key,
                     target.harness,
+                    target.rel,
                 )
                 _atomic_write(backup_path, target.current_text)
                 backups.append(backup_path)
 
     written: list[Path] = []
     for entry in plan.entries:
-        for target in entry.all_targets:
+        for target in entry.all_files:
             if target.state == "current":
                 continue
             _atomic_write(target.path, _desired_text(entry, target))
@@ -398,10 +497,7 @@ def apply_skill_sync(
     for target in plan.retired:
         target.path.unlink()
         removed.append(target.path)
-        try:
-            target.path.parent.rmdir()
-        except OSError:
-            pass
+        _prune_empty_dirs(target.path.parent, plan.home)
     _atomic_write(plan.manifest_path, plan.manifest_text)
     if journal_sink is None:
         commit_projection_backup(journal)
@@ -415,7 +511,7 @@ def apply_skill_sync(
     )
 
 
-def _validate_projection(projection: LibraryContextItem) -> None:
+def _validate_projection(projection: LibraryContextItem, *, allow_project: bool = False) -> None:
     key = projection.stable_key
     windows_stem = key.split(".", 1)[0].upper()
     if (
@@ -428,7 +524,9 @@ def _validate_projection(projection: LibraryContextItem) -> None:
         raise SkillSyncError(f"unsafe skill stable_key: {key!r}")
     if projection.library_kind != "skill":
         raise SkillSyncError(f"expected a skill projection, got {projection.library_kind!r}")
-    if projection.scope not in GLOBAL_PROJECTION_SCOPES:
+    if projection.scope not in GLOBAL_PROJECTION_SCOPES and not (
+        allow_project and projection.scope == "project"
+    ):
         raise SkillSyncError(
             f"refusing to project non-global skill {key!r} with scope {projection.scope!r}"
         )
@@ -507,7 +605,7 @@ def _plan_target(
 def _plan_retired_targets(
     home: Path,
     stable_key: str,
-    rendered: str,
+    rendered: str | None,
     managed_hash: str | None,
     opencode_hash: str | None,
     *,
@@ -577,7 +675,7 @@ def _verify_plan_is_fresh(plan: SkillSyncPlan) -> None:
     )
     if manifest != plan.manifest_before:
         raise SkillSyncConflictError("skill manifest changed since planning")
-    targets = [target for entry in plan.entries for target in entry.all_targets]
+    targets = [target for entry in plan.entries for target in entry.all_files]
     for target in [*targets, *plan.retired]:
         if target.path.exists():
             if not target.path.is_file():
@@ -593,11 +691,131 @@ def _backup_path(
     backup_root: Path,
     stable_key: str,
     harness: Literal["agents", "claude", "opencode"],
+    rel: str | None = None,
 ) -> Path:
     key_root = backup_root / stable_key
+    name = rel or "SKILL.md"
     if harness == "agents":
-        return key_root / "SKILL.md"
-    return key_root / harness / "SKILL.md"
+        return key_root / name
+    return key_root / harness / name
+
+
+def _validate_files(files: Sequence[tuple[str, str]]) -> None:
+    for path, _ in files:
+        error = skill_file_path_error(path)
+        if error:
+            raise SkillSyncError(f"unsafe auxiliary skill file {path!r}: {error}")
+
+
+def _skill_dirs(
+    home: Path, stable_key: str, *, include_opencode: bool
+) -> tuple[tuple[Literal["agents", "claude", "opencode"], Path], ...]:
+    dirs: list[tuple[Literal["agents", "claude", "opencode"], Path]] = [
+        ("agents", home / ".agents" / "skills" / stable_key),
+        ("claude", home / ".claude" / "skills" / stable_key),
+    ]
+    if include_opencode:
+        dirs.append(("opencode", home.joinpath(*_OPENCODE_SKILLS_DIR, stable_key)))
+    return tuple(dirs)
+
+
+def _assert_no_symlink(home: Path, path: Path) -> None:
+    """Refuse to read or write through a symlink anywhere below the managed home."""
+
+    current = path
+    while current != home and current != current.parent:
+        if current.is_symlink():
+            raise SkillSyncError(f"refusing to follow a symlink: {current}")
+        current = current.parent
+
+
+def _plan_aux_targets(
+    home: Path,
+    stable_key: str,
+    files: Sequence[tuple[str, str]],
+    managed: dict[str, str],
+    *,
+    include_opencode: bool,
+) -> tuple[SkillTargetPlan, ...]:
+    targets: list[SkillTargetPlan] = []
+    for harness, base in _skill_dirs(home, stable_key, include_opencode=include_opencode):
+        for rel, text in files:
+            path = base.joinpath(*rel.split("/"))
+            _assert_no_symlink(home, path)
+            if not path.exists():
+                targets.append(SkillTargetPlan(harness, path, "missing", None, None, text, rel))
+                continue
+            if not path.is_file():
+                raise SkillSyncError(f"skill file target is not a regular file: {path}")
+            try:
+                current = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError as exc:
+                raise SkillSyncError(f"skill file target is not valid UTF-8: {path}") from exc
+            state = classify_state(current, text, managed.get(rel))
+            targets.append(
+                SkillTargetPlan(harness, path, state, current, _sha256(current), text, rel)
+            )
+    return tuple(targets)
+
+
+def _plan_removed_files(
+    home: Path,
+    stable_key: str,
+    managed: dict[str, str],
+    keep: frozenset[str],
+    *,
+    include_opencode: bool,
+) -> list[SkillTargetPlan]:
+    """Managed, unmodified auxiliary files no longer wanted; modified ones are left alone."""
+
+    removed: list[SkillTargetPlan] = []
+    for harness, base in _skill_dirs(home, stable_key, include_opencode=include_opencode):
+        for rel, digest in sorted(managed.items()):
+            if rel in keep or skill_file_path_error(rel):
+                continue
+            path = base.joinpath(*rel.split("/"))
+            if path.is_symlink() or not path.is_file():
+                continue
+            try:
+                current = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            if _sha256(current) == digest:
+                removed.append(
+                    SkillTargetPlan(harness, path, "outdated", current, digest, None, rel)
+                )
+    return removed
+
+
+def _prune_empty_dirs(directory: Path, home: Path) -> None:
+    """Remove now-empty directories up to, never including, a skills root."""
+
+    roots = {
+        home / ".agents" / "skills",
+        home / ".claude" / "skills",
+        home.joinpath(*_OPENCODE_SKILLS_DIR),
+    }
+    while directory != home and directory not in roots and not any(directory.iterdir()):
+        directory.rmdir()
+        directory = directory.parent
+
+
+def _load_managed_files(manifest_path: Path) -> dict[str, dict[str, str]]:
+    if not manifest_path.is_file():
+        return {}
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    rows = payload.get("skills") if isinstance(payload, dict) else None
+    result: dict[str, dict[str, str]] = {}
+    for row in rows if isinstance(rows, list) else []:
+        files = row.get("files") if isinstance(row, dict) else None
+        if isinstance(files, dict) and isinstance(row.get("stable_key"), str):
+            result[row["stable_key"]] = {
+                k: v for k, v in files.items() if isinstance(k, str) and isinstance(v, str)
+            }
+    return result
 
 
 def _atomic_write(path: Path, text: str) -> None:

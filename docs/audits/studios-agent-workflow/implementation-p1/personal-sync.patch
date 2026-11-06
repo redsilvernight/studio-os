@@ -1,0 +1,11 @@
+--- a/sync-claude-config.ps1
++++ b/sync-claude-config.ps1
+@@ -120,7 +120,7 @@
+ Sync-SkillDirectory (Join-Path $claudeHome 'skills') $sharedSkills
+ 
+ $projectClaude = Join-Path $ProjectRoot '.claude'
+-if (Test-Path -LiteralPath $projectClaude) {
++if ((Test-Path -LiteralPath $projectClaude) -and -not (Test-Path -LiteralPath (Join-Path $ProjectRoot '.agents'))) {
+     Sync-AgentDirectory (Join-Path $projectClaude 'agents') (Join-Path $ProjectRoot '.codex\agents')
+     Sync-SkillDirectory (Join-Path $projectClaude 'skills') (Join-Path $ProjectRoot '.agents\skills')
+     Sync-ProjectRules $ProjectRoot

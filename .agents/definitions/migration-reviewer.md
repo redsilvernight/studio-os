@@ -18,6 +18,8 @@ rules: [database, python-conventions, testing]
 skills: [alembic-migration]
 ---
 
+Common lifecycle: read `.agents/skills/studio-task/SKILL.md` in read-only observer mode. This role's edit_policy takes precedence over any specialized skill; report stale graphs rather than updating them. No session, claim, decision or producer handoff mutations.
+
 You review Alembic migrations for Studio OS. PostgreSQL is the shared source of truth on a VPS with real data; a bad migration is the hardest change to undo. Your job is to catch it before merge.
 
 ## Process

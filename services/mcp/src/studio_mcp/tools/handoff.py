@@ -50,7 +50,9 @@ async def studio_handoff(
     through `studio_sync`, never re-emitted on replay). By default the
     response is a minimal acknowledgement (<= 1000 characters): ids, task
     status/version, released claim count, `handoff_cursor_seq` and
-    `warnings` summarizing the acknowledged last sync. `verbose=true` returns
+    `warnings` summarizing the unacknowledged last sync. Recover through
+    `studio_start_work` then `studio_sync`; ack only after processing.
+    `verbose=true` returns
     the full composite answer (claim ids, last bounded `sync` block).
     Requires a writer role."""
 

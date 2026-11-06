@@ -1,0 +1,173 @@
+{
+  "arguments": {
+    "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+    "task_id": "0546ebd5-c65a-4e8b-93ec-106a7e8f8566",
+    "objective": "Audit de cette tâche isolée",
+    "limit": 1,
+    "max_chars": 4000
+  },
+  "context": {
+    "project": {
+      "id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "slug": "p15-e2e",
+      "name": "P15 E2E ONLY",
+      "description": null,
+      "truncated": false
+    },
+    "query_terms": [
+      "audit",
+      "tâche",
+      "isolée"
+    ],
+    "task": {
+      "id": "0546ebd5-c65a-4e8b-93ec-106a7e8f8566",
+      "readable_id": null,
+      "title": "P15 claude provided",
+      "status": "created",
+      "description": "Isolated validation fixture; no production data",
+      "source_references": [],
+      "truncated": false,
+      "claimed_by_machine_id": null,
+      "claimed_by_self": false,
+      "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+      "why": {
+        "reason": "requested",
+        "matched_terms": []
+      }
+    },
+    "related_tasks": [],
+    "decisions": [],
+    "rules": [],
+    "skills": [],
+    "ai_work": [
+      {
+        "id": "40800b87-3c26-4f12-a730-575c62431feb",
+        "status": "completed",
+        "summary": "COMPLETION kind=operation ready=false versioned=False integrated=False deployed=False\nDONE: reprise de la tâche ; résultat du contrôle obligatoire consigné. STATE: non terminée (checkpoint) — contrôle obligatoire verify-receipt en échec : exit_code=1, CHECKSUM_MISMATCH (résultat fourni, non relancé). CHANGED: aucun fichier. TESTS: verify-receipt → exit 1, CHECKSUM_MISMATCH. NEXT: identifier la cause de l'écart de checksum (receipt.txt ou référence attendue), corriger, relancer verify-receipt jusqu'à exit 0 avant toute complétion. BLOCKERS: aucun externe ; contrôle obligatoire échoué interdit c",
+        "truncated": true,
+        "changed_files": [],
+        "tests_run": [
+          "verify-receipt: exit_code=1, CHECKSUM_MISMATCH"
+        ],
+        "started_at": "2026-11-04T21:45:16.446725Z",
+        "ended_at": "2026-11-04T21:45:16.446725Z",
+        "content_hash": "ce8f4a0d702d6cb346066ed48e738fae200b93ec8266ccdd0d82dc850d1e941c",
+        "why": {
+          "reason": "lexical",
+          "matched_terms": [
+            "tâche"
+          ]
+        }
+      }
+    ],
+    "active_work": {
+      "claims": []
+    },
+    "returned": {
+      "task": 1,
+      "related_tasks": 0,
+      "decisions": 0,
+      "rules": 0,
+      "skills": 0,
+      "ai_work": 1,
+      "claims": 0
+    },
+    "additional_available": {
+      "related_tasks": 22,
+      "decisions": 0,
+      "rules": 0,
+      "skills": 0,
+      "ai_work": 3,
+      "claims": 0
+    },
+    "omitted_for_budget": {},
+    "limits": {
+      "limit": 1,
+      "max_chars": 4000,
+      "chars_used": 647,
+      "item_text_cap": 1500,
+      "library_scan_capped": false
+    }
+  },
+  "cache_response": {
+    "project": {
+      "id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "slug": "p15-e2e",
+      "name": "P15 E2E ONLY",
+      "description": null,
+      "truncated": false
+    },
+    "query_terms": [
+      "audit",
+      "tâche",
+      "isolée"
+    ],
+    "task": {
+      "id": "0546ebd5-c65a-4e8b-93ec-106a7e8f8566",
+      "readable_id": null,
+      "title": "P15 claude provided",
+      "status": "created",
+      "claimed_by_machine_id": null,
+      "claimed_by_self": false,
+      "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+      "unchanged": true,
+      "why": {
+        "reason": "requested",
+        "matched_terms": []
+      }
+    },
+    "related_tasks": [],
+    "decisions": [],
+    "rules": [],
+    "skills": [],
+    "ai_work": [
+      {
+        "id": "40800b87-3c26-4f12-a730-575c62431feb",
+        "status": "completed",
+        "summary": "COMPLETION kind=operation ready=false versioned=False integrated=False deployed=False\nDONE: reprise de la tâche ; résultat du contrôle obligatoire consigné. STATE: non terminée (checkpoint) — contrôle obligatoire verify-receipt en échec : exit_code=1, CHECKSUM_MISMATCH (résultat fourni, non relancé). CHANGED: aucun fichier. TESTS: verify-receipt → exit 1, CHECKSUM_MISMATCH. NEXT: identifier la cause de l'écart de checksum (receipt.txt ou référence attendue), corriger, relancer verify-receipt jusqu'à exit 0 avant toute complétion. BLOCKERS: aucun externe ; contrôle obligatoire échoué interdit c",
+        "truncated": true,
+        "changed_files": [],
+        "tests_run": [
+          "verify-receipt: exit_code=1, CHECKSUM_MISMATCH"
+        ],
+        "started_at": "2026-11-04T21:45:16.446725Z",
+        "ended_at": "2026-11-04T21:45:16.446725Z",
+        "content_hash": "ce8f4a0d702d6cb346066ed48e738fae200b93ec8266ccdd0d82dc850d1e941c",
+        "why": {
+          "reason": "lexical",
+          "matched_terms": [
+            "tâche"
+          ]
+        }
+      }
+    ],
+    "active_work": {
+      "claims": []
+    },
+    "returned": {
+      "task": 1,
+      "related_tasks": 0,
+      "decisions": 0,
+      "rules": 0,
+      "skills": 0,
+      "ai_work": 1,
+      "claims": 0
+    },
+    "additional_available": {
+      "related_tasks": 22,
+      "decisions": 0,
+      "rules": 0,
+      "skills": 0,
+      "ai_work": 3,
+      "claims": 0
+    },
+    "omitted_for_budget": {},
+    "limits": {
+      "limit": 1,
+      "max_chars": 4000,
+      "chars_used": 600,
+      "item_text_cap": 1500,
+      "library_scan_capped": false
+    }
+  }
+}

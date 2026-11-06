@@ -93,6 +93,7 @@ agent suivent le detenteur de la tache. Une tache reprise par un autre agent
 du poste refuse l'ancien handoff (`already_claimed`). `agent_id` fourni doit
 correspondre a la session (`session_agent_mismatch` sinon).
 Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
+revision API contractuelle 5 (P0 livraison, 2026-11-04),
 `idempotency_key` optionnel. Autorisation avant le court-circuit
 d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus
 repondent in-band (pas de 422 en MCP) : `invalid_task_status` /
@@ -101,10 +102,14 @@ defaut (2026-10-31) : accuse minimal <= 1 000 caracteres serialises —
 `task_id`, `task_status`, `task_version`, `session_id`, `released_claims`
 (nombre), `handoff_cursor_seq` (curseur que la prochaine session de la tache
 herite), `ai_work_id`, `coordination_event_id` et, si besoin, `warnings`
-resumant le dernier `studio_sync` acquitte (`coordination_signals_received:N`,
-`sync_items_acknowledged:N`, `sync_overflow:N`, `sync_resync`).
+resumant le dernier `studio_sync` non acquitte (`coordination_signals_pending:N`,
+`sync_items_pending:N`, `sync_overflow:N`, `sync_resync`). Si des avertissements
+existent, le champ additif `recovery` rappelle : start_work puis sync, ack apres
+traitement seulement. Les items masques restent recuperables par le successeur,
+y compris les signaux ciblant une session terminee de la meme tache. Les
+consommateurs dedupliquent les effets par `event_id` (au moins une fois).
 `verbose=true` renvoie la reponse composite complete (ids des claims liberes,
-bloc C4 `sync` borne et acquitte) et ajoute `verbose=true` a l'empreinte
+bloc C4 `sync` borne et non acquitte) et ajoute `verbose=true` a l'empreinte
 d'idempotence. Une cle enregistree avant ce changement rejoue le resultat
 stocke tel quel. `coordination_text` (<= 280 caracteres) emet
 optionnellement un `coordination.handoff` sur la tache ; `event_id` derive de

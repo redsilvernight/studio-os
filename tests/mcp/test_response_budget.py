@@ -274,8 +274,8 @@ def test_handoff_ack_reports_sync_warnings() -> None:
     assert rendered_chars(ack) <= HANDOFF_ACK_MAX_CHARS
     assert ack["released_claims"] == 100
     assert ack["warnings"] == [
-        "coordination_signals_received:1",
-        "sync_items_acknowledged:1",
+        "coordination_signals_pending:1",
+        "sync_items_pending:1",
         "sync_overflow:4",
         "sync_resync",
     ]

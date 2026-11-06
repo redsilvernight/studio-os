@@ -1,0 +1,19 @@
+{
+  "harness": "opencode",
+  "scenario": "readonly",
+  "variant": "p16-e04-r2-1",
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-opencode-ixsd5w4k",
+  "prompt": "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=157349f9-ecff-46ae-952f-4a7d7b28a90a, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nVérifie cette tâche en mode observation seulement. Donne un bref constat sur son état, sans ouvrir de session ni écrire.",
+  "command": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "C:\\Users\\redsi\\AppData\\Roaming\\npm\\opencode.cmd",
+    "run",
+    "--pure",
+    "--format",
+    "json",
+    "Environment: project_id=42de2f9a-2d17-4d54-87ea-96a37def5105, task_id=157349f9-ecff-46ae-952f-4a7d7b28a90a, owned agent_id=8bf977c6-debb-4ac3-add7-40b07789bf5d.\nVérifie cette tâche en mode observation seulement. Donne un bref constat sur son état, sans ouvrir de session ni écrire."
+  ],
+  "timeout_seconds": 150
+}

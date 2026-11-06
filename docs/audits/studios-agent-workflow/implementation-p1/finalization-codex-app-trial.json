@@ -1,0 +1,28 @@
+{
+  "harness": "Codex App",
+  "role": "studio-tester",
+  "mode": "real model, decision-only, local reads of two authorized policy files",
+  "role_rule_observed": "Common lifecycle: read `.agents/skills/studio-task/SKILL.md` in read-only observer mode. This role's edit_policy takes precedence over any specialized skill; report stale graphs rather than updating them. No session, claim, decision or producer handoff mutations.",
+  "cases": [
+    {
+      "id": "readonly_retained_context",
+      "observed": "No calls; reuse retained context. prepare_context only if context missing; no mutable session, claim, sync or handoff.",
+      "result": "passed"
+    },
+    {
+      "id": "redelivery_unprocessed_signal",
+      "observed": "Deduplicate E1 by coordination.event_id; retain E2 unprocessed; do not ack cursor after E2 before durable processing; observer performs no sync or ack.",
+      "result": "passed"
+    },
+    {
+      "id": "failed_validation_unversioned_code",
+      "observed": "No completed, no invented versioned revision; record checkpoint with failed exit_code=1, separate implemented/tested/integrated/deployed; no commit or observer handoff.",
+      "result": "passed"
+    }
+  ],
+  "mcp_calls_executed": 0,
+  "mutations_executed": 0,
+  "tokens": null,
+  "token_limit_note": "Token usage not supplied by the subagent runtime; no conversion from text length.",
+  "limits": "One role and three textual decisions; does not validate six roles in the native CLI, a real MCP lifecycle, or production behavior. Claude and OpenCode not covered."
+}

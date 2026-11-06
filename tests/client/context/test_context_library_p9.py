@@ -109,7 +109,8 @@ class FakeLibraryApi:
         if self._fail_with is not None:
             raise self._fail_with
         limit = int(kwargs.get("limit", 100))
-        return self._resources[:limit]
+        kind = kwargs.get("kind")
+        return [r for r in self._resources if kind is None or r.kind == kind][:limit]
 
     async def list_library_versions(self, resource_id: UUID) -> list[FakeLibraryVersion]:
         self.calls.append("list_library_versions")
@@ -221,6 +222,40 @@ async def test_library_kinds_map_to_single_library_context_kind(
     # Structural kinds are skipped, never serialized blindly.
     omitted = [o for o in package.manifest.omitted if o.kind == LIBRARY_CONTEXT_KIND]
     assert sum(o.count for o in omitted if o.reason == "out_of_scope") == 3
+
+
+async def test_library_selection_fetches_versions_only_for_selected_kind_and_keys(
+    project_id: UUID,
+) -> None:
+    resources, versions = _library_fixture(project_id)
+    api = FakeLibraryApi(resources=resources, versions=versions)
+
+    result = await LibraryContextProvider(api).fetch(
+        project_id,
+        kinds=("rule", "skill"),
+        stable_keys={"rule": {"coding-style"}, "skill": set()},
+    )
+
+    assert [item.stable_key for item in result.items] == ["coding-style"]
+    # The one version lookup is for the selected rule. The project skill and
+    # all structural definitions are excluded before any version request.
+    assert api.calls.count("list_library_versions") == 1
+
+
+async def test_library_selection_can_fetch_multiple_keys_across_kinds(
+    project_id: UUID,
+) -> None:
+    resources, versions = _library_fixture(project_id)
+    api = FakeLibraryApi(resources=resources, versions=versions)
+
+    result = await LibraryContextProvider(api).fetch(
+        project_id,
+        kinds=("rule", "skill"),
+        stable_keys={"rule": {"coding-style"}, "skill": {"review-checklist"}},
+    )
+
+    assert {item.stable_key for item in result.items} == {"coding-style", "review-checklist"}
+    assert api.calls.count("list_library_versions") == 2
 
 
 async def test_library_item_carries_safe_logical_provenance(

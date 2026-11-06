@@ -17,7 +17,7 @@
   },
   "sync_output": {
     "files": 9,
-    "bytes": 4115,
+    "bytes": 4138,
     "by_kind": {
       "agent": {
         "files": 3,
@@ -33,7 +33,7 @@
       },
       "block": {
         "files": 2,
-        "bytes": 407
+        "bytes": 430
       }
     },
     "by_harness": {
@@ -51,7 +51,7 @@
       },
       "shared": {
         "files": 2,
-        "bytes": 407
+        "bytes": 430
       }
     },
     "first_harness_files": 5,
@@ -60,7 +60,7 @@
   },
   "permanent_bootstrap": {
     "files": 6,
-    "bytes": 1526,
+    "bytes": 1549,
     "breakdown": {
       "agents_sources": {
         "files": 3,
@@ -72,7 +72,7 @@
       },
       "managed_blocks": {
         "files": 2,
-        "bytes": 407
+        "bytes": 430
       }
     }
   },

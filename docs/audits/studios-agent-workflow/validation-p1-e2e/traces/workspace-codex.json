@@ -1,0 +1,29 @@
+{
+  "workspace": "C:\\Users\\redsi\\AppData\\Local\\Temp\\studio-p15-codex-zr4_prqz",
+  "copied_roles": [
+    "contract-guardian.toml",
+    "dashboard-a11y.toml",
+    "migration-reviewer.toml",
+    "studio-architect.toml",
+    "studio-tester.toml",
+    "sync-debugger.toml"
+  ],
+  "mcp": {
+    "p15": {
+      "command": "C:\\Users\\redsi\\Documents\\Coding\\Projet\\Studi'os\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "studio_mcp.server"
+      ]
+    }
+  },
+  "env_keys": [
+    "STUDIO_DATABASE_URL",
+    "STUDIO_ENVIRONMENT",
+    "STUDIO_MCP_MACHINE_TOKEN",
+    "STUDIO_MCP_TOOL_PROFILE",
+    "STUDIO_REALTIME_LISTENER_ENABLED",
+    "STUDIO_S3_ENDPOINT_URL",
+    "STUDIO_TEST_DATABASE_URL"
+  ]
+}

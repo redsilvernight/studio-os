@@ -1,0 +1,629 @@
+[
+  {
+    "tool": "studio_prepare_context",
+    "arguments": {
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "objective": "Isolated audit",
+      "max_chars": 4000
+    },
+    "response": {
+      "project": {
+        "id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+        "slug": "p15-e2e",
+        "name": "P15 E2E ONLY",
+        "description": null,
+        "truncated": false
+      },
+      "query_terms": [
+        "isolated",
+        "audit"
+      ],
+      "task": {
+        "id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+        "readable_id": null,
+        "title": "P15 direct tracked",
+        "status": "created",
+        "description": "Isolated validation fixture; no production data",
+        "source_references": [],
+        "truncated": false,
+        "claimed_by_machine_id": null,
+        "claimed_by_self": false,
+        "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+        "why": {
+          "reason": "requested",
+          "matched_terms": []
+        }
+      },
+      "related_tasks": [
+        {
+          "id": "d5934a57-65e8-4ca7-bffc-ed7d6ee052f1",
+          "readable_id": null,
+          "title": "P15 claude conflict",
+          "status": "created",
+          "description": "Isolated validation fixture; no production data",
+          "source_references": [],
+          "truncated": false,
+          "claimed_by_machine_id": null,
+          "claimed_by_self": false,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "why": {
+            "reason": "lexical",
+            "matched_terms": [
+              "isolated"
+            ]
+          }
+        },
+        {
+          "id": "552e42da-cbd9-459d-a558-2a6a887e7397",
+          "readable_id": null,
+          "title": "P15 claude failed",
+          "status": "created",
+          "description": "Isolated validation fixture; no production data",
+          "source_references": [],
+          "truncated": false,
+          "claimed_by_machine_id": null,
+          "claimed_by_self": false,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "why": {
+            "reason": "lexical",
+            "matched_terms": [
+              "isolated"
+            ]
+          }
+        },
+        {
+          "id": "0546ebd5-c65a-4e8b-93ec-106a7e8f8566",
+          "readable_id": null,
+          "title": "P15 claude provided",
+          "status": "created",
+          "description": "Isolated validation fixture; no production data",
+          "source_references": [],
+          "truncated": false,
+          "claimed_by_machine_id": null,
+          "claimed_by_self": false,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "why": {
+            "reason": "lexical",
+            "matched_terms": [
+              "isolated"
+            ]
+          }
+        },
+        {
+          "id": "d498cda8-505d-45cb-b67a-bde3d1d652f4",
+          "readable_id": null,
+          "title": "P15 claude readonly",
+          "status": "created",
+          "description": "Isolated validation fixture; no production data",
+          "source_references": [],
+          "truncated": false,
+          "claimed_by_machine_id": null,
+          "claimed_by_self": false,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "why": {
+            "reason": "lexical",
+            "matched_terms": [
+              "isolated"
+            ]
+          }
+        },
+        {
+          "id": "75c26025-2b20-4c3b-8aed-5f2bd8ec51ad",
+          "readable_id": null,
+          "title": "P15 claude signal",
+          "status": "created",
+          "description": "Isolated validation fixture; no production data",
+          "source_references": [],
+          "truncated": false,
+          "claimed_by_machine_id": null,
+          "claimed_by_self": false,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "why": {
+            "reason": "lexical",
+            "matched_terms": [
+              "isolated"
+            ]
+          }
+        }
+      ],
+      "decisions": [],
+      "rules": [],
+      "skills": [],
+      "ai_work": [],
+      "active_work": {
+        "claims": []
+      },
+      "returned": {
+        "task": 1,
+        "related_tasks": 5,
+        "decisions": 0,
+        "rules": 0,
+        "skills": 0,
+        "ai_work": 0,
+        "claims": 0
+      },
+      "additional_available": {
+        "related_tasks": 18,
+        "decisions": 0,
+        "rules": 0,
+        "skills": 0,
+        "ai_work": 0,
+        "claims": 0
+      },
+      "omitted_for_budget": {},
+      "limits": {
+        "limit": 5,
+        "max_chars": 4000,
+        "chars_used": 282,
+        "item_text_cap": 1500,
+        "library_scan_capped": false
+      }
+    },
+    "seconds": 0.6584284999989904
+  },
+  {
+    "tool": "studio_start_work",
+    "arguments": {
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "idempotency_key": "p15-direct-start",
+      "max_chars": 6000
+    },
+    "response": {
+      "task": {
+        "id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+        "readable_id": null,
+        "title": "P15 direct tracked",
+        "status": "in_progress",
+        "version": 2,
+        "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+        "claimed_by_agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d"
+      },
+      "session": {
+        "id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+        "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+        "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+        "status": "active",
+        "expires_at": "2026-11-05T05:32:21.057067Z"
+      },
+      "claimed": true,
+      "resumed": false,
+      "prepared_context": {
+        "project": {
+          "id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+          "slug": "p15-e2e",
+          "name": "P15 E2E ONLY",
+          "description": null,
+          "truncated": false
+        },
+        "query_terms": [
+          "reprendre",
+          "tache",
+          "p15",
+          "direct",
+          "tracked"
+        ],
+        "task": {
+          "id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+          "readable_id": null,
+          "title": "P15 direct tracked",
+          "status": "in_progress",
+          "description": "Isolated validation fixture; no production data",
+          "source_references": [],
+          "truncated": false,
+          "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078",
+          "claimed_by_self": true,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "why": {
+            "reason": "requested",
+            "matched_terms": []
+          }
+        },
+        "related_tasks": [
+          {
+            "id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+            "readable_id": null,
+            "title": "P15 claude tracked",
+            "status": "created",
+            "description": "Isolated validation fixture; no production data",
+            "source_references": [],
+            "truncated": false,
+            "claimed_by_machine_id": null,
+            "claimed_by_self": false,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "tracked"
+              ]
+            }
+          },
+          {
+            "id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+            "readable_id": null,
+            "title": "P15 codex tracked",
+            "status": "created",
+            "description": "Isolated validation fixture; no production data",
+            "source_references": [],
+            "truncated": false,
+            "claimed_by_machine_id": null,
+            "claimed_by_self": false,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "tracked"
+              ]
+            }
+          },
+          {
+            "id": "69bd9d20-48da-4fcb-a18f-40efd729ab66",
+            "readable_id": null,
+            "title": "P15 direct conflict",
+            "status": "created",
+            "description": "Isolated validation fixture; no production data",
+            "source_references": [],
+            "truncated": false,
+            "claimed_by_machine_id": null,
+            "claimed_by_self": false,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            }
+          },
+          {
+            "id": "e721206a-3dde-45fd-8d4a-70ffa5f3d84a",
+            "readable_id": null,
+            "title": "P15 direct failed",
+            "status": "created",
+            "description": "Isolated validation fixture; no production data",
+            "source_references": [],
+            "truncated": false,
+            "claimed_by_machine_id": null,
+            "claimed_by_self": false,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            }
+          },
+          {
+            "id": "6960d4cd-bad4-48d0-9b93-e28e9e0d63e7",
+            "readable_id": null,
+            "title": "P15 direct provided",
+            "status": "created",
+            "description": "Isolated validation fixture; no production data",
+            "source_references": [],
+            "truncated": false,
+            "claimed_by_machine_id": null,
+            "claimed_by_self": false,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            }
+          }
+        ],
+        "decisions": [],
+        "rules": [],
+        "skills": [],
+        "ai_work": [],
+        "active_work": {
+          "claims": []
+        },
+        "returned": {
+          "task": 1,
+          "related_tasks": 5,
+          "decisions": 0,
+          "rules": 0,
+          "skills": 0,
+          "ai_work": 0,
+          "claims": 0
+        },
+        "additional_available": {
+          "related_tasks": 18,
+          "decisions": 0,
+          "rules": 0,
+          "skills": 0,
+          "ai_work": 0,
+          "claims": 0
+        },
+        "omitted_for_budget": {},
+        "limits": {
+          "limit": 5,
+          "max_chars": 6000,
+          "chars_used": 282,
+          "item_text_cap": 1500,
+          "library_scan_capped": false
+        }
+      },
+      "candidates": [],
+      "sync": {
+        "next_cursor": 0,
+        "items": [],
+        "overflow": {},
+        "resync": false
+      }
+    },
+    "seconds": 0.15094989999488462
+  },
+  {
+    "tool": "studio_start_work",
+    "arguments": {
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "idempotency_key": "p15-direct-start",
+      "max_chars": 6000
+    },
+    "response": {
+      "sync": {
+        "items": [],
+        "resync": false,
+        "overflow": {},
+        "next_cursor": 0
+      },
+      "task": {
+        "id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+        "title": "P15 direct tracked",
+        "status": "in_progress",
+        "version": 2,
+        "readable_id": null,
+        "claimed_by_agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+        "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078"
+      },
+      "claimed": true,
+      "resumed": false,
+      "session": {
+        "id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+        "status": "active",
+        "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+        "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+        "expires_at": "2026-11-05T05:32:21.057067Z"
+      },
+      "candidates": [],
+      "prepared_context": {
+        "task": {
+          "id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+          "why": {
+            "reason": "requested",
+            "matched_terms": []
+          },
+          "title": "P15 direct tracked",
+          "status": "in_progress",
+          "truncated": false,
+          "description": "Isolated validation fixture; no production data",
+          "readable_id": null,
+          "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+          "claimed_by_self": true,
+          "source_references": [],
+          "claimed_by_machine_id": "01954c8e-50d2-429a-9bf9-94f408616078"
+        },
+        "rules": [],
+        "limits": {
+          "limit": 5,
+          "max_chars": 6000,
+          "chars_used": 282,
+          "item_text_cap": 1500,
+          "library_scan_capped": false
+        },
+        "skills": [],
+        "ai_work": [],
+        "project": {
+          "id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+          "name": "P15 E2E ONLY",
+          "slug": "p15-e2e",
+          "truncated": false,
+          "description": null
+        },
+        "returned": {
+          "task": 1,
+          "rules": 0,
+          "claims": 0,
+          "skills": 0,
+          "ai_work": 0,
+          "decisions": 0,
+          "related_tasks": 5
+        },
+        "decisions": [],
+        "active_work": {
+          "claims": []
+        },
+        "query_terms": [
+          "reprendre",
+          "tache",
+          "p15",
+          "direct",
+          "tracked"
+        ],
+        "related_tasks": [
+          {
+            "id": "3427904c-1b71-4b1a-9b9d-5c7a61877a53",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "tracked"
+              ]
+            },
+            "title": "P15 claude tracked",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "0eb70f7d-631a-4580-bb2c-ad5d274f5fdd",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "tracked"
+              ]
+            },
+            "title": "P15 codex tracked",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "69bd9d20-48da-4fcb-a18f-40efd729ab66",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            },
+            "title": "P15 direct conflict",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "e721206a-3dde-45fd-8d4a-70ffa5f3d84a",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            },
+            "title": "P15 direct failed",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          },
+          {
+            "id": "6960d4cd-bad4-48d0-9b93-e28e9e0d63e7",
+            "why": {
+              "reason": "lexical",
+              "matched_terms": [
+                "direct"
+              ]
+            },
+            "title": "P15 direct provided",
+            "status": "created",
+            "truncated": false,
+            "description": "Isolated validation fixture; no production data",
+            "readable_id": null,
+            "content_hash": "2ddb8853418872c97ac381fb8b6b20c2cdb93b54d668c4cfdd699952a4d48eff",
+            "claimed_by_self": false,
+            "source_references": [],
+            "claimed_by_machine_id": null
+          }
+        ],
+        "omitted_for_budget": {},
+        "additional_available": {
+          "rules": 0,
+          "claims": 0,
+          "skills": 0,
+          "ai_work": 0,
+          "decisions": 0,
+          "related_tasks": 18
+        }
+      }
+    },
+    "seconds": 0.01924180000060005
+  },
+  {
+    "tool": "studio_update_task",
+    "arguments": {
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "expected_version": 0,
+      "title": "Must not write"
+    },
+    "response": {
+      "error_code": "version_conflict",
+      "server_version": 2
+    },
+    "seconds": 0.00932049999391893
+  },
+  {
+    "tool": "studio_sync",
+    "arguments": {
+      "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef"
+    },
+    "response": {
+      "next_cursor": 0,
+      "items": [],
+      "overflow": {},
+      "resync": false
+    },
+    "seconds": 0.043377500005590264
+  },
+  {
+    "tool": "studio_handoff",
+    "arguments": {
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "summary": "P15 directed transport diagnostic; replay verified",
+      "changed_files": [],
+      "tests_run": [
+        "real MCP stdio replay and version conflict"
+      ],
+      "idempotency_key": "p15-direct-close"
+    },
+    "response": {
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "task_status": "in_progress",
+      "task_version": 3,
+      "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+      "released_claims": 0,
+      "handoff_cursor_seq": 0,
+      "ai_work_id": "df33de10-1aee-4235-b0aa-3b125f0461b7",
+      "coordination_event_id": null
+    },
+    "seconds": 0.061542800001916476
+  },
+  {
+    "tool": "studio_handoff",
+    "arguments": {
+      "project_id": "751d6265-2643-4d51-8a51-d8f2c5b139bf",
+      "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+      "agent_id": "2d1f7ed1-b986-4827-828d-b5e482893d6d",
+      "summary": "P15 directed transport diagnostic; replay verified",
+      "changed_files": [],
+      "tests_run": [
+        "real MCP stdio replay and version conflict"
+      ],
+      "idempotency_key": "p15-direct-close"
+    },
+    "response": {
+      "task_id": "cae99f43-fa6e-4710-bf1c-d5c31e456088",
+      "ai_work_id": "df33de10-1aee-4235-b0aa-3b125f0461b7",
+      "session_id": "5f2aef62-077c-4c4f-a4db-5fb6f4194bef",
+      "task_status": "in_progress",
+      "task_version": 3,
+      "released_claims": 0,
+      "handoff_cursor_seq": 0,
+      "coordination_event_id": null
+    },
+    "seconds": 0.01161530000536004
+  }
+]

@@ -18,6 +18,7 @@ import difflib
 import hashlib
 import json
 import os
+import re
 import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -45,12 +46,14 @@ from studio_client.canonical import (
     AGENTS_END_MARKER,
     CLAUDE_BEGIN_MARKER,
     CLAUDE_END_MARKER,
+    agents_rules_current,
     build_offline_resolved,
     canonical_agent_keys,
     canonical_rule_keys,
     canonical_skill_keys,
     load_rule_meta,
     load_skill_source,
+    merge_agents_rules,
     render_agents_rules_block,
     render_claude_md_block,
     render_claude_rule,
@@ -315,9 +318,9 @@ def diff_text(
         current = _normalize(target.read_text(encoding="utf-8")) if target.is_file() else ""
         expected = _normalize(item.content)
         if item.block:
-            if expected.rstrip("\n") in current:
+            if item.path != AGENTS_MD_PATH and expected.rstrip("\n") in current:
                 continue
-            expected = _merge_block(current, item.content, item.markers)
+            expected = _merge_block(current, item.content, item.markers, repo_root=root)
         elif current == expected:
             continue
         chunks.append(
@@ -361,6 +364,11 @@ def apply_files(
     ]
     if not pending:
         return []
+    for item in planned:
+        if item.path == AGENTS_MD_PATH:
+            target = _safe_target(root, item.path)
+            existing = target.read_text(encoding="utf-8") if target.is_file() else ""
+            _merge_block(existing, item.content, item.markers, repo_root=root)
     backup_root = root / Path(*BACKUP_RELATIVE_DIR.split("/")) / _timestamp()
     written: list[str] = []
     entries: list[BackupEntry] = []
@@ -372,7 +380,7 @@ def apply_files(
             _backup(root, item.path, backup_root)
         if item.block:
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            content = _merge_block(existing, item.content, item.markers)
+            content = _merge_block(existing, item.content, item.markers, repo_root=root)
         else:
             content = item.content
         _write_text(target, content)
@@ -464,6 +472,16 @@ def _observe_state(
         if not target.is_file():
             return BootstrapFileState.ABSENT
         text = _normalize(target.read_text(encoding="utf-8"))
+        if item.path == AGENTS_MD_PATH:
+            if not re.search(r"<!-- (?:BEGIN|END) [^\n]*RULES", text) and (
+                "# Claude rules imported for Codex" not in text
+            ):
+                return BootstrapFileState.ABSENT
+            return (
+                BootstrapFileState.UP_TO_DATE
+                if agents_rules_current(root, text)
+                else BootstrapFileState.MODIFIED
+            )
         if _normalize(item.content).rstrip("\n") in text:
             return BootstrapFileState.UP_TO_DATE
         begin, end = item.markers
@@ -484,7 +502,14 @@ def _observe_state(
     return BootstrapFileState.MODIFIED
 
 
-def _merge_block(existing: str, block: str, markers: tuple[str, str]) -> str:
+def _merge_block(
+    existing: str, block: str, markers: tuple[str, str], *, repo_root: Path | None = None
+) -> str:
+    if markers[0] == AGENTS_BEGIN_MARKER and repo_root is not None:
+        try:
+            return merge_agents_rules(repo_root, existing)
+        except ValueError as exc:
+            raise BootstrapError(str(exc)) from exc
     begin, end_marker = markers
     existing = _normalize(existing)
     expected = _normalize(block)

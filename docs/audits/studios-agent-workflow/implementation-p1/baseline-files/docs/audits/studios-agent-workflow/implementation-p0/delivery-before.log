@@ -1,0 +1,998 @@
+FFFF..FFFF.FFF                                                           [100%]
+================================== FAILURES ===================================
+_ test_compact_lost_handoff_response_recovers_content_in_successor[unread-False] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB21F9DE80>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB21E57B60>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB21F74CB0>
+directed = False, mode = 'unread'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['bd651c22-e4...bdc7f6fb4fc0']
+E         
+E         Right contains 3 more items, first extra item: 'bd651c22-e472-4f00-ae5d-08f0b4f48fc5'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[unread-True] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB22641650>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB22640750>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB225D9490>
+directed = True, mode = 'unread'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['566e4eb7-cf...d616bf66f212']
+E         
+E         Right contains 3 more items, first extra item: '566e4eb7-cfef-4624-a927-4f77ff508bec'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[presented-False] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB226CB3E0>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB21F23AD0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2265BE70>
+directed = False, mode = 'presented'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['1439701c-8e...e1a1d5ff773a']
+E         
+E         Right contains 3 more items, first extra item: '1439701c-8e07-4305-9fe1-9f821dcb392e'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[presented-True] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB226CDF90>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB21F206D0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2265B850>
+directed = True, mode = 'presented'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['d52fe429-e0...06226a4872a0']
+E         
+E         Right contains 3 more items, first extra item: 'd52fe429-e094-4be3-a764-432579be7c07'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[late-False] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB226CE670>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB2267C600>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB22659BE0>
+directed = False, mode = 'late'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['6f741c0a-fd...ff70706c3ae1']
+E         
+E         Right contains one more item: '6f741c0a-fdd7-4e3a-8ca1-ff70706c3ae1'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[late-True] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB22650910>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB2267F520>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB226597F0>
+directed = True, mode = 'late'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['ae47bf3e-b7...ff86b918fd26']
+E         
+E         Right contains one more item: 'ae47bf3e-b723-4442-8a08-ff86b918fd26'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[budget-False] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB226CECB0>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB2278C870>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2270F230>
+directed = False, mode = 'budget'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['9fff23a2-5e...bc07cc6302c9']
+E         
+E         Right contains 6 more items, first extra item: '9fff23a2-5e1a-426a-85e4-df6d618b6e48'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[budget-True] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB226CFA70>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB2278E4E0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2270DB00>
+directed = True, mode = 'budget'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['983443ae-36...18ceef31b4e8']
+E         
+E         Right contains 6 more items, first extra item: '983443ae-36a7-49e8-af8a-3e3c7ce35f44'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+_ test_compact_lost_handoff_response_recovers_content_in_successor[resync-True] _
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB22705630>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB224E28F0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2270EF90>
+directed = True, mode = 'resync'
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("mode", ["unread", "presented", "acked", "late", "budget", "resync"])
+    async def test_compact_lost_handoff_response_recovers_content_in_successor(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        directed: bool,
+        mode: str,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        session_id = first["session"]["id"]
+        count = 6 if mode == "budget" else 3
+        texts = [f"signal-{index}:" + "x" * 240 for index in range(count)]
+    
+        async def send(index: int) -> str:
+            emitted = dump(await studio_coordinate(
+                source["id"], "question", task["id"], texts[index], other_auth_ctx,
+                session_id=session_id if directed else None,
+            ))
+            assert "error_code" not in emitted, emitted
+            return emitted["event_id"]
+    
+        ids = [await send(index) for index in range(count - (mode == "late"))]
+        if mode in {"presented", "acked", "late"}:
+            received = dump(await studio_sync(auth_ctx, session_id=session_id))
+            assert [signal["text"] for signal in signals(received)] == texts[:len(ids)]
+            if mode in {"acked", "late"}:
+                await studio_sync(auth_ctx, session_id=session_id, ack=received["next_cursor"])
+        if mode == "late":
+            ids.append(await send(count - 1))
+    
+        with monkeypatch.context() as patch:
+            if mode == "resync":
+                patch.setattr(sync_service, "SYNC_SCAN_CAP", 1)
+            closed = await studio_handoff(
+                str(project.id), session_id, auth_ctx,
+                idempotency_key="p0-lost-response", coordination_text="next step",
+            )
+        assert "error_code" not in closed, closed
+        assert "sync" not in closed
+        assert len(json.dumps(closed, ensure_ascii=True)) <= 1000
+        # The transport drops `closed`; recovery below uses only task and agent identity.
+        retry = await studio_handoff(
+            str(project.id), session_id, auth_ctx,
+            idempotency_key="p0-lost-response", coordination_text="next step",
+        )
+        assert retry == closed
+        successor = await studio_start_work(
+            str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
+        )
+        assert successor["session"]["id"] != session_id
+        new_id = successor["session"]["id"]
+        expected = [] if mode == "acked" else ids[-1:] if mode == "late" else ids
+        contents: dict[str, str] = {}
+        order: list[str] = []
+        effects: set[str] = set()
+        for _ in range(20):
+            block = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            repeated = dump(await studio_sync(
+                auth_ctx, session_id=new_id, max_chars=1000 if mode == "budget" else 12000,
+            ))
+            assert repeated == block
+            for signal in signals(block):
+                if signal["event_id"] in ids:
+                    if signal["event_id"] not in effects:
+                        effects.add(signal["event_id"])
+                        order.append(signal["event_id"])
+                    contents[signal["event_id"]] = signal["text"]
+            await studio_sync(auth_ctx, session_id=new_id, ack=block["next_cursor"])
+            if not block["overflow"]:
+                break
+>       assert order == expected
+E       AssertionError: assert [] == ['789f9570-af...c9044cbddb66']
+E         
+E         Right contains 3 more items, first extra item: '789f9570-af70-423b-9b11-74531689eaf2'
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:110: AssertionError
+______ test_handoff_interruption_between_commits_preserves_signal[False] ______
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB22704C30>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB2278D090>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2270D940>
+after_end = False
+db_session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x000001AB22444590>
+
+    @pytest.mark.parametrize("after_end", [False, True])
+    async def test_handoff_interruption_between_commits_preserves_signal(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        after_end: bool,
+        db_session: AsyncSession,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "interrupted recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
+        session_id = first["session"]["id"]
+        emitted = dump(await studio_coordinate(
+            source["id"], "heads_up", task["id"], "recover exact content", other_auth_ctx,
+            session_id=session_id,
+        ))
+        original_end = handoff_service.sessions_service.end_session
+    
+        async def interrupted_end(*args: Any, **kwargs: Any) -> None:
+            if after_end:
+                await original_end(*args, **kwargs)
+            raise RuntimeError("simulated crash between committed steps")
+    
+        with monkeypatch.context() as patch:
+            patch.setattr(handoff_service.sessions_service, "end_session", interrupted_end)
+            with pytest.raises(RuntimeError, match="simulated crash"):
+                # Service wrapper logs/returns internal errors, so inject at service level.
+                from studio_api.deps import resolve_machine
+                from studio_api.services.authz import load_principal
+                from studio_contracts.handoff import HandoffRequest
+                token = auth_ctx.headers["authorization"].removeprefix("Bearer ")
+                # Use the current test connection; earlier commits remain visible.
+                machine = await resolve_machine(db_session, token)
+                principal = await load_principal(db_session, machine)
+                await handoff_service.handoff(
+                    db_session, principal,
+                    HandoffRequest(project_id=project.id, session_id=session_id),
+                )
+        retry = await studio_handoff(str(project.id), session_id, auth_ctx)
+        assert "error_code" not in retry, retry
+        successor = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
+        block = dump(await studio_sync(auth_ctx, session_id=successor["session"]["id"]))
+>       assert {item["event_id"]: item["text"] for item in signals(block)} == {
+            emitted["event_id"]: "recover exact content"
+        }
+E       AssertionError: assert {} == {'7dd05860-62...xact content'}
+E         
+E         Right contains 1 more item:
+E         {'7dd05860-6203-4321-8b7f-dcfa266a7e4c': 'recover exact content'}
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:167: AssertionError
+______ test_handoff_interruption_between_commits_preserves_signal[True] _______
+
+auth_ctx = FakeContext(), other_auth_ctx = FakeContext()
+project = <studio_api.db.models.project.ProjectModel object at 0x000001AB22607390>
+agent = <studio_api.db.models.agent.AgentModel object at 0x000001AB226F9640>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2270D860>
+after_end = True
+db_session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x000001AB2272B310>
+
+    @pytest.mark.parametrize("after_end", [False, True])
+    async def test_handoff_interruption_between_commits_preserves_signal(
+        auth_ctx: FakeContext,
+        other_auth_ctx: FakeContext,
+        project: ProjectModel,
+        agent: AgentModel,
+        monkeypatch: pytest.MonkeyPatch,
+        after_end: bool,
+        db_session: AsyncSession,
+    ) -> None:
+        task = await studio_create_task(str(project.id), "interrupted recipient", auth_ctx)
+        source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
+        source = await studio_start_session(source_task["id"], other_auth_ctx)
+        first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
+        session_id = first["session"]["id"]
+        emitted = dump(await studio_coordinate(
+            source["id"], "heads_up", task["id"], "recover exact content", other_auth_ctx,
+            session_id=session_id,
+        ))
+        original_end = handoff_service.sessions_service.end_session
+    
+        async def interrupted_end(*args: Any, **kwargs: Any) -> None:
+            if after_end:
+                await original_end(*args, **kwargs)
+            raise RuntimeError("simulated crash between committed steps")
+    
+        with monkeypatch.context() as patch:
+            patch.setattr(handoff_service.sessions_service, "end_session", interrupted_end)
+            with pytest.raises(RuntimeError, match="simulated crash"):
+                # Service wrapper logs/returns internal errors, so inject at service level.
+                from studio_api.deps import resolve_machine
+                from studio_api.services.authz import load_principal
+                from studio_contracts.handoff import HandoffRequest
+                token = auth_ctx.headers["authorization"].removeprefix("Bearer ")
+                # Use the current test connection; earlier commits remain visible.
+                machine = await resolve_machine(db_session, token)
+                principal = await load_principal(db_session, machine)
+                await handoff_service.handoff(
+                    db_session, principal,
+                    HandoffRequest(project_id=project.id, session_id=session_id),
+                )
+        retry = await studio_handoff(str(project.id), session_id, auth_ctx)
+        assert "error_code" not in retry, retry
+        successor = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
+        block = dump(await studio_sync(auth_ctx, session_id=successor["session"]["id"]))
+>       assert {item["event_id"]: item["text"] for item in signals(block)} == {
+            emitted["event_id"]: "recover exact content"
+        }
+E       AssertionError: assert {} == {'ac8f26b6-55...xact content'}
+E         
+E         Right contains 1 more item:
+E         {'ac8f26b6-55c2-4448-9b40-f6d1600727e2': 'recover exact content'}
+E         Use -v to get more diff
+
+tests\mcp\test_p0_delivery.py:167: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[unread-False]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[unread-True]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[presented-False]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[presented-True]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[late-False]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[late-True]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[budget-False]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[budget-True]
+FAILED tests/mcp/test_p0_delivery.py::test_compact_lost_handoff_response_recovers_content_in_successor[resync-True]
+FAILED tests/mcp/test_p0_delivery.py::test_handoff_interruption_between_commits_preserves_signal[False]
+FAILED tests/mcp/test_p0_delivery.py::test_handoff_interruption_between_commits_preserves_signal[True]
+11 failed, 3 passed in 6.12s
