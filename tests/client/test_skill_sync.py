@@ -370,6 +370,17 @@ def test_diff_is_deterministic_for_missing_and_drifted_targets(tmp_path: Path) -
     assert "-old\n" in first
 
 
+def test_diff_lists_identical_copies_once(tmp_path: Path) -> None:
+    for harness in ("agents", "claude"):
+        path = _target(tmp_path, harness)
+        path.parent.mkdir(parents=True)
+        path.write_text("old\n", encoding="utf-8")
+
+    diff = diff_skill_plan(plan_skill_sync(tmp_path, [_projection()]))
+
+    assert diff.count("@@") == 2
+
+
 def test_apply_rejects_a_target_changed_after_planning(tmp_path: Path) -> None:
     plan = plan_skill_sync(tmp_path, [_projection()])
     agents = _target(tmp_path, "agents")
