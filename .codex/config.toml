@@ -5,15 +5,6 @@ bearer_token_env_var = "STUDIO_MCP_MACHINE_TOKEN"
 [mcp_servers.context7]
 url = "https://mcp.context7.com/mcp"
 
-[mcp_servers.opencode-dispatch]
-command = 'C:\Users\redsi\Documents\Coding\Projet\opencode-dispatch\.venv\Scripts\python.exe'
-args = [
-    "-m",
-    "ocdispatch",
-    "--config",
-    'C:\Users\redsi\Documents\Coding\Projet\opencode-dispatch\config.json',
-]
-
 [mcp_servers.postgres-test]
 command = "uvx"
 args = [
