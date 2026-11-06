@@ -46,7 +46,9 @@ elseif (Get-ChildItem env: | Where-Object Name -like 'OPENCODE*') { $harness = '
 $agent = $null
 if ($project -and (Get-Command studio-client -ErrorAction SilentlyContinue)) {
     if ($origin -and -not $env:STUDIO_CLIENT_API_BASE_URL) { $env:STUDIO_CLIENT_API_BASE_URL = $origin }
-    $agent = (studio-client agents ensure --harness $harness --json 2>$null | ConvertFrom-Json).id
+    $ensureArgs = @('agents', 'ensure', '--harness', $harness, '--harness-credential', '--json')
+    if ($evt.model) { $ensureArgs += @('--model-ref', [string]$evt.model) }
+    $agent = (studio-client @ensureArgs 2>$null | ConvertFrom-Json).id
 }
 
 $parts = @(if ($project) { "project_id=$project" } else { $(if ($hint) { "projet non lié ($hint)" } else { 'projet non lié (studio-client workspaces register)' }) })

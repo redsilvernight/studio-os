@@ -251,7 +251,7 @@ def test_opencode_render_carries_the_model_protocol() -> None:
     POST /agents/ensure avec l'identite par modele et par poste (DEC-0225)."""
     rendered = render_hook(_SPECS["opencode"])
     assert "ce harnais et ce modele" in rendered
-    assert "'--model-identity'" in rendered
+    assert "'--model-ref'" in rendered
     assert "'--harness', 'opencode'" in rendered
     assert "$modelRef = $payload.model" in rendered
 
@@ -262,7 +262,7 @@ def test_all_harnesses_carry_the_model_protocol() -> None:
     JSON) et ne derive plus la cle du harnais."""
     for spec in HARNESSES:
         rendered = render_hook(spec)
-        assert "'--model-identity'" in rendered
+        assert "'--model-ref'" in rendered
         assert f"agents-ensure-{spec.harness}:" not in rendered
         assert '"agent-model-v2:${originKey}:' in rendered
         assert f"'--harness', '{spec.harness}'" in rendered

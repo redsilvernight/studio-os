@@ -293,14 +293,14 @@
     },
     {
      "path": "library/studio/hooks/session-start.ps1",
-     "sha256": "b3953aa8af347d8dd827c4b7aa58f62d50b04bce16d6f8f67d29aaeb63fcbed7"
+     "sha256": "84ba3becd9a98a533c3ed19a73bb8bf2cc8fc866dc61d72d9f2f5fc70d218131"
     }
    ],
    "kind": "hook",
    "owner": "studio",
    "requires_consent": true,
    "scope": "studio",
-   "sha256": "d052225987c92edf778e21ee87c221b72e226d586ca24d79e17608115d4bb22b",
+   "sha256": "a33e812c2ccadc15d427ba16e520c3ec37656cddb5f6e5cd29d819a4abd22e36",
    "source": "library/studio/hooks/session-start",
    "stable_key": "session-start",
    "status": "ready",
