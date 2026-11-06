@@ -31,6 +31,7 @@ Skill `roadmap-builder` : document `studio.roadmap/v1` montré dans le chat, san
 
 ## 6. Dépôt
 1. `git init -b master`, `.gitignore`, `README.md`, premier commit ; `dev` depuis `master`.
-2. Remote et premier push uniquement sur accord explicite.
+2. Lier le dépôt (sans quoi la session démarre « projet non lié », sans `studio_start_work` ni vault) : le `project_id` figure dans `AGENTS.md` (ligne `Projet Studio OS : <id>`). Si `studio-client workspaces auto-link-consent status` répond `none`, demander l'accord dans le chat puis `studio-client workspaces auto-link-consent grant --yes` (consentement unique du poste, voir DEC-0285). Lier : `studio-client workspaces auto-link --path <dépôt>` ; les sessions suivantes le font seules via `session-start`. Commande CLI uniquement, jamais via un outil MCP. Vérifier : `project_id` annoncé au prochain `session-start`.
+3. Remote et premier push uniquement sur accord explicite.
 
 À éviter : proposer ou hydrater avant accord, projet hors suivi, remote ou push sans confirmation.

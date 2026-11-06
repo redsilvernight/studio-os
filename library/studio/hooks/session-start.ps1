@@ -28,6 +28,18 @@ foreach ($f in Get-ChildItem (Join-Path $base 'workspaces') -Filter *.json -Erro
     }
 }
 
+# Unlinked repo declaring its project in AGENTS.md: link it (DEC-0285; the command needs the user's one-time consent)
+$hint = $null
+if (-not $project -and (Get-Command studio-client -ErrorAction SilentlyContinue)) {
+    $common = git -C $cwd rev-parse --path-format=absolute --git-common-dir 2>$null
+    $root = if ($common -and (Split-Path $common -Leaf) -eq '.git') { Split-Path $common -Parent } else { git -C $cwd rev-parse --show-toplevel 2>$null }
+    if ($root -and (Test-Path (Join-Path $root 'AGENTS.md'))) {
+        $link = studio-client workspaces auto-link --path $root --json 2>$null | ConvertFrom-Json
+        if ($link.status -in 'linked', 'already_linked') { $project = [string]$link.project_id; $origin = [string]$link.server_origin }
+        elseif ($link.status -and $link.status -ne 'no_project_id') { $hint = "lien auto: $($link.status)" + $(if ($link.status -eq 'no_consent') { ' (studio-client workspaces auto-link-consent grant)' }) }
+    }
+}
+
 $harness = 'claude-code'
 if (Get-ChildItem env: | Where-Object Name -like 'CODEX_*') { $harness = 'codex' }
 elseif (Get-ChildItem env: | Where-Object Name -like 'OPENCODE*') { $harness = 'opencode' }
@@ -37,7 +49,7 @@ if ($project -and (Get-Command studio-client -ErrorAction SilentlyContinue)) {
     $agent = (studio-client agents ensure --harness $harness --json 2>$null | ConvertFrom-Json).id
 }
 
-$parts = @(if ($project) { "project_id=$project" } else { 'projet non lié (studio-client workspaces register)' })
+$parts = @(if ($project) { "project_id=$project" } else { $(if ($hint) { "projet non lié ($hint)" } else { 'projet non lié (studio-client workspaces register)' }) })
 if ($agent) { $parts += "agent_id=$agent" }
 $parts += "branche $(git -C $cwd branch --show-current)"
 Write-Output ("Studio OS: " + ($parts -join ' | '))
