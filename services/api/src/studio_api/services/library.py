@@ -685,8 +685,9 @@ async def list_versions(
 async def batch_get_versions(
     session: AsyncSession, principal: Principal, refs: Sequence[LibraryVersionRef]
 ) -> list[LibraryVersionBatchItem]:
-    """Exact versions in one resource query plus one version query, answered
-    in request order (each distinct pair is resolved once). A project
+    """Exact versions: one resource query, one version query, then one detail
+    per resolved row (<= 50), answered in request order (each distinct pair
+    is resolved once). A project
     the caller cannot read fails the whole batch (403, as `get_resource`);
     absent, other users' User-scope and absent-version rows are all
     `not_found`."""
