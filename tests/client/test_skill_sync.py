@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -67,6 +68,21 @@ class _FakeApi:
     async def list_library_versions(self, resource_id: UUID) -> list[_Version]:
         self.calls.append(("versions", resource_id))
         return [row for row in self.versions if row.resource_id == resource_id]
+
+    async def batch_library_versions(self, refs: list[tuple[UUID, int]]) -> Any:
+        self.calls.append(("batch", len(refs)))
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(
+                    resource_id=r,
+                    version=v,
+                    detail=next(
+                        (x for x in self.versions if x.resource_id == r and x.version == v), None
+                    ),
+                )
+                for r, v in refs
+            ]
+        )
 
 
 def _projection(

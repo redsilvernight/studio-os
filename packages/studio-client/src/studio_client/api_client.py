@@ -39,7 +39,10 @@ from studio_contracts.library import (
     LibraryResource,
     LibraryResourceCreate,
     LibraryVersion,
+    LibraryVersionBatchGet,
+    LibraryVersionBatchResult,
     LibraryVersionCreate,
+    LibraryVersionRef,
 )
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
@@ -717,6 +720,20 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def batch_library_versions(
+        self, refs: list[tuple[UUID, int]]
+    ) -> LibraryVersionBatchResult:
+        body = LibraryVersionBatchGet(
+            items=[LibraryVersionRef(resource_id=r, version=v) for r, v in refs]
+        )
+        response = await self._request(
+            "POST",
+            "/api/v1/library/versions/batch-get",
+            json=body.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return LibraryVersionBatchResult.model_validate(response.json())
 
     async def handoff(self, request: HandoffRequest, *, idempotency_key: str) -> HandoffResult:
         payload = request.model_dump(mode="json")
