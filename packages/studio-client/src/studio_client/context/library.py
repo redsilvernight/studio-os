@@ -104,6 +104,7 @@ class LibraryContextProvider:
 
     def __init__(self, api_client: Any) -> None:
         self._api = api_client
+        self._versions: dict[UUID, list[Any]] = {}
 
     async def fetch(
         self,
@@ -229,7 +230,10 @@ class LibraryContextProvider:
         return list(best.values())
 
     async def _find_version(self, resource_id: UUID, version_number: int) -> Any | None:
-        versions = await self._api.list_library_versions(resource_id)
+        versions = self._versions.get(resource_id)
+        if versions is None:
+            versions = await self._api.list_library_versions(resource_id)
+            self._versions[resource_id] = versions
         for row in versions:
             if row.version == version_number:
                 return row

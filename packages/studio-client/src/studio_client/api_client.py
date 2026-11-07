@@ -64,7 +64,12 @@ from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfi
 
 from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
-from studio_client.errors import StudioApiError, TransportError, error_from_response
+from studio_client.errors import (
+    RateLimitError,
+    StudioApiError,
+    TransportError,
+    error_from_response,
+)
 from studio_client.retry import RetryPolicy, is_retryable, sleep
 from studio_client.tokens import KeyringTokenStore, TokenStore, origin_of, resolve_token
 
@@ -174,6 +179,8 @@ class StudioApiClient:
                     value = response.headers.get("retry-after", "").strip()
                     if value.isascii() and value.isdecimal() and len(value) <= 10:
                         retry_after = int(value)
+                        if isinstance(error, RateLimitError):
+                            error.retry_after = retry_after
 
             if (
                 not can_retry
