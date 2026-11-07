@@ -4,7 +4,9 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from pydantic import ValidationError
 from studio_api.db.models.project import ProjectModel
+from studio_contracts.library import LibraryVersionBatchGet
 
 URL = "/api/v1/library/versions/batch-get"
 
@@ -115,3 +117,13 @@ async def test_batch_bounds_and_auth(client: AsyncClient, auth_headers: dict[str
     exact = {"items": [_ref(uuid.uuid4()) for _ in range(50)]}
     assert (await client.post(URL, headers=auth_headers, json=exact)).status_code == 200
     assert (await client.post(URL, json=exact)).status_code == 401
+
+
+def test_batch_contract_bounds() -> None:
+    ref = {"resource_id": str(uuid.uuid4()), "version": 1}
+    assert len(LibraryVersionBatchGet.model_validate({"items": [ref] * 50}).items) == 50
+    for items in ([], [ref] * 51, [{**ref, "version": 0}], [{**ref, "extra": 1}]):
+        with pytest.raises(ValidationError):
+            LibraryVersionBatchGet.model_validate({"items": items})
+    with pytest.raises(ValidationError):
+        LibraryVersionBatchGet.model_validate({"items": [ref], "extra": 1})

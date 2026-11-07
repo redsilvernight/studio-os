@@ -875,6 +875,14 @@ les evenements sont inchanges.
   `studio-client skills sync` utilise cette description dans le frontmatter
   `SKILL.md`, avec repli sur `title` si absente, vide ou composee uniquement
   d'espaces ; les espaces et retours a la ligne sont normalises.
+- POST /library/versions/batch-get (additif, lecture seule) — body `LibraryVersionBatchGet` :
+  1 a 50 couples `{resource_id, version >= 1}` (`422` au-dela ; les doublons sont
+  dedupliques, jamais rejetes). Reponse 200 `LibraryVersionBatchResult` alignee sur la
+  requete : `{resource_id, version, status: ok|not_found, detail}`. `not_found` =
+  ressource absente, User-scope d'autrui ou version absente (indiscernables).
+  `403 forbidden` pour tout le lot si une ressource releve d'un projet illisible.
+  Aucune resolution de cle ni masquage (DEC-0065 reste cote client) ; 1 jeton du
+  bucket general par lot. Pas de migration ; `API_CONTRACT_VERSION` inchange (ajout).
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
   `active_version`). `Idempotency-Key` supporte. Dependances epinglees
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
