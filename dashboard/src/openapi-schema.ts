@@ -921,6 +921,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/versions/batch-get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Get Library Versions
+         * @description Read up to 50 exact `(resource_id, version)` pairs in one call, answered in request order; duplicates are resolved once. `not_found` covers an absent resource, another user's User-scope resource and an absent version alike. A resource of a project the caller cannot read answers `403 forbidden` for the whole batch.
+         */
+        post: operations["batch_get_library_versions_api_v1_library_versions_batch_get_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/{resource_id}": {
         parameters: {
             query?: never;
@@ -4991,7 +5011,7 @@ export interface components {
          *     Replaying the same `Idempotency-Key` with the same body returns the
          *     original result — no second status update, no duplicate claim
          *     releases, no duplicate AI work entry, no second session end. C4 adds:
-         *     `sync` (last bounded `studio_sync` answer, acknowledged), the task's new
+         *     `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
          *     `handoff_cursor_seq` that the next session inherits, and the emitted
          *     `coordination_event_id` when a `coordination` signal was requested.
          */
@@ -5639,6 +5659,39 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * LibraryVersionBatchGet
+         * @description Bounded read of exact versions; duplicates are collapsed server-side.
+         */
+        LibraryVersionBatchGet: {
+            /** Items */
+            items: components["schemas"]["LibraryVersionRef"][];
+        };
+        /** LibraryVersionBatchItem */
+        LibraryVersionBatchItem: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "not_found";
+            detail?: components["schemas"]["LibraryVersion"] | null;
+        };
+        /**
+         * LibraryVersionBatchResult
+         * @description Items aligned with the request; `not_found` hides absent resources,
+         *     other users' User-scope resources and absent versions alike.
+         */
+        LibraryVersionBatchResult: {
+            /** Items */
+            items: components["schemas"]["LibraryVersionBatchItem"][];
+        };
         /** LibraryVersionCreate */
         LibraryVersionCreate: {
             /** Title */
@@ -5657,6 +5710,16 @@ export interface components {
              * @default []
              */
             dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
+        };
+        /** LibraryVersionRef */
+        LibraryVersionRef: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Version */
+            version: number;
         };
         /**
          * LinkTask
@@ -8498,11 +8561,14 @@ export interface components {
          * @description Bounded sync answer. `next_cursor` is the `seq` up to which every
          *     matched event was delivered or absorbed into a delivered item; it stays
          *     below the first event the bounds left out, so items above it may come
-         *     again on the next call (unchanged when nothing new). Ack it as is to
+         *     again on the next call. Truncated scans can advance over irrelevant events.
+         *     Unacknowledged signals to other live sessions of the task also hold back
+         *     this cursor, without exposing their text. Ack it as is to
          *     advance; never derive it from the returned items.
-         *     `overflow` counts matched-but-unreturned items per `why` category;
-         *     `resync` (scan truncated) refers to `prepare_context` for the full
-         *     picture — raw history is never dumped. An empty answer serializes to
+         *     `overflow` counts matched-but-unreturned or temporarily withheld signals
+         *     per `why` category. `resync` (scan truncated) requires further sync/ack;
+         *     `prepare_context` supplies context, not pending signal contents.
+         *     An empty answer serializes to
          *     well under 300 characters.
          */
         SyncResult: {
@@ -14366,6 +14432,71 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    batch_get_library_versions_api_v1_library_versions_batch_get_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryVersionBatchGet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryVersionBatchResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
