@@ -50,7 +50,10 @@ def _server(
     return handler, stats, resources
 
 
-async def test_n_resources_take_ceil_n_over_50_calls_and_match_the_unit_path() -> None:
+async def test_n_resources_take_ceil_n_over_max_calls_and_match_the_unit_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("studio_client.context.library.LIBRARY_VERSION_BATCH_MAX", 50)
     handler, stats, _ = _server(count=60)
     async with _client(handler) as api:
         batched = await LibraryContextProvider(api).fetch(None, limit=200)
@@ -65,6 +68,15 @@ async def test_n_resources_take_ceil_n_over_50_calls_and_match_the_unit_path() -
     assert batched.skipped == unit.skipped
 
 
+async def test_default_batch_bound_serves_120_versions_in_one_call() -> None:
+    """P11-scale: the bound is 500, so a 60-resource sync is a single batch."""
+    handler, stats, _ = _server(count=60)
+    async with _client(handler) as api:
+        await LibraryContextProvider(api).fetch(None, limit=200)
+    assert stats["batches"] == [120]
+    assert stats["units"] == 0
+
+
 @pytest.mark.parametrize("status", [404, 405])
 async def test_unsupported_batch_route_falls_back_once(status: int) -> None:
     handler, stats, _ = _server(count=3, batch_status=status)
@@ -74,7 +86,10 @@ async def test_unsupported_batch_route_falls_back_once(status: int) -> None:
     assert stats["units"] == 6
 
 
-async def test_effective_versions_share_the_batch_helper() -> None:
+async def test_effective_versions_share_the_batch_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("studio_client.context.library.LIBRARY_VERSION_BATCH_MAX", 50)
     handler, stats, _ = _server(count=60)
     async with _client(handler) as api:
         rows = await LibraryContextProvider(api).fetch_effective_versions(
