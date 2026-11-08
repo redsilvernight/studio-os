@@ -205,7 +205,7 @@ class LibraryVersion(ContractModel):
     created_at: datetime
 
 
-LIBRARY_VERSION_BATCH_MAX = 50
+LIBRARY_VERSION_BATCH_MAX = 500
 
 
 class LibraryVersionRef(ContractModel):

@@ -932,7 +932,7 @@ export interface paths {
         put?: never;
         /**
          * Batch Get Library Versions
-         * @description Read up to 50 exact `(resource_id, version)` pairs in one call, answered in request order; duplicates are resolved once. `not_found` covers an absent resource, another user's User-scope resource and an absent version alike. A resource of a project the caller cannot read answers `403 forbidden` for the whole batch.
+         * @description Read up to 500 exact `(resource_id, version)` pairs in one call, answered in request order; duplicates are resolved once. `not_found` covers an absent resource, another user's User-scope resource and an absent version alike. A resource of a project the caller cannot read answers `403 forbidden` for the whole batch.
          */
         post: operations["batch_get_library_versions_api_v1_library_versions_batch_get_post"];
         delete?: never;

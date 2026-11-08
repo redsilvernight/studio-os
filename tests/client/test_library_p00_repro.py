@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from studio_api.settings import Settings
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.daemon import skills_bridge
@@ -111,15 +112,17 @@ def _http_config() -> tuple[ClientConfig, MemoryTokenStore]:
     [
         (10, {"library": 2, "batch": 2}),
         (50, {"library": 2, "batch": 2}),
-        (100, {"library": 2, "batch": 3}),
+        (100, {"library": 2, "batch": 2}),
+        (200, {"library": 2, "batch": 2}),
     ],
 )
 def test_requests_per_sync_for_n_resources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, count: int, expected: dict[str, int]
 ) -> None:
     """Current cost of ONE auto-sync run (and of one preview): 2 listings
-    (rule+skill, then agent_definition) + ceil(n_kind/50) batch reads per
-    fetch. Printed with `-s` for the P00-repro table."""
+    (rule+skill, then agent_definition) + ceil(n_kind/500) batch reads per
+    fetch: constant up to 500 resources per kind (P11-scale). Printed with `-s`
+    for the P00-repro table."""
     seen = _install_http(monkeypatch, count)
     config, store = _http_config()
     home = tmp_path / "home"
@@ -131,6 +134,8 @@ def test_requests_per_sync_for_n_resources(
     }
     print(f"N={count}: total={len(seen)} {counts}")
     assert counts == expected
+    # P11-scale: one sync stays far below the API token-bucket burst (no 429).
+    assert len(seen) < Settings().rate_limit_burst
     seen.clear()
     skills_bridge.preview_skills(config, store, home=home)
     assert len(seen) == sum(expected.values())  # preview refetches everything

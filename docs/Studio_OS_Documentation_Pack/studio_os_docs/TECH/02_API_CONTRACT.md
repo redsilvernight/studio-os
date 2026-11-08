@@ -876,7 +876,7 @@ les evenements sont inchanges.
   `SKILL.md`, avec repli sur `title` si absente, vide ou composee uniquement
   d'espaces ; les espaces et retours a la ligne sont normalises.
 - POST /library/versions/batch-get (additif, lecture seule, DEC-0315 proposee) — body `LibraryVersionBatchGet` :
-  1 a 50 couples `{resource_id, version >= 1}` (`422` au-dela ; les doublons sont
+  1 a 500 couples `{resource_id, version >= 1}` (50 avant P11-scale ; releve additive, un ancien client reste valide, un client recent contre un ancien serveur doit rester a 50) (`422` au-dela ; les doublons sont
   dedupliques, jamais rejetes). Reponse 200 `LibraryVersionBatchResult` alignee sur la
   requete : `{resource_id, version, status: ok|not_found, detail}`. `not_found` =
   ressource absente, User-scope d'autrui ou version absente (indiscernables).
