@@ -16,13 +16,13 @@ CORE_PUBLIC 42, PERSONAL_PRIVATE 21, PROJECT_SPECIFIC 21, EXCLUDED_DUPLICATE 6, 
 
 - Nouveaux éléments canoniques intégrés : skills `studio-task`, `studio-context`, `studio-handoff`, `studio-decision` (Core), rule `testing` et skill `graphify` (Project), skill `delegate-local` (Personal). `studio-protocol` Core est remplacée par la rule `.agents/` (v3).
 - Les 6 agents créatifs de scope user sont des doublons du Core (le scope user masque studio à clé égale) : exclus, la version Core s'applique.
-- Hook utilisateur `session-start` (version poste, DEC-0317) : `PERSONAL_PRIVATE`, seul hook Personal publié, sous consentement.
-- Autres hooks utilisateur (`git-guard`, `stop-check`, `read-guard`, `hub-first`) : `NOT_READY`; scripts liés au câblage Claude Code et à des chemins locaux. Hooks Core : Claude Code et OpenCode seulement, Codex `unverified`, consentement requis.
+- Hooks utilisateur `session-start`, `git-guard`, `stop-check` (versions poste, DEC-0317, DEC-0318) : `PERSONAL_PRIVATE`, seuls hooks Personal publiés, sous consentement.
+- Autres hooks utilisateur (`read-guard`, `hub-first`) : `NOT_READY`; scripts liés au câblage Claude Code et à des chemins locaux. Hooks Core : Claude Code et OpenCode seulement, Codex `unverified`, consentement requis.
 - Non publiable : instructions globales, notes de vault, index/caches Hub et Graphify, credentials et sessions.
 
 ## Ce qui reste
 
-- Les hooks Personal (hors `session-start`) et la compatibilité OpenCode/Codex du Personal ne sont pas validés.
+- Les hooks Personal (hors `session-start`, `git-guard`, `stop-check`) et la compatibilité OpenCode/Codex du Personal ne sont pas validés.
 - La compatibilité réelle des runtimes n'a pas été exercée par une installation; l'import reproductible est la phase suivante.
 - Les ressources historiques (`library/studio/rules/studio-protocol.md` v2) restent en place, non supprimées.
 - Aucune publication, purge ni mutation de production. Rien n'est commité.
@@ -39,7 +39,7 @@ Reconstruction, permissions, idempotence, installations et cycle de vie sont dé
 | Import Core / Project / Personal | 42 / 21 / 21 créés et activés ; rejeu = tout inchangé |
 | Tests | 28 passés (18 isolés + 10 packages), 0 échec ; sans variable d'environnement les 18 sont ignorés |
 | Confidentialité | l'outsider ne voit, lit, résout ni n'installe aucun item Personal |
-| Hooks | Core : 3 avec consentement, Codex non supporté ; Personal : `session-start` seul publié, 4 autres exclus (`NOT_READY`) |
+| Hooks | Core : 3 avec consentement, Codex non supporté ; Personal : `session-start`, `git-guard`, `stop-check` publiés, 2 autres exclus (`NOT_READY`) |
 | Production | aucune mutation, aucun import réel, aucune purge |
 
 **Reproduire** : cluster PostgreSQL local (loopback, port ≠ 5432, base `studio_lib_rebuild*`), `STUDIO_DATABASE_URL=… uv run alembic upgrade head`, puis `STUDIO_LIBRARY_REBUILD_DATABASE_URL=… uv run pytest tests/library_rebuild tests/harness/test_library_packages.py`. Import manuel : `uv run python scripts/library_import.py import --layer core|project|personal --api-url URL --token-env VAR [--project-id UUID] [--dry-run]`.

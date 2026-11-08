@@ -151,7 +151,9 @@ async def test_readonly_cannot_publish(world: World, rebuilt: object) -> None:
 def test_only_allowed_personal_hooks_in_packages() -> None:
     assert not [i for i in li.load_plan("project").items if i.kind == "hook"]
     assert {i.stable_key for i in li.load_plan("personal").items if i.kind == "hook"} == {
-        "session-start"
+        "git-guard",
+        "session-start",
+        "stop-check",
     }
     assert {i.stable_key for i in li.load_plan("core").items if i.kind == "hook"} == {
         "git-guard",

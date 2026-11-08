@@ -689,14 +689,14 @@
   "version": 1
  },
  {
-  "decision": "NOT_READY",
-  "destination": null,
+  "decision": "PERSONAL_PRIVATE",
+  "destination": "personal",
   "key": "git-guard",
   "kind": "hook",
   "new": false,
-  "rationale": "Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import.",
+  "rationale": "Version poste du hook Core : relais vers le garde-fou OpenCode dispatch ; remplace le hook Core au scope user (DEC-0317). Hook sous consentement.",
   "scope": "user",
-  "source": "home:hooks/guard.ps1",
+  "source": "home:library-hooks/git-guard",
   "supersedes": null,
   "tier": "base",
   "version": 1
@@ -715,14 +715,14 @@
   "version": 1
  },
  {
-  "decision": "NOT_READY",
-  "destination": null,
+  "decision": "PERSONAL_PRIVATE",
+  "destination": "personal",
   "key": "stop-check",
   "kind": "hook",
   "new": false,
-  "rationale": "Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import.",
+  "rationale": "Version poste du hook Core : rappel mémoire unique par session ; remplace le hook Core au scope user (DEC-0317). Hook sous consentement.",
   "scope": "user",
-  "source": "home:hooks/stop.ps1",
+  "source": "home:library-hooks/stop-check",
   "supersedes": null,
   "tier": "base",
   "version": 1
