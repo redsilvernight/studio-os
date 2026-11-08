@@ -565,13 +565,14 @@ def _modified_home(tmp_path: Path) -> tuple[Path, Path]:
     return home, target
 
 
-def test_apply_refuses_conflicts_without_overwrite(tmp_path: Path, monkeypatch) -> None:
+def test_apply_skips_conflicts_without_overwrite(tmp_path: Path, monkeypatch) -> None:
     home, target = _modified_home(tmp_path)
     _patch_fetch(monkeypatch, [_projection()])
     controller = _controller(tmp_path, home)
-    with pytest.raises(LocalFeatureError):
-        controller.skills_apply(SkillsApplyRequest(confirm=True))
+    result = controller.skills_apply(SkillsApplyRequest(confirm=True))
     assert "local edit" in target.read_text(encoding="utf-8")
+    assert result.conflicts != []
+    assert controller.skills_status().state.value == "conflicts"
 
 
 def test_apply_overwrite_backs_up_and_resolves_conflicts(tmp_path: Path, monkeypatch) -> None:

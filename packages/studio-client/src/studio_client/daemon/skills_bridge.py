@@ -77,7 +77,7 @@ from studio_client.tokens import TokenStore, origin_of
 
 _LOGGER = logging.getLogger("studio_client.daemon.skills_bridge")
 
-_SKILL_LIMIT = 100
+_SKILL_LIMIT = 500
 
 # The contract stays vendor-neutral: the wire names the global skill
 # directories by role, not by product.
@@ -257,7 +257,7 @@ def _validate_definition_projection(projection: LibraryContextItem) -> None:
 async def fetch_library_projections(
     api: Any,
     project_id: Any,
-    limit: int = 100,
+    limit: int = 500,
     selection: dict[str, set[str]] | None = None,
 ) -> tuple[LibraryContextItem, ...]:
     provider = LibraryContextProvider(api)
@@ -500,20 +500,15 @@ def apply_definition_sync(
                 written=(), backups=(), manifest_path=plan.manifest_path, removed=()
             )
         plan = _select_definitions(plan, selected)
-    conflicts = list(plan.locally_modified)
-    if conflicts and not overwrite:
-        paths = ", ".join(str(target.path) for target in conflicts)
-        raise SkillSyncConflictError(
-            "refusing to overwrite locally modified definition files "
-            f"without overwrite=True: {paths}"
-        )
+    conflicts = tuple(plan.locally_modified)
+    skipped_paths = {target.path for target in conflicts} if not overwrite else set()
     _verify_definition_plan_is_fresh(plan)
 
     desired: dict[Path, str | None] = {
         target.path: target.desired_text
         for entry in plan.entries
         for target in entry.all_targets
-        if target.state != "current"
+        if target.state != "current" and target.path not in skipped_paths
     }
     desired.update({target.path: None for target in plan.retired})
     desired[plan.manifest_path] = plan.manifest_text
@@ -522,7 +517,7 @@ def apply_definition_sync(
 
     backup_root: Path | None = None
     backups: list[Path] = []
-    if conflicts:
+    if conflicts and overwrite:
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         backup_root = plan.home / ".studio-os" / "backups" / "definitions" / timestamp
         for entry in plan.entries:
@@ -542,7 +537,7 @@ def apply_definition_sync(
     written: list[Path] = []
     for entry in plan.entries:
         for target in entry.all_targets:
-            if target.state == "current":
+            if target.state == "current" or target.path in skipped_paths:
                 continue
             _atomic_write(target.path, target.desired_text)
             written.append(target.path)
@@ -566,6 +561,7 @@ def apply_definition_sync(
         backups=tuple(backups),
         manifest_path=plan.manifest_path,
         removed=tuple(removed),
+        conflicts=tuple(target.path for target in conflicts) if not overwrite else (),
     )
 
 
@@ -1036,7 +1032,12 @@ def apply_skills(
                 result,
                 written=(*result.written, *definition_result.written),
                 backups=(*result.backups, *definition_result.backups),
+                conflicts=(*result.conflicts, *definition_result.conflicts),
             )
+        for extra in result.conflicts:
+            label = str(extra.relative_to(root) if extra.is_absolute() else extra)
+            if label not in conflict_keys:
+                conflict_keys.append(label)
         for journal in journals:
             commit_projection_backup(journal)
     except SkillSyncConflictError as exc:
@@ -1256,28 +1257,26 @@ class _AutoSyncRunner:
                     updated.append(_target_label(plan, target))
                 retired = retired or bool(plan.retired)
 
-            if conflict_keys:
-                _LOGGER.info(
-                    "Auto-sync found %d locally modified file(s), skipping",
-                    len(conflict_keys),
-                )
-                status = SkillsSyncStatus(
-                    state=SkillSyncStatusState.CONFLICTS,
-                    last_check=datetime.now(UTC),
-                    conflicts=conflict_keys,
-                    auto_sync_enabled=True,
-                )
-                _save_status(self.data_root, status)
-                return
-
             if not added and not updated and not retired:
-                _LOGGER.info("Auto-sync: library already up to date")
-                status = SkillsSyncStatus(
-                    state=SkillSyncStatusState.UP_TO_DATE,
-                    last_successful_sync=datetime.now(UTC),
-                    last_check=datetime.now(UTC),
-                    auto_sync_enabled=True,
-                )
+                if conflict_keys:
+                    _LOGGER.info(
+                        "Auto-sync found %d locally modified file(s), skipping",
+                        len(conflict_keys),
+                    )
+                    status = SkillsSyncStatus(
+                        state=SkillSyncStatusState.CONFLICTS,
+                        last_check=datetime.now(UTC),
+                        conflicts=conflict_keys,
+                        auto_sync_enabled=True,
+                    )
+                else:
+                    _LOGGER.info("Auto-sync: library already up to date")
+                    status = SkillsSyncStatus(
+                        state=SkillSyncStatusState.UP_TO_DATE,
+                        last_successful_sync=datetime.now(UTC),
+                        last_check=datetime.now(UTC),
+                        auto_sync_enabled=True,
+                    )
                 _save_status(self.data_root, status)
                 return
 
@@ -1309,16 +1308,27 @@ class _AutoSyncRunner:
                 len(updated),
                 backups,
             )
-            status = SkillsSyncStatus(
-                state=SkillSyncStatusState.UPDATED,
-                last_successful_sync=datetime.now(UTC),
-                last_check=datetime.now(UTC),
-                added=added,
-                updated=updated,
-                conflicts=[],
-                error_message=None,
-                auto_sync_enabled=True,
-            )
+            if conflict_keys:
+                status = SkillsSyncStatus(
+                    state=SkillSyncStatusState.CONFLICTS,
+                    last_check=datetime.now(UTC),
+                    added=added,
+                    updated=updated,
+                    conflicts=conflict_keys,
+                    error_message=None,
+                    auto_sync_enabled=True,
+                )
+            else:
+                status = SkillsSyncStatus(
+                    state=SkillSyncStatusState.UPDATED,
+                    last_successful_sync=datetime.now(UTC),
+                    last_check=datetime.now(UTC),
+                    added=added,
+                    updated=updated,
+                    conflicts=[],
+                    error_message=None,
+                    auto_sync_enabled=True,
+                )
             _save_status(self.data_root, status)
         except LocalFeatureError as exc:
             if exc.error.retryable:

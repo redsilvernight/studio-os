@@ -140,12 +140,14 @@ class SkillSyncResult:
     backups: tuple[Path, ...]
     manifest_path: Path
     removed: tuple[Path, ...] = ()
+    conflicts: tuple[Path, ...] = ()
+    """Locally modified targets left untouched (only when ``overwrite`` is False)."""
 
 
 async def fetch_skill_projections(
     api: Any,
     project_id: UUID | None,
-    limit: int = 100,
+    limit: int = 500,
 ) -> tuple[LibraryContextItem, ...]:
     """Fetch effective skills visible to the caller for global projection.
 
@@ -455,19 +457,16 @@ def apply_skill_sync(
             manifest_before=previous_text,
             manifest_text=json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         )
-    conflicts = [target for target in plan.locally_modified]
-    if conflicts and not overwrite:
-        paths = ", ".join(str(target.path) for target in conflicts)
-        raise SkillSyncConflictError(
-            f"refusing to overwrite locally modified skill files without overwrite=True: {paths}"
-        )
+    conflicts = tuple(target for target in plan.locally_modified)
+    skipped = () if overwrite else conflicts
+    skipped_paths = {target.path for target in skipped}
     _verify_plan_is_fresh(plan)
 
     desired: dict[Path, str | None] = {
         target.path: _desired_text(entry, target)
         for entry in plan.entries
         for target in entry.all_files
-        if target.state != "current"
+        if target.state != "current" and target.path not in skipped_paths
     }
     desired.update({target.path: None for target in plan.retired})
     desired[plan.manifest_path] = plan.manifest_text
@@ -476,7 +475,7 @@ def apply_skill_sync(
 
     backup_root: Path | None = None
     backups: list[Path] = []
-    if conflicts:
+    if conflicts and overwrite:
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         backup_root = plan.home / ".studio-os" / "backups" / "skills" / timestamp
         for entry in plan.entries:
@@ -495,7 +494,7 @@ def apply_skill_sync(
     written: list[Path] = []
     for entry in plan.entries:
         for target in entry.all_files:
-            if target.state == "current":
+            if target.state == "current" or target.path in skipped_paths:
                 continue
             _atomic_write(target.path, _desired_text(entry, target))
             written.append(target.path)
@@ -514,6 +513,7 @@ def apply_skill_sync(
         backups=tuple(backups),
         manifest_path=plan.manifest_path,
         removed=tuple(removed),
+        conflicts=tuple(target.path for target in skipped),
     )
 
 

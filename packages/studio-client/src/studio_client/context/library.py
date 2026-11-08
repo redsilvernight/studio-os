@@ -109,6 +109,17 @@ class LibraryContextProvider:
         self._batched: dict[tuple[UUID, int], Any | None] = {}
         self._batch_supported = True
 
+    async def _list_all(self, *, limit: int, **filters: Any) -> list[Any]:
+        """Page `list_library_resources` until a short page: no silent cap."""
+        page_size = max(1, min(limit, 500))
+        resources: list[Any] = []
+        while True:
+            extra = {"offset": len(resources)} if resources else {}
+            page = await self._api.list_library_resources(limit=page_size, **filters, **extra)
+            resources.extend(page)
+            if len(page) < page_size:
+                return resources
+
     async def fetch(
         self,
         project_id: UUID | None,
@@ -118,7 +129,7 @@ class LibraryContextProvider:
         stable_keys: dict[str, set[str]] | None = None,
     ) -> LibraryFetchResult:
         wanted = set(kinds)
-        resources = await self._api.list_library_resources(limit=limit)
+        resources = await self._list_all(limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
@@ -177,7 +188,7 @@ class LibraryContextProvider:
         """Effective (shadowed, lock-aware) raw versions of one structured
         kind, for local projections that need the full content rather than
         injectable text (e.g. `hook`)."""
-        resources = await self._api.list_library_resources(kind=kind, limit=limit)
+        resources = await self._list_all(kind=kind, limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None

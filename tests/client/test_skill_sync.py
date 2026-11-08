@@ -235,18 +235,18 @@ def test_partial_sync_keeps_unselected_manifest_and_retired_copies(tmp_path: Pat
     assert plan_skill_sync(tmp_path, [_projection("graphify", text="new")]).outdated
 
 
-def test_apply_refuses_drift_without_overwrite_and_changes_nothing(tmp_path: Path) -> None:
+def test_apply_skips_drift_without_overwrite_and_applies_others(tmp_path: Path) -> None:
     agents = _target(tmp_path, "agents")
     agents.parent.mkdir(parents=True)
     agents.write_text("keep me\n", encoding="utf-8")
     plan = plan_skill_sync(tmp_path, [_projection()])
 
-    with pytest.raises(SkillSyncConflictError, match="overwrite=True"):
-        apply_skill_sync(plan)
+    result = apply_skill_sync(plan)
 
     assert agents.read_text(encoding="utf-8") == "keep me\n"
-    assert not _target(tmp_path, "claude").exists()
-    assert not plan.manifest_path.exists()
+    assert result.conflicts == (agents,)
+    assert _target(tmp_path, "claude").is_file()
+    assert plan.manifest_path.is_file()
 
 
 def test_apply_overwrite_backs_up_both_harnesses_and_writes_manifest(
@@ -343,10 +343,10 @@ def test_user_projection_preview_and_local_edits_are_protected(tmp_path: Path) -
     updated = plan_skill_sync(
         tmp_path, [_projection(scope="user", text="Updated adaptation")], include_opencode=True
     )
-    with pytest.raises(SkillSyncConflictError):
-        apply_skill_sync(updated)
+    result = apply_skill_sync(updated)
+    assert edited in result.conflicts
     assert edited.read_text(encoding="utf-8") == "Local edit\n"
-    assert "Personal adaptation" in _target(tmp_path, "agents").read_text(encoding="utf-8")
+    assert "Updated adaptation" in _target(tmp_path, "agents").read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio
@@ -546,17 +546,19 @@ def test_opencode_addendum_edit_alone_is_not_drift(tmp_path: Path) -> None:
     assert plan.entries[0].opencode.state == "current"
 
 
-def test_opencode_locally_modified_needs_overwrite_and_is_backed_up(tmp_path: Path) -> None:
+def test_opencode_locally_modified_is_skipped_without_overwrite(tmp_path: Path) -> None:
     path = _opencode(tmp_path)
     path.parent.mkdir(parents=True)
     path.write_text("hand written\n\n" + _ADDENDUM, encoding="utf-8")
     plan = plan_skill_sync(tmp_path, [_projection()], include_opencode=True)
     assert [t.harness for t in plan.locally_modified] == ["opencode"]
 
-    with pytest.raises(SkillSyncConflictError, match="overwrite=True"):
-        apply_skill_sync(plan)
+    result = apply_skill_sync(plan)
     assert path.read_text(encoding="utf-8").startswith("hand written")
+    assert result.conflicts == (path,)
+    assert _target(tmp_path, "agents").is_file()
 
+    plan = plan_skill_sync(tmp_path, [_projection()], include_opencode=True)
     result = apply_skill_sync(plan, overwrite=True)
 
     assert len(result.backups) == 1
