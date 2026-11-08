@@ -9,15 +9,15 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 | CORE_PUBLIC | 42 |
 | EXCLUDED_DUPLICATE | 6 |
 | NOT_PUBLISHABLE | 4 |
-| NOT_READY | 5 |
-| PERSONAL_PRIVATE | 21 |
+| NOT_READY | 4 |
+| PERSONAL_PRIVATE | 22 |
 | PROJECT_SPECIFIC | 21 |
 
 | Package | Entrées prêtes |
 |---|---:|
 | core | 42 |
 | project | 21 |
-| personal | 21 |
+| personal | 22 |
 
 ## Décisions
 
@@ -104,7 +104,7 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 | user | hook | `git-guard` | 1 | NOT_READY | — | `home:…` | Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import. |
 | user (nouveau) | hook | `hub-first` | 1 | NOT_READY | — | `home:…` | Nouvel élément canonique absent du catalogue historique. Hook PreToolUse lié au Hub local et au câblage Claude Code ; à porter avec consentement à l'import. |
 | user | hook | `read-guard` | 1 | NOT_READY | — | `home:…` | Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import. |
-| user | hook | `session-start` | 1 | NOT_READY | — | `home:…` | Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import. |
+| user | hook | `session-start` | 1 | PERSONAL_PRIVATE | personal | `home:…` | Version poste du hook Core : hub local et annonce dispatch ; remplace le hook Core au scope user (DEC-0317). Hook sous consentement. |
 | user | hook | `stop-check` | 1 | NOT_READY | — | `home:…` | Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import. |
 | user | model_profile | `light-reader` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
 | user | model_profile | `local-hub` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |

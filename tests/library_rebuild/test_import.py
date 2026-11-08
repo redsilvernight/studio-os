@@ -148,9 +148,11 @@ async def test_readonly_cannot_publish(world: World, rebuilt: object) -> None:
     not (li.ROOT / "library/packages/personal/manifest.json").is_file(),
     reason="Personal package is git-ignored: absent from a clean checkout",
 )
-def test_personal_hooks_excluded_from_all_packages() -> None:
-    for layer in ("project", "personal"):
-        assert not [i for i in li.load_plan(layer).items if i.kind == "hook"]
+def test_only_allowed_personal_hooks_in_packages() -> None:
+    assert not [i for i in li.load_plan("project").items if i.kind == "hook"]
+    assert {i.stable_key for i in li.load_plan("personal").items if i.kind == "hook"} == {
+        "session-start"
+    }
     assert {i.stable_key for i in li.load_plan("core").items if i.kind == "hook"} == {
         "git-guard",
         "session-start",
