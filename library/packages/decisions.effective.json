@@ -702,14 +702,14 @@
   "version": 1
  },
  {
-  "decision": "NOT_READY",
-  "destination": null,
+  "decision": "PERSONAL_PRIVATE",
+  "destination": "personal",
   "key": "session-start",
   "kind": "hook",
   "new": false,
-  "rationale": "Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import.",
+  "rationale": "Version poste du hook Core : hub local et annonce dispatch ; remplace le hook Core au scope user (DEC-0317). Hook sous consentement.",
   "scope": "user",
-  "source": "home:hooks/session-start.ps1",
+  "source": "home:library-hooks/session-start",
   "supersedes": null,
   "tier": "base",
   "version": 1
