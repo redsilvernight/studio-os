@@ -13,6 +13,7 @@ from studio_contracts.library import (
     LibraryResourceCreate,
     LibraryVersion,
     LibraryVersionCreate,
+    LibraryVersionsBatchRequest,
 )
 
 from studio_api.deps import CurrentPrincipal, DbSession
@@ -71,6 +72,29 @@ async def list_library(
         offset=offset,
     )
     return [LibraryResource.model_validate(r) for r in resources]
+
+
+@router.post(
+    "/versions/batch",
+    response_model=list[LibraryVersion],
+    description=(
+        "Batch read of exact library version rows (P11-scale, additive). "
+        "One request for up to 500 `(resource_id, version)` pairs; unknown "
+        "or unreadable rows are skipped, never an error. Pure read, same "
+        "visibility as the per-resource read."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def batch_library_versions(
+    batch_in: LibraryVersionsBatchRequest,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> list[LibraryVersion]:
+    return await library_service.batch_version_details(
+        session,
+        principal,
+        [(item.resource_id, item.version) for item in batch_in.requests],
+    )
 
 
 @router.post(

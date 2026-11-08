@@ -4872,6 +4872,81 @@
     }
    }
   },
+  "/api/v1/library/versions/batch": {
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Batch Library Versions",
+    "description": "Batch read of exact library version rows (P11-scale, additive). One request for up to 500 `(resource_id, version)` pairs; unknown or unreadable rows are skipped, never an error. Pure read, same visibility as the per-resource read.",
+    "operationId": "batch_library_versions_api_v1_library_versions_batch_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryVersionsBatchRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/LibraryVersion"
+         },
+         "type": "array",
+         "title": "Response Batch Library Versions Api V1 Library Versions Batch Post"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/library/{resource_id}": {
    "get": {
     "tags": [
@@ -21772,7 +21847,7 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, acknowledged), the task's new\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
    },
    "HarnessReport": {
     "properties": {
@@ -23116,6 +23191,48 @@
      "title"
     ],
     "title": "LibraryVersionCreate"
+   },
+   "LibraryVersionLookup": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "version"
+    ],
+    "title": "LibraryVersionLookup",
+    "description": "One `(resource_id, version)` read inside a batch (P11-scale, additive).\n\nPure read: the pair names an exact version row, never a range, so the\nbatch result is deterministic regardless of later activations."
+   },
+   "LibraryVersionsBatchRequest": {
+    "properties": {
+     "requests": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryVersionLookup"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Requests"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "requests"
+    ],
+    "title": "LibraryVersionsBatchRequest",
+    "description": "Batch read of exact version rows (P11-scale, additive).\n\nBounded to 500 entries so one sync of a large library stays a single\nHTTP request, far below the rate-limiter burst. Unknown or unreadable\nrows are skipped, never an error \u2014 the caller treats a missing row as\n`skipped(missing)`, same as the per-resource read."
    },
    "LinkTask": {
     "properties": {
@@ -29783,7 +29900,7 @@
      "next_cursor"
     ],
     "title": "SyncResult",
-    "description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call (unchanged when nothing new). Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned items per `why` category;\n`resync` (scan truncated) refers to `prepare_context` for the full\npicture \u2014 raw history is never dumped. An empty answer serializes to\nwell under 300 characters."
+    "description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call. Truncated scans can advance over irrelevant events.\nUnacknowledged signals to other live sessions of the task also hold back\nthis cursor, without exposing their text. Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned or temporarily withheld signals\nper `why` category. `resync` (scan truncated) requires further sync/ack;\n`prepare_context` supplies context, not pending signal contents.\nAn empty answer serializes to\nwell under 300 characters."
    },
    "Task": {
     "properties": {

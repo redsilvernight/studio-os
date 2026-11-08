@@ -212,6 +212,27 @@ class LibraryVersionCreate(IdempotentCreate):
     dependencies: list[DependencySelection] = []
 
 
+class LibraryVersionLookup(ContractModel):
+    """One `(resource_id, version)` read inside a batch (P11-scale, additive).
+
+    Pure read: the pair names an exact version row, never a range, so the
+    batch result is deterministic regardless of later activations."""
+
+    resource_id: UUID
+    version: int = Field(ge=1)
+
+
+class LibraryVersionsBatchRequest(ContractModel):
+    """Batch read of exact version rows (P11-scale, additive).
+
+    Bounded to 500 entries so one sync of a large library stays a single
+    HTTP request, far below the rate-limiter burst. Unknown or unreadable
+    rows are skipped, never an error — the caller treats a missing row as
+    `skipped(missing)`, same as the per-resource read."""
+
+    requests: list[LibraryVersionLookup] = Field(min_length=1, max_length=500)
+
+
 class LibraryActivate(ContractModel):
     """Explicit activation: moves `active_version`
     only. `expected_resource_version` is the optimistic-concurrency guard

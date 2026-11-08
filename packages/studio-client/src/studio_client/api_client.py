@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from types import TracebackType
@@ -710,6 +711,54 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def list_library_versions_batch(
+        self, lookups: Sequence[tuple[UUID, int]]
+    ) -> list[LibraryVersion]:
+        """Batch read of exact version rows (P11-scale, additive).
+
+        One POST for up to 500 `(resource_id, version)` pairs; unknown or
+        unreadable rows are skipped server-side. Pure GET-equivalent read,
+        safe to retry."""
+        payload = {
+            "requests": [
+                {"resource_id": str(resource_id), "version": version}
+                for resource_id, version in lookups
+            ]
+        }
+        response = await self._request(
+            "POST", "/api/v1/library/versions/batch", json=payload, idempotent=True
+        )
+        return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def list_all_library_resources(
+        self,
+        *,
+        kind: str | None = None,
+        scope: str | None = None,
+        project_id: UUID | None = None,
+        page_size: int = 500,
+    ) -> list[LibraryResource]:
+        """Full Library listing without silent truncation (P11-scale).
+
+        Paginates `GET /api/v1/library` (`limit`/`offset`) until a short
+        page; additive: the paged `list_library_resources` is unchanged."""
+        page_size = max(1, min(int(page_size), 500))
+        collected: list[LibraryResource] = []
+        offset = 0
+        while True:
+            page = await self.list_library_resources(
+                kind=kind,
+                scope=scope,
+                project_id=project_id,
+                limit=page_size,
+                offset=offset,
+            )
+            collected.extend(page)
+            if len(page) < page_size:
+                break
+            offset += len(page)
+        return collected
 
     async def handoff(self, request: HandoffRequest, *, idempotency_key: str) -> HandoffResult:
         payload = request.model_dump(mode="json")

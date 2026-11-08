@@ -719,6 +719,36 @@ async def version_detail(
     )
 
 
+async def batch_version_details(
+    session: AsyncSession,
+    principal: Principal,
+    lookups: Sequence[tuple[UUID, int]],
+) -> list[LibraryVersion]:
+    """Batch read of exact version rows (P11-scale, additive).
+
+    One HTTP request for N versions: same visibility rules as the
+    per-resource read (`get_resource` masking + `_version_row`), unknown or
+    unreadable rows skipped silently so the caller treats them as
+    `skipped(missing)`. Order follows the deduplicated input order; pure
+    read, no persistence, no locks touched here (lock selection stays
+    caller-side)."""
+    seen: set[tuple[UUID, int]] = set()
+    details: list[LibraryVersion] = []
+    for resource_id, version_number in lookups:
+        key = (resource_id, version_number)
+        if key in seen:
+            continue
+        seen.add(key)
+        resource = await get_resource(session, principal, resource_id)
+        if resource is None:
+            continue
+        row = await _version_row(session, resource.id, version_number)
+        if row is None:
+            continue
+        details.append(await version_detail(session, row))
+    return details
+
+
 async def list_locks(
     session: AsyncSession, principal: Principal, project_id: UUID | None = None
 ) -> list[LibraryProjectLockModel]:

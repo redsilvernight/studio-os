@@ -10,7 +10,6 @@ import pytest
 from pydantic import ValidationError
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
 from studio_client.skill_sync import (
-    SkillSyncConflictError,
     SkillSyncError,
     apply_skill_sync,
     plan_skill_sync,
@@ -165,19 +164,55 @@ def test_unmanaged_and_modified_auxiliary_files_are_protected(tmp_path: Path) ->
     local.parent.mkdir(parents=True)
     local.write_text("mine", encoding="utf-8")
     plan = plan_skill_sync(tmp_path, [_item("multi", {"references/a.md": "A"})])
-    with pytest.raises(SkillSyncConflictError):
-        apply_skill_sync(plan)
+    result = apply_skill_sync(plan)
     assert local.read_text("utf-8") == "mine"
-    assert not (tmp_path / ".agents/skills/multi/SKILL.md").exists()
+    assert [p for p in result.conflicts if p.name == "a.md"] != []
+    # Non-conflicting targets are still applied.
+    assert (tmp_path / ".agents/skills/multi/SKILL.md").is_file()
+    assert (tmp_path / ".agents/skills/multi/references/a.md").read_text("utf-8") == "A"
 
     _sync(tmp_path, [_item("multi", {"references/a.md": "A"})], overwrite=True)
     assert local.read_text("utf-8") == "A"
     assert any(p.read_text("utf-8") == "mine" for p in (tmp_path / ".studio-os").rglob("a.md"))
 
     local.write_text("edited", encoding="utf-8")
-    with pytest.raises(SkillSyncConflictError):
-        _sync(tmp_path, [_item("multi", {"references/a.md": "B"}, version=2)])
+    from studio_client.skill_sync import SkillSyncResult as _Result
+
+    result2: _Result = apply_skill_sync(
+        plan_skill_sync(tmp_path, [_item("multi", {"references/a.md": "B"}, version=2)])
+    )
     assert local.read_text("utf-8") == "edited"
+    assert [p for p in result2.conflicts if p.name == "a.md"] != []
+
+
+def test_single_conflict_does_not_block_other_targets(tmp_path: Path) -> None:
+    """1 conflit sur 30 cibles : les 29 autres sont appliquées, le conflit est listé."""
+
+    from studio_client.skill_sync import render_skill
+
+    keys = [f"skill-{index:02d}" for index in range(10)]
+    items = [_item(key) for key in keys]
+    # _sync projette agents + claude + opencode : 10 compétences x 3 = 30 cibles.
+    assert _sync(tmp_path, items)[0] == 10 * 3
+
+    conflicted = tmp_path / ".claude/skills/skill-07/SKILL.md"
+    conflicted.write_text("local edit\n", encoding="utf-8")
+
+    updated = [_item(key, version=2) for key in keys]
+    plan = plan_skill_sync(tmp_path, updated, include_opencode=True)
+    assert len(plan.locally_modified) == 1
+    result = apply_skill_sync(plan)
+
+    assert conflicted.read_text(encoding="utf-8") == "local edit\n"
+    assert [p for p in result.conflicts if p == conflicted] != []
+    # 30 cibles : 1 conflitée, 29 appliquées.
+    assert len(result.written) == 29
+    for key in keys:
+        for harness_dir in (".agents", ".claude"):
+            path = tmp_path / f"{harness_dir}/skills/{key}/SKILL.md"
+            if path == conflicted:
+                continue
+            assert path.read_text(encoding="utf-8") == render_skill(_item(key, version=2))
 
 
 def test_unmanaged_neighbour_files_survive_update_and_uninstall(tmp_path: Path) -> None:

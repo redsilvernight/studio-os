@@ -154,7 +154,9 @@ def test_auto_sync_includes_user_skills_and_excludes_project_skills(
         assert not (home / f".{harness}" / "skills" / "project-only").exists()
 
 
-def test_local_conflict_blocks_every_kind_and_stays_visible(tmp_path: Path, monkeypatch) -> None:
+def test_local_conflict_skips_only_its_target_and_stays_visible(
+    tmp_path: Path, monkeypatch
+) -> None:
     home = tmp_path / "home"
     edited = home / ".claude" / "rules" / "coding-standard.md"
     edited.parent.mkdir(parents=True)
@@ -170,8 +172,8 @@ def test_local_conflict_blocks_every_kind_and_stays_visible(tmp_path: Path, monk
     _run(home, tmp_path / "data")
 
     assert edited.read_text(encoding="utf-8") == "hand edited\n"
-    assert not (home / ".agents" / "skills" / "studio-git-flow").exists()
-    assert not (home / ".agents" / "rules" / "coding-standard.md").exists()
+    assert (home / ".agents" / "skills" / "studio-git-flow" / "SKILL.md").is_file()
+    assert (home / ".agents" / "rules" / "coding-standard.md").is_file()
     status = skills_bridge._load_status(tmp_path / "data")
     assert status is not None
     assert status.state.value == "conflicts"

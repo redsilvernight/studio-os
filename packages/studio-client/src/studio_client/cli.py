@@ -1661,6 +1661,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                 "written": [str(path) for path in result.written],
                 "backups": [str(path) for path in result.backups],
                 "removed": [str(path) for path in result.removed],
+                "conflicts": [str(path) for path in result.conflicts],
                 "manifest": str(result.manifest_path),
             }
             if args.json:
@@ -1670,7 +1671,8 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                     f"synchronized {payload['skills']} skills; "
                     f"wrote {len(result.written)} files; "
                     f"created {len(result.backups)} backups; "
-                    f"removed {len(result.removed)} deprecated copies"
+                    f"removed {len(result.removed)} deprecated copies; "
+                    f"skipped {len(result.conflicts)} conflicting files"
                 )
                 print(f"manifest: {result.manifest_path}")
             return
@@ -1758,7 +1760,9 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
                 "written": [str(path) for path in result.written],
                 "deleted": [str(path) for path in result.deleted],
                 "backups": [str(path) for path in result.backups],
+                "conflicts": [str(path) for path in result.conflicts],
                 "manifest": str(result.manifest_path),
+                "pending_consent": len(plan.needs_consent),
             }
             if args.json:
                 print(json.dumps(payload, indent=2))
@@ -1767,10 +1771,13 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
                     print(f"{row['stable_key']} v{row['version']}: {row['status']}")
                 print(
                     f"wrote {len(result.written)} files; deleted {len(result.deleted)}; "
-                    f"created {len(result.backups)} backups"
+                    f"created {len(result.backups)} backups; "
+                    f"skipped {len(result.conflicts)} conflicting files; "
+                    f"{len(plan.needs_consent)} pending consent"
                 )
             return
-        failures = len(plan.pending) + len(plan.needs_consent)
+        pending_consent = len(plan.needs_consent)
+        failures = len(plan.pending) + pending_consent
         if args.json:
             print(
                 json.dumps(
@@ -1778,6 +1785,7 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
                         "hooks": rows,
                         "files": files,
                         "removed": list(plan.removed),
+                        "pending_consent": pending_consent,
                         "failures": failures,
                     },
                     indent=2,
@@ -1790,7 +1798,9 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
             for item in files:
                 if item["state"] != "current":
                     print(f"{item['state']}: {item['path']}")
-            print(f"checked {len(rows)} hooks, failures {failures}")
+            print(
+                f"checked {len(rows)} hooks, {pending_consent} pending consent, failures {failures}"
+            )
         if args.hooks_command == "check" and failures:
             raise SystemExit(1)
     except HookSyncError as exc:
