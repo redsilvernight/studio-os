@@ -130,7 +130,7 @@ async def create_library_resource(
     "/versions/batch-get",
     response_model=LibraryVersionBatchResult,
     description=(
-        "Read up to 50 exact `(resource_id, version)` pairs in one call, "
+        "Read up to 500 exact `(resource_id, version)` pairs in one call, "
         "answered in request order; duplicates are resolved once. "
         "`not_found` covers an absent resource, another user's User-scope "
         "resource and an absent version alike. A resource of a project the "

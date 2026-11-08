@@ -109,21 +109,35 @@ async def test_batch_forbids_the_whole_batch_for_an_unreadable_project(
 
 
 async def test_batch_bounds_and_auth(client: AsyncClient, auth_headers: dict[str, str]) -> None:
-    too_many = {"items": [_ref(uuid.uuid4()) for _ in range(51)]}
+    too_many = {"items": [_ref(uuid.uuid4()) for _ in range(501)]}
     assert (await client.post(URL, headers=auth_headers, json=too_many)).status_code == 422
     assert (await client.post(URL, headers=auth_headers, json={"items": []})).status_code == 422
     bad_version = {"items": [_ref(uuid.uuid4(), 0)]}
     assert (await client.post(URL, headers=auth_headers, json=bad_version)).status_code == 422
-    exact = {"items": [_ref(uuid.uuid4()) for _ in range(50)]}
+    exact = {"items": [_ref(uuid.uuid4()) for _ in range(500)]}
     assert (await client.post(URL, headers=auth_headers, json=exact)).status_code == 200
     assert (await client.post(URL, json=exact)).status_code == 401
 
 
 def test_batch_contract_bounds() -> None:
     ref = {"resource_id": str(uuid.uuid4()), "version": 1}
-    assert len(LibraryVersionBatchGet.model_validate({"items": [ref] * 50}).items) == 50
-    for items in ([], [ref] * 51, [{**ref, "version": 0}], [{**ref, "extra": 1}]):
+    assert len(LibraryVersionBatchGet.model_validate({"items": [ref] * 500}).items) == 500
+    for items in ([], [ref] * 501, [{**ref, "version": 0}], [{**ref, "extra": 1}]):
         with pytest.raises(ValidationError):
             LibraryVersionBatchGet.model_validate({"items": items})
     with pytest.raises(ValidationError):
         LibraryVersionBatchGet.model_validate({"items": [ref], "extra": 1})
+
+
+async def test_batch_serves_200_versions_in_one_request(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """P11-scale: a 200-resource sync needs one batch call, not one per 50."""
+    first = await _create(client, auth_headers, "batch-200")
+    items = [_ref(first["id"])] + [_ref(uuid.uuid4()) for _ in range(199)]
+    response = await client.post(URL, headers=auth_headers, json={"items": items})
+    assert response.status_code == 200
+    result = response.json()["items"]
+    assert len(result) == 200
+    assert result[0]["status"] == "ok"
+    assert {i["status"] for i in result[1:]} == {"not_found"}

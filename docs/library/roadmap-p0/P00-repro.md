@@ -15,13 +15,14 @@ Hypothèses : (3) contredit volontairement `tests/client/test_daemon_library_syn
 
 ## Requêtes mesurées
 
-Mesure réelle : `test_requests_per_sync_for_n_resources`, client HTTP simulé (`httpx.MockTransport`) branché sur `skills_bridge.StudioApiClient`. N ressources `studio` réparties à parts égales sur rule / skill / agent_definition, une exécution de `_AutoSyncRunner._run` sur un home vide. Le batch (50 versions par appel) est déjà en place.
+Mesure réelle : `test_requests_per_sync_for_n_resources`, client HTTP simulé (`httpx.MockTransport`) branché sur `skills_bridge.StudioApiClient`. N ressources `studio` réparties à parts égales sur rule / skill / agent_definition, une exécution de `_AutoSyncRunner._run` sur un home vide. Le batch (500 versions par appel depuis P11-scale ; 50 avant) est en place.
 
 | N | `GET /library` | `POST batch-get` | Total / synchro |
 |---|---|---|---|
 | 10 | 2 | 2 | 4 |
 | 50 | 2 | 2 | 4 |
-| 100 | 2 | 3 | 5 |
+| 100 | 2 | 2 | 4 |
+| 200 | 2 | 2 | 4 |
 
 - Une synchro sans changement coûte autant (aucun fetch conditionnel, pas d'ETag).
 - `preview_skills` refait le même fetch complet (assertion du test) ; `apply_skills` aussi (`skills_bridge.py:913-915`, non mesuré). Un parcours aperçu puis application coûte donc au moins 2 fois ce total.
