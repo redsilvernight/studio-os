@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -243,6 +244,21 @@ class _ReadOnlyApi:
         self.calls.append("list_library_versions")
         return [row for row in self.versions if row.resource_id == resource_id]
 
+    async def batch_library_versions(self, refs: list[tuple[UUID, int]]) -> Any:
+        self.calls.append("batch_library_versions")
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(
+                    resource_id=r,
+                    version=v,
+                    detail=next(
+                        (x for x in self.versions if x.resource_id == r and x.version == v), None
+                    ),
+                )
+                for r, v in refs
+            ]
+        )
+
 
 def test_fetch_only_reads_the_library_never_publishes() -> None:
     resources = [
@@ -272,7 +288,7 @@ def test_fetch_only_reads_the_library_never_publishes() -> None:
     result = asyncio.run(skills_bridge.fetch_library_projections(api, None))
 
     assert {item.library_kind for item in result} == {"skill", "rule", "agent_definition"}
-    assert set(api.calls) == {"list_library_resources", "list_library_versions"}
+    assert set(api.calls) == {"list_library_resources", "batch_library_versions"}
     assert not any(
         word in call
         for call in api.calls

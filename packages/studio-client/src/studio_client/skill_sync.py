@@ -392,10 +392,16 @@ def diff_skill_plan(plan: SkillSyncPlan) -> str:
 
     chunks: list[str] = []
     for entry in plan.entries:
+        seen: set[tuple[str | None, str]] = set()
         for target in entry.all_files:
             if target.state == "current":
                 continue
-            desired_lines = _desired_text(entry, target).splitlines(keepends=True)
+            desired = _desired_text(entry, target)
+            if target.state != "missing":
+                if (target.current_text, desired) in seen:
+                    continue
+                seen.add((target.current_text, desired))
+            desired_lines = desired.splitlines(keepends=True)
             relative = target.path.relative_to(plan.home).as_posix()
             current_lines = (
                 [] if target.current_text is None else target.current_text.splitlines(keepends=True)

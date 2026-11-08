@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -280,3 +281,60 @@ def test_cli_agents_ensure_keeps_an_explicit_token(
         "opencode", ClientConfig(api_base_url="http://test"), home=tmp_path
     )
     assert os.environ["STUDIO_CLIENT_MACHINE_TOKEN"] == "explicit-token"
+
+
+@pytest.mark.parametrize(
+    ("harness", "model_ref", "provider", "model"),
+    [
+        ("claude-code", "claude-opus-4-8", "anthropic", "claude-opus-4-8"),
+        ("codex", "gpt-5.5", "openai", "gpt-5.5"),
+        ("opencode", "openrouter/qwen3", "openrouter", "qwen3"),
+        ("claude-code", "bedrock/claude-x", "bedrock", "claude-x"),
+    ],
+)
+def test_cli_agents_ensure_model_ref_resolves_the_canonical_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    harness: str,
+    model_ref: str,
+    provider: str,
+    model: str,
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "test-token")
+    seen: list[Any] = []
+
+    class FakeClient:
+        async def resolve_agent_identity(self, request: Any) -> Any:
+            seen.append(request)
+            return SimpleNamespace(
+                agent=SimpleNamespace(id=AGENT_ID), logical_harness=harness, reason=None
+            )
+
+    def fake_run(config: ClientConfig, action: Any) -> Any:
+        return asyncio.run(action(FakeClient()))
+
+    monkeypatch.setattr(cli, "_run", fake_run)
+    cli.main(["agents", "ensure", "--harness", harness, "--model-ref", model_ref])
+    assert (seen[0].provider, seen[0].effective_model) == (provider, model)
+
+
+def test_cli_agents_ensure_model_ref_without_provider_falls_back_to_the_harness_agent(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "test-token")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/agents/ensure"
+        return httpx.Response(200, json=_ensure_payload(False))
+
+    def fake_run(config: ClientConfig, action: Any) -> Any:
+        async def _go() -> Any:
+            async with _client(handler) as client:
+                return await action(client)
+
+        return asyncio.run(_go())
+
+    monkeypatch.setattr(cli, "_run", fake_run)
+    cli.main(["agents", "ensure", "--harness", "opencode", "--model-ref", "qwen3"])
+    assert f"Found agent {AGENT_ID}" in capsys.readouterr().out

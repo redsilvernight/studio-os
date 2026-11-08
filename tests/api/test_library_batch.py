@@ -1,77 +1,129 @@
-"""P11-scale: batch read of exact library versions (additive)."""
-
 from __future__ import annotations
 
+import uuid
+
+import pytest
 from httpx import AsyncClient
+from pydantic import ValidationError
+from studio_api.db.models.project import ProjectModel
+from studio_contracts.library import LibraryVersionBatchGet
+
+URL = "/api/v1/library/versions/batch-get"
 
 
-def _rule_payload(scope: str, key: str) -> dict[str, object]:
+def _payload(key: str, scope: str = "studio") -> dict[str, object]:
     return {
         "kind": "rule",
         "stable_key": key,
         "scope": scope,
-        "title": f"title {key}",
-        "description": None,
-        "content": {
-            "content_schema": "studio.library.rule/v1",
-            "text": f"body {key}",
-        },
+        "title": key,
+        "content": {"content_schema": "studio.library.rule/v1", "text": f"Body of {key}."},
     }
 
 
-async def test_versions_batch_returns_exact_rows_and_skips_unknown(
+async def _create(
+    client: AsyncClient, headers: dict[str, str], key: str, **extra: object
+) -> dict[str, object]:
+    response = await client.post(
+        "/api/v1/library", headers=headers, json={**_payload(key, **extra)}
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def _ref(resource_id: object, version: int = 1) -> dict[str, object]:
+    return {"resource_id": str(resource_id), "version": version}
+
+
+async def test_batch_mixes_ok_and_not_found_in_request_order(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    first = (
-        await client.post("/api/v1/library", headers=auth_headers, json=_rule_payload("studio", "batch-a"))
-    ).json()
-    second = (
-        await client.post("/api/v1/library", headers=auth_headers, json=_rule_payload("studio", "batch-b"))
-    ).json()
-    for resource in (first, second):
-        await client.post(
-            f"/api/v1/library/{resource['id']}/activate",
-            headers=auth_headers,
-            json={"version": 1, "expected_resource_version": resource["version"]},
-        )
+    first = await _create(client, auth_headers, "batch-a")
+    second = await _create(client, auth_headers, "batch-b")
+    items = [_ref(second["id"]), _ref(first["id"], 9), _ref(uuid.uuid4()), _ref(first["id"])]
+    response = await client.post(URL, headers=auth_headers, json={"items": items})
+    assert response.status_code == 200
+    result = response.json()["items"]
+    assert [(i["resource_id"], i["version"], i["status"]) for i in result] == [
+        (second["id"], 1, "ok"),
+        (first["id"], 9, "not_found"),
+        (items[2]["resource_id"], 1, "not_found"),
+        (first["id"], 1, "ok"),
+    ]
+    assert result[0]["detail"]["title"] == "batch-b"
+    assert result[1]["detail"] is None
 
+
+async def test_batch_deduplicates_requested_pairs(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    resource = await _create(client, auth_headers, "batch-dup")
     response = await client.post(
-        "/api/v1/library/versions/batch",
-        headers=auth_headers,
-        json={
-            "requests": [
-                {"resource_id": first["id"], "version": 1},
-                {"resource_id": second["id"], "version": 1},
-                {"resource_id": second["id"], "version": 99},
-                {"resource_id": "00000000-0000-0000-0000-000000000000", "version": 1},
-            ]
-        },
+        URL, headers=auth_headers, json={"items": [_ref(resource["id"])] * 3}
     )
     assert response.status_code == 200
-    rows = response.json()
-    assert {(row["resource_id"], row["version"]) for row in rows} == {
-        (first["id"], 1),
-        (second["id"], 1),
-    }
-    assert all(row["title"].startswith("title batch-") for row in rows)
+    assert [i["status"] for i in response.json()["items"]] == ["ok"] * 3
 
 
-async def test_versions_batch_rejects_empty_and_too_many(
-    client: AsyncClient, auth_headers: dict[str, str]
+async def test_batch_masks_another_users_private_resource(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    other_auth_headers: dict[str, str],
+    admin_auth_headers: dict[str, str],
 ) -> None:
-    empty = await client.post(
-        "/api/v1/library/versions/batch", headers=auth_headers, json={"requests": []}
-    )
-    assert empty.status_code == 422
+    private = await _create(client, auth_headers, "batch-private", scope="user")
+    body = {"items": [_ref(private["id"]), _ref(uuid.uuid4())]}
+    other = await client.post(URL, headers=other_auth_headers, json=body)
+    assert other.status_code == 200
+    assert [i["status"] for i in other.json()["items"]] == ["not_found", "not_found"]
+    assert all(i["detail"] is None for i in other.json()["items"])
+    owner = await client.post(URL, headers=auth_headers, json=body)
+    assert owner.json()["items"][0]["status"] == "ok"
+    admin = await client.post(URL, headers=admin_auth_headers, json=body)
+    assert admin.json()["items"][0]["status"] == "ok"
 
-    too_many = await client.post(
-        "/api/v1/library/versions/batch",
+
+@pytest.mark.isolation
+async def test_batch_forbids_the_whole_batch_for_an_unreadable_project(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    admin_auth_headers: dict[str, str],
+    project: ProjectModel,
+) -> None:
+    mine = await _create(client, auth_headers, "batch-mine", scope="user")
+    scoped = (
+        await client.post(
+            "/api/v1/library",
+            headers=admin_auth_headers,
+            json={**_payload("batch-scoped", "project"), "project_id": str(project.id)},
+        )
+    ).json()
+    response = await client.post(
+        URL,
         headers=auth_headers,
-        json={
-            "requests": [
-                {"resource_id": "00000000-0000-0000-0000-000000000000", "version": 1}
-                for _ in range(501)
-            ]
-        },
+        json={"items": [_ref(mine["id"]), _ref(scoped["id"])]},
     )
-    assert too_many.status_code == 422
+    assert response.status_code == 403
+    only_mine = await client.post(URL, headers=auth_headers, json={"items": [_ref(mine["id"])]})
+    assert only_mine.status_code == 200
+
+
+async def test_batch_bounds_and_auth(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    too_many = {"items": [_ref(uuid.uuid4()) for _ in range(51)]}
+    assert (await client.post(URL, headers=auth_headers, json=too_many)).status_code == 422
+    assert (await client.post(URL, headers=auth_headers, json={"items": []})).status_code == 422
+    bad_version = {"items": [_ref(uuid.uuid4(), 0)]}
+    assert (await client.post(URL, headers=auth_headers, json=bad_version)).status_code == 422
+    exact = {"items": [_ref(uuid.uuid4()) for _ in range(50)]}
+    assert (await client.post(URL, headers=auth_headers, json=exact)).status_code == 200
+    assert (await client.post(URL, json=exact)).status_code == 401
+
+
+def test_batch_contract_bounds() -> None:
+    ref = {"resource_id": str(uuid.uuid4()), "version": 1}
+    assert len(LibraryVersionBatchGet.model_validate({"items": [ref] * 50}).items) == 50
+    for items in ([], [ref] * 51, [{**ref, "version": 0}], [{**ref, "extra": 1}]):
+        with pytest.raises(ValidationError):
+            LibraryVersionBatchGet.model_validate({"items": items})
+    with pytest.raises(ValidationError):
+        LibraryVersionBatchGet.model_validate({"items": [ref], "extra": 1})

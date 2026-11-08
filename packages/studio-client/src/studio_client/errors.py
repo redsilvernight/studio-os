@@ -92,6 +92,19 @@ class QuotaError(StudioApiError):
         return None
 
 
+class RateLimitError(StudioApiError):
+    """429 — the server asked the client to slow down. `retry_after` is the
+    server's `Retry-After` in seconds (None when absent or invalid). The
+    client waits only within its backoff bound; beyond it, this error
+    surfaces with an explicit wait instead of hammering the endpoint."""
+
+    retry_after: int | None = None
+
+    def __str__(self) -> str:
+        wait = f"retry after {self.retry_after}s" if self.retry_after is not None else "retry later"
+        return f"rate limited by the Studio API (429): {wait}"
+
+
 class ServerError(StudioApiError):
     """5xx — transient, retryable."""
 
@@ -118,6 +131,7 @@ _STATUS_TO_ERROR: dict[int, type[StudioApiError]] = {
     409: ConflictError,
     413: QuotaError,
     426: ClientUpgradeRequiredError,
+    429: RateLimitError,
     507: QuotaError,
 }
 

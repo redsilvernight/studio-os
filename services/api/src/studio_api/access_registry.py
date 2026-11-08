@@ -138,6 +138,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("GET", "/api/v1/vault/search"): _P,
     ("GET", "/api/v1/library"): _P,
     ("POST", "/api/v1/library"): _P,
+    ("POST", "/api/v1/library/versions/batch-get"): _P,
     ("GET", "/api/v1/library/{resource_id}"): _P,
     ("GET", "/api/v1/library/{resource_id}/versions"): _P,
     ("GET", "/api/v1/library/{resource_id}/versions/{version}/dependency-updates"): _P,

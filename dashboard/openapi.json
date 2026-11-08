@@ -4872,19 +4872,19 @@
     }
    }
   },
-  "/api/v1/library/versions/batch": {
+  "/api/v1/library/versions/batch-get": {
    "post": {
     "tags": [
      "library"
     ],
-    "summary": "Batch Library Versions",
-    "description": "Batch read of exact library version rows (P11-scale, additive). One request for up to 500 `(resource_id, version)` pairs; unknown or unreadable rows are skipped, never an error. Pure read, same visibility as the per-resource read.",
-    "operationId": "batch_library_versions_api_v1_library_versions_batch_post",
+    "summary": "Batch Get Library Versions",
+    "description": "Read up to 50 exact `(resource_id, version)` pairs in one call, answered in request order; duplicates are resolved once. `not_found` covers an absent resource, another user's User-scope resource and an absent version alike. A resource of a project the caller cannot read answers `403 forbidden` for the whole batch.",
+    "operationId": "batch_get_library_versions_api_v1_library_versions_batch_get_post",
     "requestBody": {
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/LibraryVersionsBatchRequest"
+        "$ref": "#/components/schemas/LibraryVersionBatchGet"
        }
       }
      },
@@ -4896,11 +4896,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "items": {
-          "$ref": "#/components/schemas/LibraryVersion"
-         },
-         "type": "array",
-         "title": "Response Batch Library Versions Api V1 Library Versions Batch Post"
+         "$ref": "#/components/schemas/LibraryVersionBatchResult"
         }
        }
       }
@@ -23145,6 +23141,83 @@
     "title": "LibraryVersion",
     "description": "One immutable snapshot of a resource version."
    },
+   "LibraryVersionBatchGet": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryVersionRef"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Items"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "LibraryVersionBatchGet",
+    "description": "Bounded read of exact versions; duplicates are collapsed server-side."
+   },
+   "LibraryVersionBatchItem": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "not_found"
+      ],
+      "title": "Status"
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersion"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "version",
+     "status"
+    ],
+    "title": "LibraryVersionBatchItem"
+   },
+   "LibraryVersionBatchResult": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryVersionBatchItem"
+      },
+      "type": "array",
+      "title": "Items"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "LibraryVersionBatchResult",
+    "description": "Items aligned with the request; `not_found` hides absent resources,\nother users' User-scope resources and absent versions alike."
+   },
    "LibraryVersionCreate": {
     "properties": {
      "title": {
@@ -23192,7 +23265,7 @@
     ],
     "title": "LibraryVersionCreate"
    },
-   "LibraryVersionLookup": {
+   "LibraryVersionRef": {
     "properties": {
      "resource_id": {
       "type": "string",
@@ -23211,28 +23284,7 @@
      "resource_id",
      "version"
     ],
-    "title": "LibraryVersionLookup",
-    "description": "One `(resource_id, version)` read inside a batch (P11-scale, additive).\n\nPure read: the pair names an exact version row, never a range, so the\nbatch result is deterministic regardless of later activations."
-   },
-   "LibraryVersionsBatchRequest": {
-    "properties": {
-     "requests": {
-      "items": {
-       "$ref": "#/components/schemas/LibraryVersionLookup"
-      },
-      "type": "array",
-      "maxItems": 500,
-      "minItems": 1,
-      "title": "Requests"
-     }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-     "requests"
-    ],
-    "title": "LibraryVersionsBatchRequest",
-    "description": "Batch read of exact version rows (P11-scale, additive).\n\nBounded to 500 entries so one sync of a large library stays a single\nHTTP request, far below the rate-limiter burst. Unknown or unreadable\nrows are skipped, never an error \u2014 the caller treats a missing row as\n`skipped(missing)`, same as the per-resource read."
+    "title": "LibraryVersionRef"
    },
    "LinkTask": {
     "properties": {

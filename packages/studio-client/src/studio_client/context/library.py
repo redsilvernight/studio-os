@@ -5,10 +5,11 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
-from studio_contracts.library import RuleContent, SkillContent
+from studio_contracts.library import LIBRARY_VERSION_BATCH_MAX, RuleContent, SkillContent
 
 from studio_client.context.errors import ContextError
 from studio_client.context.manifest import SourceRef
+from studio_client.errors import StudioApiError
 
 LIBRARY_CONTEXT_KIND = "library"
 """Additive Context Package kind carrying AI Library excerpts (P9/DEC-0073).
@@ -36,9 +37,6 @@ already-visible rows returned by the P7 `GET /api/v1/library` listing (which
 filters visibility first but does not resolve shadowing): pure deterministic
 selection, no server rule reimplemented, no invisible candidate ever named.
 """
-
-_LIBRARY_PAGE_SIZE_MAX = 500
-_LIBRARY_BATCH_SIZE_MAX = 500
 
 
 @dataclass(frozen=True)
@@ -107,17 +105,31 @@ class LibraryContextProvider:
 
     def __init__(self, api_client: Any) -> None:
         self._api = api_client
+        self._versions: dict[UUID, list[Any]] = {}
+        self._batched: dict[tuple[UUID, int], Any | None] = {}
+        self._batch_supported = True
+
+    async def _list_all(self, *, limit: int, **filters: Any) -> list[Any]:
+        """Page `list_library_resources` until a short page: no silent cap."""
+        page_size = max(1, min(limit, 500))
+        resources: list[Any] = []
+        while True:
+            extra = {"offset": len(resources)} if resources else {}
+            page = await self._api.list_library_resources(limit=page_size, **filters, **extra)
+            resources.extend(page)
+            if len(page) < page_size:
+                return resources
 
     async def fetch(
         self,
         project_id: UUID | None,
         *,
-        limit: int = 500,
+        limit: int = 100,
         kinds: tuple[str, ...] = TEXTUAL_LIBRARY_KINDS,
         stable_keys: dict[str, set[str]] | None = None,
     ) -> LibraryFetchResult:
         wanted = set(kinds)
-        resources = await self._list_all_resources(self._api, kind=None, page_size=limit)
+        resources = await self._list_all(limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
@@ -145,17 +157,10 @@ class LibraryContextProvider:
         items: list[LibraryContextItem] = []
         skipped: dict[str, int] = {}
         skipped["out_of_scope"] = sum(1 for r in all_effective if str(r.kind) not in wanted)
-        ordered = sorted(effective, key=lambda r: (str(r.kind), r.stable_key))
-        versions_map = await self._versions_map(
-            self._api,
-            [
-                (r.id, locked_version.get(r.id, r.active_version))
-                for r in ordered
-                if str(r.kind) in TEXTUAL_LIBRARY_KINDS
-                and locked_version.get(r.id, r.active_version) > 0
-            ],
+        await self._prefetch_versions(
+            [r for r in effective if str(r.kind) in TEXTUAL_LIBRARY_KINDS], locked_version
         )
-        for resource in ordered:
+        for resource in sorted(effective, key=lambda r: (str(r.kind), r.stable_key)):
             kind = str(resource.kind)
             if kind not in TEXTUAL_LIBRARY_KINDS:
                 skipped["out_of_scope"] = skipped.get("out_of_scope", 0) + 1
@@ -165,7 +170,7 @@ class LibraryContextProvider:
             if version_number <= 0:
                 skipped["missing"] = skipped.get("missing", 0) + 1
                 continue
-            version_row = versions_map.get((str(resource.id), version_number))
+            version_row = await self._find_version(resource.id, version_number)
             if version_row is None:
                 skipped["missing"] = skipped.get("missing", 0) + 1
                 continue
@@ -177,13 +182,13 @@ class LibraryContextProvider:
         project_id: UUID | None,
         *,
         kind: str,
-        limit: int = 500,
+        limit: int = 100,
         stable_keys: set[str] | None = None,
     ) -> list[LibraryEffectiveVersion]:
         """Effective (shadowed, lock-aware) raw versions of one structured
         kind, for local projections that need the full content rather than
         injectable text (e.g. `hook`)."""
-        resources = await self._list_all_resources(self._api, kind=kind, page_size=limit)
+        resources = await self._list_all(kind=kind, limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
@@ -197,86 +202,19 @@ class LibraryContextProvider:
             and (stable_keys is None or resource.stable_key in stable_keys)
         ]
         visible = [r for r in selected if self._is_applicable(r, project_id)]
-        ordered = sorted(self._apply_shadowing(visible), key=lambda r: r.stable_key)
-        lookups = [
-            (r.id, locked_version.get(r.id, r.active_version))
-            for r in ordered
-            if locked_version.get(r.id, r.active_version) > 0
-        ]
-        versions_map = await self._versions_map(self._api, lookups)
         rows: list[LibraryEffectiveVersion] = []
-        for resource in ordered:
+        shadowed = self._apply_shadowing(visible)
+        await self._prefetch_versions(shadowed, locked_version)
+        for resource in sorted(shadowed, key=lambda r: r.stable_key):
             version_number = locked_version.get(resource.id, resource.active_version)
             if version_number <= 0:
                 continue
-            version_row = versions_map.get((str(resource.id), version_number))
+            version_row = await self._find_version(resource.id, version_number)
             if version_row is None:
                 continue
             origin = "lock" if resource.id in locked_version else "active"
             rows.append(LibraryEffectiveVersion(resource, version_row, version_number, origin))
         return rows
-
-    @staticmethod
-    async def _list_all_resources(api: Any, *, kind: str | None, page_size: int) -> list[Any]:
-        """Full listing without silent truncation (P11-scale).
-
-        `page_size` is the `limit` of one `GET /api/v1/library` page; pages
-        are chained via `offset` until a short page. Legacy fakes without an
-        `offset` parameter answer a single page (backward compatible)."""
-        try:
-            size = max(1, min(int(page_size), _LIBRARY_PAGE_SIZE_MAX))
-        except (TypeError, ValueError):
-            size = _LIBRARY_PAGE_SIZE_MAX
-        collected: list[Any] = []
-        offset = 0
-        while True:
-            try:
-                if kind is None:
-                    page = await api.list_library_resources(limit=size, offset=offset)
-                else:
-                    page = await api.list_library_resources(
-                        kind=kind, limit=size, offset=offset
-                    )
-            except TypeError:
-                # Legacy fake without `offset`: single page, no truncation fix.
-                if kind is None:
-                    page = await api.list_library_resources(limit=size)
-                else:
-                    page = await api.list_library_resources(kind=kind, limit=size)
-                return list(page)
-            collected.extend(page)
-            if len(page) < size:
-                break
-            offset += len(page)
-            if offset > 100_000:  # pragma: no cover - safety only
-                break
-        return collected
-
-    @staticmethod
-    async def _versions_map(
-        api: Any, lookups: list[tuple[UUID, int]]
-    ) -> dict[tuple[str, int], Any]:
-        """One batch request for all effective versions (P11-scale).
-
-        Uses `POST /api/v1/library/versions/batch` when the client offers it
-        (constant request count); legacy fakes fall back to one
-        `list_library_versions` per resource."""
-        if not lookups:
-            return {}
-        batch_fn = getattr(api, "list_library_versions_batch", None)
-        if batch_fn is not None:
-            result: dict[tuple[str, int], Any] = {}
-            for index in range(0, len(lookups), _LIBRARY_BATCH_SIZE_MAX):
-                chunk = lookups[index : index + _LIBRARY_BATCH_SIZE_MAX]
-                for row in await batch_fn(chunk):
-                    result[(str(row.resource_id), int(row.version))] = row
-            return result
-        found: dict[tuple[str, int], Any] = {}
-        for resource_id, version_number in lookups:
-            row = await LibraryContextProvider._find_version_static(api, resource_id, version_number)
-            if row is not None:
-                found[(str(resource_id), version_number)] = row
-        return found
 
     def _is_applicable(self, resource: Any, project_id: UUID | None) -> bool:
         """Keep rows from the layer stack valid for this composition.
@@ -310,16 +248,39 @@ class LibraryContextProvider:
                 best[key] = resource
         return list(best.values())
 
-    async def _find_version(self, resource_id: UUID, version_number: int) -> Any | None:
-        return await LibraryContextProvider._find_version_static(
-            self._api, resource_id, version_number
-        )
+    async def _prefetch_versions(
+        self, resources: list[Any], locked_version: dict[UUID, int]
+    ) -> None:
+        """Resolve the effective versions in batches of `LIBRARY_VERSION_BATCH_MAX`
+        (one call each) instead of one history read per resource. A server
+        without the batch route (404/405) falls back to the per-resource path."""
+        pairs = [
+            (r.id, locked_version.get(r.id, r.active_version))
+            for r in resources
+            if locked_version.get(r.id, r.active_version) > 0
+        ]
+        pairs = [p for p in pairs if p not in self._batched and p[0] not in self._versions]
+        for start in range(0, len(pairs), LIBRARY_VERSION_BATCH_MAX):
+            if not self._batch_supported:
+                return
+            chunk = pairs[start : start + LIBRARY_VERSION_BATCH_MAX]
+            try:
+                result = await self._api.batch_library_versions(chunk)
+            except StudioApiError as exc:
+                if exc.status_code not in (404, 405):
+                    raise
+                self._batch_supported = False
+                return
+            for item in result.items:
+                self._batched[(item.resource_id, item.version)] = item.detail
 
-    @staticmethod
-    async def _find_version_static(
-        api: Any, resource_id: UUID, version_number: int
-    ) -> Any | None:
-        versions = await api.list_library_versions(resource_id)
+    async def _find_version(self, resource_id: UUID, version_number: int) -> Any | None:
+        if (resource_id, version_number) in self._batched:
+            return self._batched[(resource_id, version_number)]
+        versions = self._versions.get(resource_id)
+        if versions is None:
+            versions = await self._api.list_library_versions(resource_id)
+            self._versions[resource_id] = versions
         for row in versions:
             if row.version == version_number:
                 return row

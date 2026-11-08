@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from types import TracebackType
@@ -40,7 +39,10 @@ from studio_contracts.library import (
     LibraryResource,
     LibraryResourceCreate,
     LibraryVersion,
+    LibraryVersionBatchGet,
+    LibraryVersionBatchResult,
     LibraryVersionCreate,
+    LibraryVersionRef,
 )
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
@@ -65,7 +67,12 @@ from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfi
 
 from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
-from studio_client.errors import StudioApiError, TransportError, error_from_response
+from studio_client.errors import (
+    RateLimitError,
+    StudioApiError,
+    TransportError,
+    error_from_response,
+)
 from studio_client.retry import RetryPolicy, is_retryable, sleep
 from studio_client.tokens import KeyringTokenStore, TokenStore, origin_of, resolve_token
 
@@ -175,6 +182,8 @@ class StudioApiClient:
                     value = response.headers.get("retry-after", "").strip()
                     if value.isascii() and value.isdecimal() and len(value) <= 10:
                         retry_after = int(value)
+                        if isinstance(error, RateLimitError):
+                            error.retry_after = retry_after
 
             if (
                 not can_retry
@@ -712,53 +721,19 @@ class StudioApiClient:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
 
-    async def list_library_versions_batch(
-        self, lookups: Sequence[tuple[UUID, int]]
-    ) -> list[LibraryVersion]:
-        """Batch read of exact version rows (P11-scale, additive).
-
-        One POST for up to 500 `(resource_id, version)` pairs; unknown or
-        unreadable rows are skipped server-side. Pure GET-equivalent read,
-        safe to retry."""
-        payload = {
-            "requests": [
-                {"resource_id": str(resource_id), "version": version}
-                for resource_id, version in lookups
-            ]
-        }
-        response = await self._request(
-            "POST", "/api/v1/library/versions/batch", json=payload, idempotent=True
+    async def batch_library_versions(
+        self, refs: list[tuple[UUID, int]]
+    ) -> LibraryVersionBatchResult:
+        body = LibraryVersionBatchGet(
+            items=[LibraryVersionRef(resource_id=r, version=v) for r, v in refs]
         )
-        return [LibraryVersion.model_validate(item) for item in response.json()]
-
-    async def list_all_library_resources(
-        self,
-        *,
-        kind: str | None = None,
-        scope: str | None = None,
-        project_id: UUID | None = None,
-        page_size: int = 500,
-    ) -> list[LibraryResource]:
-        """Full Library listing without silent truncation (P11-scale).
-
-        Paginates `GET /api/v1/library` (`limit`/`offset`) until a short
-        page; additive: the paged `list_library_resources` is unchanged."""
-        page_size = max(1, min(int(page_size), 500))
-        collected: list[LibraryResource] = []
-        offset = 0
-        while True:
-            page = await self.list_library_resources(
-                kind=kind,
-                scope=scope,
-                project_id=project_id,
-                limit=page_size,
-                offset=offset,
-            )
-            collected.extend(page)
-            if len(page) < page_size:
-                break
-            offset += len(page)
-        return collected
+        response = await self._request(
+            "POST",
+            "/api/v1/library/versions/batch-get",
+            json=body.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return LibraryVersionBatchResult.model_validate(response.json())
 
     async def handoff(self, request: HandoffRequest, *, idempotency_key: str) -> HandoffResult:
         payload = request.model_dump(mode="json")

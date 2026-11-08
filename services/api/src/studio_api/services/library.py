@@ -25,7 +25,9 @@ from studio_contracts.library import (
     LibraryScope,
     LibraryStatus,
     LibraryVersion,
+    LibraryVersionBatchItem,
     LibraryVersionCreate,
+    LibraryVersionRef,
     ResourceDependencyPin,
     VersionOrigin,
     binding_relation_for,
@@ -680,6 +682,54 @@ async def list_versions(
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def batch_get_versions(
+    session: AsyncSession, principal: Principal, refs: Sequence[LibraryVersionRef]
+) -> list[LibraryVersionBatchItem]:
+    """Exact versions: one resource query, one version query, then one detail
+    per resolved row (<= 50), answered in request order (each distinct pair
+    is resolved once). A project
+    the caller cannot read fails the whole batch (403, as `get_resource`);
+    absent, other users' User-scope and absent-version rows are all
+    `not_found`."""
+    wanted = list(dict.fromkeys((ref.resource_id, ref.version) for ref in refs))
+    resource_ids = {resource_id for resource_id, _ in wanted}
+    resources = {
+        row.id: row
+        for row in (
+            await session.execute(
+                select(LibraryResourceModel).where(LibraryResourceModel.id.in_(resource_ids))
+            )
+        )
+        .scalars()
+        .all()
+    }
+    for resource in resources.values():
+        ensure_resource_scope(principal, resource)
+    readable = {rid for rid, resource in resources.items() if _can_read(principal, resource)}
+    rows = {
+        (row.resource_id, row.version): row
+        for row in (
+            await session.execute(
+                select(LibraryResourceVersionModel).where(
+                    LibraryResourceVersionModel.resource_id.in_(readable)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    resolved: dict[tuple[UUID, int], LibraryVersionBatchItem] = {}
+    for resource_id, version in wanted:
+        row = rows.get((resource_id, version))
+        resolved[(resource_id, version)] = LibraryVersionBatchItem(
+            resource_id=resource_id,
+            version=version,
+            status="ok" if row is not None else "not_found",
+            detail=await version_detail(session, row) if row is not None else None,
+        )
+    return [resolved[(ref.resource_id, ref.version)] for ref in refs]
+
+
 async def get_lock(session: AsyncSession, lock_id: UUID) -> LibraryProjectLockModel | None:
     return await session.get(LibraryProjectLockModel, lock_id)
 
@@ -717,36 +767,6 @@ async def version_detail(
         created_by_user_id=version_row.created_by_user_id,
         created_at=version_row.created_at,
     )
-
-
-async def batch_version_details(
-    session: AsyncSession,
-    principal: Principal,
-    lookups: Sequence[tuple[UUID, int]],
-) -> list[LibraryVersion]:
-    """Batch read of exact version rows (P11-scale, additive).
-
-    One HTTP request for N versions: same visibility rules as the
-    per-resource read (`get_resource` masking + `_version_row`), unknown or
-    unreadable rows skipped silently so the caller treats them as
-    `skipped(missing)`. Order follows the deduplicated input order; pure
-    read, no persistence, no locks touched here (lock selection stays
-    caller-side)."""
-    seen: set[tuple[UUID, int]] = set()
-    details: list[LibraryVersion] = []
-    for resource_id, version_number in lookups:
-        key = (resource_id, version_number)
-        if key in seen:
-            continue
-        seen.add(key)
-        resource = await get_resource(session, principal, resource_id)
-        if resource is None:
-            continue
-        row = await _version_row(session, resource.id, version_number)
-        if row is None:
-            continue
-        details.append(await version_detail(session, row))
-    return details
 
 
 async def list_locks(

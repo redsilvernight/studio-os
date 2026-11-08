@@ -921,7 +921,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/library/versions/batch": {
+    "/api/v1/library/versions/batch-get": {
         parameters: {
             query?: never;
             header?: never;
@@ -931,10 +931,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Batch Library Versions
-         * @description Batch read of exact library version rows (P11-scale, additive). One request for up to 500 `(resource_id, version)` pairs; unknown or unreadable rows are skipped, never an error. Pure read, same visibility as the per-resource read.
+         * Batch Get Library Versions
+         * @description Read up to 50 exact `(resource_id, version)` pairs in one call, answered in request order; duplicates are resolved once. `not_found` covers an absent resource, another user's User-scope resource and an absent version alike. A resource of a project the caller cannot read answers `403 forbidden` for the whole batch.
          */
-        post: operations["batch_library_versions_api_v1_library_versions_batch_post"];
+        post: operations["batch_get_library_versions_api_v1_library_versions_batch_get_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5659,6 +5659,39 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * LibraryVersionBatchGet
+         * @description Bounded read of exact versions; duplicates are collapsed server-side.
+         */
+        LibraryVersionBatchGet: {
+            /** Items */
+            items: components["schemas"]["LibraryVersionRef"][];
+        };
+        /** LibraryVersionBatchItem */
+        LibraryVersionBatchItem: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "not_found";
+            detail?: components["schemas"]["LibraryVersion"] | null;
+        };
+        /**
+         * LibraryVersionBatchResult
+         * @description Items aligned with the request; `not_found` hides absent resources,
+         *     other users' User-scope resources and absent versions alike.
+         */
+        LibraryVersionBatchResult: {
+            /** Items */
+            items: components["schemas"]["LibraryVersionBatchItem"][];
+        };
         /** LibraryVersionCreate */
         LibraryVersionCreate: {
             /** Title */
@@ -5678,14 +5711,8 @@ export interface components {
              */
             dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
         };
-        /**
-         * LibraryVersionLookup
-         * @description One `(resource_id, version)` read inside a batch (P11-scale, additive).
-         *
-         *     Pure read: the pair names an exact version row, never a range, so the
-         *     batch result is deterministic regardless of later activations.
-         */
-        LibraryVersionLookup: {
+        /** LibraryVersionRef */
+        LibraryVersionRef: {
             /**
              * Resource Id
              * Format: uuid
@@ -5693,19 +5720,6 @@ export interface components {
             resource_id: string;
             /** Version */
             version: number;
-        };
-        /**
-         * LibraryVersionsBatchRequest
-         * @description Batch read of exact version rows (P11-scale, additive).
-         *
-         *     Bounded to 500 entries so one sync of a large library stays a single
-         *     HTTP request, far below the rate-limiter burst. Unknown or unreadable
-         *     rows are skipped, never an error — the caller treats a missing row as
-         *     `skipped(missing)`, same as the per-resource read.
-         */
-        LibraryVersionsBatchRequest: {
-            /** Requests */
-            requests: components["schemas"]["LibraryVersionLookup"][];
         };
         /**
          * LinkTask
@@ -14422,7 +14436,7 @@ export interface operations {
             };
         };
     };
-    batch_library_versions_api_v1_library_versions_batch_post: {
+    batch_get_library_versions_api_v1_library_versions_batch_get_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -14431,7 +14445,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LibraryVersionsBatchRequest"];
+                "application/json": components["schemas"]["LibraryVersionBatchGet"];
             };
         };
         responses: {
@@ -14441,7 +14455,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LibraryVersion"][];
+                    "application/json": components["schemas"]["LibraryVersionBatchResult"];
                 };
             };
             /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */

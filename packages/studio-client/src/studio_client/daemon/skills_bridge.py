@@ -51,7 +51,7 @@ from studio_client.drift import (
     hash_text,
     load_managed_hashes,
 )
-from studio_client.errors import AuthenticationError, StudioApiError
+from studio_client.errors import AuthenticationError, RateLimitError, StudioApiError
 from studio_client.projection_backups import (
     ProjectionBackup,
     commit_projection_backup,
@@ -604,6 +604,15 @@ def _run_fetch(
             ComponentId.SECRET_STORE,
             retryable=False,
         ) from exc
+    except RateLimitError as exc:
+        _LOGGER.warning("skills.sync: library rate limited (retry_after=%s)", exc.retry_after)
+        wait = f" Retry in about {exc.retry_after}s." if exc.retry_after is not None else ""
+        raise _error(
+            LocalErrorCode.INTERNAL_ERROR,
+            f"The Studio OS Library is rate limiting requests.{wait}",
+            ComponentId.DAEMON,
+            retryable=True,
+        ) from exc
     except StudioApiError as exc:
         _LOGGER.warning("skills.sync: library unreachable (%s)", type(exc).__name__)
         raise _error(
@@ -758,9 +767,14 @@ def _definition_preview_hash(entry: DefinitionPlanEntry) -> str:
 
 def _diff_definition_entry(home: Path, entry: DefinitionPlanEntry) -> str:
     chunks: list[str] = []
+    seen: set[tuple[str | None, str]] = set()
     for target in entry.all_targets:
         if target.state == "current":
             continue
+        if target.state != "missing":
+            if (target.current_text, target.desired_text) in seen:
+                continue
+            seen.add((target.current_text, target.desired_text))
         relative = target.path.relative_to(home).as_posix()
         current_lines = (
             [] if target.current_text is None else target.current_text.splitlines(keepends=True)

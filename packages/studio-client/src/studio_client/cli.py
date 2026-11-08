@@ -418,6 +418,9 @@ def _adopt_harness_credential(
     os.environ["STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN"] = credential.origin
 
 
+_SINGLE_VENDOR_HARNESS_PROVIDER = {"claude-code": "anthropic", "codex": "openai"}
+
+
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
@@ -427,6 +430,11 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
     if args.harness_credential:
         _adopt_harness_credential(args.harness, config)
+    if args.model_ref:
+        provider, _, model = args.model_ref.rpartition("/")
+        args.provider = provider or _SINGLE_VENDOR_HARNESS_PROVIDER.get(args.harness)
+        args.model = model
+        args.model_identity = bool(args.provider and model)
     if args.model_identity:
         identity = _run(
             config,
@@ -1939,6 +1947,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="One agent per machine and model, whatever the harness (DEC-0225); "
         "falls back to the harness agent when the model is unknown.",
+    )
+    agents_ensure.add_argument(
+        "--model-ref",
+        help="Model as reported by the harness, 'model' or 'provider/model'. Implies "
+        "--model-identity; the provider defaults to the vendor of claude-code and codex, "
+        "and the harness agent is used when it stays unknown.",
     )
     agents_ensure.add_argument(
         "--harness-credential",

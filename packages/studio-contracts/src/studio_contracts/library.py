@@ -205,32 +205,39 @@ class LibraryVersion(ContractModel):
     created_at: datetime
 
 
+LIBRARY_VERSION_BATCH_MAX = 50
+
+
+class LibraryVersionRef(ContractModel):
+    resource_id: UUID
+    version: int = Field(ge=1)
+
+
+class LibraryVersionBatchGet(ContractModel):
+    """Bounded read of exact versions; duplicates are collapsed server-side."""
+
+    items: list[LibraryVersionRef] = Field(min_length=1, max_length=LIBRARY_VERSION_BATCH_MAX)
+
+
+class LibraryVersionBatchItem(ContractModel):
+    resource_id: UUID
+    version: int
+    status: Literal["ok", "not_found"]
+    detail: LibraryVersion | None = None
+
+
+class LibraryVersionBatchResult(ContractModel):
+    """Items aligned with the request; `not_found` hides absent resources,
+    other users' User-scope resources and absent versions alike."""
+
+    items: list[LibraryVersionBatchItem]
+
+
 class LibraryVersionCreate(IdempotentCreate):
     title: str = Field(min_length=1)
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencySelection] = []
-
-
-class LibraryVersionLookup(ContractModel):
-    """One `(resource_id, version)` read inside a batch (P11-scale, additive).
-
-    Pure read: the pair names an exact version row, never a range, so the
-    batch result is deterministic regardless of later activations."""
-
-    resource_id: UUID
-    version: int = Field(ge=1)
-
-
-class LibraryVersionsBatchRequest(ContractModel):
-    """Batch read of exact version rows (P11-scale, additive).
-
-    Bounded to 500 entries so one sync of a large library stays a single
-    HTTP request, far below the rate-limiter burst. Unknown or unreadable
-    rows are skipped, never an error — the caller treats a missing row as
-    `skipped(missing)`, same as the per-resource read."""
-
-    requests: list[LibraryVersionLookup] = Field(min_length=1, max_length=500)
 
 
 class LibraryActivate(ContractModel):
