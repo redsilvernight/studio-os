@@ -161,9 +161,6 @@ def test_runner_resyncs_when_a_new_version_is_activated(
 # --- Gap 2: listing is capped at 100 rows, no pagination --------------------
 
 
-@pytest.mark.xfail(
-    strict=True, reason="gap 2: _SKILL_LIMIT=100 truncates the listing, no offset paging"
-)
 def test_sync_projects_every_resource_beyond_one_listing_page(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -176,10 +173,6 @@ def test_sync_projects_every_resource_beyond_one_listing_page(
 # --- Gap 3: one local conflict blocks the whole sync ------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gap 3: a locally modified target aborts the whole run (see test_daemon_library_sync)",
-)
 def test_conflict_on_one_item_does_not_block_the_others(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
