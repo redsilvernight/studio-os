@@ -771,9 +771,14 @@ def _definition_preview_hash(entry: DefinitionPlanEntry) -> str:
 
 def _diff_definition_entry(home: Path, entry: DefinitionPlanEntry) -> str:
     chunks: list[str] = []
+    seen: set[tuple[str | None, str]] = set()
     for target in entry.all_targets:
         if target.state == "current":
             continue
+        if target.state != "missing":
+            if (target.current_text, target.desired_text) in seen:
+                continue
+            seen.add((target.current_text, target.desired_text))
         relative = target.path.relative_to(home).as_posix()
         current_lines = (
             [] if target.current_text is None else target.current_text.splitlines(keepends=True)

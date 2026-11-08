@@ -20,6 +20,14 @@ def test_classify_state_covers_four_states() -> None:
     assert classify_state("edited", "new", None) == "locally_modified"
 
 
+def test_classify_state_ignores_library_provenance_line() -> None:
+    marker = "<!-- studio-os-library: stable_key=k; version={v} -->"
+    current = f"body\n{marker.format(v=2)}\n"
+    desired = f"body\n{marker.format(v=1)}\n"
+    assert classify_state(current, desired, None) == "outdated"
+    assert classify_state(current + "edit\n", desired, None) == "locally_modified"
+
+
 def test_load_managed_hashes_accepts_v1_skills_manifest(tmp_path: Path) -> None:
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
