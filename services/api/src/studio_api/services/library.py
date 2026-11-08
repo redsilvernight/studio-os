@@ -992,7 +992,8 @@ async def _resolve_inner(
     )
     if not visible:
         raise _Unresolvable("missing_or_invisible_definition")
-    effective = visible[0]
+    live = [r for r in visible if not (r.scope == "user" and r.status == "deprecated")]
+    effective = (live or visible)[0]
 
     origin = VersionOrigin.ACTIVE
     version_number = effective.active_version

@@ -598,6 +598,33 @@ async def test_shadowing_user_over_project_over_studio(
     assert items[0]["text"] == "text from user"
 
 
+async def test_deprecated_user_override_reactivates_common_version(
+    project_id: UUID, config: ClientConfig
+) -> None:
+    resources = [
+        FakeLibraryResource(id=uuid4(), kind="rule", stable_key="same", scope="studio"),
+        FakeLibraryResource(
+            id=uuid4(), kind="rule", stable_key="same", scope="user", status="deprecated"
+        ),
+    ]
+    versions = [
+        FakeLibraryVersion(
+            id=uuid4(),
+            resource_id=r.id,
+            version=1,
+            title=r.scope,
+            content=_rule_text(f"text from {r.scope}"),
+        )
+        for r in resources
+    ]
+    package = await _compose_with_library(
+        project_id, config, FakeLibraryApi(resources=resources, versions=versions)
+    )
+
+    (item,) = package.data[LIBRARY_CONTEXT_KIND]
+    assert (item["scope"], item["deprecated"]) == ("studio", False)
+
+
 async def test_deprecated_resource_kept_with_flag(project_id: UUID, config: ClientConfig) -> None:
     resource = FakeLibraryResource(
         id=uuid4(), kind="skill", stable_key="old", scope="studio", status="deprecated"
