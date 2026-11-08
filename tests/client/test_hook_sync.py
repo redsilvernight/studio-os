@@ -354,9 +354,7 @@ def test_needs_consent_hooks_are_never_applied(tmp_path: Path) -> None:
     provider.publish("guard", 1, _content())
     provider.publish("other", 1, _content("echo other\n"))
 
-    plan = plan_hook_sync(
-        tmp_path, provider.projections(), consent=["guard"], os_name=HookOs.LINUX
-    )
+    plan = plan_hook_sync(tmp_path, provider.projections(), consent=["guard"], os_name=HookOs.LINUX)
 
     assert [entry.status for entry in plan.entries] == ["installed", "needs_consent"]
     assert [entry.projection.stable_key for entry in plan.needs_consent] == ["other"]
@@ -376,9 +374,7 @@ def test_cli_check_reports_exact_pending_consent_count(
     provider = _Provider()
     provider.publish("guard", 1, _content())
     provider.publish("other", 1, _content("echo other\n"))
-    plan = plan_hook_sync(
-        tmp_path, provider.projections(), consent=["guard"], os_name=HookOs.LINUX
-    )
+    plan = plan_hook_sync(tmp_path, provider.projections(), consent=["guard"], os_name=HookOs.LINUX)
     apply_hook_sync(plan)
     monkeypatch.setattr(cli, "_load_config", lambda: object())
     monkeypatch.setattr(cli, "_run", lambda _config, _action: provider.projections())

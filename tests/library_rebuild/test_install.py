@@ -4,7 +4,6 @@ from pathlib import Path
 
 import library_import as li
 import pytest
-from studio_client.skill_sync import SkillSyncError
 
 from .conftest import World
 from .install_helpers import RUNTIMES, install
