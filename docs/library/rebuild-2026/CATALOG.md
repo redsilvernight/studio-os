@@ -9,15 +9,15 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 | CORE_PUBLIC | 42 |
 | EXCLUDED_DUPLICATE | 6 |
 | NOT_PUBLISHABLE | 4 |
-| NOT_READY | 4 |
-| PERSONAL_PRIVATE | 22 |
+| NOT_READY | 13 |
+| PERSONAL_PRIVATE | 13 |
 | PROJECT_SPECIFIC | 21 |
 
 | Package | Entrées prêtes |
 |---|---:|
 | core | 42 |
 | project | 21 |
-| personal | 22 |
+| personal | 13 |
 
 ## Décisions
 
@@ -106,14 +106,14 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 | user | hook | `read-guard` | 1 | NOT_READY | — | `home:…` | Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import. |
 | user | hook | `session-start` | 1 | PERSONAL_PRIVATE | personal | `home:…` | Version poste du hook Core : hub local et annonce dispatch ; remplace le hook Core au scope user (DEC-0317). Hook sous consentement. |
 | user | hook | `stop-check` | 1 | NOT_READY | — | `home:…` | Script lié au câblage settings.json de Claude Code et à des chemins locaux ; événement/matcher/timeout non capturés dans une définition Library. À écrire avec consentement à la phase d'import. |
-| user | model_profile | `light-reader` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `local-hub` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `opencode-code` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `opencode-debug` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `opencode-design` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `opencode-docs` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `opencode-refactor` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
-| user | model_profile | `opencode-tests` | 1 | PERSONAL_PRIVATE | personal | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. |
+| user | model_profile | `light-reader` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `local-hub` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `opencode-code` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `opencode-debug` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `opencode-design` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `opencode-docs` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `opencode-refactor` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
+| user | model_profile | `opencode-tests` | 1 | NOT_READY | — | `private:…` | Profil de routage lié à mon dispatcher/Hub ; exigences seules, aucun modèle ni clé. [source introuvable] |
 | user | rule | `memory` | 1 | PERSONAL_PRIVATE | personal | `home:…` | Règle personnelle (routage, mémoire, poste) ; masque la rule Core du même nom (DEC-0065). |
 | user | rule | `routing` | 1 | PERSONAL_PRIVATE | personal | `home:…` | Règle personnelle (routage, mémoire, poste) ; masque la rule Core du même nom (DEC-0065). |
 | user | rule | `workstation` | 1 | PERSONAL_PRIVATE | personal | `home:…` | Règle personnelle (routage, mémoire, poste) ; masque la rule Core du même nom (DEC-0065). |

@@ -39,7 +39,10 @@ from studio_contracts.library import (
     LibraryResource,
     LibraryResourceCreate,
     LibraryVersion,
+    LibraryVersionBatchGet,
+    LibraryVersionBatchResult,
     LibraryVersionCreate,
+    LibraryVersionRef,
 )
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
@@ -64,7 +67,12 @@ from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfi
 
 from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
-from studio_client.errors import StudioApiError, TransportError, error_from_response
+from studio_client.errors import (
+    RateLimitError,
+    StudioApiError,
+    TransportError,
+    error_from_response,
+)
 from studio_client.retry import RetryPolicy, is_retryable, sleep
 from studio_client.tokens import KeyringTokenStore, TokenStore, origin_of, resolve_token
 
@@ -174,6 +182,8 @@ class StudioApiClient:
                     value = response.headers.get("retry-after", "").strip()
                     if value.isascii() and value.isdecimal() and len(value) <= 10:
                         retry_after = int(value)
+                        if isinstance(error, RateLimitError):
+                            error.retry_after = retry_after
 
             if (
                 not can_retry
@@ -710,6 +720,20 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def batch_library_versions(
+        self, refs: list[tuple[UUID, int]]
+    ) -> LibraryVersionBatchResult:
+        body = LibraryVersionBatchGet(
+            items=[LibraryVersionRef(resource_id=r, version=v) for r, v in refs]
+        )
+        response = await self._request(
+            "POST",
+            "/api/v1/library/versions/batch-get",
+            json=body.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return LibraryVersionBatchResult.model_validate(response.json())
 
     async def handoff(self, request: HandoffRequest, *, idempotency_key: str) -> HandoffResult:
         payload = request.model_dump(mode="json")

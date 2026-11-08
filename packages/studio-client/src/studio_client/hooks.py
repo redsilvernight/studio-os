@@ -220,22 +220,13 @@ _MODEL_BLOCK_PS = """
                 $haveClient = Get-Command studio-client -ErrorAction SilentlyContinue
                 if ($wsServerOrigin -and $haveClient) {
                     $env:STUDIO_CLIENT_API_BASE_URL = $wsServerOrigin
-                    $prov = $null
-                    $mid = [string]$modelRef
-                    $slash = $mid.IndexOf('/')
-                    if ($slash -ge 0) {
-                        $prov = $mid.Substring(0, $slash)
-                        $mid = $mid.Substring($slash + 1)
-                    }
                     $ensureArgs = @(
                         'agents', 'ensure',
                         '--harness', '__HARNESS__',
                         '--harness-credential',
-                        '--model', $mid,
-                        '--model-identity',
+                        '--model-ref', [string]$modelRef,
                         '--json'
                     )
-                    if ($prov) { $ensureArgs += @('--provider', $prov) }
                     $ensured = (& studio-client @ensureArgs 2>$null | ConvertFrom-Json)
                     if ($ensured -and $ensured.id -and $ensured.model) {
                         $modelAgentId = [string]$ensured.id

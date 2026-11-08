@@ -64,3 +64,13 @@ Critères `LOCAL_READY` atteints : 3 skills multi-fichiers publiés et installé
 **Reproduire** : cluster PostgreSQL privé (`initdb`, `pg_ctl start -o "-p 54331 -h 127.0.0.1"`), `alembic upgrade head`, puis `STUDIO_LIBRARY_REBUILD_DATABASE_URL=postgresql+asyncpg://<rôle>@127.0.0.1:54331/studio_lib_rebuild STUDIO_TEST_DATABASE_URL=…/studio_client_test uv run pytest tests/library_rebuild tests/harness/test_library_packages.py -q -rs`.
 
 **Fichiers modifiés** : `packages/studio-contracts/src/studio_contracts/library.py`, `packages/studio-client/src/studio_client/{skill_sync,projection_backups}.py`, `packages/studio-client/src/studio_client/context/library.py`, `scripts/library_import.py`, `tests/library_rebuild/test_{skill_files,snapshot_restore,package_lifecycle,native_opencode}.py`, docs `rebuild-2026/`. Rien n'est commité.
+
+# État de mission — Phase 2F
+
+## Statut : LOCAL_READY
+
+- `CODEX_NATIVE_VALIDATED` (découverte des 26 skills et d'`AGENTS.md` par `codex debug prompt-input`, sans appel modèle).
+- `OPENCODE_NATIVE_VALIDATED` (vrais skills Core/Project/Personal, home isolé, auxiliaires intacts).
+- `CLAUDE_NATIVE_VALIDATED` : 2e appel autorisé (après reconnexion) : le skill témoin `zz-witness-2f` est découvert (`init`), invoqué via l'outil `Skill`, et la réponse restitue les deux valeurs témoins (skill et règle `.claude/rules`) ; 3 tours, 0,06 USD, aucun outil de modification, hooks désactivés.
+- E1 (dérive des auxiliaires) et E2 (limites) : déjà corrects, testés. Corrigés : `validate-contracts.ps1` (argument `not infra`), test des 3 skills sous Windows (CRLF).
+- Livré par PR vers `dev` (non fusionnée). Fichiers : `scripts/validate-contracts.ps1`, `tests/library_rebuild/test_skill_files.py`, `tests/library_rebuild/test_native_runtimes.py` (nouveau), ces deux documents.

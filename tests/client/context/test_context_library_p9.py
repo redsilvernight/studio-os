@@ -13,6 +13,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -117,6 +118,23 @@ class FakeLibraryApi:
         if self._fail_with is not None:
             raise self._fail_with
         return [v for v in self._versions if v.resource_id == resource_id]
+
+    async def batch_library_versions(self, refs: list[tuple[UUID, int]]) -> Any:
+        self.calls.append("batch_library_versions")
+        if self._fail_with is not None:
+            raise self._fail_with
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(
+                    resource_id=r,
+                    version=v,
+                    detail=next(
+                        (x for x in self._versions if x.resource_id == r and x.version == v), None
+                    ),
+                )
+                for r, v in refs
+            ]
+        )
 
     async def list_library_locks(self, *, project_id: UUID | None = None) -> list[FakeLibraryLock]:
         self.calls.append("list_library_locks")
@@ -239,7 +257,8 @@ async def test_library_selection_fetches_versions_only_for_selected_kind_and_key
     assert [item.stable_key for item in result.items] == ["coding-style"]
     # The one version lookup is for the selected rule. The project skill and
     # all structural definitions are excluded before any version request.
-    assert api.calls.count("list_library_versions") == 1
+    assert api.calls.count("batch_library_versions") == 1
+    assert "list_library_versions" not in api.calls
 
 
 async def test_library_selection_can_fetch_multiple_keys_across_kinds(
@@ -255,7 +274,8 @@ async def test_library_selection_can_fetch_multiple_keys_across_kinds(
     )
 
     assert {item.stable_key for item in result.items} == {"coding-style", "review-checklist"}
-    assert api.calls.count("list_library_versions") == 2
+    assert api.calls.count("batch_library_versions") == 1
+    assert "list_library_versions" not in api.calls
 
 
 async def test_library_item_carries_safe_logical_provenance(
@@ -720,6 +740,7 @@ async def test_library_provider_only_calls_studio_api_client(
     assert set(calls) <= {
         "list_library_resources",
         "list_library_versions",
+        "batch_library_versions",
         "list_library_locks",
     }
     assert len(result.items) == 2

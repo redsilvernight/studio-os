@@ -31,6 +31,13 @@ def hash_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+_PROVENANCE_PREFIX = "<!-- studio-os-library:"
+
+
+def _without_provenance(text: str) -> str:
+    return "\n".join(line for line in text.splitlines() if not line.startswith(_PROVENANCE_PREFIX))
+
+
 def classify_state(
     current: str | None,
     desired: str,
@@ -41,6 +48,8 @@ def classify_state(
     if current == desired:
         return "current"
     if managed_hash is not None and hash_text(current) == managed_hash:
+        return "outdated"
+    if _without_provenance(current) == _without_provenance(desired):
         return "outdated"
     return "locally_modified"
 

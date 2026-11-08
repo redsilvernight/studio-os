@@ -205,6 +205,34 @@ class LibraryVersion(ContractModel):
     created_at: datetime
 
 
+LIBRARY_VERSION_BATCH_MAX = 50
+
+
+class LibraryVersionRef(ContractModel):
+    resource_id: UUID
+    version: int = Field(ge=1)
+
+
+class LibraryVersionBatchGet(ContractModel):
+    """Bounded read of exact versions; duplicates are collapsed server-side."""
+
+    items: list[LibraryVersionRef] = Field(min_length=1, max_length=LIBRARY_VERSION_BATCH_MAX)
+
+
+class LibraryVersionBatchItem(ContractModel):
+    resource_id: UUID
+    version: int
+    status: Literal["ok", "not_found"]
+    detail: LibraryVersion | None = None
+
+
+class LibraryVersionBatchResult(ContractModel):
+    """Items aligned with the request; `not_found` hides absent resources,
+    other users' User-scope resources and absent versions alike."""
+
+    items: list[LibraryVersionBatchItem]
+
+
 class LibraryVersionCreate(IdempotentCreate):
     title: str = Field(min_length=1)
     description: str | None = None
