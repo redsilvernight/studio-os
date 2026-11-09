@@ -4,7 +4,9 @@ import uuid
 
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.project import ProjectModel
+from studio_api.services import projects as projects_service
 from studio_contracts.library import (
     CapabilityRequirement,
     RuntimeCapabilities,
@@ -249,6 +251,42 @@ async def test_reactivating_a_version_emits_a_new_event(
         e["payload"]["version"] for e in events if e["event_type"] == "library.version.activated"
     )
     assert activated_versions == [1, 2, 2]
+
+
+async def test_studio_scope_activation_emits_to_every_active_project(
+    client: AsyncClient,
+    admin_auth_headers: dict[str, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    other = await projects_service.create_project(
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Second Project", None, creator=None
+    )
+    created = (
+        await client.post(
+            "/api/v1/library",
+            headers=admin_auth_headers,
+            json=_rule_payload("studio", key=f"fanout-{uuid.uuid4().hex[:8]}"),
+        )
+    ).json()
+    activated = await client.post(
+        f"/api/v1/library/{created['id']}/activate",
+        headers=admin_auth_headers,
+        json={"version": 1, "expected_resource_version": created["version"]},
+    )
+    assert activated.status_code == 200
+
+    for target in (project, other):
+        events = (
+            await client.get(
+                "/api/v1/events", headers=admin_auth_headers, params={"project": str(target.id)}
+            )
+        ).json()
+        assert [
+            e["payload"]["resource_id"]
+            for e in events
+            if e["event_type"] == "library.version.activated" and e["payload"]["scope"] == "studio"
+        ] == [created["id"]]
 
 
 async def test_user_scope_mutation_emits_no_event(

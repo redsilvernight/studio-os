@@ -518,10 +518,10 @@ par le P5 (voir la section P4 ci-dessous).
 `(project_id, resource_id)`. Advisory comme les claims : avertit la
 resolution, ne bloque aucune ecriture.
 
-Traçabilite : mutations projet-scope emettent `library.*` (types additifs,
-`TECH/03_EVENT_CONTRACT.md`) ; scopes Studio/User sans projet restant
-audites par les lignes de version (`created_by_user_id`, `created_at`) et
-l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
+Traçabilite : mutations projet-scope et Studio emettent `library.*` (types
+additifs, `TECH/03_EVENT_CONTRACT.md` ; Studio : un evenement par projet non
+archive) ; le scope User sans projet reste audite par les lignes de version
+(`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
 
 ## AI Library — P3 semantic content (DEC-0066, validation applicative, sans DDL)
 
