@@ -118,8 +118,13 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
   const known = status !== null && !failed;
   const level = known ? SYNC_STATE_LEVELS[status.state] : "warn";
   const label = known ? SYNC_STATE_LABELS[status.state] : "Library : état indisponible";
-  const pending = known ? (status.conflicts ?? []).length || (status.updated ?? []).length + (status.added ?? []).length : 0;
-  const suffix = known && pending > 0 && status.state !== "up_to_date" ? ` (${pending})` : "";
+  const conflicts = known ? (status.conflicts ?? []).length : 0;
+  const updates = known ? (status.updated ?? []).length + (status.added ?? []).length : 0;
+  const parts = [
+    conflicts > 0 ? `${conflicts} conflit${conflicts > 1 ? "s" : ""}` : "",
+    updates > 0 ? `${updates} mise${updates > 1 ? "s" : ""} à jour` : "",
+  ].filter(Boolean);
+  const suffix = known && parts.length && status.state !== "up_to_date" ? ` (${parts.join(", ")})` : "";
   return (
     `<button class="app-connection app-connection--${level} app-skills-sync" id="skills-sync" type="button" ` +
     `data-testid="skills-sync" data-state="${known ? status.state : "unavailable"}" ` +
@@ -177,6 +182,9 @@ function notifyIfChanged(status: SkillsSyncStatus): void {
   if (status.state === "updated") {
     const count = (status.added ?? []).length + (status.updated ?? []).length;
     dsNotify(`Library synchronisée : ${count} élément(s) ajouté(s) ou mis à jour.`, "success");
+  } else if (status.state === "update_pending") {
+    const count = (status.added ?? []).length + (status.updated ?? []).length;
+    dsNotify(`Library : ${count} mise(s) à jour à confirmer.`, "info");
   } else if (status.state === "conflicts") {
     dsNotify(`Library : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
   } else {
