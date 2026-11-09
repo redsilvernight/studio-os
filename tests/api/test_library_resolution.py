@@ -372,6 +372,30 @@ async def test_deprecated_resolves_with_flag(
     assert resolved.deprecated is True
 
 
+async def test_deprecated_user_override_reactivates_common_version(
+    db_session: AsyncSession, machine: tuple[MachineModel, str]
+) -> None:
+    principal = await _principal(db_session, machine)
+    common = await _create(db_session, principal, "reactivate")
+    await _activate(db_session, principal, common)
+    override = await _create(db_session, principal, "reactivate", LibraryScope.USER)
+    await _activate(db_session, principal, override)
+    shadowed = await library_service.resolve_definition(
+        db_session, principal, LibraryKind.RULE, "reactivate"
+    )
+    assert shadowed.resource_id == override.id
+    await db_session.refresh(override)
+    await library_service.deprecate_resource(db_session, principal, override, override.version)
+    resolved = await library_service.resolve_definition(
+        db_session, principal, LibraryKind.RULE, "reactivate"
+    )
+    assert (resolved.resource_id, resolved.scope, resolved.deprecated) == (
+        common.id,
+        LibraryScope.STUDIO,
+        False,
+    )
+
+
 async def test_readonly_resolves_shared(
     db_session: AsyncSession,
     machine: tuple[MachineModel, str],

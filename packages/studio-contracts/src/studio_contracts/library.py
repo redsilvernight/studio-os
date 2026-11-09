@@ -174,6 +174,11 @@ class LibraryResource(VersionedModel):
     created_by_user_id: UUID | None = None
 
 
+class LibraryVersionRef(ContractModel):
+    resource_id: UUID
+    version: int = Field(ge=1)
+
+
 class LibraryResourceCreate(IdempotentCreate):
     """Creates the resource row plus its draft version 1 (which never moves
     `active_version` by itself — activation is a separate explicit operation,
@@ -189,6 +194,7 @@ class LibraryResourceCreate(IdempotentCreate):
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencySelection] = []
+    derived_from: LibraryVersionRef | None = None
 
 
 class LibraryVersion(ContractModel):
@@ -201,16 +207,12 @@ class LibraryVersion(ContractModel):
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencyPin] = []
+    derived_from: LibraryVersionRef | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
 
 
 LIBRARY_VERSION_BATCH_MAX = 500
-
-
-class LibraryVersionRef(ContractModel):
-    resource_id: UUID
-    version: int = Field(ge=1)
 
 
 class LibraryVersionBatchGet(ContractModel):
@@ -238,6 +240,7 @@ class LibraryVersionCreate(IdempotentCreate):
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencySelection] = []
+    derived_from: LibraryVersionRef | None = None
 
 
 class LibraryActivate(ContractModel):

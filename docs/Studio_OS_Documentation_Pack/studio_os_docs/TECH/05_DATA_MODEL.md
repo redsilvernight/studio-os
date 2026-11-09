@@ -478,6 +478,19 @@ Contrainte unique `(resource_id, version)`.
 version, `to_resource_id` FK ressource, `to_version`) — des references, jamais
 de contenu duplique. Contrainte unique `(from_version_id, to_resource_id)`.
 
+## AI Library — P50 derived_from (D1, migration Alembic `0040`, additive)
+
+`library_resource_versions` gagne `derived_from_resource_id` (FK
+`library_resources`, nullable) et `derived_from_version` (int, nullable),
+poses ensemble ou pas du tout (CHECK `ck_library_version_derived_from_pair`).
+Une version de ressource scope `user` peut nommer la version commune (scope
+`studio`, meme `(kind, stable_key)`) dont elle derive ; sinon 404
+`derived_from_not_found` / 422 `invalid_derived_from` (`not_user_scope`,
+`not_common_scope`, `key_mismatch`). Contrat : champ optionnel `derived_from`
+(`{resource_id, version}`) sur `LibraryResourceCreate`, `LibraryVersionCreate`
+et `LibraryVersion` ; les clients existants l'ignorent. Migration reversible
+(`downgrade` retire contrainte, FK et colonnes), sans backfill ni verrou long.
+
 ## AI Library — P5 bindings (DEC-0067, migration Alembic `0010`, additive)
 
 > Library Bindings uniquement (arêtes entre définitions). Les User/Runtime

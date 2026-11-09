@@ -39,6 +39,10 @@ selection, no server rule reimplemented, no invisible candidate ever named.
 """
 
 
+def _is_deprecated_override(resource: Any) -> bool:
+    return str(resource.scope) == "user" and str(getattr(resource, "status", "")) == "deprecated"
+
+
 @dataclass(frozen=True)
 class LibraryContextItem:
     """One effective Library definition normalized for the Context Package."""
@@ -240,7 +244,13 @@ class LibraryContextProvider:
         Deterministic regardless of HTTP/DB return order.
         """
         best: dict[tuple[str, str], Any] = {}
+        live = [r for r in resources if not _is_deprecated_override(r)]
+        keys_with_live = {(str(r.kind), r.stable_key) for r in live}
         for resource in resources:
+            if _is_deprecated_override(resource) and (
+                (str(resource.kind), resource.stable_key) in keys_with_live
+            ):
+                continue
             key = (str(resource.kind), resource.stable_key)
             rank = _SCOPE_RANK.get(str(resource.scope), 99)
             current = best.get(key)
