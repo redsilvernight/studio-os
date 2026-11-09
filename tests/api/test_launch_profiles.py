@@ -33,6 +33,8 @@ from studio_contracts.profiles import (
     reference_work_profile,
 )
 
+from tests.library_seed import studio_admin
+
 AGENT_KEY = "launch-profiled-agent"
 
 AGENT_CONTENT = {
@@ -50,6 +52,7 @@ async def _principal(db_session: AsyncSession, machine: tuple[MachineModel, str]
 async def _agent_definition(
     db_session: AsyncSession, principal: Principal, key: str = AGENT_KEY
 ) -> LibraryResourceModel:
+    principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -74,6 +77,7 @@ async def _next_version(
 ) -> None:
     """A second version of the same agent definition, activated: a Library
     version bump the pinned element versions must follow."""
+    principal = await studio_admin(db_session)
     await library_service.create_resource_version(
         db_session,
         principal,

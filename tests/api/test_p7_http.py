@@ -28,6 +28,8 @@ from studio_contracts.library import (
 )
 from studio_contracts.runtime import RuntimeBindingCreate, RuntimeLevel, RuntimeTarget
 
+from tests.library_seed import studio_admin
+
 AGENT = LibraryKind.AGENT_DEFINITION
 RULE = LibraryKind.RULE
 SKILL = LibraryKind.SKILL
@@ -51,6 +53,8 @@ async def _create(
     dependencies: list[DependencyPin] | None = None,
     scope: LibraryScope = LibraryScope.STUDIO,
 ):
+    if scope == LibraryScope.STUDIO:
+        principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,

@@ -20,6 +20,13 @@ from studio_contracts.library import (
 )
 
 
+@pytest_asyncio.fixture
+async def auth_headers(admin_auth_headers: dict[str, str]) -> dict[str, str]:
+    """Studio writes are admin-only (P70a): these tests exercise dependency
+    pins and pack composition, so the seeding caller is an admin."""
+    return admin_auth_headers
+
+
 def _rule_content(text: str = "Follow the checklist.") -> dict[str, object]:
     return {"content_schema": "studio.library.rule/v1", "text": text}
 

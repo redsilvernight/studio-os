@@ -38,6 +38,8 @@ from studio_contracts.runtime import (
     RuntimeTarget,
 )
 
+from tests.library_seed import studio_admin
+
 AGENT = LibraryKind.AGENT_DEFINITION
 RULE = LibraryKind.RULE
 SKILL = LibraryKind.SKILL
@@ -79,6 +81,7 @@ async def _create(
     content: dict[str, object],
     dependencies: list[DependencyPin] | None = None,
 ):
+    principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -254,15 +257,16 @@ async def test_project_lock_determines_root_version(
     project: ProjectModel,
 ) -> None:
     mine = await _principal(db_session, machine)
+    admin = await studio_admin(db_session)
     agent = await _create(db_session, mine, AGENT, "locked-a", _agent_content())
     await library_service.create_resource_version(
         db_session,
-        mine,
+        admin,
         agent,
         LibraryVersionCreate(title="v2", content=_agent_content()),
     )
     await db_session.refresh(agent)
-    await library_service.activate_resource_version(db_session, mine, agent, 2, agent.version)
+    await library_service.activate_resource_version(db_session, admin, agent, 2, agent.version)
     await db_session.refresh(agent)
     assert agent.active_version == 2
     await library_service.set_lock(
@@ -398,6 +402,7 @@ async def test_personal_same_key_composes_explicit_studio_base_without_merging(
     other_machine: tuple[MachineModel, str],
 ) -> None:
     mine = await _principal(db_session, machine)
+    admin = await studio_admin(db_session)
     other = await _principal(db_session, other_machine)
     await _create(db_session, mine, RULE, "base-only", _rule_content("Studio rule"))
     await _create(db_session, mine, RULE, "personal-only", _rule_content("Personal rule"))
@@ -437,9 +442,9 @@ async def test_personal_same_key_composes_explicit_studio_base_without_merging(
     assert shared.agent.resource_id == base.id
     assert shared.composed_agents == []
     await library_service.create_resource_version(
-        db_session, mine, base, LibraryVersionCreate(title="v2", content=_agent_content())
+        db_session, admin, base, LibraryVersionCreate(title="v2", content=_agent_content())
     )
-    await library_service.activate_resource_version(db_session, mine, base, 2, base.version)
+    await library_service.activate_resource_version(db_session, admin, base, 2, base.version)
     resolved = await resolution_service.resolve_full(db_session, mine, AGENT, "same-key")
     assert resolved.composed_agents[0].resolved.agent.version == 1
     assert [rule.stable_key for rule in resolved.composed_agents[0].resolved.rules] == ["base-only"]
@@ -452,6 +457,7 @@ async def test_composed_agent_cycle_fails_closed_through_resolve_full(
     surfaces as the structured `composition_cycle_detected` 422, not an
     infinite DB walk nor a silent partial result."""
     mine = await _principal(db_session, machine)
+    admin = await studio_admin(db_session)
     agent_a = await _create(db_session, mine, AGENT, "cyc-a", _agent_content())
     await _create(
         db_session,
@@ -463,7 +469,7 @@ async def test_composed_agent_cycle_fails_closed_through_resolve_full(
     )
     await library_service.create_resource_version(
         db_session,
-        mine,
+        admin,
         agent_a,
         LibraryVersionCreate(
             title="v2",
@@ -472,7 +478,7 @@ async def test_composed_agent_cycle_fails_closed_through_resolve_full(
         ),
     )
     await db_session.refresh(agent_a)
-    await library_service.activate_resource_version(db_session, mine, agent_a, 2, agent_a.version)
+    await library_service.activate_resource_version(db_session, admin, agent_a, 2, agent_a.version)
 
     with pytest.raises(HTTPException) as exc_info:
         await resolution_service.resolve_full(db_session, mine, AGENT, "cyc-a")
