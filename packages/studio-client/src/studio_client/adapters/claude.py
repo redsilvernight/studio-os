@@ -106,9 +106,7 @@ class ClaudeCodeAdapter:
         warnings = [
             *warnings,
             *capability_notes(self.adapter_id, self.capabilities(), edit_policy=edit_policy_str),
-            *unprojected_field_warnings(
-                self.adapter_id, content_map, tools=True, edit_policies=()
-            ),
+            *unprojected_field_warnings(self.adapter_id, content_map, tools=True, edit_policies=()),
         ]
         profile = resolved.model_profile
         if profile is not None and profile.requirements.tools_required:
