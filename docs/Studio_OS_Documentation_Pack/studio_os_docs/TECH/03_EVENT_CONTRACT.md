@@ -88,10 +88,15 @@ par le Producer a chaque job. `payload.source` (`github_webhook` /
 Ajouter des champs est permis si les anciens clients peuvent les ignorer. Un changement incompatible exige une nouvelle version de schema.
 
 ## Note P1 (DEC-0064)
-Les types `library.*` sont emis cote serveur uniquement pour les ressources
-de scope projet (les tables `events`/`ai_work_logs` exigent un `project_id`
-non null) ; les scopes Studio/User restent audites par les lignes de version
-(`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent.
+Les types `library.*` sont emis cote serveur avec un `project_id` non null
+(les tables `events`/`ai_work_logs` l'exigent) : une ressource de scope projet
+emet vers son projet ; une ressource Studio, partagee par tous les projets,
+emet un evenement par projet non archive (les evenements de verrou vers le seul
+projet verrouille ; `event_id` derive aussi du `project_id`) ; le scope User reste
+prive et n'emet rien, audite par les lignes de version (`created_by_user_id`,
+`created_at`) et l'AIWorkLog explicite de l'agent. `library.version.activated` et
+`library.resource.deprecated` derivent leur `event_id` du compteur `version` de la
+ressource : activer v2, v1 puis v2 emet trois evenements distincts.
 
 ## Note Roadmaps P1 (DEC-0084/DEC-0085) — emis par P2/P3 (DEC-0086)
 Les types `roadmap.*` sont additifs et emis cote serveur depuis P2/P3

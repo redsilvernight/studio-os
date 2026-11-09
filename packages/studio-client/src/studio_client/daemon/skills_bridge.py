@@ -1378,3 +1378,34 @@ def start_auto_sync(
     runner = _AutoSyncRunner(config, token_store, home, data_root)
     runner.start()
     return runner
+
+
+def mark_update_pending(
+    config: ClientConfig,
+    token_store: TokenStore,
+    home: Path,
+    data_root: Path,
+) -> bool:
+    """Plan the library sync without writing any projection and record an
+    `update_pending` status when the library differs from this machine."""
+    plans = plan_library_sync(home, _fetch_projections(config, token_store))
+    added = [_target_label(plan, target) for plan in plans for target in plan.missing]
+    updated = [_target_label(plan, target) for plan in plans for target in plan.outdated]
+    if not added and not updated and not any(plan.retired for plan in plans):
+        return False
+    previous = _load_status(data_root)
+    _save_status(
+        data_root,
+        SkillsSyncStatus(
+            state=SkillSyncStatusState.UPDATE_PENDING,
+            last_successful_sync=previous.last_successful_sync if previous else None,
+            last_check=datetime.now(UTC),
+            added=added,
+            updated=updated,
+            conflicts=[
+                _target_label(plan, target) for plan in plans for target in plan.locally_modified
+            ],
+            auto_sync_enabled=auto_sync_enabled(config, data_root),
+        ),
+    )
+    return True

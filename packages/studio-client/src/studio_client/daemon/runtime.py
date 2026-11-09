@@ -50,7 +50,8 @@ from studio_client.daemon.launch_settings_bridge import (
     effective_launch_config,
     load_machine_policy,
 )
-from studio_client.daemon.skills_bridge import start_auto_sync
+from studio_client.daemon.library_events import CURSOR_FILE_NAME, LibraryEventWatcher
+from studio_client.daemon.skills_bridge import mark_update_pending, start_auto_sync
 from studio_client.daemon.usage_scan import UsageScanLoop
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
@@ -322,6 +323,7 @@ class DaemonRuntime:
         self._launch_executor: LaunchExecutor | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._watchers: list[PollingWatcher] = []
+        self._library_watcher: LibraryEventWatcher | None = None
         self._workspace_watches: WorkspaceWatchSet | None = None
         self._workspace_inputs: list[WorkspaceWatchLike] = []
         self._git_watch_inputs: list[GitWatchConfig] = list(config.git_watches)
@@ -366,6 +368,8 @@ class DaemonRuntime:
             self._stop_event.set()
         if self._heartbeat is not None:
             self._heartbeat.request_stop()
+        if self._library_watcher is not None:
+            self._library_watcher.request_stop()
         for watcher in self._watchers:
             watcher.request_stop()
         if self._workspace_watches is not None:
@@ -553,8 +557,24 @@ class DaemonRuntime:
                     self.data_root,
                 )
 
+                library_watcher = LibraryEventWatcher(
+                    client,
+                    project_ids=self._workspace_project_ids,
+                    cursor_path=self.data_root / CURSOR_FILE_NAME,
+                    on_library_change=lambda: mark_update_pending(
+                        self.config,
+                        self._token_store,
+                        self._skills_home(),
+                        self.data_root,
+                    ),
+                )
+                self._library_watcher = library_watcher
+                if self._stop_requested:
+                    library_watcher.request_stop()
+
                 await asyncio.gather(
                     self._heartbeat.run(),
+                    library_watcher.run(),
                     self._workspace_sync_loop(),
                     *(watcher.run() for watcher in self._watchers),
                     *([usage_loop.run()] if usage_loop is not None else []),
@@ -571,6 +591,7 @@ class DaemonRuntime:
                 self._store.connection.close()
             self._store = None
             self._replayer = None
+            self._library_watcher = None
             self._stop_event = None
             self._loop = None
             self._lock.release()

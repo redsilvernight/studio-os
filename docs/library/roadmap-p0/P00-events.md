@@ -7,13 +7,13 @@ Lecture seule, chemins relatifs à la racine du worktree. Les numéros de ligne 
 - Type déclaré : `LIBRARY_VERSION_ACTIVATED = "library.version.activated"` (`packages/studio-contracts/src/studio_contracts/events.py:45`). Voisins : `library.version.created` (:44), `library.resource.deprecated` (:46), `library.lock.set` / `library.lock.released` (:47-48).
 - Seul point d'émission : `activate_resource_version` (`services/api/src/studio_api/services/library.py:538-569`). L'événement part après `commit` + `refresh` (:559-568).
 - Émission conditionnelle : seulement si `resource.active_version != version or resource.status != "active"` (:555). Réactiver la version déjà active est un no-op sans événement.
-- `_emit_library_event` (`library.py:328-368`) retourne sans rien émettre si `resource.project_id is None` (:345). **Les ressources de scope Studio ou User n'émettent donc aucun événement** (commentaire :336-340).
+- `_emit_library_event` (`library.py:328-368`) retourne sans rien émettre si `resource.project_id is None` (:345). **Les ressources de scope Studio ou User n'émettaient donc aucun événement** (commentaire :336-340). Depuis P20, Studio émet un événement par projet non archivé ; User reste muet.
 - Payload (`library.py:360-367`) : `{resource_id, kind, stable_key, scope, ref: "v<N>", version: N}`. `ref` vaut `f"v{version}"` (:566).
 - Enveloppe (`library.py:347-359`) :
   - `event_id` = uuid5 de `resource.id:event_type:ref` (:350-352).
   - `project_id` = celui de la ressource ; `task_id=None`.
   - `actor_type="user"`, `actor_id=principal.user.id`, `machine_id=principal.machine.id`.
-- Piège : l'`event_id` est déterministe par `(ressource, ref)`. Le commentaire (:342-344) dit que `ref` évite l'avalement par le get-or-create de `create_event`. Mais activer v2, puis v1, puis de nouveau v2 produit deux fois le même `event_id` pour v2, donc la seconde activation est probablement dédupliquée. Cela dépend de `create_event`, que je n'ai pas lu : **non vérifié**. Si c'est confirmé, un déclencheur basé uniquement sur l'événement peut manquer une réactivation.
+- Piège levé (P20) : `create_event` et `stage_event` renvoient la ligne existante quand l'`event_id` existe déjà. Activer v2, v1 puis v2 réémettait donc le même `event_id` sans nouvel événement (idem pour une dépréciation répétée). Correctif : `_emit_library_event` reçoit `occurrence=resource.version` (compteur incrémenté à chaque transition) pour `library.version.activated` et `library.resource.deprecated`. Test : `test_reactivating_a_version_emits_a_new_event`.
 - Le payload ne contient ni `content_hash`, ni dépendances, ni liste des harnais concernés.
 
 ## 2. Canaux de réception existants
@@ -71,7 +71,7 @@ Lecture seule, chemins relatifs à la racine du worktree. Les numéros de ligne 
 1. Aucun consommateur de `library.version.activated` dans le daemon : ni polling `list_events`, ni client SSE Python. Le SSE n'existe que dans le dashboard TypeScript.
 2. Pas de boucle de resynchronisation : la synchro auto s'exécute au démarrage ou à l'activation du réglage, jamais ensuite (`runtime.py:549`).
 3. Pas de curseur persistant côté daemon (dernier `seq` ou timestamp vu pour `library.*`). Je n'ai pas cherché de table `sync_state` dédiée : **non vérifié**.
-4. Les ressources de scope Studio et User n'émettent aucun événement (`library.py:345`). Un déclencheur sur événement ne couvre que les ressources de projet. Les ressources Studio, sans `project_id`, exigent un autre signal (sondage de la liste des projections).
+4. Les ressources Studio et User n'émettaient aucun événement (`library.py:345`). Corrigé pour Studio (P20) : un événement par projet non archivé, donc le watcher par projet suivi les voit. User reste muet : une ressource privée n'a pas à déclencher de synchro.
 5. Pas de flux global : un client suivant plusieurs projets a besoin d'un flux par projet (`events.py:147`).
 6. Le payload ne porte ni hash ni liste de harnais ; le daemon devra refaire un `fetch_library_projections` complet (`skills_bridge.py:257`, :663) pour planifier. Il n'existe pas de fetch ciblé par ressource, **non vérifié**.
 7. Déduplication possible des réactivations (voir § 1, **non vérifié**).
@@ -92,12 +92,12 @@ Implémentation minimale proposée :
 1. Watcher `LibraryEventWatcher(PollingWatcher)` : `poll_once` appelle `list_events(project_id=…, since=curseur)` pour les projets suivis ; si au moins un événement `library.version.activated` ou `library.resource.deprecated` est vu, il relance la synchro auto.
 2. Rendre le runner rejouable : aujourd'hui `_started` bloque tout second lancement (`skills_bridge.py:1195-1197`). Ajouter une méthode de relance en gardant un seul thread actif à la fois (coalescer les événements pendant une synchro).
 3. Persister le curseur (timestamp serveur de l'événement) dans le répertoire de données du daemon. Après un redémarrage, la synchro au démarrage (`runtime.py:549`) couvre le trou ; le curseur sert au reste.
-4. Pour les ressources Studio/User : prévoir un resync complet périodique (par exemple 10 à 15 min), ou ajouter une émission côté API sans `project_id`. Ce second choix change le contrat d'événements (`events` exige un `project_id` non nul, `library.py:336-340`), donc passe par le skill `contract-change`.
-5. Avant P20, trancher le doute sur l'`event_id` déterministe (§ 1) : si la réactivation d'une version déjà vue est dédupliquée, ajouter un compteur ou l'horodatage d'activation à `ref`.
+4. Ressources Studio : l'API émet un événement par projet non archivé (contrat inchangé, `project_id` reste non nul). User : aucun événement.
+5. Doute sur l'`event_id` déterministe tranché et corrigé (§ 1).
 6. Garder le comportement `CONFLICTS` (pas d'écrasement local, `skills_bridge.py:1245-1253`).
 
-Risques résiduels : latence jusqu'à 30 s ; N requêtes par client pour N projets suivis ; événements Studio/User non couverts tant que le point 4 n'est pas traité.
+Risques résiduels : latence jusqu'à 30 s ; N requêtes par client pour N projets suivis ; un projet créé après l'activation d'une ressource Studio ne reçoit pas son événement (la synchro au démarrage du daemon couvre ce cas).
 
 ## Non vérifié (récapitulatif)
 
-Implémentation de `events_service.create_event` (déduplication) ; `event_stream.py` hors constante :17 (comportement multi-worker) ; `studio_sync` et `studio_get_recent_changes` comme canal de `library.*` ; traitement des autres `event_type` dans `dashboard/src/realtime.ts` ; fin de `_AutoSyncRunner._run` (:1255-1344) ; existence d'un curseur persistant côté daemon ; existence d'un fetch ciblé par ressource.
+`event_stream.py` hors constante :17 (comportement multi-worker) ; `studio_sync` et `studio_get_recent_changes` comme canal de `library.*` ; traitement des autres `event_type` dans `dashboard/src/realtime.ts` ; fin de `_AutoSyncRunner._run` (:1255-1344) ; existence d'un curseur persistant côté daemon ; existence d'un fetch ciblé par ressource.

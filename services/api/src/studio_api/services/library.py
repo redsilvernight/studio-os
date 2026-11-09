@@ -371,41 +371,68 @@ async def _emit_library_event(
     resource: LibraryResourceModel,
     ref: str,
     extra: dict[str, object] | None = None,
+    occurrence: int | None = None,
+    only_project: UUID | None = None,
 ) -> None:
-    """Server-internal traceability (gate decision): `events` and
-    `ai_work_logs` require a non-null `project_id`, so only project-scoped
-    resources emit `library.*` events. Studio/User mutations stay auditable
-    through the immutable version rows (`created_by_user_id`, `created_at`)
-    plus the agent's explicit AIWorkLog (existing task cycle).
+    """Server-internal traceability: `events` require a non-null `project_id`.
+    A project resource emits to its project; a Studio resource, shared by every
+    project, emits one event per active project (or only to `only_project` for
+    a lock, which belongs to one project); User resources stay private and emit
+    nothing, auditable through the immutable version rows.
 
     `ref` makes the deterministic `event_id` unique per action: a
     release/re-lock cycle on the same `(resource, version)` must emit again,
-    never be swallowed by `create_event`'s get-or-create."""
-    if resource.project_id is None:
+    never be swallowed by `create_event`'s get-or-create. A state that can
+    flip back (activate v2, v1, v2 again; deprecate, reactivate, deprecate)
+    passes `occurrence`, the resource's optimistic `version` after the
+    transition, so each transition keeps a distinct, replay-stable id."""
+    identity = f"{resource.id}:{event_type.value}:{ref}"
+    if occurrence is not None:
+        identity = f"{identity}:{occurrence}"
+    project_ids: Sequence[UUID]
+    if resource.project_id is not None:
+        project_ids = [resource.project_id]
+    elif resource.scope == LibraryScope.STUDIO.value:
+        project_ids = (
+            [only_project]
+            if only_project is not None
+            else list(
+                (
+                    await session.execute(
+                        select(ProjectModel.id).where(ProjectModel.archived.is_(False))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        )
+    else:
         return
-    await events_service.create_event(
-        session,
-        EventCreate(
-            event_id=uuid.uuid5(
-                _LIBRARY_EVENT_NAMESPACE, f"{resource.id}:{event_type.value}:{ref}"
+    for project_id in project_ids:
+        await events_service.create_event(
+            session,
+            EventCreate(
+                event_id=uuid.uuid5(
+                    _LIBRARY_EVENT_NAMESPACE,
+                    identity if resource.project_id else f"{identity}:{project_id}",
+                ),
+                event_type=event_type,
+                project_id=project_id,
+                task_id=None,
+                machine_id=principal.machine.id,
+                actor_type="user",
+                actor_id=principal.user.id,
+                client_timestamp=datetime.now(UTC),
+                payload={
+                    "resource_id": str(resource.id),
+                    "kind": resource.kind,
+                    "stable_key": resource.stable_key,
+                    "scope": resource.scope,
+                    "ref": ref,
+                    **(extra or {}),
+                },
             ),
-            event_type=event_type,
-            project_id=resource.project_id,
-            task_id=None,
-            machine_id=principal.machine.id,
-            actor_type="user",
-            actor_id=principal.user.id,
-            client_timestamp=datetime.now(UTC),
-            payload={
-                "resource_id": str(resource.id),
-                "kind": resource.kind,
-                "stable_key": resource.stable_key,
-                "scope": resource.scope,
-                "ref": ref,
-                **(extra or {}),
-            },
-        ),
-    )
+        )
 
 
 def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
@@ -615,6 +642,7 @@ async def activate_resource_version(
             resource,
             f"v{version}",
             {"version": version},
+            occurrence=resource.version,
         )
     return resource
 
@@ -645,6 +673,7 @@ async def deprecate_resource(
             resource,
             f"v{resource.active_version}",
             {"version": resource.active_version},
+            occurrence=resource.version,
         )
     return resource
 
@@ -891,6 +920,7 @@ async def set_lock(
             "project_id": str(data.project_id),
             "locked_version": data.locked_version,
         },
+        only_project=data.project_id,
     )
     return lock
 
@@ -931,6 +961,7 @@ async def release_lock(
                 "project_id": str(lock_project_id),
                 "locked_version": locked_version,
             },
+            only_project=lock_project_id,
         )
     return released
 
