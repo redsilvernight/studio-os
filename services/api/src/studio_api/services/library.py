@@ -234,6 +234,39 @@ def _invalid_binding(reason: str) -> HTTPException:
     )
 
 
+async def _check_derived_from(
+    session: AsyncSession,
+    principal: Principal,
+    resource: LibraryResourceModel,
+    ref: LibraryVersionRef,
+) -> None:
+    """Only a user version derives, from an existing common (studio) version
+    of the same `(kind, stable_key)` (P50a/D1)."""
+    source = await session.get(LibraryResourceModel, ref.resource_id)
+    if (
+        source is None
+        or not _can_read(principal, source)
+        or await _version_row(session, source.id, ref.version) is None
+    ):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail={"error_code": "derived_from_not_found"}
+        )
+    reason = (
+        "not_user_scope"
+        if resource.scope != "user"
+        else "not_common_scope"
+        if source.scope != "studio"
+        else "key_mismatch"
+        if (source.kind, source.stable_key) != (resource.kind, resource.stable_key)
+        else None
+    )
+    if reason is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "invalid_derived_from", "reason": reason},
+        )
+
+
 async def _create_version_row(
     session: AsyncSession,
     principal: Principal,
@@ -243,6 +276,7 @@ async def _create_version_row(
     description: str | None,
     content: dict[str, Any],
     dependencies: Sequence[DependencyPin],
+    derived_from: LibraryVersionRef | None = None,
 ) -> LibraryResourceVersionModel:
     # P3/DEC-0066: per-kind semantic validation, applied identically to the
     # initial version and every later one. Both callers (`create_resource`,
@@ -274,6 +308,8 @@ async def _create_version_row(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "invalid_hook", **hook_errors[0]},
             )
+    if derived_from is not None:
+        await _check_derived_from(session, principal, resource, derived_from)
     version_row = LibraryResourceVersionModel(
         resource_id=resource.id,
         version=version,
@@ -281,6 +317,8 @@ async def _create_version_row(
         description=description,
         content=dict(content),
         created_by_user_id=principal.user.id,
+        derived_from_resource_id=derived_from.resource_id if derived_from else None,
+        derived_from_version=derived_from.version if derived_from else None,
     )
     session.add(version_row)
     await session.flush()
@@ -463,6 +501,7 @@ async def create_resource(
             data.description,
             data.content,
             data.dependencies,
+            data.derived_from,
         )
     except HTTPException:
         # Atomicity (P5/DEC-0067): a rejected pin/binding must leave neither
@@ -518,6 +557,7 @@ async def create_resource_version(
             data.description,
             data.content,
             data.dependencies,
+            data.derived_from,
         )
     except HTTPException:
         # Same atomicity as `create_resource`: no partial version/links.
@@ -764,6 +804,15 @@ async def version_detail(
         description=version_row.description,
         content=dict(version_row.content),
         dependencies=pins,
+        derived_from=(
+            LibraryVersionRef(
+                resource_id=version_row.derived_from_resource_id,
+                version=version_row.derived_from_version,
+            )
+            if version_row.derived_from_resource_id is not None
+            and version_row.derived_from_version is not None
+            else None
+        ),
         created_by_user_id=version_row.created_by_user_id,
         created_at=version_row.created_at,
     )
@@ -943,7 +992,8 @@ async def _resolve_inner(
     )
     if not visible:
         raise _Unresolvable("missing_or_invisible_definition")
-    effective = visible[0]
+    live = [r for r in visible if not (r.scope == "user" and r.status == "deprecated")]
+    effective = (live or visible)[0]
 
     origin = VersionOrigin.ACTIVE
     version_number = effective.active_version

@@ -23035,6 +23035,16 @@
       "type": "array",
       "title": "Dependencies",
       "default": []
+     },
+     "derived_from": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -23110,6 +23120,16 @@
       "type": "array",
       "title": "Dependencies",
       "default": []
+     },
+     "derived_from": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
      },
      "created_by_user_id": {
       "anyOf": [
@@ -23256,6 +23276,16 @@
       "type": "array",
       "title": "Dependencies",
       "default": []
+     },
+     "derived_from": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
