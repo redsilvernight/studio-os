@@ -371,6 +371,7 @@ async def _emit_library_event(
     resource: LibraryResourceModel,
     ref: str,
     extra: dict[str, object] | None = None,
+    occurrence: int | None = None,
 ) -> None:
     """Server-internal traceability (gate decision): `events` and
     `ai_work_logs` require a non-null `project_id`, so only project-scoped
@@ -380,15 +381,19 @@ async def _emit_library_event(
 
     `ref` makes the deterministic `event_id` unique per action: a
     release/re-lock cycle on the same `(resource, version)` must emit again,
-    never be swallowed by `create_event`'s get-or-create."""
+    never be swallowed by `create_event`'s get-or-create. A state that can
+    flip back (activate v2, v1, v2 again; deprecate, reactivate, deprecate)
+    passes `occurrence`, the resource's optimistic `version` after the
+    transition, so each transition keeps a distinct, replay-stable id."""
     if resource.project_id is None:
         return
+    identity = f"{resource.id}:{event_type.value}:{ref}"
+    if occurrence is not None:
+        identity = f"{identity}:{occurrence}"
     await events_service.create_event(
         session,
         EventCreate(
-            event_id=uuid.uuid5(
-                _LIBRARY_EVENT_NAMESPACE, f"{resource.id}:{event_type.value}:{ref}"
-            ),
+            event_id=uuid.uuid5(_LIBRARY_EVENT_NAMESPACE, identity),
             event_type=event_type,
             project_id=resource.project_id,
             task_id=None,
@@ -615,6 +620,7 @@ async def activate_resource_version(
             resource,
             f"v{version}",
             {"version": version},
+            occurrence=resource.version,
         )
     return resource
 
@@ -645,6 +651,7 @@ async def deprecate_resource(
             resource,
             f"v{resource.active_version}",
             {"version": resource.active_version},
+            occurrence=resource.version,
         )
     return resource
 

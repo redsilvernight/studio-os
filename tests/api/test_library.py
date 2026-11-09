@@ -216,6 +216,41 @@ async def test_project_scope_create_and_version_event(
     assert "library.version.created" in [e["event_type"] for e in events]
 
 
+async def test_reactivating_a_version_emits_a_new_event(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    payload = {**_rule_payload("project"), "project_id": str(project.id)}
+    created = (await client.post("/api/v1/library", headers=auth_headers, json=payload)).json()
+    resource_url = f"/api/v1/library/{created['id']}"
+    await client.post(
+        f"{resource_url}/versions",
+        headers=auth_headers,
+        json={
+            "title": "v2",
+            "content": {"content_schema": "studio.library.rule/v1", "text": "v2"},
+        },
+    )
+    resource_version = (await client.get(resource_url, headers=auth_headers)).json()["version"]
+    for version in (2, 1, 2):
+        activated = await client.post(
+            f"{resource_url}/activate",
+            headers=auth_headers,
+            json={"version": version, "expected_resource_version": resource_version},
+        )
+        assert activated.status_code == 200
+        resource_version = activated.json()["version"]
+
+    events = (
+        await client.get(
+            "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+        )
+    ).json()
+    activated_versions = sorted(
+        e["payload"]["version"] for e in events if e["event_type"] == "library.version.activated"
+    )
+    assert activated_versions == [1, 2, 2]
+
+
 async def test_user_scope_mutation_emits_no_event(
     client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
 ) -> None:

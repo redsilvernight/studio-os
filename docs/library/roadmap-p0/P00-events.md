@@ -13,7 +13,7 @@ Lecture seule, chemins relatifs à la racine du worktree. Les numéros de ligne 
   - `event_id` = uuid5 de `resource.id:event_type:ref` (:350-352).
   - `project_id` = celui de la ressource ; `task_id=None`.
   - `actor_type="user"`, `actor_id=principal.user.id`, `machine_id=principal.machine.id`.
-- Piège : l'`event_id` est déterministe par `(ressource, ref)`. Le commentaire (:342-344) dit que `ref` évite l'avalement par le get-or-create de `create_event`. Mais activer v2, puis v1, puis de nouveau v2 produit deux fois le même `event_id` pour v2, donc la seconde activation est probablement dédupliquée. Cela dépend de `create_event`, que je n'ai pas lu : **non vérifié**. Si c'est confirmé, un déclencheur basé uniquement sur l'événement peut manquer une réactivation.
+- Piège levé (P20) : `create_event` et `stage_event` renvoient la ligne existante quand l'`event_id` existe déjà. Activer v2, v1 puis v2 réémettait donc le même `event_id` sans nouvel événement (idem pour une dépréciation répétée). Correctif : `_emit_library_event` reçoit `occurrence=resource.version` (compteur incrémenté à chaque transition) pour `library.version.activated` et `library.resource.deprecated`. Test : `test_reactivating_a_version_emits_a_new_event`.
 - Le payload ne contient ni `content_hash`, ni dépendances, ni liste des harnais concernés.
 
 ## 2. Canaux de réception existants
@@ -93,11 +93,11 @@ Implémentation minimale proposée :
 2. Rendre le runner rejouable : aujourd'hui `_started` bloque tout second lancement (`skills_bridge.py:1195-1197`). Ajouter une méthode de relance en gardant un seul thread actif à la fois (coalescer les événements pendant une synchro).
 3. Persister le curseur (timestamp serveur de l'événement) dans le répertoire de données du daemon. Après un redémarrage, la synchro au démarrage (`runtime.py:549`) couvre le trou ; le curseur sert au reste.
 4. Pour les ressources Studio/User : prévoir un resync complet périodique (par exemple 10 à 15 min), ou ajouter une émission côté API sans `project_id`. Ce second choix change le contrat d'événements (`events` exige un `project_id` non nul, `library.py:336-340`), donc passe par le skill `contract-change`.
-5. Avant P20, trancher le doute sur l'`event_id` déterministe (§ 1) : si la réactivation d'une version déjà vue est dédupliquée, ajouter un compteur ou l'horodatage d'activation à `ref`.
+5. Doute sur l'`event_id` déterministe tranché et corrigé (§ 1).
 6. Garder le comportement `CONFLICTS` (pas d'écrasement local, `skills_bridge.py:1245-1253`).
 
 Risques résiduels : latence jusqu'à 30 s ; N requêtes par client pour N projets suivis ; événements Studio/User non couverts tant que le point 4 n'est pas traité.
 
 ## Non vérifié (récapitulatif)
 
-Implémentation de `events_service.create_event` (déduplication) ; `event_stream.py` hors constante :17 (comportement multi-worker) ; `studio_sync` et `studio_get_recent_changes` comme canal de `library.*` ; traitement des autres `event_type` dans `dashboard/src/realtime.ts` ; fin de `_AutoSyncRunner._run` (:1255-1344) ; existence d'un curseur persistant côté daemon ; existence d'un fetch ciblé par ressource.
+`event_stream.py` hors constante :17 (comportement multi-worker) ; `studio_sync` et `studio_get_recent_changes` comme canal de `library.*` ; traitement des autres `event_type` dans `dashboard/src/realtime.ts` ; fin de `_AutoSyncRunner._run` (:1255-1344) ; existence d'un curseur persistant côté daemon ; existence d'un fetch ciblé par ressource.
