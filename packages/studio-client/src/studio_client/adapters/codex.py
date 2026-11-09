@@ -18,6 +18,7 @@ from studio_client.adapters.base import (
     ensure_supported,
     render_shared_body,
     sanitize_agent_filename,
+    unprojected_field_warnings,
 )
 
 ADAPTER_ID = "codex"
@@ -97,6 +98,9 @@ class CodexAdapter:
         warnings = [
             *warnings,
             *capability_notes(self.adapter_id, self.capabilities(), edit_policy=edit_policy_str),
+            *unprojected_field_warnings(
+                self.adapter_id, content_map, tools=False, edit_policies=()
+            ),
         ]
         artifact = AdapterArtifact(path=f"{MANAGED_DIR}/{stem}.toml", content=content)
         metadata: dict[str, object] = {
