@@ -5607,6 +5607,7 @@ export interface components {
              * @default []
              */
             dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
+            derived_from?: components["schemas"]["LibraryVersionRef"] | null;
         };
         /**
          * LibraryScope
@@ -5651,6 +5652,7 @@ export interface components {
              * @default []
              */
             dependencies: components["schemas"]["DependencyPin"][];
+            derived_from?: components["schemas"]["LibraryVersionRef"] | null;
             /** Created By User Id */
             created_by_user_id?: string | null;
             /**
@@ -5710,6 +5712,7 @@ export interface components {
              * @default []
              */
             dependencies: (components["schemas"]["ResourceDependencyPin"] | components["schemas"]["DependencyPin"])[];
+            derived_from?: components["schemas"]["LibraryVersionRef"] | null;
         };
         /** LibraryVersionRef */
         LibraryVersionRef: {

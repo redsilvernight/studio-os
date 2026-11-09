@@ -74,3 +74,17 @@ def test_project_resource_only_appears_for_its_project() -> None:
     assert keys(None) == set()
     # Project definitions are never projected into the shared home.
     assert asyncio.run(skills_bridge.fetch_library_projections(api, P1)) == ()
+
+
+def test_deprecated_user_override_no_longer_shadows_the_common_version() -> None:
+    common = _Resource(uuid4(), "reactivate", "rule", scope="studio")
+    override = _Resource(uuid4(), "reactivate", "rule", scope="user")
+    api = _ReadOnlyApi([common, override], [_version(common, 1), _version(override, 1)])
+
+    def effective() -> dict[str, str]:
+        items = asyncio.run(skills_bridge.fetch_library_projections(api, None))
+        return {i.stable_key: i.scope for i in items}
+
+    assert effective() == {"reactivate": "user"}
+    override.status = "deprecated"
+    assert effective() == {"reactivate": "studio"}
