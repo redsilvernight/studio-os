@@ -13,13 +13,14 @@ from studio_contracts.library import (
     LibraryVersionRef,
 )
 
-from tests.api.test_library_resolution import _create, _principal
+from tests.api.test_library_resolution import _create
+from tests.library_seed import studio_admin
 
 
 async def test_user_version_carries_derived_from(
     db_session: AsyncSession, machine: tuple[MachineModel, str]
 ) -> None:
-    principal = await _principal(db_session, machine)
+    principal = await studio_admin(db_session)
     common = await _create(db_session, principal, "derives")
     override, _ = await library_service.create_resource(
         db_session,
@@ -53,7 +54,7 @@ async def test_user_version_carries_derived_from(
 async def test_derived_from_rejects_invalid_source(
     db_session: AsyncSession, machine: tuple[MachineModel, str], case: str, expected: int
 ) -> None:
-    principal = await _principal(db_session, machine)
+    principal = await studio_admin(db_session)
     common = await _create(db_session, principal, "src")
     other = await _create(db_session, principal, "other")
     ref = (
