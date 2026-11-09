@@ -959,7 +959,17 @@ les evenements sont inchanges.
 - POST /library/{id}/deprecate — body `LibraryDeprecate`
   (`expected_resource_version`) : remplace la suppression (historique et
   `active_version` conserves), no-op si deja depreciee. `Idempotency-Key`
-  supporte (rejeu d'une reponse non vue).
+  supporte (rejeu d'une reponse non vue). Une override `user` depreciee ne
+  masque plus la version commune : la resolution (serveur et client) et la
+  synchro reviennent a la version studio/project visible (DEC-0324).
+- Provenance (P50, DEC-0323, additif) : `derived_from` optionnel
+  (`LibraryVersionRef` : `resource_id`, `version`, defaut `null`) sur
+  `POST /library`, `POST /library/{id}/versions` et les reponses de version.
+  Seule une version `user` derive, d'une version commune (`studio`) de meme
+  `(kind, stable_key)`. Reference inexistante ou invisible = `404
+  {"error_code": "derived_from_not_found"}` ; autre cas = `422
+  {"error_code": "invalid_derived_from", "reason": "not_user_scope" |
+  "not_common_scope" | "key_mismatch"}`.
 - GET /library-locks (`project_id` optionnel), POST /library-locks
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou
