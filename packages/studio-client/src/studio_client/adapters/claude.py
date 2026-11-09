@@ -19,6 +19,7 @@ from studio_client.adapters.base import (
     render_frontmatter,
     render_shared_body,
     sanitize_agent_filename,
+    unprojected_field_warnings,
     yaml_quoted,
 )
 
@@ -105,6 +106,9 @@ class ClaudeCodeAdapter:
         warnings = [
             *warnings,
             *capability_notes(self.adapter_id, self.capabilities(), edit_policy=edit_policy_str),
+            *unprojected_field_warnings(
+                self.adapter_id, content_map, tools=True, edit_policies=()
+            ),
         ]
         profile = resolved.model_profile
         if profile is not None and profile.requirements.tools_required:
