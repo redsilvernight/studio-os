@@ -50,14 +50,14 @@ Principe : le contenu canonique décrit ce que l'agent est, sait faire et n'a pa
 ## 3. Schéma v2 proposé
 
 ```python
-class AgentDefinitionContentV2(ContractModel):          # extra="forbid"
+class AgentDefinitionContentV2(ContractModel):  # extra="forbid"
     content_schema: Literal["studio.library.agent_definition/v2"]
     summary: str | None = None
     intended_use: str | None = None
     instructions: str | None = Field(default=None, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
     triggers: list[str] = []
     edit_policy: Literal["deny", "ask", "allow"] | None = None
-    tools: list[str] = []          # besoins neutres, pas une allowlist harnais
+    tools: list[str] = []  # besoins neutres, pas une allowlist harnais
 ```
 
 Dans la table des contenus : union discriminée sur `content_schema` (v1 | v2). Pas de champ `harness_overrides` : les spécificités harnais vivent dans des projections (adapters aujourd'hui ; un éventuel fichier d'override par harnais hors canonique si le besoin apparaît, cf. questions).
