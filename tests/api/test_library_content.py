@@ -195,6 +195,52 @@ def test_agent_definition_content_rejects_wrong_schema() -> None:
     assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
 
 
+def _agent_v2_content() -> dict[str, object]:
+    return {
+        "content_schema": "studio.library.agent_definition/v2",
+        "summary": "Fictional debugger.",
+        "instructions": "Investigate first.",
+        "triggers": ["bug"],
+        "edit_policy": "deny",
+        "tools": ["read", "grep"],
+    }
+
+
+def test_agent_definition_v1_unchanged_and_v2_valid() -> None:
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, _agent_content()) == []
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, _agent_v2_content()) == []
+    assert (
+        content_validation_errors(
+            LibraryKind.AGENT_DEFINITION,
+            {"content_schema": "studio.library.agent_definition/v2"},
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"model": "x"},
+        {"provider": "x"},
+        {"harness": "x"},
+        {"requirements": {}},
+        {"edit_policy": "maybe"},
+        {"tools": ["Read"]},
+        {"triggers": [""]},
+        {"instructions": "x" * (RULE_SKILL_TEXT_MAX_LENGTH + 1)},
+    ],
+)
+def test_agent_definition_v2_rejects_invalid(patch: dict[str, object]) -> None:
+    content = {**_agent_v2_content(), **patch}
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
+
+
+def test_agent_definition_v1_still_rejects_v2_fields() -> None:
+    content = {**_agent_content(), "instructions": "x"}
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
+
+
 # --- P3 schemas: workflow now owns the P11 schema (DEC-0075) ---------------------
 
 

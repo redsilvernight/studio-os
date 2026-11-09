@@ -6,10 +6,10 @@ from collections import deque
 from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, TypeAdapter, ValidationError, model_validator
+from pydantic import Field, StringConstraints, TypeAdapter, ValidationError, model_validator
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 from studio_contracts.local.common import contains_secret_material
@@ -490,6 +490,28 @@ class AgentDefinitionContent(ContractModel):
     intended_use: str | None = None
 
 
+AGENT_TOOL_NAME_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
+"""Harness-neutral tool-need vocabulary for `agent_definition/v2` (P31):
+lowercase labels such as `read`, `grep`, `bash`. Open vocabulary validated by
+pattern; adapters map labels to harness-specific names."""
+
+
+class AgentDefinitionContentV2(ContractModel):
+    """Additive `agent_definition/v2` (P31): v1 plus the agent's instructions,
+    triggers, edit policy and neutral tool needs. Still no provider, model,
+    harness or inline capabilities; `extra="forbid"` rejects them."""
+
+    content_schema: Literal["studio.library.agent_definition/v2"]
+    summary: str | None = None
+    intended_use: str | None = None
+    instructions: str | None = Field(default=None, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    triggers: list[Annotated[str, StringConstraints(min_length=1)]] = Field(default_factory=list)
+    edit_policy: Literal["deny", "ask", "allow"] | None = None
+    tools: list[Annotated[str, StringConstraints(pattern=AGENT_TOOL_NAME_PATTERN)]] = Field(
+        default_factory=list
+    )
+
+
 WORKFLOW_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_-]{0,127}$"
 """Portable, harness-neutral identifier syntax for workflow-declared names
 (P11/DEC-0075). Anchored, ASCII-only, no path separator, no dot and no UUID
@@ -891,6 +913,11 @@ def content_validation_errors(
     model = _CONTENT_SCHEMAS.get(kind)
     if model is None:
         return []
+    if (
+        kind is LibraryKind.AGENT_DEFINITION
+        and content.get("content_schema") == "studio.library.agent_definition/v2"
+    ):
+        model = AgentDefinitionContentV2
     try:
         model.model_validate(dict(content))
     except ValidationError as exc:
