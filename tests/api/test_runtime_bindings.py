@@ -24,6 +24,8 @@ from studio_contracts.runtime import (
     RuntimeTarget,
 )
 
+from tests.library_seed import studio_admin
+
 AGENT = LibraryKind.AGENT_DEFINITION
 PROFILE = LibraryKind.MODEL_PROFILE
 
@@ -56,6 +58,7 @@ async def _create_library(
     content: dict[str, object],
     dependencies: list[DependencyPin] | None = None,
 ):
+    principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,

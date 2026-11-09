@@ -21,7 +21,8 @@ from studio_contracts.library import (
     LibraryVersionCreate,
 )
 
-from tests.api.test_library_resolution import _activate, _create, _principal
+from tests.api.test_library_resolution import _activate, _create
+from tests.library_seed import studio_admin
 
 
 class _DbApi:
@@ -62,7 +63,7 @@ async def _bump(session: AsyncSession, principal, resource) -> None:
 async def test_client_and_server_agree_on_crossed_cases(
     db_session: AsyncSession, machine: tuple[MachineModel, str], project: ProjectModel
 ) -> None:
-    principal = await _principal(db_session, machine)
+    principal = await studio_admin(db_session)
     other = await projects_service.create_project(
         db_session, "p12-other", "Other Project", None, creator=None
     )

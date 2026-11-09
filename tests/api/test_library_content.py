@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from studio_contracts.library import (
     RULE_SKILL_TEXT_MAX_LENGTH,
@@ -627,3 +628,10 @@ async def test_create_hook_rejects_invalid_hook(
     assert response.status_code == 422, response.text
     detail = response.json()["detail"]
     assert detail == {"error_code": "invalid_hook", "reason": reason, "field": field}
+
+
+@pytest_asyncio.fixture
+async def auth_headers(admin_auth_headers: dict[str, str]) -> dict[str, str]:
+    """Studio-scope writes are admin-only (P70a): these suites seed Studio
+    definitions through the default caller, so it is an admin here."""
+    return admin_auth_headers

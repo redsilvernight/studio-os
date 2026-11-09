@@ -49,7 +49,6 @@ from studio_api.services.authz import (
     ALL_PROJECTS,
     Principal,
     ProjectAction,
-    ensure_can_provision,
     ensure_can_write,
     ensure_project_access,
     ensure_shared_access,
@@ -414,6 +413,15 @@ def authorize_write(principal: Principal, resource: LibraryResourceModel) -> Non
     idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_resource_scope(principal, resource, "write")
     ensure_can_write(principal, "library")
+    if resource.scope == "studio":
+        _ensure_studio_admin(principal)
+
+
+def _ensure_studio_admin(principal: Principal) -> None:
+    """Studio scope is shared by every project: only an admin mutates it
+    (P70a, DEC D3); a developer keeps Project and User scope."""
+    if principal.role != Role.ADMIN:
+        raise forbidden("library", "provision")
 
 
 def authorize_create(principal: Principal, scope: str, project_id: UUID | None) -> None:
@@ -421,7 +429,7 @@ def authorize_create(principal: Principal, scope: str, project_id: UUID | None) 
     run ahead of the idempotency replay short-circuit."""
     _ensure_scope_access(principal, project_id, scope == "user", "write")
     if scope == "studio":
-        ensure_can_provision(principal, "library")
+        _ensure_studio_admin(principal)
     else:
         ensure_can_write(principal, "library")
 
@@ -443,7 +451,7 @@ async def create_resource(
     owner_id: UUID | None = None
     project_id: UUID | None = None
     if data.scope.value == "studio":
-        ensure_can_provision(principal, "library")
+        _ensure_studio_admin(principal)
         if data.project_id is not None:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
