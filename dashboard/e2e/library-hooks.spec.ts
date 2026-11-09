@@ -5,7 +5,7 @@ const HOOK_ID = "33333333-3333-4333-8333-333333333333";
 const CREATED_ID = "44444444-4444-4444-8444-444444444444";
 const SCRIPT = "<script>window.hookExecuted = true</script>";
 
-async function boot(page: Page, conflict = false) {
+async function boot(page: Page, conflict = false, role = "admin") {
   const writes: { path: string; body: Record<string, unknown>; key?: string }[] = [];
   const resource = {
     id: HOOK_ID, kind: "hook", stable_key: "before-tool", scope: "studio",
@@ -30,7 +30,7 @@ async function boot(page: Page, conflict = false) {
     const path = new URL(request.url()).pathname;
     const json = (status: number, data: unknown) => route.fulfill({ status, json: data });
     if (path.endsWith("/auth/token")) return json(200, { access_token: "e2e-token", token_type: "bearer" });
-    if (path.endsWith("/auth/me")) return json(200, { id: CREATED_ID, email: "e2e@example.test", display_name: "Test", role: "admin", active: true });
+    if (path.endsWith("/auth/me")) return json(200, { id: CREATED_ID, email: "e2e@example.test", display_name: "Test", role, active: true });
     if (request.method() === "POST" && path.startsWith("/api/v1/library")) {
       const body = request.postDataJSON() as Record<string, unknown>;
       writes.push({ path, body, key: request.headers()["idempotency-key"] });
@@ -189,4 +189,13 @@ test("hooks: création d'une ressource depuis sa catégorie", async ({ page }) =
   expect(writes).toHaveLength(1);
   expect(writes[0]).toMatchObject({ path: "/api/v1/library", body: { kind: "hook", stable_key: "after-edit", content: { content_schema: "studio.library.hook/v1" } } });
   expect(writes[0]!.key).toBeTruthy();
+});
+
+test("hooks: un developer ne voit aucune action sur une ressource Studio (P70a)", async ({ page }) => {
+  await boot(page, false, "developer");
+  await detail(page);
+  await expect(page.locator("[data-library-studio-locked]")).toBeVisible();
+  await expect(page.locator("[data-activate]")).toHaveCount(0);
+  await expect(page.locator("[data-deprecate]")).toHaveCount(0);
+  await expect(page.locator("#library-version-new")).toHaveCount(0);
 });
