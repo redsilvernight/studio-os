@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import pytest_asyncio
 from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -453,7 +454,9 @@ async def test_explicit_pin_disambiguates_same_key_and_keeps_scope_rules(
     forbidden = await client.post("/api/v1/library", headers=auth_headers, json=payload)
     assert forbidden.status_code == 422
     assert forbidden.json()["detail"]["reason"] == "forbidden_scope"
-    hidden = await client.post("/api/v1/library", headers=other_auth_headers, json=payload)
+    hidden = await client.post(
+        "/api/v1/library", headers=other_auth_headers, json={**payload, "scope": "user"}
+    )
     assert hidden.status_code == 404
     assert hidden.json()["detail"]["error_code"] == "pin_not_found"
     payload["dependencies"] = [{**pin, "stable_key": "wrong-key"}]
@@ -768,3 +771,10 @@ async def test_hook_cannot_source_binding(
         "error_code": "invalid_binding",
         "reason": "forbidden_kind_pair",
     }
+
+
+@pytest_asyncio.fixture
+async def machine(admin_machine: tuple[MachineModel, str]) -> tuple[MachineModel, str]:
+    """Studio-scope writes are admin-only (P70a): these suites seed Studio
+    definitions through the default caller, so it is an admin here."""
+    return admin_machine

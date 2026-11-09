@@ -912,7 +912,7 @@ export interface paths {
         put?: never;
         /**
          * Create Library Resource
-         * @description Create a library definition plus its draft version 1 (which never activates itself). Studio scope requires a privileged role; project scope requires its `project_id`; user scope is owned by the caller. Accepts `Idempotency-Key` for safe retries.
+         * @description Create a library definition plus its draft version 1 (which never activates itself). Studio scope requires the `admin` role (also for versions, activation and deprecation of a Studio definition); project scope requires its `project_id`; user scope is owned by the caller. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_library_resource_api_v1_library_post"];
         delete?: never;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
@@ -482,3 +483,10 @@ async def test_workflow_is_harness_neutral_through_http(
     serialized = (str(versions[0]["content"]) + str(versions[0]["dependencies"])).lower()
     for token in ("claude", "opencode", "anthropic", "openai", "ollama"):
         assert token not in serialized
+
+
+@pytest_asyncio.fixture
+async def machine(admin_machine: tuple[MachineModel, str]) -> tuple[MachineModel, str]:
+    """Studio-scope writes are admin-only (P70a): these suites seed Studio
+    definitions through the default caller, so it is an admin here."""
+    return admin_machine

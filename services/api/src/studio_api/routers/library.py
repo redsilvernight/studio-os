@@ -81,7 +81,8 @@ async def list_library(
     status_code=status.HTTP_201_CREATED,
     description=(
         "Create a library definition plus its draft version 1 (which never "
-        "activates itself). Studio scope requires a privileged role; "
+        "activates itself). Studio scope requires the `admin` role (also for "
+        "versions, activation and deprecation of a Studio definition); "
         "project scope requires its `project_id`; user scope is owned by "
         "the caller. Accepts `Idempotency-Key` for safe retries."
     ),

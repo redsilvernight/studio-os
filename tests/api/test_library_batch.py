@@ -36,10 +36,10 @@ def _ref(resource_id: object, version: int = 1) -> dict[str, object]:
 
 
 async def test_batch_mixes_ok_and_not_found_in_request_order(
-    client: AsyncClient, auth_headers: dict[str, str]
+    client: AsyncClient, auth_headers: dict[str, str], admin_auth_headers: dict[str, str]
 ) -> None:
-    first = await _create(client, auth_headers, "batch-a")
-    second = await _create(client, auth_headers, "batch-b")
+    first = await _create(client, admin_auth_headers, "batch-a")
+    second = await _create(client, admin_auth_headers, "batch-b")
     items = [_ref(second["id"]), _ref(first["id"], 9), _ref(uuid.uuid4()), _ref(first["id"])]
     response = await client.post(URL, headers=auth_headers, json={"items": items})
     assert response.status_code == 200
@@ -55,9 +55,9 @@ async def test_batch_mixes_ok_and_not_found_in_request_order(
 
 
 async def test_batch_deduplicates_requested_pairs(
-    client: AsyncClient, auth_headers: dict[str, str]
+    client: AsyncClient, auth_headers: dict[str, str], admin_auth_headers: dict[str, str]
 ) -> None:
-    resource = await _create(client, auth_headers, "batch-dup")
+    resource = await _create(client, admin_auth_headers, "batch-dup")
     response = await client.post(
         URL, headers=auth_headers, json={"items": [_ref(resource["id"])] * 3}
     )
@@ -130,10 +130,10 @@ def test_batch_contract_bounds() -> None:
 
 
 async def test_batch_serves_200_versions_in_one_request(
-    client: AsyncClient, auth_headers: dict[str, str]
+    client: AsyncClient, auth_headers: dict[str, str], admin_auth_headers: dict[str, str]
 ) -> None:
     """P11-scale: a 200-resource sync needs one batch call, not one per 50."""
-    first = await _create(client, auth_headers, "batch-200")
+    first = await _create(client, admin_auth_headers, "batch-200")
     items = [_ref(first["id"])] + [_ref(uuid.uuid4()) for _ in range(199)]
     response = await client.post(URL, headers=auth_headers, json={"items": items})
     assert response.status_code == 200

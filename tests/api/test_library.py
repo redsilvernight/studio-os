@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest_asyncio
 from httpx import AsyncClient
 from studio_api.db.models.project import ProjectModel
 from studio_contracts.library import (
@@ -464,3 +465,74 @@ def test_capability_unknown_is_not_compatible() -> None:
         RuntimeCapabilities(coding=True, tools=["mcp"]),
     )
     assert satisfied == []
+
+
+@pytest_asyncio.fixture
+async def auth_headers(admin_auth_headers: dict[str, str]) -> dict[str, str]:
+    """Studio-scope writes are admin-only (P70a): these suites seed Studio
+    definitions through the default caller, so it is an admin here."""
+    return admin_auth_headers
+
+
+async def test_developer_cannot_touch_studio_resources(
+    client: AsyncClient, auth_headers: dict[str, str], other_auth_headers: dict[str, str]
+) -> None:
+    """P70a: create, version, activate and deprecate on Studio scope are
+    admin-only; the developer keeps Project and User scope."""
+    denied = await client.post(
+        "/api/v1/library", headers=other_auth_headers, json=_rule_payload("studio", key="dev-rule")
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == {
+        "error_code": "forbidden",
+        "resource": "library",
+        "action": "provision",
+    }
+
+    created = (
+        await client.post("/api/v1/library", headers=auth_headers, json=_rule_payload("studio"))
+    ).json()
+    rid = created["id"]
+    version = {
+        "title": "dev v2",
+        "content": {"content_schema": "studio.library.rule/v1", "text": "v2"},
+    }
+    attempts = [
+        client.post(f"/api/v1/library/{rid}/versions", headers=other_auth_headers, json=version),
+        client.post(
+            f"/api/v1/library/{rid}/activate",
+            headers=other_auth_headers,
+            json={"version": 1, "expected_resource_version": created["version"]},
+        ),
+        client.post(
+            f"/api/v1/library/{rid}/deprecate",
+            headers=other_auth_headers,
+            json={"expected_resource_version": created["version"]},
+        ),
+    ]
+    for attempt in attempts:
+        assert (await attempt).status_code == 403
+
+    user_scope = await client.post(
+        "/api/v1/library",
+        headers=other_auth_headers,
+        json=_skill_payload("user", key="dev-private"),
+    )
+    assert user_scope.status_code == 201
+
+    # The admin keeps every right on the same resource.
+    assert (
+        await client.post(f"/api/v1/library/{rid}/versions", headers=auth_headers, json=version)
+    ).status_code == 201
+    activated = await client.post(
+        f"/api/v1/library/{rid}/activate",
+        headers=auth_headers,
+        json={"version": 2, "expected_resource_version": created["version"] + 1},
+    )
+    assert activated.status_code == 200
+    deprecated = await client.post(
+        f"/api/v1/library/{rid}/deprecate",
+        headers=auth_headers,
+        json={"expected_resource_version": activated.json()["version"]},
+    )
+    assert deprecated.status_code == 200
