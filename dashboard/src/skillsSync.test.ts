@@ -58,8 +58,15 @@ describe("skills sync indicator", () => {
     const html = skillsDetailHtml(status({ state: "not_synced", error_message: "C:\\Users\\me\\secret" }), false);
     expect(html).not.toContain("secret");
     expect(html).toContain("hors ligne");
-    expect(skillsIndicatorHtml(status({ state: "conflicts", conflicts: ["a", "b"] }))).toContain("conflits à résoudre (2)");
+    expect(skillsIndicatorHtml(status({ state: "conflicts", conflicts: ["a", "b"] }))).toContain("conflits à résoudre (2 conflits)");
     expect(skillsIndicatorHtml(null, true)).toContain("état indisponible");
+  });
+
+  it("distinguishes conflicts from pending updates in the indicator", () => {
+    const html = skillsIndicatorHtml(status({ state: "update_pending", updated: ["a", "b"], added: ["c"], conflicts: ["d"] }));
+    expect(html).toContain("mise à jour disponible (1 conflit, 3 mises à jour)");
+    expect(html).toContain('data-state="update_pending"');
+    expect(skillsIndicatorHtml(status({ state: "update_pending", updated: ["a"] }))).toContain("(1 mise à jour)");
   });
 
   it("exposes the full pill label in the tooltip (no truncated « Skil… »)", () => {
