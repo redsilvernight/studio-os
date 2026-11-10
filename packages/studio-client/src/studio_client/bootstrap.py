@@ -54,6 +54,12 @@ from studio_client.canonical import (
     render_claude_md_block_from,
     render_claude_rule,
 )
+from studio_client.drift import (
+    DivergencePlan,
+    DivergentFile,
+    classify_state,
+    divergence_state,
+)
 from studio_client.projection_source import ProjectionBundle, bundle_from_repo
 
 MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
@@ -304,6 +310,38 @@ def observe(
     return build_dry_run_report(manifest, reports)
 
 
+def plan_divergences(
+    repo_root: Path | str,
+    manifest: BootstrapManifest,
+    *,
+    planned: list[PlannedFile] | None = None,
+    managed_hashes: Mapping[str, str] | None = None,
+) -> DivergencePlan:
+    """Read-only: every whole-file projection edited locally, with the managed
+    base and the local content. A file that still carries its managed hash is
+    `outdated`, not divergent; managed blocks are excluded because their base is
+    a merged document rather than a file. Nothing on disk is written."""
+    root = Path(repo_root)
+    planned = planned if planned is not None else plan_files(root, manifest)
+    hashes = dict(managed_hashes) if managed_hashes is not None else {}
+    files: list[DivergentFile] = []
+    for item in planned:
+        if item.block or item.incompatible:
+            continue
+        target = _target(root, item.path)
+        if not target.is_file():
+            continue
+        current = _normalize(target.read_text(encoding="utf-8"))
+        desired = _normalize(item.content)
+        state = divergence_state(classify_state(current, desired, hashes.get(item.path)))
+        if state is None:
+            continue
+        files.append(
+            DivergentFile(path=item.path, kind=item.kind, base=desired, local=current, state=state)
+        )
+    return DivergencePlan(files=tuple(sorted(files, key=lambda item: item.path)))
+
+
 def diff_text(
     repo_root: Path | str,
     manifest: BootstrapManifest,
@@ -467,8 +505,6 @@ def sync(
 def _observe_state(
     root: Path, item: PlannedFile, managed_hash: str | None = None
 ) -> BootstrapFileState:
-    from studio_client.drift import classify_state
-
     target = _target(root, item.path)
     if item.block:
         if not target.is_file():
