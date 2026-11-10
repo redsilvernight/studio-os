@@ -17,7 +17,7 @@ from uuid import UUID
 from studio_contracts.library import skill_file_path_error
 
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
-from studio_client.drift import SyncState, classify_state
+from studio_client.drift import SyncState, carries_library_provenance, classify_state
 from studio_client.projection_backups import (
     ProjectionBackup,
     commit_projection_backup,
@@ -59,6 +59,9 @@ class SkillTargetPlan:
     desired_text: str | None = None
     rel: str | None = None
     """Path relative to the skill directory for an auxiliary file (None = SKILL.md)."""
+    managed: bool = True
+    """False when nothing proves Studio OS owns the existing file (no manifest
+    hash, no Library provenance marker): a same-key file of the user."""
 
 
 @dataclass(frozen=True)
@@ -125,6 +128,16 @@ class SkillSyncPlan:
     @property
     def locally_modified(self) -> tuple[SkillTargetPlan, ...]:
         return self._targets_with_state("locally_modified")
+
+    @property
+    def unmanaged(self) -> tuple[SkillTargetPlan, ...]:
+        """Same-key files Studio OS never wrote, kept out of every write."""
+        return tuple(
+            target
+            for entry in self.entries
+            for target in entry.all_files
+            if not target.managed and target.state != "current"
+        )
 
     def _targets_with_state(self, state: SyncState) -> tuple[SkillTargetPlan, ...]:
         return tuple(
@@ -584,7 +597,15 @@ def _plan_opencode_target(
     state = classify_state(current_base, rendered, managed_hash)
     if state == "current" and current != desired:
         state = "outdated"
-    return SkillTargetPlan("opencode", path, state, current, _sha256(current), desired)
+    return SkillTargetPlan(
+        "opencode",
+        path,
+        state,
+        current,
+        _sha256(current),
+        desired,
+        managed=_is_managed(current, managed_hash),
+    )
 
 
 def _plan_target(
@@ -605,7 +626,9 @@ def _plan_target(
         raise SkillSyncError(f"skill target is not valid UTF-8: {path}") from exc
     current_hash = _sha256(current)
     state = classify_state(current, rendered, managed_hash)
-    return SkillTargetPlan(harness, path, state, current, current_hash)
+    return SkillTargetPlan(
+        harness, path, state, current, current_hash, managed=_is_managed(current, managed_hash)
+    )
 
 
 def _plan_retired_targets(
@@ -759,9 +782,24 @@ def _plan_aux_targets(
                 raise SkillSyncError(f"skill file target is not valid UTF-8: {path}") from exc
             state = classify_state(current, text, managed.get(rel))
             targets.append(
-                SkillTargetPlan(harness, path, state, current, _sha256(current), text, rel)
+                SkillTargetPlan(
+                    harness,
+                    path,
+                    state,
+                    current,
+                    _sha256(current),
+                    text,
+                    rel,
+                    managed=_is_managed(current, managed.get(rel)),
+                )
             )
     return tuple(targets)
+
+
+def _is_managed(current: str | None, managed_hash: str | None) -> bool:
+    if managed_hash is not None:
+        return True
+    return current is not None and carries_library_provenance(current)
 
 
 def _plan_removed_files(

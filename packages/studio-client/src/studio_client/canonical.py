@@ -11,9 +11,9 @@ Two canonical stores, one precedence rule (P3.2):
 * files (`.agents/`) win at *authoring* time — review, diff, anti-drift check;
 * the AI Library wins at *resolution* time — `resolve_full` never reads files.
 
-Runtime fusion (P4/AIB-D, DEC-0168): `build_merged_resolved` takes an
-injected `LibrarySnapshot` — project files win per piece when present,
-Library entries fill the gaps, anything missing on both sides fails
+Runtime fusion (P4/AIB-D): `build_merged_resolved` takes an
+injected `LibrarySnapshot` — the Library wins per piece when it carries the
+key, project files fill the gaps, anything missing on both sides fails
 exactly like the offline path. This module stays pure: the snapshot is
 pre-fetched by the caller (see `StudioApiClient.fetch_library_snapshot`).
 
@@ -339,34 +339,30 @@ def build_offline_resolved(repo_root: Path | str, stable_key: str) -> ResolvedAg
     )
 
 
-def _file_or_library_text(
+def _library_or_file_text(
     root: Path,
     kind: str,
     key: str,
     library: LibrarySnapshot,
 ) -> tuple[str, ResolvedRule | ResolvedSkill | None]:
-    """Project file text win, Library entry second. A corrupt project file
-    (`ValueError`) always raises — it must never silently fall back. Only a
-    missing file (`FileNotFoundError`) falls back; missing on both sides
-    raises the same `FileNotFoundError` the offline path raises."""
-    loader = load_rule_text if kind == "rule" else load_skill_text
-    try:
-        return loader(root, key), None
-    except FileNotFoundError:
-        pass
+    """Library entry first, project file as gap-fill. A same-key file the
+    Library also carries never wins silently: the managed check compares the
+    on-disk file against this Library-backed text and reports the drift
+    instead of echoing the file back to itself. A corrupt project file
+    (`ValueError`) still raises when the Library has no entry for the key;
+    missing on both sides raises the same `FileNotFoundError` the offline
+    path raises."""
     if kind == "rule":
         entry: ResolvedRule | ResolvedSkill | None = library.rules.get(key)
     else:
         entry = library.skills.get(key)
-    if entry is None:
-        path = root / ".agents" / ("rules" if kind == "rule" else "skills")
-        raise FileNotFoundError(
-            f"{path}: no project file and no Library entry for {key!r}"
-        ) from None
-    text = entry.content.get("text")
-    if not isinstance(text, str):  # pragma: no cover - guarded by from_resolved
-        raise ValueError(f"library snapshot: {kind} {key!r} has no text content")
-    return text, entry
+    if entry is not None:
+        text = entry.content.get("text")
+        if not isinstance(text, str):  # pragma: no cover - guarded by from_resolved
+            raise ValueError(f"library snapshot: {kind} {key!r} has no text content")
+        return text, entry
+    loader = load_rule_text if kind == "rule" else load_skill_text
+    return loader(root, key), None
 
 
 def build_merged_resolved(
@@ -375,17 +371,18 @@ def build_merged_resolved(
     *,
     library: LibrarySnapshot | None = None,
 ) -> ResolvedAgentDefinition:
-    """Runtime fusion (P4/AIB-D, DEC-0168): the project `.agents/` authoring
-    source merged with a pre-fetched `LibrarySnapshot`, per piece. Project
-    files win when present (review/diff/anti-drift source); Library entries
-    fill the gaps, so a near-empty repo (manifest + managed blocks) still
-    resolves the studio resources. `library=None` is the strict offline
-    path, identical to `build_offline_resolved`. Library-backed pieces
-    carry their real identity and provenance (version-truthful);
-    Library-backed heads default the file-only keys the Library never
-    carries (`instructions`, `triggers`, `edit_policy`, `tools`). This
-    function never re-decides versions (DEC-0144): it only picks whole
-    pieces from the two sources."""
+    """Runtime fusion (P4/AIB-D): the project `.agents/` authoring source
+    merged with a pre-fetched `LibrarySnapshot`, per piece. The Library wins
+    when it carries the key — a same-key depot file never shadows it
+    silently; the anti-drift check reports the depot file as drifted
+    instead. Project files fill the gaps (keys the Library does not
+    carry), so a near-empty repo still resolves. `library=None` is the
+    strict offline path, identical to `build_offline_resolved`.
+    Library-backed pieces carry their real identity and provenance
+    (version-truthful); Library-backed heads default the file-only keys
+    the Library never carries (`instructions`, `triggers`, `edit_policy`,
+    `tools`). This function never re-decides versions (DEC-0144): it only
+    picks whole pieces from the two sources."""
     if library is None:
         return build_offline_resolved(repo_root, stable_key)
     if library.agent.stable_key != stable_key:
@@ -429,7 +426,7 @@ def build_merged_resolved(
         requirements = CapabilityRequirement.model_validate(agent.requirements)
     rules = []
     for key in keys_rules:
-        text, entry = _file_or_library_text(root, "rule", key, library)
+        text, entry = _library_or_file_text(root, "rule", key, library)
         if entry is None:
             rules.append(
                 _resolved_rule(
@@ -457,7 +454,7 @@ def build_merged_resolved(
             )
     skills = []
     for key in keys_skills:
-        text, entry = _file_or_library_text(root, "skill", key, library)
+        text, entry = _library_or_file_text(root, "skill", key, library)
         if entry is None:
             skills.append(
                 _resolved_skill(

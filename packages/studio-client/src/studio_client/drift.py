@@ -9,6 +9,12 @@ blocks reuse the same detector instead of growing a second one.
 generated file edited locally carries publishable content, with the managed
 base and the local text, instead of being only a write conflict.
 
+``outdated`` means "written by Studio OS, stale": it requires positive
+evidence of management (a recorded hash, or the Library provenance marker
+inside the file). A file that carries neither is somebody else's and is
+reported ``locally_modified`` — a conflict — however close its body is to
+the desired one.
+
 Manifest support is additive: schema v1 (``{"skills": [...]}``) keeps
 being read and written by ``skill_sync`` unchanged; schema v2
 (``{"items": [{"kind": ..., "stable_key": ..., ...}]}``) carries every
@@ -38,6 +44,12 @@ def hash_text(text: str) -> str:
 
 
 _PROVENANCE_PREFIX = "<!-- studio-os-library:"
+LIBRARY_PROVENANCE_PREFIX = _PROVENANCE_PREFIX
+
+
+def carries_library_provenance(text: str) -> bool:
+    """True when Studio OS wrote this file (its Library provenance marker is present)."""
+    return any(line.startswith(_PROVENANCE_PREFIX) for line in text.splitlines())
 
 
 def _without_provenance(text: str) -> str:
@@ -55,7 +67,9 @@ def classify_state(
         return "current"
     if managed_hash is not None and hash_text(current) == managed_hash:
         return "outdated"
-    if _without_provenance(current) == _without_provenance(desired):
+    if carries_library_provenance(current) and _without_provenance(
+        current
+    ) == _without_provenance(desired):
         return "outdated"
     return "locally_modified"
 
