@@ -246,9 +246,7 @@ def plan_files(
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH,
-            content=render_agents_rules_block_from(
-                bundle.protocol, {key: meta[0] for key, meta in bundle.rules.items()}
-            ),
+            content=render_agents_rules_block_from(bundle.protocol is not None),
             kind="block",
             block=True,
             legacy=legacy_rules_text(bundle.rules),

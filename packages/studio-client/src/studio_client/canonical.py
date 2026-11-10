@@ -574,22 +574,19 @@ def render_claude_md_block_from(has_protocol: bool) -> str:
 
 
 def render_agents_rules_block(repo_root: Path | str) -> str:
-    """Permanent protocol and on-demand path rules, from one canonical source."""
+    """Stable pointer block: no rule content, so a new rule version never changes it."""
     protocol = Path(repo_root) / ".agents/rules/studio-protocol.md"
-    return render_agents_rules_block_from(
-        protocol.read_text(encoding="utf-8") if protocol.is_file() else None,
-        {key: load_rule_meta(repo_root, key)[0] for key in canonical_rule_keys(repo_root)},
-    )
+    return render_agents_rules_block_from(protocol.is_file())
 
 
-def render_agents_rules_block_from(protocol: str | None, applies_to: dict[str, list[str]]) -> str:
-    parts = [protocol.strip()] if protocol is not None else []
+def render_agents_rules_block_from(has_protocol: bool) -> str:
+    parts = []
+    if has_protocol:
+        parts.append(f"Read `.agents/rules/{_PROTOCOL_RULE_KEY}.md` before any task.")
     parts.append(
-        "Before editing matching paths, read the canonical rule below; "
-        "scopes are not automatic in every harness."
+        "Canonical rules live in `.agents/rules/`; before editing a path, read the rules "
+        "whose `applies_to` front matter matches it (scopes are not automatic in every harness)."
     )
-    for key in sorted(applies_to):
-        parts.append(f"- `.agents/rules/{key}.md` — applies to {_glob_list(applies_to[key])}")
     return (
         AGENTS_BEGIN_MARKER
         + "\n# Project rules (studio-client)\n\n"

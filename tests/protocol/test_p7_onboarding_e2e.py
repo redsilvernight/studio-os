@@ -105,7 +105,7 @@ def test_managed_blocks_point_to_canonical_sources(tmp_path: Path) -> None:
     agents_md = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     claude_md = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
     assert AGENTS_BEGIN_MARKER in agents_md
-    assert "project-conventions" in agents_md
+    assert ".agents/rules/" in agents_md
     assert CLAUDE_BEGIN_MARKER in claude_md
     assert ".agents/" in claude_md
 
