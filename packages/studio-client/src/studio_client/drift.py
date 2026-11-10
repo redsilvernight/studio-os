@@ -67,9 +67,9 @@ def classify_state(
         return "current"
     if managed_hash is not None and hash_text(current) == managed_hash:
         return "outdated"
-    if carries_library_provenance(current) and _without_provenance(
-        current
-    ) == _without_provenance(desired):
+    if carries_library_provenance(current) and _without_provenance(current) == _without_provenance(
+        desired
+    ):
         return "outdated"
     return "locally_modified"
 

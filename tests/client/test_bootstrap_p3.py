@@ -283,9 +283,10 @@ def test_rules_sync_backs_up_agents_md(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
     cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
-    rule = repo / ".agents/rules/testing.md"
-    rule.write_text(
-        rule.read_text(encoding="utf-8").replace("tests/**/*.py", "tests/**"), encoding="utf-8"
+    agents_md = repo / "AGENTS.md"
+    agents_md.write_text(
+        agents_md.read_text(encoding="utf-8").replace("Canonical rules", "Stale rules"),
+        encoding="utf-8",
     )
     cli.main(["rules", "sync", "--repo-root", str(repo), "--overwrite"])
     backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("AGENTS.md"))
@@ -381,8 +382,17 @@ def test_rollback_restores_replaced_file_bytes(tmp_path: Path) -> None:
     original = "CUSTOM CONTRACT RULE\r\nsecond line\r\n"
     target.write_bytes(original.encode("utf-8"))
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo), "--yes",
-              "--overwrite", ".claude/rules/contracts.md"])
+    cli.main(
+        [
+            "bootstrap",
+            "sync",
+            "--repo-root",
+            str(repo),
+            "--yes",
+            "--overwrite",
+            ".claude/rules/contracts.md",
+        ]
+    )
     assert target.read_bytes() != original.encode("utf-8")
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
@@ -416,8 +426,17 @@ def test_rollback_refuses_backup_path_traversal(tmp_path: Path) -> None:
     target = repo / ".claude" / "rules" / "contracts.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("original\n", encoding="utf-8")
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo), "--yes",
-              "--overwrite", ".claude/rules/contracts.md"])
+    cli.main(
+        [
+            "bootstrap",
+            "sync",
+            "--repo-root",
+            str(repo),
+            "--yes",
+            "--overwrite",
+            ".claude/rules/contracts.md",
+        ]
+    )
     after_sync = target.read_bytes()
 
     backup_dir = next((repo / ".studio-os" / "backups" / "bootstrap").iterdir())
