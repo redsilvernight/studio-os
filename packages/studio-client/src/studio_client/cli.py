@@ -912,6 +912,7 @@ def _projection_bundle(args: argparse.Namespace, config: ClientConfig | None) ->
         raise SystemExit(1)
     from studio_client.projection_source import fetch_projection_bundle
 
+    assert config is not None  # Library fetch needs the API configuration.
     project_id = _parse_uuid(args.project_id, field="project_id")
 
     async def action(client: StudioApiClient) -> Any:

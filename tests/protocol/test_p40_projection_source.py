@@ -13,6 +13,7 @@ from studio_client import bootstrap, cli
 from studio_client.adapters_check import check_adapters
 from studio_client.bootstrap import PlannedFile, plan_files
 from studio_client.canonical import build_offline_resolved, canonical_agent_keys, load_rule_meta
+from studio_client.config import ClientConfig
 from studio_client.projection_source import (
     ProjectionBundle,
     bundle_from_repo,
@@ -150,6 +151,9 @@ def test_rule_v2_content_schema_accepts_applies_to() -> None:
     assert content_validation_errors(LibraryKind.RULE, v1) == []
 
 
+_CONFIG = ClientConfig(api_base_url="http://127.0.0.1:9")
+
+
 class _FakeClient:
     def __init__(self, definitions: list[ResolvedAgentDefinition]) -> None:
         self.by_key = {item.agent.stable_key: item for item in definitions}
@@ -190,7 +194,7 @@ def _args(root: Path, **extra: object) -> argparse.Namespace:
         "yes": True,
         "wire_mcp": False,
         "json": False,
-        "registry_dir": None,
+        "registry_dir": str(root / "registry"),
     }
     return argparse.Namespace(**{**values, **extra})
 
@@ -204,13 +208,13 @@ def test_cli_sync_from_library_writes_without_agents_dir(
         cli, "_run", lambda _config, action: asyncio.run(action(_FakeClient(definitions)))
     )
 
-    cli._bootstrap_sync(_args(tmp_path), None)
+    cli._bootstrap_sync(_args(tmp_path), _CONFIG)
 
     assert not (tmp_path / ".agents").exists()
     assert (tmp_path / ".claude" / "agents").is_dir()
-    cli._bootstrap_report(_args(tmp_path), None, emit_diff=False)
+    cli._bootstrap_report(_args(tmp_path), _CONFIG, emit_diff=False)
 
 
 def test_cli_from_library_requires_project_id(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
-        cli._projection_bundle(_args(tmp_path, project_id=None), None)
+        cli._projection_bundle(_args(tmp_path, project_id=None), _CONFIG)
