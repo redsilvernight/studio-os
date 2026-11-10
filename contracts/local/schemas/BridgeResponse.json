@@ -43,6 +43,8 @@
         "skills.apply",
         "skills.status",
         "skills.configure",
+        "project_projections.status",
+        "project_projections.apply",
         "setup.plan",
         "setup.apply",
         "hooks.check",

@@ -51,6 +51,11 @@ from studio_client.daemon.launch_settings_bridge import (
     load_machine_policy,
 )
 from studio_client.daemon.library_events import CURSOR_FILE_NAME, LibraryEventWatcher
+from studio_client.daemon.project_projections import (
+    RepoTarget,
+    mark_project_updates_pending,
+    repo_targets,
+)
 from studio_client.daemon.skills_bridge import mark_update_pending, start_auto_sync
 from studio_client.daemon.usage_scan import UsageScanLoop
 from studio_client.daemon.workspace_watch import (
@@ -412,6 +417,15 @@ class DaemonRuntime:
                 self._workspace_inputs = list(workspaces)
         return await self.reconcile_workspace_watchers()
 
+    def project_repo_targets(self) -> list[RepoTarget]:
+        return repo_targets(self._workspace_inputs)
+
+    def _mark_library_updates_pending(self) -> None:
+        mark_update_pending(self.config, self._token_store, self._skills_home(), self.data_root)
+        mark_project_updates_pending(
+            self.config, self._token_store, self.project_repo_targets(), self.data_root
+        )
+
     def _workspace_project_ids(self) -> tuple[UUID, ...]:
         """Project IDs registered as Desktop workspaces. A workspace is a local
         project registration, so it feeds both the capability report and the
@@ -561,12 +575,7 @@ class DaemonRuntime:
                     client,
                     project_ids=self._workspace_project_ids,
                     cursor_path=self.data_root / CURSOR_FILE_NAME,
-                    on_library_change=lambda: mark_update_pending(
-                        self.config,
-                        self._token_store,
-                        self._skills_home(),
-                        self.data_root,
-                    ),
+                    on_library_change=self._mark_library_updates_pending,
                 )
                 self._library_watcher = library_watcher
                 if self._stop_requested:

@@ -86,7 +86,7 @@ def test_40_bridge_security_allowlist_only():
         BridgeCommand,
     )
 
-    assert len(BRIDGE_COMMANDS) == 48
+    assert len(BRIDGE_COMMANDS) == 50
 
     # No command should contain forbidden primitives
     for cmd in BridgeCommand:

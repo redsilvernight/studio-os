@@ -151,6 +151,15 @@ un test échoue si l'export diverge des builders Python.
   `setup.plan`) rend, par harnais détecté, l'état `managed` / `missing` /
   `foreign` du hook, de la garde Git et du plugin ; ni chemin ni contenu de
   fichier ne sortent du daemon.
+- **Projections de projet en attente** (additif, DEC non requise : même
+  capacités que les skills) : `project_projections.status` (capacité
+  `skills.read`) liste, par workspace, les fichiers générés à écrire après une
+  activation du scope project ; `project_projections.apply` (capacité
+  `skills.apply`, `confirmed: true` obligatoire) écrit ce dépôt, sauvegarde les
+  fichiers remplacés et tient un seul bloc géré de `.gitignore` listant les
+  seuls fichiers générés (jamais `AGENTS.md`, `CLAUDE.md` ni un fichier de
+  réglage). Aucun chemin ne sort du daemon : le dépôt est désigné par son
+  `workspace_id`.
 - **Synchro des skills** : `skills.preview` (diff, lecture), `skills.status`
   (état persistant du dernier cycle : en cours / à jour / mis à jour / conflits /
   non synchronisé / désactivé), `skills.apply` (additif, capacité `skills.apply`,
