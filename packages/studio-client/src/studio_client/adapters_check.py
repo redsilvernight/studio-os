@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from studio_client.projection_source import ProjectionBundle
+
 LibraryFor = Callable[[str], Any]
 
 
@@ -29,21 +31,22 @@ def check_adapters(
     adapter_id: str | None = None,
     stable_key: str | None = None,
     library_for: LibraryFor | None = None,
+    bundle: ProjectionBundle | None = None,
 ) -> AdaptersCheck:
     from studio_client.adapters import AdapterError, get_adapter, list_adapters
     from studio_client.canonical import (
-        agents_rules_current,
+        agents_rules_current_with,
         build_merged_resolved,
-        build_offline_resolved,
-        canonical_agent_keys,
-        canonical_rule_keys,
-        load_rule_meta,
+        legacy_rules_text,
+        render_agents_rules_block_from,
         render_claude_rule,
-        workflow_skill_projections,
+        workflow_skill_projections_from,
     )
+    from studio_client.projection_source import bundle_from_repo
 
     adapter_ids = [adapter_id] if adapter_id else list_adapters()
-    keys = [stable_key] if stable_key else canonical_agent_keys(root)
+    bundle = bundle if bundle is not None else bundle_from_repo(root)
+    keys = [stable_key] if stable_key else list(bundle.agents)
     failures: list[dict[str, str]] = []
     checked = 0
     for current_adapter in adapter_ids:
@@ -58,7 +61,7 @@ def check_adapters(
                 if library_for is not None:
                     resolved = build_merged_resolved(root, key, library=library_for(key))
                 else:
-                    resolved = build_offline_resolved(root, key)
+                    resolved = bundle.agents[key]
                 result = adapter.translate(resolved)
             except (AdapterError, ValueError, OSError) as exc:
                 failures.append({"adapter": current_adapter, "key": key, "error": str(exc)})
@@ -80,9 +83,8 @@ def check_adapters(
                     )
     if adapter_id is None and stable_key is None:
         # Rule projections and the AGENTS.md block are managed too (P3.7).
-        for key in canonical_rule_keys(root):
+        for key, (applies_to, body) in sorted(bundle.rules.items()):
             checked += 1
-            applies_to, body = load_rule_meta(root, key)
             current = root / ".claude" / "rules" / f"{key}.md"
             on_disk = (
                 current.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -94,7 +96,10 @@ def check_adapters(
         checked += 1
         agents_path = root / "AGENTS.md"
         agents_text = agents_path.read_text(encoding="utf-8") if agents_path.is_file() else ""
-        if not agents_rules_current(root, agents_text):
+        block = render_agents_rules_block_from(
+            bundle.protocol, {key: meta[0] for key, meta in bundle.rules.items()}
+        )
+        if not agents_rules_current_with(block, legacy_rules_text(bundle.rules), agents_text):
             failures.append(
                 {
                     "adapter": "rules",
@@ -102,7 +107,7 @@ def check_adapters(
                     "error": "AGENTS.md block drifted, duplicated or conflicting owner",
                 }
             )
-        for relative, content in workflow_skill_projections(root).items():
+        for relative, content in workflow_skill_projections_from(bundle.skills).items():
             checked += 1
             target = root / relative
             if not target.is_file() or target.read_text(encoding="utf-8") != content:

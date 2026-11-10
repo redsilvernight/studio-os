@@ -383,6 +383,15 @@ class RuleContent(ContractModel):
     text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
 
 
+class RuleContentV2(ContractModel):
+    """Additive `rule/v2` (P40): v1 plus `applies_to` globs (empty = global
+    rule). Still prose only; `extra="forbid"` rejects any other key."""
+
+    content_schema: Literal["studio.library.rule/v2"]
+    text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    applies_to: list[Annotated[str, StringConstraints(min_length=1)]] = Field(default_factory=list)
+
+
 SKILL_FILES_MAX = 64
 SKILL_FILE_TEXT_MAX_LENGTH = RULE_SKILL_TEXT_MAX_LENGTH
 SKILL_FILES_TOTAL_MAX_LENGTH = 524_288
@@ -918,6 +927,8 @@ def content_validation_errors(
         and content.get("content_schema") == "studio.library.agent_definition/v2"
     ):
         model = AgentDefinitionContentV2
+    elif kind is LibraryKind.RULE and content.get("content_schema") == "studio.library.rule/v2":
+        model = RuleContentV2
     try:
         model.model_validate(dict(content))
     except ValidationError as exc:

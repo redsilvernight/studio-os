@@ -46,18 +46,15 @@ from studio_client.canonical import (
     AGENTS_END_MARKER,
     CLAUDE_BEGIN_MARKER,
     CLAUDE_END_MARKER,
-    agents_rules_current,
-    build_offline_resolved,
-    canonical_agent_keys,
-    canonical_rule_keys,
-    canonical_skill_keys,
-    load_rule_meta,
-    load_skill_source,
+    agents_rules_current_with,
+    legacy_rules_text,
     merge_agents_rules,
-    render_agents_rules_block,
-    render_claude_md_block,
+    merge_agents_rules_with,
+    render_agents_rules_block_from,
+    render_claude_md_block_from,
     render_claude_rule,
 )
+from studio_client.projection_source import ProjectionBundle, bundle_from_repo
 
 MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
 AGENTS_MD_PATH = "AGENTS.md"
@@ -92,6 +89,7 @@ class PlannedFile:
     block: bool = False
     incompatible: bool = False
     message: str | None = None
+    legacy: str | None = None
 
     @property
     def markers(self) -> tuple[str, str]:
@@ -185,21 +183,28 @@ def write_manifest(
     return path
 
 
-def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[PlannedFile]:
+def plan_files(
+    repo_root: Path | str,
+    manifest: BootstrapManifest,
+    bundle: ProjectionBundle | None = None,
+) -> list[PlannedFile]:
     """Deterministic expected output: agent projections per targeted harness,
     then rule projections, then skill projections per targeted harness, then
-    the `AGENTS.md` and `CLAUDE.md` managed blocks."""
-    root = Path(repo_root)
+    the `AGENTS.md` and `CLAUDE.md` managed blocks. `bundle` defaults to the
+    canonical `.agents/` files of `repo_root`."""
+    try:
+        bundle = bundle if bundle is not None else bundle_from_repo(repo_root)
+    except (ValueError, OSError) as exc:
+        raise BootstrapError(f"cannot read canonical sources: {exc}") from exc
     files: list[PlannedFile] = []
-    agent_keys = canonical_agent_keys(root)
     for ref in manifest.harnesses:
         try:
             adapter = get_adapter(ref.id)
         except AdapterError as exc:
             raise BootstrapError(f"harness {ref.id!r} has no local adapter: {exc.message}") from exc
-        for key in agent_keys:
+        for key, resolved in bundle.agents.items():
             try:
-                result = adapter.translate(build_offline_resolved(root, key))
+                result = adapter.translate(resolved)
             except AdapterError as exc:
                 files.append(
                     PlannedFile(
@@ -221,8 +226,7 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
                         kind="agent",
                     )
                 )
-    for key in canonical_rule_keys(root):
-        applies_to, body = load_rule_meta(root, key)
+    for key, (applies_to, body) in sorted(bundle.rules.items()):
         files.append(
             PlannedFile(
                 path=f"{_RULE_DIR}/{key}.md",
@@ -230,34 +234,32 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
                 kind="rule",
             )
         )
-    skill_keys = canonical_skill_keys(root)
-    skill_sources: dict[str, str] = {}
-    for key in skill_keys:
-        try:
-            skill_sources[key] = load_skill_source(root, key)
-        except OSError as exc:
-            raise BootstrapError(f"cannot read skill {key!r}: {exc}") from exc
     for ref in manifest.harnesses:
         try:
             skills_dir = _SKILL_DIRS[ref.id]
         except KeyError:
             raise BootstrapError(f"harness {ref.id!r} has no skills target") from None
-        for key in skill_keys:
+        for key, source in sorted(bundle.skills.items()):
             files.append(
-                PlannedFile(
-                    path=f"{skills_dir}/{key}/SKILL.md",
-                    content=skill_sources[key],
-                    kind="skill",
-                )
+                PlannedFile(path=f"{skills_dir}/{key}/SKILL.md", content=source, kind="skill")
             )
     files.append(
         PlannedFile(
-            path=AGENTS_MD_PATH, content=render_agents_rules_block(root), kind="block", block=True
+            path=AGENTS_MD_PATH,
+            content=render_agents_rules_block_from(
+                bundle.protocol, {key: meta[0] for key, meta in bundle.rules.items()}
+            ),
+            kind="block",
+            block=True,
+            legacy=legacy_rules_text(bundle.rules),
         )
     )
     files.append(
         PlannedFile(
-            path=CLAUDE_MD_PATH, content=render_claude_md_block(root), kind="block", block=True
+            path=CLAUDE_MD_PATH,
+            content=render_claude_md_block_from(bundle.protocol is not None),
+            kind="block",
+            block=True,
         )
     )
     return files
@@ -320,7 +322,7 @@ def diff_text(
         if item.block:
             if item.path != AGENTS_MD_PATH and expected.rstrip("\n") in current:
                 continue
-            expected = _merge_block(current, item.content, item.markers, repo_root=root)
+            expected = _merge_block(current, item.content, item.markers, legacy=item.legacy)
         elif current == expected:
             continue
         chunks.append(
@@ -368,7 +370,7 @@ def apply_files(
         if item.path == AGENTS_MD_PATH:
             target = _safe_target(root, item.path)
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            _merge_block(existing, item.content, item.markers, repo_root=root)
+            _merge_block(existing, item.content, item.markers, legacy=item.legacy)
     backup_root = root / Path(*BACKUP_RELATIVE_DIR.split("/")) / _timestamp()
     written: list[str] = []
     entries: list[BackupEntry] = []
@@ -380,7 +382,7 @@ def apply_files(
             _backup(root, item.path, backup_root)
         if item.block:
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            content = _merge_block(existing, item.content, item.markers, repo_root=root)
+            content = _merge_block(existing, item.content, item.markers, legacy=item.legacy)
         else:
             content = item.content
         _write_text(target, content)
@@ -479,7 +481,7 @@ def _observe_state(
                 return BootstrapFileState.ABSENT
             return (
                 BootstrapFileState.UP_TO_DATE
-                if agents_rules_current(root, text)
+                if agents_rules_current_with(item.content, item.legacy or "", text)
                 else BootstrapFileState.MODIFIED
             )
         if _normalize(item.content).rstrip("\n") in text:
@@ -503,11 +505,19 @@ def _observe_state(
 
 
 def _merge_block(
-    existing: str, block: str, markers: tuple[str, str], *, repo_root: Path | None = None
+    existing: str,
+    block: str,
+    markers: tuple[str, str],
+    *,
+    repo_root: Path | None = None,
+    legacy: str | None = None,
 ) -> str:
-    if markers[0] == AGENTS_BEGIN_MARKER and repo_root is not None:
+    if markers[0] == AGENTS_BEGIN_MARKER and (repo_root is not None or legacy is not None):
         try:
-            return merge_agents_rules(repo_root, existing)
+            if legacy is not None:
+                return merge_agents_rules_with(block, legacy, existing)
+            if repo_root is not None:
+                return merge_agents_rules(repo_root, existing)
         except ValueError as exc:
             raise BootstrapError(str(exc)) from exc
     begin, end_marker = markers
