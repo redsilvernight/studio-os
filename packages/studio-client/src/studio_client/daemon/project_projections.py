@@ -7,9 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import UUID
 
-from studio_contracts.bootstrap import BootstrapFileState
+from studio_contracts.bootstrap import BootstrapFileState, BootstrapManifest
 from studio_contracts.local.project_projections import (
     PendingProjectionFile,
     PendingProjectionUpdate,
@@ -28,7 +29,7 @@ PENDING_FILE_NAME = "project-projections-pending.json"
 GITIGNORE_NAME = ".gitignore"
 GITIGNORE_BEGIN = "# BEGIN studio-os generated projections"
 GITIGNORE_END = "# END studio-os generated projections"
-_PENDING_STATES = {
+_PENDING_STATES: dict[BootstrapFileState, Literal["absent", "obsolete", "modified"]] = {
     BootstrapFileState.ABSENT: "absent",
     BootstrapFileState.OBSOLETE: "obsolete",
     BootstrapFileState.MODIFIED: "modified",
@@ -148,7 +149,7 @@ def write_gitignore_block(repo_root: Path, planned: Sequence[bootstrap.PlannedFi
 
 def _plan(
     target: RepoTarget, bundle: ProjectionBundle
-) -> tuple[object, list[bootstrap.PlannedFile], list[PendingProjectionFile]]:
+) -> tuple[BootstrapManifest, list[bootstrap.PlannedFile], list[PendingProjectionFile]]:
     repo = target.repo_path
     if (repo / bootstrap.MANIFEST_RELATIVE_PATH).is_file():
         manifest = bootstrap.load_manifest(repo)
