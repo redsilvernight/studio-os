@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "PendingProjectionFile": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "absent",
+            "obsolete",
+            "modified"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "state"
+      ],
+      "title": "PendingProjectionFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A project-scope Library change waiting for confirmation in one workspace\nrepository. The repository is identified by its workspace, never by a path.",
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "files": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PendingProjectionFile"
+      },
+      "maxItems": 500,
+      "title": "Files",
+      "type": "array"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "project_id",
+    "checked_at"
+  ],
+  "title": "PendingProjectionUpdate",
+  "type": "object"
+}

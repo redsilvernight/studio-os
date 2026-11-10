@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "ignored": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Ignored",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    },
+    "written": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Written",
+      "type": "array"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "ProjectProjectionsApplyResult",
+  "type": "object"
+}

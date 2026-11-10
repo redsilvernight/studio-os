@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "Bound to one pending update by workspace; nothing is written without an\nexplicit confirmation.",
+  "properties": {
+    "confirmed": {
+      "const": true,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "confirmed"
+  ],
+  "title": "ProjectProjectionsApplyRequest",
+  "type": "object"
+}

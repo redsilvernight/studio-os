@@ -354,6 +354,28 @@
     },
     {
       "cancellable": false,
+      "capability": "skills.apply",
+      "command": "project_projections.apply",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "ProjectProjectionsApplyRequest",
+      "response": "ProjectProjectionsApplyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.read",
+      "command": "project_projections.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "ProjectProjectionsStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "publication.plan",
       "command": "publication.preview",
       "max_request_bytes": 65536,
