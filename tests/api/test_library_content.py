@@ -241,6 +241,45 @@ def test_agent_definition_v1_still_rejects_v2_fields() -> None:
     assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
 
 
+def _rule_v2_content() -> dict[str, object]:
+    return {
+        "content_schema": "studio.library.rule/v2",
+        "text": "Do not upgrade a locked resource.",
+        "applies_to": ["src/**/*.py", "tests/**"],
+    }
+
+
+def test_rule_v1_unchanged_and_v2_valid() -> None:
+    assert content_validation_errors(LibraryKind.RULE, _rule_content()) == []
+    assert content_validation_errors(LibraryKind.RULE, _rule_v2_content()) == []
+
+
+def test_rule_v2_applies_to_defaults_to_empty() -> None:
+    content = {"content_schema": "studio.library.rule/v2", "text": "Global rule."}
+    assert content_validation_errors(LibraryKind.RULE, content) == []
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"applies_to": "src/**"},
+        {"applies_to": [1]},
+        {"applies_to": [""]},
+        {"applies_to": None},
+        {"model": "x"},
+        {"text": ""},
+    ],
+)
+def test_rule_v2_rejects_invalid(patch: dict[str, object]) -> None:
+    content = {**_rule_v2_content(), **patch}
+    assert content_validation_errors(LibraryKind.RULE, content) != []
+
+
+def test_rule_v1_still_rejects_applies_to() -> None:
+    content = {**_rule_content(), "applies_to": ["src/**"]}
+    assert content_validation_errors(LibraryKind.RULE, content) != []
+
+
 # --- P3 schemas: workflow now owns the P11 schema (DEC-0075) ---------------------
 
 
