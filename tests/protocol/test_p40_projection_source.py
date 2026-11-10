@@ -192,6 +192,7 @@ def _args(root: Path, **extra: object) -> argparse.Namespace:
         "from_library": True,
         "project_id": str(uuid.uuid4()),
         "yes": True,
+        "overwrite": [],
         "wire_mcp": False,
         "json": False,
         "registry_dir": str(root / "registry"),

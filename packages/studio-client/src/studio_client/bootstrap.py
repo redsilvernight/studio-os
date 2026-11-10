@@ -20,12 +20,14 @@ import json
 import os
 import re
 import shutil
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from studio_contracts.bootstrap import (
+    BootstrapConflict,
+    BootstrapConflictCode,
     BootstrapDryRunReport,
     BootstrapFileReport,
     BootstrapFileState,
@@ -40,7 +42,12 @@ from studio_contracts.bootstrap import (
 )
 from studio_contracts.initialization import InitializationProjectSpec
 
-from studio_client.adapters import AdapterError, get_adapter, sanitize_agent_filename
+from studio_client.adapters import (
+    MANAGED_MARKER,
+    AdapterError,
+    get_adapter,
+    sanitize_agent_filename,
+)
 from studio_client.canonical import (
     AGENTS_BEGIN_MARKER,
     AGENTS_END_MARKER,
@@ -53,6 +60,13 @@ from studio_client.canonical import (
     render_agents_rules_block_from,
     render_claude_md_block_from,
     render_claude_rule,
+)
+from studio_client.drift import (
+    DivergencePlan,
+    DivergentFile,
+    carries_library_provenance,
+    classify_state,
+    divergence_state,
 )
 from studio_client.projection_source import ProjectionBundle, bundle_from_repo
 
@@ -69,6 +83,7 @@ _SKILL_DIRS = {
     "opencode": ".opencode/skills",
 }
 HASH_PREFIX = "sha256:"
+UNMANAGED_MESSAGE = "unmanaged: not written by Studio OS, needs an explicit choice"
 
 
 class BootstrapError(RuntimeError):
@@ -246,9 +261,7 @@ def plan_files(
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH,
-            content=render_agents_rules_block_from(
-                bundle.protocol, {key: meta[0] for key, meta in bundle.rules.items()}
-            ),
+            content=render_agents_rules_block_from(bundle.protocol is not None),
             kind="block",
             block=True,
             legacy=legacy_rules_text(bundle.rules),
@@ -275,15 +288,16 @@ def observe(
     """Read-only: the current state of every planned file as a P1 report.
 
     `managed_hashes` maps a planned path to the sha256 of the normalized
-    content this tool last generated for it (the AIB-C marker store feeds it;
-    `drift.load_managed_hashes` reads that shape). With it, a file that
-    differs from the bundle but still carries its managed hash is reported
-    `OBSOLETE` instead of `MODIFIED`; without it, behavior is unchanged.
+    content this tool last generated for it. It defaults to the journal
+    store of `repo_root` (`managed_markers`), so a file this tool never
+    wrote and that carries no Library provenance is reported `MODIFIED`
+    with an `unmanaged_target` conflict: the depot never wins silently.
     `INCOMPATIBLE` planned files are reported as-is, never read from disk."""
     root = Path(repo_root)
     planned = planned if planned is not None else plan_files(root, manifest)
-    hashes = dict(managed_hashes) if managed_hashes is not None else {}
+    hashes = dict(managed_hashes) if managed_hashes is not None else managed_markers(root)
     reports: list[BootstrapFileReport] = []
+    unmanaged: list[str] = []
     for item in planned:
         if item.incompatible:
             reports.append(
@@ -292,16 +306,75 @@ def observe(
                 )
             )
             continue
-        state = _observe_state(root, item, hashes.get(item.path))
+        managed_hash = hashes.get(item.path)
+        state = _observe_state(root, item, managed_hash)
         if state is BootstrapFileState.ABSENT:
             reports.append(BootstrapFileReport(path=item.path, state=state))
-        else:
-            reports.append(
-                BootstrapFileReport(
-                    path=item.path, state=state, origin_version=1, content_hash=_label(item.content)
-                )
+            continue
+        message = None
+        if state is BootstrapFileState.MODIFIED and _is_unmanaged(root, item, managed_hash):
+            unmanaged.append(item.path)
+            message = UNMANAGED_MESSAGE
+        reports.append(
+            BootstrapFileReport(
+                path=item.path,
+                state=state,
+                origin_version=1,
+                content_hash=_label(item.content),
+                message=message,
             )
-    return build_dry_run_report(manifest, reports)
+        )
+    report = build_dry_run_report(manifest, reports)
+    if unmanaged:
+        report = report.model_copy(
+            update={
+                "conflicts": [
+                    *report.conflicts,
+                    *(
+                        BootstrapConflict(
+                            code=BootstrapConflictCode.UNMANAGED_TARGET,
+                            path=path,
+                            message=UNMANAGED_MESSAGE,
+                        )
+                        for path in unmanaged
+                    ),
+                ],
+                "sync_allowed": False,
+            }
+        )
+    return report
+
+
+def plan_divergences(
+    repo_root: Path | str,
+    manifest: BootstrapManifest,
+    *,
+    planned: list[PlannedFile] | None = None,
+    managed_hashes: Mapping[str, str] | None = None,
+) -> DivergencePlan:
+    """Read-only: every whole-file projection edited locally, with the managed
+    base and the local content. A file that still carries its managed hash is
+    `outdated`, not divergent; managed blocks are excluded because their base is
+    a merged document rather than a file. Nothing on disk is written."""
+    root = Path(repo_root)
+    planned = planned if planned is not None else plan_files(root, manifest)
+    hashes = dict(managed_hashes) if managed_hashes is not None else {}
+    files: list[DivergentFile] = []
+    for item in planned:
+        if item.block or item.incompatible:
+            continue
+        target = _target(root, item.path)
+        if not target.is_file():
+            continue
+        current = _normalize(target.read_text(encoding="utf-8"))
+        desired = _normalize(item.content)
+        state = divergence_state(classify_state(current, desired, hashes.get(item.path)))
+        if state is None:
+            continue
+        files.append(
+            DivergentFile(path=item.path, kind=item.kind, base=desired, local=current, state=state)
+        )
+    return DivergencePlan(files=tuple(sorted(files, key=lambda item: item.path)))
 
 
 def diff_text(
@@ -346,14 +419,23 @@ def apply_files(
     *,
     planned: list[PlannedFile] | None = None,
     confirm: bool = False,
+    overwrite: Collection[str] = (),
 ) -> list[str]:
     """Write only the files whose state is not `up_to_date`, backing up every
     replaced file and recording a journal so the run can be rolled back.
-    Conflicting or needs-confirmation reports are refused."""
+    Conflicting or needs-confirmation reports are refused. A file this tool
+    never wrote is only replaced when its path is named in `overwrite`: a
+    blanket confirmation is not a choice about somebody else's file."""
     root = Path(repo_root)
     planned = planned if planned is not None else plan_files(root, manifest)
-    if any(conflict.blocking for conflict in report.conflicts):
-        codes = ", ".join(sorted({c.code.value for c in report.conflicts}))
+    named = frozenset(overwrite)
+    blocking = [
+        conflict
+        for conflict in report.conflicts
+        if conflict.blocking and (conflict.path is None or conflict.path not in named)
+    ]
+    if blocking:
+        codes = ", ".join(sorted({c.code.value for c in blocking}))
         raise BootstrapError(f"sync blocked by conflicts: {codes}")
     if report.needs_confirmation and not confirm:
         raise BootstrapError("policy 'ask': explicit confirmation required (pass confirm=True)")
@@ -366,6 +448,18 @@ def apply_files(
     ]
     if not pending:
         return []
+    markers = managed_markers(root)
+    anonymous = [
+        observed.path
+        for observed in pending
+        if observed.path not in named
+        and _is_unmanaged(root, by_path[observed.path], markers.get(observed.path))
+    ]
+    if anonymous:
+        raise BootstrapError(
+            "sync blocked by unmanaged files (pass --overwrite for each): "
+            + ", ".join(sorted(anonymous))
+        )
     for item in planned:
         if item.path == AGENTS_MD_PATH:
             target = _safe_target(root, item.path)
@@ -464,11 +558,39 @@ def sync(
     return report, written
 
 
+def managed_markers(repo_root: Path | str) -> dict[str, str]:
+    """Planned path -> sha256 of the content the latest applied sync wrote.
+
+    The backup journals are the only record of what this tool generated in a
+    repository; a path absent from them has no provenance."""
+    markers: dict[str, str] = {}
+    for directory in reversed(_backup_dirs(Path(repo_root))):
+        try:
+            journal = _read_journal(directory)
+        except BootstrapError:
+            continue
+        if journal.status == "rolled_back":
+            continue
+        for entry in journal.entries:
+            if entry.action in {"created", "replaced"}:
+                markers[entry.path] = entry.after_label.removeprefix(HASH_PREFIX)
+    return markers
+
+
+def _is_unmanaged(root: Path, item: PlannedFile, managed_hash: str | None) -> bool:
+    """An existing, differing target nothing proves Studio OS owns."""
+    if item.block or managed_hash is not None:
+        return False
+    target = _target(root, item.path)
+    if not target.is_file():
+        return False
+    text = target.read_text(encoding="utf-8")
+    return not (carries_library_provenance(text) or MANAGED_MARKER in text)
+
+
 def _observe_state(
     root: Path, item: PlannedFile, managed_hash: str | None = None
 ) -> BootstrapFileState:
-    from studio_client.drift import classify_state
-
     target = _target(root, item.path)
     if item.block:
         if not target.is_file():

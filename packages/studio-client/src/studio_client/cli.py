@@ -1066,7 +1066,11 @@ def _bootstrap_report(
         print(diff if diff else "no changes")
     else:
         for observed in report.files:
-            print(f"{observed.state.value:11} {observed.path}")
+            suffix = f"  ({observed.message})" if observed.message else ""
+            print(f"{observed.state.value:11} {observed.path}{suffix}")
+        for conflict in report.conflicts:
+            if conflict.blocking:
+                print(f"conflict {conflict.code.value} {conflict.path or ''}".rstrip())
         summary = report.summary
         print(
             f"absent={summary.absent} obsolete={summary.obsolete} "
@@ -1128,7 +1132,14 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
         manifest = _projection_manifest(args, bundle)
         planned = plan_files(args.repo_root, manifest, bundle)
         report = observe(args.repo_root, manifest, planned=planned)
-        written = apply_files(args.repo_root, manifest, report, planned=planned, confirm=args.yes)
+        written = apply_files(
+            args.repo_root,
+            manifest,
+            report,
+            planned=planned,
+            confirm=args.yes,
+            overwrite=args.overwrite,
+        )
     except BootstrapError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -2533,6 +2544,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="Confirm replacements under the `ask` policy and apply the MCP wiring.",
+    )
+    bootstrap_sync.add_argument(
+        "--overwrite",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Replace an unmanaged file the check reported as a conflict (repeatable).",
     )
     bootstrap_sync.add_argument(
         "--wire-mcp",

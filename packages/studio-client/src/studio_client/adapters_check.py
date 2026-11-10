@@ -96,9 +96,7 @@ def check_adapters(
         checked += 1
         agents_path = root / "AGENTS.md"
         agents_text = agents_path.read_text(encoding="utf-8") if agents_path.is_file() else ""
-        block = render_agents_rules_block_from(
-            bundle.protocol, {key: meta[0] for key, meta in bundle.rules.items()}
-        )
+        block = render_agents_rules_block_from(bundle.protocol is not None)
         if not agents_rules_current_with(block, legacy_rules_text(bundle.rules), agents_text):
             failures.append(
                 {

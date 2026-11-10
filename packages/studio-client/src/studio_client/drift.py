@@ -5,6 +5,15 @@ Single source of truth for the four states first introduced by
 ``locally_modified``. ``skill_sync`` and ``adapters check`` both classify
 through :func:`classify_state` so rules, agents, workflows and managed
 blocks reuse the same detector instead of growing a second one.
+:func:`divergence_state` reads ``locally_modified`` as ``divergent``: a
+generated file edited locally carries publishable content, with the managed
+base and the local text, instead of being only a write conflict.
+
+``outdated`` means "written by Studio OS, stale": it requires positive
+evidence of management (a recorded hash, or the Library provenance marker
+inside the file). A file that carries neither is somebody else's and is
+reported ``locally_modified`` — a conflict — however close its body is to
+the desired one.
 
 Manifest support is additive: schema v1 (``{"skills": [...]}``) keeps
 being read and written by ``skill_sync`` unchanged; schema v2
@@ -16,10 +25,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 SyncState = Literal["current", "missing", "outdated", "locally_modified"]
+
+DivergenceState = Literal["divergent"]
 
 DriftKind = Literal["skill", "rule", "agent", "workflow", "block"]
 
@@ -32,6 +44,12 @@ def hash_text(text: str) -> str:
 
 
 _PROVENANCE_PREFIX = "<!-- studio-os-library:"
+LIBRARY_PROVENANCE_PREFIX = _PROVENANCE_PREFIX
+
+
+def carries_library_provenance(text: str) -> bool:
+    """True when Studio OS wrote this file (its Library provenance marker is present)."""
+    return any(line.startswith(_PROVENANCE_PREFIX) for line in text.splitlines())
 
 
 def _without_provenance(text: str) -> str:
@@ -49,9 +67,44 @@ def classify_state(
         return "current"
     if managed_hash is not None and hash_text(current) == managed_hash:
         return "outdated"
-    if _without_provenance(current) == _without_provenance(desired):
+    if carries_library_provenance(current) and _without_provenance(current) == _without_provenance(
+        desired
+    ):
         return "outdated"
     return "locally_modified"
+
+
+def divergence_state(state: SyncState) -> DivergenceState | None:
+    """`locally_modified` as a publishable divergence; nothing else is one."""
+    return "divergent" if state == "locally_modified" else None
+
+
+@dataclass(frozen=True)
+class DivergentFile:
+    """One generated file whose local content left the managed base.
+
+    `base` is the content the managed source expects, `local` the text on disk.
+    Both are read-only snapshots: detection never writes the file."""
+
+    path: str
+    kind: str
+    base: str
+    local: str
+    state: DivergenceState = "divergent"
+
+
+@dataclass(frozen=True)
+class DivergencePlan:
+    """Publishable deviations, ordered by path; empty when nothing diverges."""
+
+    files: tuple[DivergentFile, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.files)
+
+    @property
+    def paths(self) -> tuple[str, ...]:
+        return tuple(item.path for item in self.files)
 
 
 def load_managed_hashes(manifest_path: Path) -> dict[tuple[str, str], str]:

@@ -876,12 +876,14 @@ def preview_skills(
         for entry in definitions.entries
     ]
     diff_text = diff_skill_plan(plan)
+    skill_targets = (*plan.current, *plan.missing, *plan.outdated, *plan.locally_modified)
+    counts = Counter(target.state for target in skill_targets)
     return SkillsPreviewResult(
         skills=entries,
-        current=len(plan.current),
-        missing=len(plan.missing),
-        outdated=len(plan.outdated),
-        locally_modified=len(plan.locally_modified),
+        current=counts["current"],
+        missing=counts["missing"],
+        outdated=counts["outdated"],
+        locally_modified=counts["locally_modified"],
         diff=diff_text,
         checked_at=datetime.now(UTC),
     )
