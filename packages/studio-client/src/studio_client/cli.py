@@ -902,16 +902,49 @@ def _print_export_result(adapter: Any, result: Any, args: argparse.Namespace) ->
         print(f"warning {warning.code}: {warning.detail}")
 
 
+def _projection_bundle(args: argparse.Namespace, config: ClientConfig | None) -> Any:
+    """`--from-library`: the projection source is the Library resolution of
+    `--project-id` (P40), never `.agents/`. None keeps the file source."""
+    if not args.from_library:
+        return None
+    if not args.project_id:
+        print("error: --from-library requires --project-id", file=sys.stderr)
+        raise SystemExit(1)
+    from studio_client.projection_source import fetch_projection_bundle
+
+    project_id = _parse_uuid(args.project_id, field="project_id")
+
+    async def action(client: StudioApiClient) -> Any:
+        return await fetch_projection_bundle(client, project_id)
+
+    return _run(config, action)
+
+
+def _projection_manifest(args: argparse.Namespace, bundle: Any) -> Any:
+    """The manifest file when present; with a Library bundle and no file, all
+    local adapters."""
+    from studio_client.adapters import list_adapters
+    from studio_client.bootstrap import MANIFEST_RELATIVE_PATH, load_manifest, make_manifest
+
+    if bundle is not None and not (Path(args.repo_root) / MANIFEST_RELATIVE_PATH).is_file():
+        return make_manifest("library-projection", "Library projection", list(list_adapters()))
+    return load_manifest(args.repo_root)
+
+
 def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Anti-drift gate (P3.7): managed harness files must equal a fresh
     offline export of the canonical definitions. Never merges — reports
     every mismatch and exits non-zero."""
     from studio_client.adapters_check import check_adapters
 
+    if args.from_library and args.with_library:
+        print("error: --from-library and --with-library are exclusive", file=sys.stderr)
+        raise SystemExit(1)
     outcome = check_adapters(
         Path(args.repo_root),
         adapter_id=args.adapter,
         stable_key=args.stable_key,
+        bundle=_projection_bundle(args, config),
         library_for=(
             (lambda key: _fetch_library_snapshot(args, config, key)) if args.with_library else None
         ),
@@ -1011,12 +1044,14 @@ def _missing_harnesses(
 def _bootstrap_report(
     args: argparse.Namespace, config: ClientConfig | None, *, emit_diff: bool
 ) -> None:
-    from studio_client.bootstrap import BootstrapError, diff_text, load_manifest, observe
+    from studio_client.bootstrap import BootstrapError, diff_text, observe, plan_files
 
     try:
-        manifest = load_manifest(args.repo_root)
-        report = observe(args.repo_root, manifest)
-        diff = diff_text(args.repo_root, manifest) if emit_diff else ""
+        bundle = _projection_bundle(args, config)
+        manifest = _projection_manifest(args, bundle)
+        planned = plan_files(args.repo_root, manifest, bundle)
+        report = observe(args.repo_root, manifest, planned=planned)
+        diff = diff_text(args.repo_root, manifest, planned=planned) if emit_diff else ""
     except BootstrapError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -1083,14 +1118,14 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
     from studio_client.bootstrap import (
         BootstrapError,
         apply_files,
-        load_manifest,
         observe,
         plan_files,
     )
 
     try:
-        manifest = load_manifest(args.repo_root)
-        planned = plan_files(args.repo_root, manifest)
+        bundle = _projection_bundle(args, config)
+        manifest = _projection_manifest(args, bundle)
+        planned = plan_files(args.repo_root, manifest, bundle)
         report = observe(args.repo_root, manifest, planned=planned)
         written = apply_files(args.repo_root, manifest, report, planned=planned, confirm=args.yes)
     except BootstrapError as exc:
@@ -2256,6 +2291,11 @@ def _build_parser() -> argparse.ArgumentParser:
     adapters_check.add_argument("--adapter", help="Check one adapter id (default: all).")
     adapters_check.add_argument("--stable-key", help="Check one agent key (default: all).")
     adapters_check.add_argument("--repo-root", default=".", help="Repository root.")
+    adapters_check.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Check against the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
     adapters_check.add_argument("--project-id", help="Project UUID for --with-library.")
     adapters_check.add_argument(
         "--with-library",
@@ -2453,6 +2493,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "check", help="Report bundle drift (exit 1 when out of date)."
     )
     bootstrap_check.add_argument("--repo-root", default=".")
+    bootstrap_check.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
+    bootstrap_check.add_argument("--project-id", help="Project UUID for --from-library.")
     bootstrap_check.add_argument("--registry-dir")
     _add_json_flag(bootstrap_check)
     bootstrap_check.set_defaults(func=_bootstrap_check)
@@ -2461,6 +2507,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "diff", help="Print the unified diff needed to sync the bundle."
     )
     bootstrap_diff.add_argument("--repo-root", default=".")
+    bootstrap_diff.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
+    bootstrap_diff.add_argument("--project-id", help="Project UUID for --from-library.")
     bootstrap_diff.add_argument("--registry-dir")
     _add_json_flag(bootstrap_diff)
     bootstrap_diff.set_defaults(func=_bootstrap_diff)
@@ -2469,6 +2521,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "sync", help="Write missing or changed bundle files (idempotent)."
     )
     bootstrap_sync.add_argument("--repo-root", default=".")
+    bootstrap_sync.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
+    bootstrap_sync.add_argument("--project-id", help="Project UUID for --from-library.")
     bootstrap_sync.add_argument("--registry-dir")
     bootstrap_sync.add_argument(
         "--yes",

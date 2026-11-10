@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
+import asyncio
+import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from studio_client import bootstrap
+from studio_client import bootstrap, cli
 from studio_client.adapters_check import check_adapters
 from studio_client.bootstrap import PlannedFile, plan_files
 from studio_client.canonical import build_offline_resolved, canonical_agent_keys, load_rule_meta
@@ -13,8 +17,9 @@ from studio_client.projection_source import (
     ProjectionBundle,
     bundle_from_repo,
     bundle_from_resolved,
+    fetch_projection_bundle,
 )
-from studio_contracts.library import LibraryScope
+from studio_contracts.library import LibraryScope, LibraryStatus
 from studio_contracts.resolution import ResolvedAgentDefinition
 
 REPO = Path(__file__).resolve().parents[2]
@@ -143,3 +148,69 @@ def test_rule_v2_content_schema_accepts_applies_to() -> None:
     assert content_validation_errors(LibraryKind.RULE, {**content, "applies_to": "a"})
     v1 = {"content_schema": "studio.library.rule/v1", "text": "x"}
     assert content_validation_errors(LibraryKind.RULE, v1) == []
+
+
+class _FakeClient:
+    def __init__(self, definitions: list[ResolvedAgentDefinition]) -> None:
+        self.by_key = {item.agent.stable_key: item for item in definitions}
+
+    async def list_library_resources(self, **kwargs: object) -> list[SimpleNamespace]:
+        assert kwargs["kind"] == "agent_definition"
+        rows = [
+            SimpleNamespace(stable_key=key, status=LibraryStatus.ACTIVE, scope=LibraryScope.STUDIO)
+            for key in self.by_key
+        ]
+        rows.append(
+            SimpleNamespace(
+                stable_key="draft", status=LibraryStatus.DRAFT, scope=LibraryScope.STUDIO
+            )
+        )
+        rows.append(
+            SimpleNamespace(stable_key="mine", status=LibraryStatus.ACTIVE, scope=LibraryScope.USER)
+        )
+        return rows
+
+    async def resolve_agent(self, key: str, **_: object) -> ResolvedAgentDefinition:
+        return self.by_key[key]
+
+
+def test_fetch_projection_bundle_resolves_only_active_non_user_agents() -> None:
+    definitions = _as_library(bundle_from_repo(REPO))
+
+    bundle = asyncio.run(fetch_projection_bundle(_FakeClient(definitions), None))
+
+    assert set(bundle.agents) == {item.agent.stable_key for item in definitions}
+
+
+def _args(root: Path, **extra: object) -> argparse.Namespace:
+    values: dict[str, object] = {
+        "repo_root": str(root),
+        "from_library": True,
+        "project_id": str(uuid.uuid4()),
+        "yes": True,
+        "wire_mcp": False,
+        "json": False,
+        "registry_dir": None,
+    }
+    return argparse.Namespace(**{**values, **extra})
+
+
+def test_cli_sync_from_library_writes_without_agents_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    definitions = _as_library(bundle_from_repo(REPO))
+
+    monkeypatch.setattr(
+        cli, "_run", lambda _config, action: asyncio.run(action(_FakeClient(definitions)))
+    )
+
+    cli._bootstrap_sync(_args(tmp_path), None)
+
+    assert not (tmp_path / ".agents").exists()
+    assert (tmp_path / ".claude" / "agents").is_dir()
+    cli._bootstrap_report(_args(tmp_path), None, emit_diff=False)
+
+
+def test_cli_from_library_requires_project_id(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        cli._projection_bundle(_args(tmp_path, project_id=None), None)

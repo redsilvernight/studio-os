@@ -14,8 +14,10 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+from uuid import UUID
 
-from studio_contracts.library import LibraryScope
+from studio_contracts.library import LibraryKind, LibraryScope, LibraryStatus
 from studio_contracts.resolution import ResolvedAgentDefinition, ResolvedRule, ResolvedSkill
 
 from studio_client.canonical import (
@@ -70,6 +72,25 @@ def bundle_from_resolved(definitions: Iterable[ResolvedAgentDefinition]) -> Proj
             if skill.scope is not LibraryScope.USER:
                 skills[skill.stable_key] = _skill_source(skill)
     return ProjectionBundle(agents=agents, rules=rules, skills=skills, protocol=protocol)
+
+
+async def fetch_projection_bundle(client: Any, project_id: UUID | None) -> ProjectionBundle:
+    """Library-side bundle: every visible active agent definition resolved
+    over HTTP (project context applies locks and User > Project > Studio
+    precedence server-side)."""
+    resources = await client.list_library_resources(
+        kind=LibraryKind.AGENT_DEFINITION.value, project_id=project_id, limit=500
+    )
+    keys = sorted(
+        {
+            resource.stable_key
+            for resource in resources
+            if resource.status is LibraryStatus.ACTIVE and resource.scope is not LibraryScope.USER
+        }
+    )
+    return bundle_from_resolved(
+        [await client.resolve_agent(key, project_id=project_id) for key in keys]
+    )
 
 
 def _rule_text(rule: ResolvedRule) -> str:
