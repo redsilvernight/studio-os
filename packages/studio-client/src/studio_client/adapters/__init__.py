@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from studio_client.adapters.base import (
     CAPABILITY_DIMENSIONS,
+    MANAGED_MARKER,
     Adapter,
     AdapterArtifact,
     AdapterError,
@@ -34,6 +35,7 @@ register_adapter(CodexAdapter())
 
 __all__ = [
     "CAPABILITY_DIMENSIONS",
+    "MANAGED_MARKER",
     "CLAUDE_CODE_ADAPTER_ID",
     "CLAUDE_CODE_MANAGED_DIR",
     "CODEX_ADAPTER_ID",
