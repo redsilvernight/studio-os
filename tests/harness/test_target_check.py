@@ -8,7 +8,6 @@ No DB, no server; existing `test_bootstrap_p3.py` stays untouched.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -24,11 +23,12 @@ from studio_client.bootstrap import (
 from studio_client.drift import hash_text
 from studio_contracts.bootstrap import BootstrapFileState, OnModified
 
+from tests.library_bundle import sample_bundle
+
 REPO = Path(__file__).resolve().parents[2]
 
 
 def _repo(tmp_path: Path) -> Path:
-    shutil.copytree(REPO / ".agents", tmp_path / ".agents")
     return tmp_path
 
 
@@ -102,7 +102,7 @@ def test_failed_agent_projection_is_incompatible(
     monkeypatch.setattr(_bootstrap, "get_adapter", lambda _id: _RefusingAdapter())
     repo = _repo(tmp_path)
     manifest = make_manifest("demo", "Demo", ["claude-code"])
-    planned = plan_files(repo, manifest)
+    planned = plan_files(repo, manifest, sample_bundle())
     agents = [item for item in planned if item.kind == "agent"]
     assert agents, "expected at least one incompatible agent entry"
     assert all(item.incompatible for item in agents)

@@ -2,7 +2,7 @@
 
 Guards: rule token budget, skill structure, harness/model neutrality of the
 canonical source, and no drift between skills and the real MCP tool surface.
-Canonical files live under `.agents/` (harness-neutral); `.claude/`,
+Canonical files live in the Studio OS Library; `.claude/`,
 `.codex/`, `.opencode/`, `CLAUDE.md`, `AGENTS.md` are projections only."""
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ ROOT = Path(__file__).resolve().parents[2]
 RULE = ROOT / ".studio/studio-protocol.md"
 
 SKILLS = {
-    "studio-context": ROOT / ".agents/skills/studio-context/SKILL.md",
-    "studio-task": ROOT / ".agents/skills/studio-task/SKILL.md",
-    "studio-decision": ROOT / ".agents/skills/studio-decision/SKILL.md",
-    "studio-handoff": ROOT / ".agents/skills/studio-handoff/SKILL.md",
+    "studio-context": ROOT / ".claude/skills/studio-context/SKILL.md",
+    "studio-task": ROOT / ".claude/skills/studio-task/SKILL.md",
+    "studio-decision": ROOT / ".claude/skills/studio-decision/SKILL.md",
+    "studio-handoff": ROOT / ".claude/skills/studio-handoff/SKILL.md",
 }
 
 # Skill -> MCP tools it is allowed to name (compositions of existing tools).

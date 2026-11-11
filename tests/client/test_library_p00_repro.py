@@ -16,12 +16,10 @@ from studio_api.settings import Settings
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.daemon import skills_bridge
-from studio_client.publish import build_publish_items
 from studio_client.tokens import MemoryTokenStore
 
 from tests.client.test_daemon_library_sync import ORIGIN, _config, _patch_fetch, _projection
 
-REPO = Path(__file__).resolve().parents[2]
 BATCH = "/api/v1/library/versions/batch-get"
 
 
@@ -196,19 +194,3 @@ def test_conflict_on_one_item_does_not_block_the_others(
     skills_bridge._AutoSyncRunner(config, store, home, tmp_path / "data")._run()
     assert edited.read_text(encoding="utf-8") == "hand edited\n"  # override kept
     assert (home / ".agents" / "skills" / "studio-git-flow" / "SKILL.md").exists()
-
-
-# --- Gap 4: agents and rules lose fields on publish --------------------------
-
-
-def test_published_rule_keeps_applies_to() -> None:
-    (item,) = build_publish_items(REPO, kinds=("rule",), keys=["contracts"])
-    assert item.content.get("applies_to")
-
-
-def test_published_agent_keeps_instructions_and_edit_policy() -> None:
-    items = build_publish_items(REPO, kinds=("agent",), keys=["studio-tester"])
-    (item,) = [entry for entry in items if entry.kind == "agent"]
-    assert item.content.get("instructions")
-    assert item.content.get("edit_policy") == "deny"
-    assert item.content.get("tools")

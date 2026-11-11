@@ -11,6 +11,7 @@ from studio_contracts.auth import HarnessReport, MachineCapabilities, ProjectBoo
 from studio_client.config import ClientConfig
 from studio_client.harness.base import MCP_PATH, DetectionState, HarnessContext
 from studio_client.harness.registry import HarnessRegistry, default_adapters
+from studio_client.projection_source import ProjectionBundle
 
 CapabilitiesProvider = Callable[[], MachineCapabilities | None]
 
@@ -44,13 +45,21 @@ def registered_project_ids(config: ClientConfig) -> list[UUID]:
     return sorted(ordered)
 
 
+BundleFor = Callable[[UUID], ProjectionBundle | None]
+
+
 def bootstrap_statuses(
-    config: ClientConfig, *, now: datetime | None = None
+    config: ClientConfig, bundle_for: BundleFor | None = None, *, now: datetime | None = None
 ) -> list[ProjectBootstrapStatus]:
-    """Local, read-only `bootstrap check` of every watched repository that has
-    a manifest: state counts only, never a path. A repository without a valid
-    manifest, or unreadable, is left out - absence means "not reported"."""
-    from studio_client.bootstrap import BootstrapError, load_manifest, observe
+    """Read-only `bootstrap check` of every watched repository that has a
+    manifest, against the Library bundle `bundle_for` returns for its project:
+    state counts only, never a path. A repository without a valid manifest,
+    unreadable, or whose bundle is unavailable (None, or no `bundle_for`) is
+    left out - absence means "not reported"."""
+    from studio_client.bootstrap import BootstrapError, load_manifest, observe, plan_files
+
+    if bundle_for is None:
+        return []
 
     checked_at = now if now is not None else datetime.now(UTC)
     statuses: dict[UUID, ProjectBootstrapStatus] = {}
@@ -59,7 +68,11 @@ def bootstrap_statuses(
             continue
         try:
             manifest = load_manifest(watch.repo_path)
-            report = observe(watch.repo_path, manifest)
+            bundle = bundle_for(watch.project_id)
+            if bundle is None:
+                continue
+            planned = plan_files(watch.repo_path, manifest, bundle)
+            report = observe(watch.repo_path, manifest, planned=planned)
         except (BootstrapError, OSError):
             continue
         statuses[watch.project_id] = ProjectBootstrapStatus(
@@ -75,6 +88,7 @@ def build_capabilities(
     ctx: HarnessContext | None = None,
     running_launches: int = 0,
     extra_project_ids: Iterable[UUID] = (),
+    bundle_for: BundleFor | None = None,
 ) -> MachineCapabilities:
     """Pure report builder: detected harnesses (IDs + state + version),
     registered project IDs, launch opt-in and occupancy. `launch_profiles`
@@ -104,7 +118,7 @@ def build_capabilities(
         accepts_launches=config.launch_opt_in,
         running_launches=running_launches,
         max_launches=config.max_concurrent_launches,
-        bootstrap=bootstrap_statuses(config) or None,
+        bootstrap=bootstrap_statuses(config, bundle_for) or None,
         launch_profiles=True,
         launch_safety=True,
     )

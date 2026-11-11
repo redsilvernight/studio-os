@@ -504,7 +504,7 @@
    "dependencies": [],
    "files": [
     {
-     "path": ".agents/rules/studio-protocol.md",
+     "path": ".studio/studio-protocol.md",
      "sha256": "49946ce48f272c5d98ca4a8a1089b7115984227338d619671c25883d82756e07"
     }
    ],
@@ -512,8 +512,8 @@
    "owner": "studio",
    "requires_consent": false,
    "scope": "studio",
-   "sha256": "934dd3278d0182aea45fd364b5f9c4f8467804ab3e93c2857eba1ec4aa0fe102",
-   "source": ".agents/rules/studio-protocol.md",
+   "sha256": "6ea74aece8964e955bf6dee683cd3de8cc87eadd379d9c9be74cb9659c82a1d7",
+   "source": ".studio/studio-protocol.md",
    "stable_key": "studio-protocol",
    "status": "ready",
    "supersedes": "studio/rule/studio-protocol v2 (library/studio/rules/studio-protocol.md)",
@@ -804,118 +804,6 @@
    "status": "ready",
    "supersedes": null,
    "tier": "specialized",
-   "version": 1,
-   "visibility": "public"
-  },
-  {
-   "compatibility": {
-    "claude-code": "supported",
-    "codex": "supported",
-    "opencode": "supported"
-   },
-   "dependencies": [],
-   "files": [
-    {
-     "path": ".agents/skills/studio-context/SKILL.md",
-     "sha256": "275b06bc05ae8563d92132789485f0fdb02cbac3afd707f07e48d84f945deb63"
-    }
-   ],
-   "kind": "skill",
-   "owner": "studio",
-   "requires_consent": false,
-   "scope": "studio",
-   "sha256": "31b983c0ecf0336cbb193cf800620ff29c2717c1c65cc0c90cc6a246ce1e93bd",
-   "source": ".agents/skills/studio-context",
-   "stable_key": "studio-context",
-   "status": "ready",
-   "supersedes": null,
-   "tier": "base",
-   "version": 1,
-   "visibility": "public"
-  },
-  {
-   "compatibility": {
-    "claude-code": "supported",
-    "codex": "supported",
-    "opencode": "supported"
-   },
-   "dependencies": [],
-   "files": [
-    {
-     "path": ".agents/skills/studio-decision/SKILL.md",
-     "sha256": "97f44fbc4877ffe63d7a5e6f1a39bb454835e424de1b281fbe8fffa04bbe08cc"
-    }
-   ],
-   "kind": "skill",
-   "owner": "studio",
-   "requires_consent": false,
-   "scope": "studio",
-   "sha256": "1d4861285267999c8bf3c6ea126a7c0ec40ede03b00b92eda512511b92eab128",
-   "source": ".agents/skills/studio-decision",
-   "stable_key": "studio-decision",
-   "status": "ready",
-   "supersedes": null,
-   "tier": "base",
-   "version": 1,
-   "visibility": "public"
-  },
-  {
-   "compatibility": {
-    "claude-code": "supported",
-    "codex": "supported",
-    "opencode": "supported"
-   },
-   "dependencies": [],
-   "files": [
-    {
-     "path": ".agents/skills/studio-handoff/SKILL.md",
-     "sha256": "d6f85a6a71f144c270a619d7d9f5f26f4b6d1d440b48656e6e10a1f7d3ee46a7"
-    }
-   ],
-   "kind": "skill",
-   "owner": "studio",
-   "requires_consent": false,
-   "scope": "studio",
-   "sha256": "fbc093bc1b9fbf7785cfdc2f10204152ece7cdb3a6f6f696f4cad0b4c596cad1",
-   "source": ".agents/skills/studio-handoff",
-   "stable_key": "studio-handoff",
-   "status": "ready",
-   "supersedes": null,
-   "tier": "base",
-   "version": 1,
-   "visibility": "public"
-  },
-  {
-   "compatibility": {
-    "claude-code": "supported",
-    "codex": "supported",
-    "opencode": "supported"
-   },
-   "dependencies": [],
-   "files": [
-    {
-     "path": ".agents/skills/studio-task/SKILL.md",
-     "sha256": "c7606f0b28b2af7dd5233d99acd6b687a64e3a47cb533efed7793bbcddfec3d6"
-    },
-    {
-     "path": ".agents/skills/studio-task/references/completion.md",
-     "sha256": "dbbf1ac662106966200824c3060c1dfb70b00e4b912980aa2676cd4892cff9cb"
-    },
-    {
-     "path": ".agents/skills/studio-task/references/roles.md",
-     "sha256": "74c794b0fb6f0995b94962ffde51dad62ea4db31e287bd64c5765773fbede642"
-    }
-   ],
-   "kind": "skill",
-   "owner": "studio",
-   "requires_consent": false,
-   "scope": "studio",
-   "sha256": "4e13368e5d7c079ff4add4b2370b39673242d4014f42af3a05e4bf99ab3627bd",
-   "source": ".agents/skills/studio-task",
-   "stable_key": "studio-task",
-   "status": "ready",
-   "supersedes": null,
-   "tier": "base",
    "version": 1,
    "visibility": "public"
   },

@@ -32,6 +32,8 @@ from studio_client.bootstrap import (
 from studio_client.bootstrap import (
     sync as bootstrap_sync,
 )
+from studio_client.errors import AuthenticationError, StudioApiError
+from studio_client.projection_source import ProjectionBundle
 
 logger = logging.getLogger(__name__)
 
@@ -227,18 +229,31 @@ class PreparedLaunch:
 IaConfigurator = Callable[[Path, PreparationRequest], Sequence[str]]
 
 
-def bootstrap_configurator(root: Path, request: PreparationRequest) -> Sequence[str]:
+BundleFetcher = Callable[[UUID], ProjectionBundle]
+
+
+def make_bootstrap_configurator(fetch_bundle: BundleFetcher) -> IaConfigurator:
     """Apply the repo-local AI generator (P3) inside the worktree: managed
     projections and `AGENTS.md`/`CLAUDE.md` blocks from the committed
-    `.agents/bootstrap.json` manifest. A repository without a manifest is a
-    normal case (not yet bootstrapped) and is skipped, never forced."""
-    if not manifest_path(root).is_file():
-        logger.info("launch prepare: no bootstrap manifest, skipping")
-        return ()
-    manifest = load_manifest(root)
-    _report, written = bootstrap_sync(root, manifest)
-    logger.info("launch prepare: bootstrap wrote %d file(s)", len(written))
-    return (STEP_BOOTSTRAP,)
+    `.studio/bootstrap.json` manifest (legacy `.agents/bootstrap.json` still read)
+    and the Library bundle of the request's project. A repository without a
+    manifest is a normal case (not yet bootstrapped) and is skipped, never
+    forced; so is an unreachable server, which leaves the worktree unprojected."""
+
+    def configure(root: Path, request: PreparationRequest) -> Sequence[str]:
+        if not manifest_path(root).is_file():
+            logger.info("launch prepare: no bootstrap manifest, skipping")
+            return ()
+        try:
+            bundle = fetch_bundle(request.project_id)
+        except (StudioApiError, AuthenticationError, OSError):
+            logger.warning("launch prepare: Library unreachable, bootstrap skipped")
+            return ()
+        _report, written = bootstrap_sync(root, load_manifest(root), bundle)
+        logger.info("launch prepare: bootstrap wrote %d file(s)", len(written))
+        return (STEP_BOOTSTRAP,)
+
+    return configure
 
 
 _GIT_SHA = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -294,15 +309,18 @@ def file_digest(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def projection_digests(root: Path) -> list[tuple[str, str]] | None:
+def projection_digests(root: Path, bundle: ProjectionBundle | None) -> list[tuple[str, str]] | None:
     """Digest of every file the repo-local bootstrap manages, read from the
     worktree after preparation (the applied bytes, not the planned ones).
     Targets stay repository-relative. A repository without manifest projects
-    nothing (`[]`); `None` means the digests could not be computed."""
+    nothing (`[]`); `None` means the digests could not be computed (including
+    no Library bundle)."""
     if not manifest_path(root).is_file():
         return []
+    if bundle is None:
+        return None
     try:
-        planned = plan_files(root, load_manifest(root))
+        planned = plan_files(root, load_manifest(root), bundle)
         targets = sorted({Path(item.path).as_posix() for item in planned})
         return [
             (target, file_digest(root / target)) for target in targets if (root / target).is_file()
@@ -314,7 +332,8 @@ def projection_digests(root: Path) -> list[tuple[str, str]] | None:
 
 class LaunchPreparer:
     """Prepares the worktree then runs each injected AI configurator in order.
-    Default configuration is the repo-local bootstrap; skills sync and
+    Default configuration is the repo-local bootstrap when a `bundle_fetcher` is
+    supplied (none otherwise); skills sync and
     `harness.apply` are supplied by the daemon wiring (they need the API
     client and the workspace registry). Any failure becomes a
     `PreparationError`, so the executor never sees a partial success."""
@@ -323,12 +342,14 @@ class LaunchPreparer:
         self,
         *,
         configurators: Sequence[IaConfigurator] | None = None,
+        bundle_fetcher: BundleFetcher | None = None,
         base_branch: str | None = DEFAULT_BASE_BRANCH,
         fetch: bool = True,
         runner: GitRunner = run_git,
     ) -> None:
+        default = (make_bootstrap_configurator(bundle_fetcher),) if bundle_fetcher else ()
         self._configurators: tuple[IaConfigurator, ...] = (
-            tuple(configurators) if configurators is not None else (bootstrap_configurator,)
+            tuple(configurators) if configurators is not None else default
         )
         self._base_branch = base_branch
         self._fetch = fetch

@@ -25,7 +25,7 @@ $rules = @(
     @{ re = '(^|/)\.env(\.[^/]*)?$'; skip = '\.example$'
        why = 'secret file (.env*). Edit it yourself; only *.env.example is editable here.' }
     @{ re = '^\.(claude|codex|opencode)/(agents|rules|skills)/'
-       why = 'harness projection. Edit the canonical source under .agents/ (definitions, rules, skills), then regenerate. Agents: `uv run studio-client adapters export --from-canonical --adapter <claude-code|codex|opencode> --stable-key <key> --out-dir . --overwrite`; skills: verbatim copy of .agents/skills/<key>/SKILL.md; check with `uv run studio-client adapters check`.' }
+       why = 'harness projection. Edit the Library definition (rules, skills, agents) in Studio OS, then regenerate: `uv run studio-client bootstrap sync --project-id <id>`; check with `uv run studio-client adapters check --project-id <id>`.' }
     @{ re = '^dashboard/src/openapi-schema\.ts$'
        why = 'generated from the API. Run `npm run openapi` in dashboard/ (skill openapi-sync).' }
     @{ re = '^dashboard/openapi\.json$'

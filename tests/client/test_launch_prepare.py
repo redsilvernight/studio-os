@@ -5,17 +5,22 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from studio_client.bootstrap import make_manifest, write_manifest
 from studio_client.daemon.launch_prepare import (
     LaunchPreparer,
     PreparationError,
     PreparationRequest,
-    bootstrap_configurator,
     ensure_task_worktree,
+    make_bootstrap_configurator,
     run_git,
     task_branch_name,
     task_slug,
     worktree_path,
 )
+from studio_client.errors import StudioApiError
+from studio_client.projection_source import ProjectionBundle
+
+from tests.library_bundle import sample_bundle
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -193,13 +198,48 @@ def test_preparer_maps_a_configurator_failure_to_a_closed_step(tmp_path: Path) -
     assert excinfo.value.step == "ia_config"
 
 
-def test_bootstrap_configurator_skips_a_repo_without_manifest(tmp_path: Path) -> None:
-    repo = _repo(tmp_path)
-    request = PreparationRequest(
+def _request(repo: Path) -> PreparationRequest:
+    return PreparationRequest(
         repo_root=repo,
         project_id=uuid4(),
         task_id=uuid4(),
         task_title="Demo",
         harness_id="claude-code",
     )
-    assert bootstrap_configurator(repo, request) == ()
+
+
+def test_bootstrap_configurator_skips_a_repo_without_manifest(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    def never(project_id: UUID) -> ProjectionBundle:
+        raise AssertionError("no fetch without a manifest")
+
+    assert make_bootstrap_configurator(never)(repo, _request(repo)) == ()
+
+
+def test_bootstrap_configurator_projects_the_library_bundle(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    write_manifest(repo, make_manifest("demo", "Demo", ["claude-code"]))
+    bundle = sample_bundle()
+    request = _request(repo)
+    fetched: list[UUID] = []
+
+    def fetch(project_id: UUID) -> ProjectionBundle:
+        fetched.append(project_id)
+        return bundle
+
+    steps = make_bootstrap_configurator(fetch)(repo, request)
+    assert steps == ("bootstrap",)
+    assert fetched == [request.project_id]
+    assert (repo / ".claude" / "rules" / "testing.md").is_file()
+
+
+def test_bootstrap_configurator_skips_when_the_library_is_unreachable(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    write_manifest(repo, make_manifest("demo", "Demo", ["claude-code"]))
+
+    def unreachable(project_id: UUID) -> ProjectionBundle:
+        raise StudioApiError(503, "unavailable", "unreachable")
+
+    assert make_bootstrap_configurator(unreachable)(repo, _request(repo)) == ()
+    assert not (repo / ".claude").exists()

@@ -1,4 +1,4 @@
-"""P40 — projections generated from the Library resolution, not `.agents/` (no DB)."""
+"""P40 — projections generated from the Library resolution (no DB)."""
 
 from __future__ import annotations
 
@@ -12,58 +12,40 @@ import pytest
 from studio_client import bootstrap, cli
 from studio_client.adapters_check import check_adapters
 from studio_client.bootstrap import PlannedFile, plan_files
-from studio_client.canonical import build_offline_resolved, canonical_agent_keys, load_rule_meta
 from studio_client.config import ClientConfig
 from studio_client.projection_source import (
-    ProjectionBundle,
-    bundle_from_repo,
     bundle_from_resolved,
     fetch_projection_bundle,
 )
 from studio_contracts.library import LibraryScope, LibraryStatus
 from studio_contracts.resolution import ResolvedAgentDefinition
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.library_bundle import PROTOCOL_TEXT, sample_definitions
 
 
 def _manifest() -> bootstrap.BootstrapManifest:
     return bootstrap.make_manifest("studio-os", "Studio OS", ["claude-code", "codex", "opencode"])
 
 
-def _as_library(repo_bundle: ProjectionBundle) -> list[ResolvedAgentDefinition]:
-    definitions = []
-    for resolved in repo_bundle.agents.values():
-        rules = []
-        for rule in resolved.rules:
-            applies_to, _ = repo_bundle.rules[rule.stable_key]
-            content = {**rule.content, "content_schema": "studio.library.rule/v2"}
-            rules.append(rule.model_copy(update={"content": {**content, "applies_to": applies_to}}))
-        definitions.append(resolved.model_copy(update={"rules": rules}))
-    return definitions
-
-
 def _by_path(files: list[PlannedFile]) -> dict[str, str]:
     return {item.path: item.content for item in files if not item.block}
 
 
-def test_resolved_bundle_matches_repo_projections() -> None:
-    repo_bundle = bundle_from_repo(REPO)
-    from_library = bundle_from_resolved(_as_library(repo_bundle))
+def test_resolved_bundle_projects_agents_rules_and_skills(tmp_path: Path) -> None:
+    bundle = bundle_from_resolved(sample_definitions())
 
-    assert list(from_library.agents) == sorted(repo_bundle.agents)
-    manifest = _manifest()
-    expected = _by_path(plan_files(REPO, manifest, repo_bundle))
-    actual = _by_path(plan_files(REPO, manifest, from_library))
-    agent_paths = {path for path in expected if "/agents/" in path and "/skills/" not in path}
-    rule_paths = {path for path in expected if path.startswith(".claude/rules/")}
-    assert agent_paths and rule_paths
-    assert {path: actual[path] for path in agent_paths | rule_paths} == {
-        path: expected[path] for path in agent_paths | rule_paths
+    assert list(bundle.agents) == sorted(bundle.agents)
+    paths = set(_by_path(plan_files(tmp_path, _manifest(), bundle)))
+    assert {path for path in paths if path.startswith(".claude/rules/")} == {
+        ".claude/rules/contracts.md",
+        ".claude/rules/testing.md",
     }
+    assert any("/agents/" in path and "/skills/" not in path for path in paths)
+    assert ".claude/skills/contract-change/references/notes.md" in paths
 
 
 def test_plan_is_deterministic_and_never_reads_agents_dir(tmp_path: Path) -> None:
-    definitions = _as_library(bundle_from_repo(REPO))
+    definitions = sample_definitions()
     manifest = _manifest()
     assert not (tmp_path / ".agents").exists()
 
@@ -75,7 +57,7 @@ def test_plan_is_deterministic_and_never_reads_agents_dir(tmp_path: Path) -> Non
 
 
 def test_user_scope_resources_are_never_projected() -> None:
-    definitions = _as_library(bundle_from_repo(REPO))
+    definitions = sample_definitions()
     user_agent = definitions[0].model_copy(
         update={"agent": definitions[0].agent.model_copy(update={"scope": LibraryScope.USER})}
     )
@@ -93,7 +75,7 @@ def test_user_scope_resources_are_never_projected() -> None:
 
 
 def test_rule_without_applies_to_is_global() -> None:
-    definition = _as_library(bundle_from_repo(REPO))[0]
+    definition = sample_definitions()[0]
     rule = definition.rules[0]
     content = {k: v for k, v in rule.content.items() if k != "applies_to"}
     bare = definition.model_copy(update={"rules": [rule.model_copy(update={"content": content})]})
@@ -102,7 +84,7 @@ def test_rule_without_applies_to_is_global() -> None:
 
 
 def test_adapters_check_passes_on_repo_without_agents_dir(tmp_path: Path) -> None:
-    bundle = bundle_from_resolved(_as_library(bundle_from_repo(REPO)))
+    bundle = bundle_from_resolved(sample_definitions())
     manifest = _manifest()
     for item in plan_files(tmp_path, manifest, bundle):
         target = tmp_path / item.path
@@ -117,24 +99,15 @@ def test_adapters_check_passes_on_repo_without_agents_dir(tmp_path: Path) -> Non
 
 
 def test_adapters_check_reports_drift_without_agents_dir(tmp_path: Path) -> None:
-    bundle = bundle_from_resolved(_as_library(bundle_from_repo(REPO)))
+    bundle = bundle_from_resolved(sample_definitions())
 
     result = check_adapters(tmp_path, bundle=bundle)
 
     assert result.failures
 
 
-def test_repo_bundle_is_unchanged_default() -> None:
-    manifest = _manifest()
-    assert plan_files(REPO, manifest) == plan_files(REPO, manifest, bundle_from_repo(REPO))
-    key = canonical_agent_keys(REPO)[0]
-    assert bundle_from_repo(REPO).agents[key] == build_offline_resolved(REPO, key)
-    assert bundle_from_repo(REPO).rules
-    assert load_rule_meta(REPO, next(iter(bundle_from_repo(REPO).rules)))
-
-
 def test_bundle_rejects_rule_without_text() -> None:
-    definition = _as_library(bundle_from_repo(REPO))[0]
+    definition = sample_definitions()[0]
     rule = definition.rules[0].model_copy(update={"content": {}})
 
     with pytest.raises(ValueError, match="no text content"):
@@ -159,6 +132,16 @@ class _FakeClient:
         self.by_key = {item.agent.stable_key: item for item in definitions}
 
     async def list_library_resources(self, **kwargs: object) -> list[SimpleNamespace]:
+        if kwargs["kind"] == "rule":
+            return [
+                SimpleNamespace(
+                    id=uuid.UUID(int=1),
+                    stable_key="studio-protocol",
+                    status=LibraryStatus.ACTIVE,
+                    scope=LibraryScope.STUDIO,
+                    active_version=2,
+                )
+            ]
         assert kwargs["kind"] == "agent_definition"
         rows = [
             SimpleNamespace(stable_key=key, status=LibraryStatus.ACTIVE, scope=LibraryScope.STUDIO)
@@ -174,22 +157,34 @@ class _FakeClient:
         )
         return rows
 
+    async def list_library_versions(self, resource_id: uuid.UUID) -> list[SimpleNamespace]:
+        assert resource_id == uuid.UUID(int=1)
+        return [
+            SimpleNamespace(version=1, content={"text": "old"}),
+            SimpleNamespace(version=2, content={"text": PROTOCOL_TEXT}),
+        ]
+
     async def resolve_agent(self, key: str, **_: object) -> ResolvedAgentDefinition:
         return self.by_key[key]
 
 
 def test_fetch_projection_bundle_resolves_only_active_non_user_agents() -> None:
-    definitions = _as_library(bundle_from_repo(REPO))
+    definitions = sample_definitions()
 
     bundle = asyncio.run(fetch_projection_bundle(_FakeClient(definitions), None))
 
     assert set(bundle.agents) == {item.agent.stable_key for item in definitions}
 
 
+def test_fetch_projection_bundle_loads_the_studio_protocol_rule() -> None:
+    bundle = asyncio.run(fetch_projection_bundle(_FakeClient(sample_definitions()), None))
+
+    assert bundle.protocol == PROTOCOL_TEXT
+
+
 def _args(root: Path, **extra: object) -> argparse.Namespace:
     values: dict[str, object] = {
         "repo_root": str(root),
-        "from_library": True,
         "project_id": str(uuid.uuid4()),
         "yes": True,
         "overwrite": [],
@@ -203,7 +198,7 @@ def _args(root: Path, **extra: object) -> argparse.Namespace:
 def test_cli_sync_from_library_writes_without_agents_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    definitions = _as_library(bundle_from_repo(REPO))
+    definitions = sample_definitions()
 
     monkeypatch.setattr(
         cli, "_run", lambda _config, action: asyncio.run(action(_FakeClient(definitions)))
@@ -216,6 +211,7 @@ def test_cli_sync_from_library_writes_without_agents_dir(
     cli._bootstrap_report(_args(tmp_path), _CONFIG, emit_diff=False)
 
 
-def test_cli_from_library_requires_project_id(tmp_path: Path) -> None:
-    with pytest.raises(SystemExit):
-        cli._projection_bundle(_args(tmp_path, project_id=None), _CONFIG)
+def test_cli_projection_commands_require_project_id() -> None:
+    for command in ("check", "diff", "sync"):
+        with pytest.raises(SystemExit):
+            cli._build_parser().parse_args(["bootstrap", command])

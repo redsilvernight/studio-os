@@ -1,17 +1,16 @@
 """P3 local bundle generator — init/check/diff/sync (no DB, no server).
 
-Uses temporary repositories seeded from the real `.agents/` sources, so the
-canonical parser, the adapters and the managed-block renderer are exercised
-exactly as in production. Covers the P3 golden cases: absent before sync,
-second run writes nothing, managed modification refused (or confirmed + backed
-up under `ask`), CRLF is not drift, the AGENTS.md block preserves user text,
-the unified diff is deterministic, and a sync can be rolled back exactly.
+Uses temporary repositories projected from an in-memory Library bundle, so the
+adapters and the managed-block renderer are exercised exactly as in production.
+Covers the P3 golden cases: absent before sync, second run writes nothing,
+managed modification refused (or confirmed + backed up under `ask`), CRLF is
+not drift, the AGENTS.md block preserves user text, the unified diff is
+deterministic, and a sync can be rolled back exactly.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 import pytest
@@ -36,11 +35,24 @@ from studio_client.canonical import (
     CLAUDE_END_MARKER,
 )
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.library_bundle import sample_bundle
+
+
+@pytest.fixture(autouse=True)
+def _library_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "https://studio.example")
+    monkeypatch.setattr(cli, "_projection_bundle", lambda args, config: sample_bundle())
+
+
+def _main(argv: list[str]) -> None:
+    cli.main([*argv, "--project-id", "00000000-0000-0000-0000-000000000001"])
+
+
+def _plan(repo: Path, manifest: object) -> list:
+    return plan_files(repo, manifest, sample_bundle())  # type: ignore[arg-type]
 
 
 def _repo(tmp_path: Path) -> Path:
-    shutil.copytree(REPO / ".agents", tmp_path / ".agents")
     return tmp_path
 
 
@@ -73,7 +85,23 @@ def test_init_writes_manifest(tmp_path: Path) -> None:
 
 def _write_manifest(raw: object, repo: Path) -> None:
     path = repo / Path(*MANIFEST_RELATIVE_PATH.split("/"))
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+
+
+def test_legacy_manifest_path_is_still_read(tmp_path: Path) -> None:
+    raw = {
+        "format": "studio.bootstrap/v1",
+        "project": {"slug": "legacy", "name": "Legacy"},
+        "harnesses": [{"id": "claude-code"}],
+    }
+    legacy = tmp_path / ".agents" / "bootstrap.json"
+    legacy.parent.mkdir()
+    legacy.write_text(json.dumps(raw), encoding="utf-8")
+    assert load_manifest(tmp_path).project.slug == "legacy"
+
+    _write_manifest({**raw, "project": {"slug": "current", "name": "Current"}}, tmp_path)
+    assert load_manifest(tmp_path).project.slug == "current"
 
 
 def _snapshot_files(repo: Path) -> dict[str, bytes]:
@@ -118,7 +146,7 @@ def test_cli_rejects_bad_format_without_writing(tmp_path: Path, cmd: str) -> Non
     _write_manifest(bad, repo)
     before = _snapshot_files(repo)
     with pytest.raises(SystemExit) as excinfo:
-        cli.main(["bootstrap", cmd, "--repo-root", str(repo)])
+        _main(["bootstrap", cmd, "--repo-root", str(repo)])
     assert excinfo.value.code == 1
     assert _snapshot_files(repo) == before
 
@@ -159,29 +187,29 @@ def test_check_absent_then_sync_is_idempotent(
     _init(repo)
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.main(["bootstrap", "check", "--repo-root", str(repo)])
+        _main(["bootstrap", "check", "--repo-root", str(repo)])
     assert excinfo.value.code == 1
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert "Wrote .claude/agents/studio-tester.md." in capsys.readouterr().out
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert capsys.readouterr().out.strip() == "Already up to date."
 
-    cli.main(["bootstrap", "check", "--repo-root", str(repo)])
+    _main(["bootstrap", "check", "--repo-root", str(repo)])
 
 
 def test_managed_modification_is_refused_under_refuse_policy(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "agents" / "studio-tester.md"
     edited = target.read_text(encoding="utf-8") + "\nuser edit\n"
     target.write_text(edited, encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+        _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert excinfo.value.code == 1
     assert target.read_text(encoding="utf-8") == edited
 
@@ -189,15 +217,15 @@ def test_managed_modification_is_refused_under_refuse_policy(tmp_path: Path) -> 
 def test_ask_policy_confirms_and_backs_up(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo, "--on-modified", "ask")
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "agents" / "studio-tester.md"
     target.write_text(target.read_text(encoding="utf-8") + "\nuser edit\n", encoding="utf-8")
 
     with pytest.raises(SystemExit):
-        cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+        _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo), "--yes"])
+    _main(["bootstrap", "sync", "--repo-root", str(repo), "--yes"])
     assert "user edit" not in target.read_text(encoding="utf-8")
     backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("studio-tester.md"))
     assert backups and "user edit" in backups[0].read_text(encoding="utf-8")
@@ -207,34 +235,34 @@ def test_agents_md_block_preserves_user_content(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     (repo / "AGENTS.md").write_text("# My project\n\nuser notes\n", encoding="utf-8")
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     text = (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "# My project" in text
     assert "user notes" in text
     assert AGENTS_BEGIN_MARKER in text and AGENTS_END_MARKER in text
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert (repo / "AGENTS.md").read_text(encoding="utf-8") == text
 
 
 def test_crlf_on_disk_is_not_drift(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "rules" / "contracts.md"
     crlf = target.read_text(encoding="utf-8").replace("\n", "\r\n")
     target.write_bytes(crlf.encode("utf-8"))
 
-    cli.main(["bootstrap", "check", "--repo-root", str(repo)])
+    _main(["bootstrap", "check", "--repo-root", str(repo)])
 
 
 def test_diff_reports_missing_files(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     _init(repo)
     with pytest.raises(SystemExit):
-        cli.main(["bootstrap", "diff", "--repo-root", str(repo)])
+        _main(["bootstrap", "diff", "--repo-root", str(repo)])
     out = capsys.readouterr().out
     assert "+++ b/.claude/agents/studio-tester.md" in out
 
@@ -244,8 +272,8 @@ def test_observe_is_read_only(tmp_path: Path) -> None:
     _init(repo)
     before = sorted(p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file())
     manifest = load_manifest(repo)
-    report = observe(repo, manifest)
-    assert report.summary.absent == len(plan_files(repo, manifest))
+    report = observe(repo, manifest, planned=_plan(repo, manifest))
+    assert report.summary.absent == len(_plan(repo, manifest))
     after = sorted(p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file())
     assert before == after
 
@@ -257,7 +285,7 @@ def test_claude_md_block_preserves_user_content_and_is_idempotent(tmp_path: Path
     repo = _repo(tmp_path)
     (repo / "CLAUDE.md").write_text(MINE, encoding="utf-8")
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     text = (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert "user rule" in text
@@ -265,7 +293,7 @@ def test_claude_md_block_preserves_user_content_and_is_idempotent(tmp_path: Path
     backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("CLAUDE.md"))
     assert backups and backups[0].read_text(encoding="utf-8") == MINE
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert (repo / "CLAUDE.md").read_text(encoding="utf-8") == text
 
 
@@ -275,32 +303,18 @@ def test_unbalanced_claude_md_markers_are_refused(tmp_path: Path) -> None:
     (repo / "CLAUDE.md").write_text(broken, encoding="utf-8")
     _init(repo)
     with pytest.raises(SystemExit):
-        cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+        _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert (repo / "CLAUDE.md").read_text(encoding="utf-8") == broken
-
-
-def test_rules_sync_backs_up_agents_md(tmp_path: Path) -> None:
-    repo = _repo(tmp_path)
-    _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
-    agents_md = repo / "AGENTS.md"
-    agents_md.write_text(
-        agents_md.read_text(encoding="utf-8").replace("Canonical rules", "Stale rules"),
-        encoding="utf-8",
-    )
-    cli.main(["rules", "sync", "--repo-root", str(repo), "--overwrite"])
-    backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("AGENTS.md"))
-    assert backups
 
 
 def test_diff_is_empty_once_up_to_date(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     capsys.readouterr()
 
-    assert diff_text(repo, load_manifest(repo)) == ""
-    cli.main(["bootstrap", "diff", "--repo-root", str(repo)])
+    assert diff_text(repo, load_manifest(repo), planned=_plan(repo, load_manifest(repo))) == ""
+    _main(["bootstrap", "diff", "--repo-root", str(repo)])
     assert capsys.readouterr().out.strip() == "no changes"
 
 
@@ -309,7 +323,7 @@ def test_diff_modified_file_shows_before_and_after(
 ) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "rules" / "contracts.md"
     original = target.read_text(encoding="utf-8")
@@ -319,7 +333,7 @@ def test_diff_modified_file_shows_before_and_after(
     capsys.readouterr()
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.main(["bootstrap", "diff", "--repo-root", str(repo)])
+        _main(["bootstrap", "diff", "--repo-root", str(repo)])
     assert excinfo.value.code == 1
     out = capsys.readouterr().out
     assert "--- a/.claude/rules/contracts.md" in out
@@ -336,7 +350,7 @@ def test_diff_block_shows_only_added_block(
     _init(repo)
 
     with pytest.raises(SystemExit):
-        cli.main(["bootstrap", "diff", "--repo-root", str(repo)])
+        _main(["bootstrap", "diff", "--repo-root", str(repo)])
     out = capsys.readouterr().out
     assert "--- a/AGENTS.md" in out
     assert "+++ b/AGENTS.md" in out
@@ -353,16 +367,16 @@ def test_diff_json_carries_report_and_diff(
     capsys.readouterr()
 
     with pytest.raises(SystemExit):
-        cli.main(["bootstrap", "diff", "--repo-root", str(repo), "--json"])
+        _main(["bootstrap", "diff", "--repo-root", str(repo), "--json"])
     payload = json.loads(capsys.readouterr().out)
-    assert payload["report"]["summary"]["absent"] == len(plan_files(repo, manifest))
+    assert payload["report"]["summary"]["absent"] == len(_plan(repo, manifest))
     assert "+++ b/.claude/agents/studio-tester.md" in payload["diff"]
 
 
 def test_rollback_removes_created_files(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert list((repo / ".claude").rglob("*.md"))
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
@@ -370,7 +384,7 @@ def test_rollback_removes_created_files(tmp_path: Path) -> None:
     assert not any(p.is_file() for p in (repo / ".claude").rglob("*"))
     assert not (repo / "AGENTS.md").exists()
     with pytest.raises(SystemExit) as excinfo:
-        cli.main(["bootstrap", "check", "--repo-root", str(repo)])
+        _main(["bootstrap", "check", "--repo-root", str(repo)])
     assert excinfo.value.code == 1
 
 
@@ -382,7 +396,7 @@ def test_rollback_restores_replaced_file_bytes(tmp_path: Path) -> None:
     original = "CUSTOM CONTRACT RULE\r\nsecond line\r\n"
     target.write_bytes(original.encode("utf-8"))
 
-    cli.main(
+    _main(
         [
             "bootstrap",
             "sync",
@@ -404,7 +418,7 @@ def test_rollback_refuses_when_file_changed_since_sync(
 ) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "agents" / "studio-tester.md"
     target.write_text(target.read_text(encoding="utf-8") + "\nedit\n", encoding="utf-8")
@@ -426,7 +440,7 @@ def test_rollback_refuses_backup_path_traversal(tmp_path: Path) -> None:
     target = repo / ".claude" / "rules" / "contracts.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("original\n", encoding="utf-8")
-    cli.main(
+    _main(
         [
             "bootstrap",
             "sync",
@@ -456,7 +470,7 @@ def test_rollback_refuses_backup_path_traversal(tmp_path: Path) -> None:
 def test_rollback_twice_refuses(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
     capsys.readouterr()
 
@@ -481,7 +495,7 @@ def test_rollback_restores_user_agents_md(tmp_path: Path) -> None:
     original = "# My project\n\nuser notes\n"
     (repo / "AGENTS.md").write_bytes(original.encode("utf-8"))
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert AGENTS_BEGIN_MARKER in (repo / "AGENTS.md").read_text(encoding="utf-8")
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
@@ -491,8 +505,8 @@ def test_rollback_restores_user_agents_md(tmp_path: Path) -> None:
 def test_idempotent_sync_does_not_add_backup(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     assert len(list_backups(repo)) == 1
 
@@ -500,7 +514,7 @@ def test_idempotent_sync_does_not_add_backup(tmp_path: Path) -> None:
 def test_rollback_list_reports_journal(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     capsys.readouterr()
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo), "--list", "--json"])
@@ -513,56 +527,45 @@ def test_rollback_list_reports_journal(tmp_path: Path, capsys: pytest.CaptureFix
 def test_skills_sync_writes_verbatim_copies_and_is_idempotent(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from studio_client.canonical import canonical_skill_keys
-
+    bundle = sample_bundle()
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     capsys.readouterr()
 
-    keys = canonical_skill_keys(repo)
-    assert len(keys) == 9
-    planned = {item.path for item in plan_files(repo, load_manifest(repo)) if item.kind == "skill"}
+    keys = sorted(bundle.skills)
+    assert keys == ["alembic-migration", "contract-change", "studio-task"]
+    planned = {item.path for item in _plan(repo, load_manifest(repo)) if item.kind == "skill"}
     expected = {f".claude/skills/{key}/SKILL.md" for key in keys}
     expected |= {
+        ".claude/skills/contract-change/references/notes.md",
         ".claude/skills/studio-task/references/completion.md",
         ".claude/skills/studio-task/references/roles.md",
-        ".claude/skills/graphify/references/add-watch.md",
-        ".claude/skills/graphify/references/exports.md",
-        ".claude/skills/graphify/references/extraction-spec.md",
-        ".claude/skills/graphify/references/github-and-merge.md",
-        ".claude/skills/graphify/references/hooks.md",
-        ".claude/skills/graphify/references/query.md",
-        ".claude/skills/graphify/references/transcribe.md",
-        ".claude/skills/graphify/references/update.md",
     }
     assert planned == expected
     for key in keys:
-        source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
         target = repo / ".claude" / "skills" / key / "SKILL.md"
-        assert target.read_text(encoding="utf-8") == source
-    for relative in sorted(expected):
-        if relative.endswith("SKILL.md"):
-            continue
-        canonical = repo / ".agents" / "skills" / relative.removeprefix(".claude/skills/")
-        target = repo / relative
-        assert target.read_text(encoding="utf-8") == canonical.read_text(encoding="utf-8")
+        assert target.read_text(encoding="utf-8") == bundle.skills[key]
+    for key, files in bundle.skill_files.items():
+        for relative, text in files:
+            target = repo / ".claude" / "skills" / key / relative
+            assert target.read_text(encoding="utf-8") == text
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert capsys.readouterr().out.strip() == "Already up to date."
 
 
 def test_skills_modified_is_refused_under_refuse_policy(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "skills" / "studio-task" / "SKILL.md"
     edited = target.read_text(encoding="utf-8") + "\nuser edit\n"
     target.write_text(edited, encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+        _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert excinfo.value.code == 1
     assert target.read_text(encoding="utf-8") == edited
 
@@ -570,7 +573,7 @@ def test_skills_modified_is_refused_under_refuse_policy(tmp_path: Path) -> None:
 def test_skills_rollback_removes_created_copies(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert list((repo / ".claude" / "skills").rglob("SKILL.md"))
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
@@ -579,8 +582,7 @@ def test_skills_rollback_removes_created_copies(tmp_path: Path) -> None:
 
 
 def test_skills_multi_harness_projects_per_harness(tmp_path: Path) -> None:
-    from studio_client.canonical import canonical_skill_keys
-
+    bundle = sample_bundle()
     repo = _repo(tmp_path)
     cli.main(
         [
@@ -598,12 +600,10 @@ def test_skills_multi_harness_projects_per_harness(tmp_path: Path) -> None:
             str(repo),
         ]
     )
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
-    keys = canonical_skill_keys(repo)
-    for key in keys:
+    for key, source in bundle.skills.items():
         for base in (".claude", ".opencode"):
-            source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
             target = repo / base / "skills" / key / "SKILL.md"
             assert target.read_text(encoding="utf-8") == source
     for base in (".claude", ".opencode"):
@@ -611,9 +611,9 @@ def test_skills_multi_harness_projects_per_harness(tmp_path: Path) -> None:
             "studio-task/references/completion.md",
             "studio-task/references/roles.md",
         ):
-            canonical = repo / ".agents" / "skills" / relative
-            target = repo / base / "skills" / relative
-            assert target.read_text(encoding="utf-8") == canonical.read_text(encoding="utf-8")
+            key, _, name = relative.partition("/")
+            text = dict(bundle.skill_files[key])[name]
+            assert (repo / base / "skills" / relative).read_text(encoding="utf-8") == text
 
 
 def test_skills_codex_openai_policy_only_for_flagged_skills(tmp_path: Path) -> None:
@@ -636,7 +636,7 @@ def test_skills_codex_openai_policy_only_for_flagged_skills(tmp_path: Path) -> N
             str(repo),
         ]
     )
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     policy = repo / ".codex" / "skills" / "alembic-migration" / "agents" / "openai.yaml"
     assert policy.read_text(encoding="utf-8") == CODEX_OPENAI_POLICY_TEXT
@@ -652,20 +652,20 @@ def test_skills_codex_openai_policy_only_for_flagged_skills(tmp_path: Path) -> N
 def test_skills_crlf_on_disk_is_not_drift(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    _main(["bootstrap", "sync", "--repo-root", str(repo)])
 
     target = repo / ".claude" / "skills" / "studio-task" / "SKILL.md"
     crlf = target.read_text(encoding="utf-8").replace("\n", "\r\n")
     target.write_bytes(crlf.encode("utf-8"))
 
-    cli.main(["bootstrap", "check", "--repo-root", str(repo)])
+    _main(["bootstrap", "check", "--repo-root", str(repo)])
 
 
 def test_unmanaged_same_key_file_is_reported_as_conflict(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo, "--on-modified", "ask")
     manifest = load_manifest(repo)
-    planned = plan_files(repo, manifest)
+    planned = _plan(repo, manifest)
     skill = next(item for item in planned if item.kind == "skill")
     target = repo / Path(*skill.path.split("/"))
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -687,7 +687,7 @@ def test_unmanaged_file_is_never_overwritten_without_explicit_overwrite(
     repo = _repo(tmp_path)
     _init(repo, "--on-modified", "ask")
     manifest = load_manifest(repo)
-    planned = plan_files(repo, manifest)
+    planned = _plan(repo, manifest)
     skill = next(item for item in planned if item.kind == "skill")
     target = repo / Path(*skill.path.split("/"))
     target.parent.mkdir(parents=True, exist_ok=True)

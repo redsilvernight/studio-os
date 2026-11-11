@@ -1,18 +1,11 @@
-"""P3 canonical agents — parser, capabilities, codex, anti-drift (no DB).
-
-Anti-drift core: every managed harness file must equal a fresh offline
-export of `.agents/definitions/`. A manual edit (or a canonical change
-without regen) fails here exactly as `studio adapters check` fails in CI.
-"""
+"""Harness adapters over a Library-resolved agent: capabilities, codex shape,
+open registry (no DB, no repository files)."""
 
 from __future__ import annotations
 
-import uuid
-from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 from studio_client.adapters import (
     CAPABILITY_DIMENSIONS,
     AdapterError,
@@ -23,74 +16,11 @@ from studio_client.adapters import (
     list_adapters,
 )
 from studio_client.adapters.base import AdapterArtifact
-from studio_client.canonical import (
-    LibrarySnapshot,
-    agents_rules_current,
-    build_merged_resolved,
-    build_offline_resolved,
-    canonical_agent_keys,
-    canonical_rule_keys,
-    load_definition,
-    load_rule_meta,
-    load_rule_text,
-    render_claude_rule,
-    to_publish_payload,
-)
-from studio_contracts.library import VersionOrigin
 from studio_contracts.resolution import ResolvedAgentDefinition
 
-REPO = Path(__file__).resolve().parents[2]
-KEYS = (
-    "studio-architect",
-    "studio-tester",
-    "contract-guardian",
-    "sync-debugger",
-    "migration-reviewer",
-    "dashboard-a11y",
-)
+from tests.library_bundle import make_agent, make_rule
+
 FORBIDDEN = ("opus", "sonnet", "gpt-", "kimi", "anthropic", "openai", "claude-code")
-
-
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8").replace("\r\n", "\n")
-
-
-def test_canonical_definitions_exist_and_parse() -> None:
-    assert canonical_agent_keys(REPO) == sorted(KEYS)
-    for key in KEYS:
-        agent = load_definition(REPO, key)
-        assert agent.stable_key == key
-        assert agent.summary and agent.instructions and agent.triggers
-        assert agent.edit_policy == "deny"
-        assert agent.rules
-
-
-def test_canonical_definitions_name_no_model_or_harness() -> None:
-    for key in KEYS:
-        text = (REPO / ".agents" / "definitions" / f"{key}.md").read_text(encoding="utf-8").lower()
-        for token in FORBIDDEN:
-            assert token not in text, f"{key} leaks {token!r}"
-
-
-def test_offline_build_deterministic_and_publishable() -> None:
-    first = build_offline_resolved(REPO, "studio-tester")
-    second = build_offline_resolved(REPO, "studio-tester")
-    assert first == second
-    assert first.agent.version == 1
-    assert first.agent.version_origin == VersionOrigin.ACTIVE
-    assert {r.stable_key for r in first.rules} == {
-        "contracts",
-        "python-conventions",
-        "offline-sync",
-        "storage-transfers",
-    }
-    content, pins = to_publish_payload(load_definition(REPO, "studio-tester"))
-    assert content["content_schema"] == "studio.library.agent_definition/v2"
-    # P43: the Markdown body is published as instructions, never as intended_use.
-    assert str(content["instructions"]).startswith("Common lifecycle")
-    assert not str(content["intended_use"]).startswith("Common lifecycle")
-    assert ("rule", "contracts") in pins and ("skill", "graphify") in pins
-    assert ("model_profile", "studio-tester-profile") in pins
 
 
 def test_capabilities_cover_all_dimensions() -> None:
@@ -104,7 +34,11 @@ def test_capabilities_cover_all_dimensions() -> None:
 
 
 def test_codex_projection_shape() -> None:
-    resolved = build_offline_resolved(REPO, "studio-architect")
+    resolved = make_agent(
+        "studio-architect",
+        instructions="You are the architecture specialist.\n",
+        requirements={"reasoning": "high"},
+    )
     result = get_adapter("codex").translate(resolved)
     assert len(result.artifacts) == 1
     artifact = result.artifacts[0]
@@ -116,9 +50,26 @@ def test_codex_projection_shape() -> None:
     assert "\nmodel = " not in artifact.content  # no runtime binding configured
 
 
+@pytest.mark.parametrize("adapter_id", ["claude-code", "opencode", "codex"])
+def test_projection_names_no_model_or_harness(adapter_id: str) -> None:
+    resolved = make_agent("sync-debugger", rules=[make_rule("testing", "Run the tests.\n")])
+    for artifact in get_adapter(adapter_id).translate(resolved).artifacts:
+        text = artifact.content.lower()
+        for token in FORBIDDEN:
+            if token == adapter_id:
+                continue
+            assert token not in text, f"{adapter_id} leaks {token!r}"
+
+
+def test_projection_is_deterministic() -> None:
+    first = get_adapter("claude-code").translate(make_agent("studio-tester"))
+    second = get_adapter("claude-code").translate(make_agent("studio-tester"))
+    assert first == second
+
+
 def test_fake_third_party_adapter_needs_no_core_change() -> None:
     """P3.10: a new harness registers against the open registry, receives the
-    canonical definition, and projects it — Library, Resolution, contracts
+    resolved definition, and projects it — Library, Resolution, contracts
     and skills untouched."""
 
     from studio_client.adapters import register_adapter
@@ -149,7 +100,10 @@ def test_fake_third_party_adapter_needs_no_core_change() -> None:
     register_adapter(TestHarnessAdapter())
     try:
         assert "test-harness" in list_adapters()
-        resolved = build_offline_resolved(REPO, "sync-debugger")
+        resolved = make_agent(
+            "sync-debugger",
+            rules=[make_rule(key, "Body.\n") for key in ("contracts", "offline-sync", "testing")],
+        )
         result = get_adapter("test-harness").translate(resolved)
         assert seen["key"] == "sync-debugger"
         assert "rules=3" in result.artifacts[0].content
@@ -187,179 +141,7 @@ def test_unsupported_capability_fails_explicit() -> None:
     register_adapter(NoPermissionsAdapter())
     try:
         with pytest.raises(AdapterError) as exc_info:
-            get_adapter("no-perms").translate(build_offline_resolved(REPO, "studio-tester"))
+            get_adapter("no-perms").translate(make_agent("studio-tester"))
         assert exc_info.value.code == AdapterErrorCode.UNSUPPORTED
     finally:
         _REGISTRY.pop("no-perms", None)
-
-
-def test_anti_drift_all_managed_files() -> None:
-    """Every generated artifact equals a fresh offline export. Edit the
-    canonical source and re-export — never the artifact."""
-    drifted: list[str] = []
-    for adapter_id in ("claude-code", "opencode", "codex"):
-        adapter = get_adapter(adapter_id)
-        for key in KEYS:
-            for artifact in adapter.translate(build_offline_resolved(REPO, key)).artifacts:
-                if _read(REPO / artifact.path) != artifact.content:
-                    drifted.append(artifact.path)
-    for key in canonical_rule_keys(REPO):
-        applies_to, body = load_rule_meta(REPO, key)
-        if _read(REPO / ".claude" / "rules" / f"{key}.md") != render_claude_rule(
-            key, applies_to, body
-        ):
-            drifted.append(f".claude/rules/{key}.md")
-    assert agents_rules_current(REPO, _read(REPO / "AGENTS.md"))
-    assert drifted == []
-
-
-def test_rule_frontmatter_neutral() -> None:
-    for key in canonical_rule_keys(REPO):
-        raw = (REPO / ".agents" / "rules" / f"{key}.md").read_text(encoding="utf-8")
-        data = yaml.safe_load(raw.split("---\n", 2)[1])
-        assert "paths" not in data  # harness envelope lives in the projection
-        assert isinstance(data.get("applies_to"), list)
-
-
-def _write_definition(
-    root: Path, key: str, *, rules: tuple[str, ...], skills: tuple[str, ...]
-) -> None:
-    definitions = root / ".agents" / "definitions"
-    definitions.mkdir(parents=True)
-    definitions.joinpath(f"{key}.md").write_text(
-        "---\n"
-        f"stable_key: {key}\n"
-        "title: T\n"
-        "summary: S\n"
-        "intended_use: U\n"
-        f"rules: [{', '.join(rules)}]\n"
-        f"skills: [{', '.join(skills)}]\n"
-        "---\n"
-        "Body.\n",
-        encoding="utf-8",
-    )
-
-
-def test_merged_without_library_matches_offline() -> None:
-    for key in KEYS:
-        assert build_merged_resolved(REPO, key) == build_offline_resolved(REPO, key)
-
-
-def test_merged_roundtrip_through_snapshot() -> None:
-    """`from_resolved` + merge over a complete repo changes nothing: every
-    piece resolves file-backed, with the file identity namespace."""
-    offline = build_offline_resolved(REPO, "studio-tester")
-    snapshot = LibrarySnapshot.from_resolved(offline)
-    assert build_merged_resolved(REPO, "studio-tester", library=snapshot) == offline
-
-
-def test_merged_library_wins_over_project_file() -> None:
-    offline = build_offline_resolved(REPO, "studio-tester")
-    snapshot = LibrarySnapshot.from_resolved(offline)
-    poisoned_rule = snapshot.rules["contracts"].model_copy(
-        update={
-            "resource_id": uuid.uuid4(),
-            "version": 99,
-            "content": {"content_schema": "studio.library.rule/v1", "text": "POISON"},
-        }
-    )
-    poisoned = LibrarySnapshot(
-        agent=snapshot.agent,
-        rules={**snapshot.rules, "contracts": poisoned_rule},
-        skills=snapshot.skills,
-        requirements=snapshot.requirements,
-    )
-    merged = build_merged_resolved(REPO, "studio-tester", library=poisoned)
-    by_key = {rule.stable_key: rule for rule in merged.rules}
-    assert by_key["contracts"].content["text"] == "POISON"
-    assert by_key["contracts"].version == 99
-    assert by_key["contracts"].resource_id == poisoned_rule.resource_id
-
-
-def test_merged_library_fills_missing_project_files(tmp_path: Path) -> None:
-    _write_definition(tmp_path, "x-agent", rules=("x-rule",), skills=())
-    offline = build_offline_resolved(REPO, "studio-tester")
-    snapshot = LibrarySnapshot.from_resolved(offline)
-    library_rule = snapshot.rules["contracts"]
-    library_only = LibrarySnapshot(
-        agent=snapshot.agent.model_copy(update={"stable_key": "x-agent"}),
-        rules={"x-rule": library_rule.model_copy(update={"stable_key": "x-rule"})},
-        skills={},
-        requirements=snapshot.requirements,
-    )
-    merged = build_merged_resolved(tmp_path, "x-agent", library=library_only)
-    assert [rule.stable_key for rule in merged.rules] == ["x-rule"]
-    assert merged.rules[0].resource_id == library_rule.resource_id
-    assert merged.rules[0].version == library_rule.version
-    assert merged.agent.content["instructions"] == "Body.\n"  # file head kept
-
-
-def test_merged_project_file_fills_library_gap() -> None:
-    """A depot piece the Library does not carry still resolves from the
-    file, with the file identity namespace — the gap-fill direction."""
-    offline = build_offline_resolved(REPO, "studio-tester")
-    snapshot = LibrarySnapshot.from_resolved(offline)
-    gap = LibrarySnapshot(
-        agent=snapshot.agent,
-        rules={key: rule for key, rule in snapshot.rules.items() if key != "contracts"},
-        skills=snapshot.skills,
-        requirements=snapshot.requirements,
-    )
-    merged = build_merged_resolved(REPO, "studio-tester", library=gap)
-    by_key = {rule.stable_key: rule for rule in merged.rules}
-    assert "contracts" in by_key
-    assert by_key["contracts"].content["text"] == load_rule_text(REPO, "contracts")
-    assert by_key["contracts"].version == 1
-
-
-def test_merged_no_project_files_uses_library_head(tmp_path: Path) -> None:
-    """Near-empty repo: no `.agents/` at all — the Library snapshot
-    supplies the head (with defaulted file-only keys) and the pieces."""
-    offline = build_offline_resolved(REPO, "studio-tester")
-    snapshot = LibrarySnapshot.from_resolved(offline)
-    library_rule = snapshot.rules["contracts"].model_copy(update={"stable_key": "x-rule"})
-    library_only = LibrarySnapshot(
-        agent=snapshot.agent.model_copy(update={"stable_key": "x-agent"}),
-        rules={"x-rule": library_rule},
-        skills={},
-        requirements=snapshot.requirements,
-    )
-    merged = build_merged_resolved(tmp_path, "x-agent", library=library_only)
-    assert merged.agent.resource_id == library_only.agent.resource_id
-    assert merged.agent.content["instructions"] == ""  # Library never carries file-only keys
-    assert merged.agent.content["edit_policy"] == "deny"
-    assert [rule.stable_key for rule in merged.rules] == ["x-rule"]
-
-
-def test_merged_missing_everywhere_raises(tmp_path: Path) -> None:
-    _write_definition(tmp_path, "x-agent", rules=("ghost-rule",), skills=())
-    offline = build_offline_resolved(REPO, "studio-tester")
-    snapshot = LibrarySnapshot.from_resolved(offline)
-    agent_only = LibrarySnapshot(
-        agent=snapshot.agent.model_copy(update={"stable_key": "x-agent"}),
-        rules={},
-        skills={},
-        requirements=snapshot.requirements,
-    )
-    with pytest.raises(FileNotFoundError):
-        build_merged_resolved(tmp_path, "x-agent", library=agent_only)
-    with pytest.raises(ValueError):
-        build_merged_resolved(tmp_path, "other-agent", library=agent_only)
-
-
-def test_snapshot_rejects_textless_entry() -> None:
-    offline = build_offline_resolved(REPO, "studio-tester")
-    broken_rule = offline.rules[0].model_copy(update={"content": {}})
-    with pytest.raises(ValueError):
-        LibrarySnapshot.from_resolved(
-            offline.model_copy(update={"rules": [broken_rule, *offline.rules[1:]]})
-        )
-
-
-def test_merged_corrupt_project_file_never_falls_back(tmp_path: Path) -> None:
-    definitions = tmp_path / ".agents" / "definitions"
-    definitions.mkdir(parents=True)
-    definitions.joinpath("x-agent.md").write_text("no frontmatter here\n", encoding="utf-8")
-    snapshot = LibrarySnapshot.from_resolved(build_offline_resolved(REPO, "studio-tester"))
-    with pytest.raises(ValueError):
-        build_merged_resolved(tmp_path, "x-agent", library=snapshot)
