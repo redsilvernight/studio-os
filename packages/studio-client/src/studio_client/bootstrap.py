@@ -1,15 +1,17 @@
 """Local project bundle generator (AI Bootstrap P3, task c691ac49).
 
-Offline-first: the bundle is assembled from the canonical `.agents/` sources
-(`build_offline_resolved`) and projected through the local adapters, then
-observed against the working tree and materialized with backups. The manifest
-(`.agents/bootstrap.json`, `studio.bootstrap/v1`) fixes the target harnesses and
-the generation policy; the dry-run report conforms to the P1 contract
+The bundle is the Library resolution fetched by the caller
+(`projection_source.fetch_projection_bundle`) and projected through the local
+adapters, then observed against the working tree and materialized with backups.
+The manifest (`.studio/bootstrap.json`, `studio.bootstrap/v1`; the legacy
+`.agents/bootstrap.json` is still read) fixes the target harnesses and the
+generation policy; the dry-run report conforms to the P1 contract
 (`BootstrapDryRunReport`).
 
-No network, no resolution engine: `resolve_full` stays the only
-version-truthful path (DEC-0144). A second run of `sync` writes nothing, and
-`rollback` restores the exact state before the last `sync` from its journal.
+This module does no I/O to the server and no resolution: `resolve_full` stays
+the only version-truthful path (DEC-0144). A second run of `sync` writes
+nothing, and `rollback` restores the exact state before the last `sync` from
+its journal.
 """
 
 from __future__ import annotations
@@ -53,9 +55,9 @@ from studio_client.canonical import (
     AGENTS_END_MARKER,
     CLAUDE_BEGIN_MARKER,
     CLAUDE_END_MARKER,
+    PROTOCOL_PATH,
     agents_rules_current_with,
     legacy_rules_text,
-    merge_agents_rules,
     merge_agents_rules_with,
     render_agents_rules_block_from,
     render_claude_md_block_from,
@@ -69,9 +71,10 @@ from studio_client.drift import (
     classify_state,
     divergence_state,
 )
-from studio_client.projection_source import ProjectionBundle, bundle_from_repo
+from studio_client.projection_source import ProjectionBundle
 
-MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
+MANIFEST_RELATIVE_PATH = ".studio/bootstrap.json"
+LEGACY_MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
 AGENTS_MD_PATH = "AGENTS.md"
 CLAUDE_MD_PATH = "CLAUDE.md"
 BACKUP_RELATIVE_DIR = ".studio-os/backups/bootstrap"
@@ -138,7 +141,11 @@ class BackupJournal:
 
 
 def manifest_path(repo_root: Path | str) -> Path:
-    return Path(repo_root) / Path(*MANIFEST_RELATIVE_PATH.split("/"))
+    """The manifest to read: the current path, else the legacy one when only it exists."""
+    root = Path(repo_root)
+    current = root / Path(*MANIFEST_RELATIVE_PATH.split("/"))
+    legacy = root / Path(*LEGACY_MANIFEST_RELATIVE_PATH.split("/"))
+    return legacy if not current.is_file() and legacy.is_file() else current
 
 
 def make_manifest(
@@ -160,7 +167,7 @@ def make_manifest(
 
 def load_manifest(repo_root: Path | str) -> BootstrapManifest:
     root = Path(repo_root)
-    path = _safe_target(root, MANIFEST_RELATIVE_PATH)
+    path = _safe_target(root, manifest_path(root).relative_to(root).as_posix())
     if not path.is_file():
         raise BootstrapError(
             f"no manifest at {MANIFEST_RELATIVE_PATH}; run `studio-client bootstrap init` first"
@@ -193,7 +200,7 @@ def load_manifest(repo_root: Path | str) -> BootstrapManifest:
 def write_manifest(
     repo_root: Path | str, manifest: BootstrapManifest, *, overwrite: bool = False
 ) -> Path:
-    path = manifest_path(repo_root)
+    path = Path(repo_root) / Path(*MANIFEST_RELATIVE_PATH.split("/"))
     text = json.dumps(manifest.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"
     _write_text(path, text, overwrite=overwrite)
     return path
@@ -202,16 +209,11 @@ def write_manifest(
 def plan_files(
     repo_root: Path | str,
     manifest: BootstrapManifest,
-    bundle: ProjectionBundle | None = None,
+    bundle: ProjectionBundle,
 ) -> list[PlannedFile]:
     """Deterministic expected output: agent projections per targeted harness,
     then rule projections, then skill projections per targeted harness, then
-    the `AGENTS.md` and `CLAUDE.md` managed blocks. `bundle` defaults to the
-    canonical `.agents/` files of `repo_root`."""
-    try:
-        bundle = bundle if bundle is not None else bundle_from_repo(repo_root)
-    except (ValueError, OSError) as exc:
-        raise BootstrapError(f"cannot read canonical sources: {exc}") from exc
+    the `AGENTS.md` and `CLAUDE.md` managed blocks, all from the Library `bundle`."""
     files: list[PlannedFile] = []
     for ref in manifest.harnesses:
         try:
@@ -260,6 +262,8 @@ def plan_files(
         for relative, content in sorted(projected_skills.items()):
             if relative.startswith(prefix):
                 files.append(PlannedFile(path=relative, content=content, kind="skill"))
+    if bundle.protocol is not None:
+        files.append(PlannedFile(path=PROTOCOL_PATH, content=bundle.protocol, kind="rule"))
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH,
@@ -284,7 +288,7 @@ def observe(
     repo_root: Path | str,
     manifest: BootstrapManifest,
     *,
-    planned: list[PlannedFile] | None = None,
+    planned: list[PlannedFile],
     managed_hashes: Mapping[str, str] | None = None,
 ) -> BootstrapDryRunReport:
     """Read-only: the current state of every planned file as a P1 report.
@@ -296,7 +300,6 @@ def observe(
     with an `unmanaged_target` conflict: the depot never wins silently.
     `INCOMPATIBLE` planned files are reported as-is, never read from disk."""
     root = Path(repo_root)
-    planned = planned if planned is not None else plan_files(root, manifest)
     hashes = dict(managed_hashes) if managed_hashes is not None else managed_markers(root)
     reports: list[BootstrapFileReport] = []
     unmanaged: list[str] = []
@@ -351,7 +354,7 @@ def plan_divergences(
     repo_root: Path | str,
     manifest: BootstrapManifest,
     *,
-    planned: list[PlannedFile] | None = None,
+    planned: list[PlannedFile],
     managed_hashes: Mapping[str, str] | None = None,
 ) -> DivergencePlan:
     """Read-only: every whole-file projection edited locally, with the managed
@@ -359,7 +362,6 @@ def plan_divergences(
     `outdated`, not divergent; managed blocks are excluded because their base is
     a merged document rather than a file. Nothing on disk is written."""
     root = Path(repo_root)
-    planned = planned if planned is not None else plan_files(root, manifest)
     hashes = dict(managed_hashes) if managed_hashes is not None else {}
     files: list[DivergentFile] = []
     for item in planned:
@@ -383,10 +385,9 @@ def diff_text(
     repo_root: Path | str,
     manifest: BootstrapManifest,
     *,
-    planned: list[PlannedFile] | None = None,
+    planned: list[PlannedFile],
 ) -> str:
     root = Path(repo_root)
-    planned = planned if planned is not None else plan_files(root, manifest)
     chunks: list[str] = []
     for item in planned:
         if item.incompatible:
@@ -419,7 +420,7 @@ def apply_files(
     manifest: BootstrapManifest,
     report: BootstrapDryRunReport,
     *,
-    planned: list[PlannedFile] | None = None,
+    planned: list[PlannedFile],
     confirm: bool = False,
     overwrite: Collection[str] = (),
 ) -> list[str]:
@@ -429,7 +430,6 @@ def apply_files(
     never wrote is only replaced when its path is named in `overwrite`: a
     blanket confirmation is not a choice about somebody else's file."""
     root = Path(repo_root)
-    planned = planned if planned is not None else plan_files(root, manifest)
     named = frozenset(overwrite)
     blocking = [
         conflict
@@ -551,10 +551,14 @@ def list_backups(repo_root: Path | str) -> list[BackupJournal]:
 
 
 def sync(
-    repo_root: Path | str, manifest: BootstrapManifest, *, confirm: bool = False
+    repo_root: Path | str,
+    manifest: BootstrapManifest,
+    bundle: ProjectionBundle,
+    *,
+    confirm: bool = False,
 ) -> tuple[BootstrapDryRunReport, list[str]]:
     root = Path(repo_root)
-    planned = plan_files(root, manifest)
+    planned = plan_files(root, manifest, bundle)
     report = observe(root, manifest, planned=planned)
     written = apply_files(root, manifest, report, planned=planned, confirm=confirm)
     return report, written
@@ -633,15 +637,11 @@ def _merge_block(
     block: str,
     markers: tuple[str, str],
     *,
-    repo_root: Path | None = None,
     legacy: str | None = None,
 ) -> str:
-    if markers[0] == AGENTS_BEGIN_MARKER and (repo_root is not None or legacy is not None):
+    if markers[0] == AGENTS_BEGIN_MARKER and legacy is not None:
         try:
-            if legacy is not None:
-                return merge_agents_rules_with(block, legacy, existing)
-            if repo_root is not None:
-                return merge_agents_rules(repo_root, existing)
+            return merge_agents_rules_with(block, legacy, existing)
         except ValueError as exc:
             raise BootstrapError(str(exc)) from exc
     begin, end_marker = markers

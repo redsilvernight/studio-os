@@ -53,6 +53,7 @@ from studio_client.errors import StudioApiError
 from studio_client.harness.base import AccessMode, AdapterRefusal, HarnessAdapter, HarnessContext
 from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
+from studio_client.projection_source import fetch_projection_bundle
 from studio_client.usage.collectors import RunObservation
 from studio_client.usage.recorder import LaunchUsageRecorder
 
@@ -389,7 +390,13 @@ class LaunchExecutor:
         observed = projections = None
         if worktree is not None:
             observed = await asyncio.to_thread(self._preparer.observe, worktree)
-            projections = await asyncio.to_thread(projection_digests, worktree.path)
+            try:
+                bundle = await fetch_projection_bundle(self._client, launch.project_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                bundle = None
+            projections = await asyncio.to_thread(projection_digests, worktree.path, bundle)
         profile = resolved.profile
         try:
             policy: MachinePolicy | None = self._policy()

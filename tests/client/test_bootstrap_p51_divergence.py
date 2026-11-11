@@ -6,36 +6,33 @@ writes the file it reports.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
-from studio_client import cli
-from studio_client.bootstrap import load_manifest, observe, plan_divergences
+from studio_client import bootstrap
+from studio_client.bootstrap import (
+    load_manifest,
+    make_manifest,
+    observe,
+    plan_divergences,
+    plan_files,
+    write_manifest,
+)
 from studio_client.canonical import AGENTS_BEGIN_MARKER
 from studio_client.drift import divergence_state, hash_text
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.library_bundle import make_agent, sample_bundle
+
 AGENT_PATH = ".claude/agents/studio-tester.md"
 
 
 def _synced_repo(tmp_path: Path) -> Path:
-    shutil.copytree(REPO / ".agents", tmp_path / ".agents")
-    cli.main(
-        [
-            "bootstrap",
-            "init",
-            "--project-slug",
-            "demo",
-            "--project-name",
-            "Demo",
-            "--harness",
-            "claude-code",
-            "--repo-root",
-            str(tmp_path),
-        ]
-    )
-    cli.main(["bootstrap", "sync", "--repo-root", str(tmp_path)])
+    write_manifest(tmp_path, make_manifest("demo", "Demo", ["claude-code"]))
+    bootstrap.sync(tmp_path, load_manifest(tmp_path), sample_bundle(), confirm=True)
     return tmp_path
+
+
+def _planned(repo: Path, bundle=None):  # noqa: ANN001, ANN202
+    return plan_files(repo, load_manifest(repo), bundle or sample_bundle())
 
 
 def _snapshot(root: Path) -> dict[str, bytes]:
@@ -54,7 +51,7 @@ def test_divergent_file_exposes_base_and_local_without_writing(tmp_path: Path) -
     target.write_text(edited, encoding="utf-8")
     before = _snapshot(repo)
 
-    plan = plan_divergences(repo, load_manifest(repo))
+    plan = plan_divergences(repo, load_manifest(repo), planned=_planned(repo))
 
     assert plan.paths == (AGENT_PATH,)
     entry = plan.files[0]
@@ -68,7 +65,7 @@ def test_divergent_file_exposes_base_and_local_without_writing(tmp_path: Path) -
 def test_up_to_date_projections_are_not_divergent(tmp_path: Path) -> None:
     repo = _synced_repo(tmp_path)
 
-    plan = plan_divergences(repo, load_manifest(repo))
+    plan = plan_divergences(repo, load_manifest(repo), planned=_planned(repo))
 
     assert not plan
     assert plan.files == ()
@@ -78,13 +75,22 @@ def test_file_still_matching_its_managed_hash_is_outdated_not_divergent(tmp_path
     repo = _synced_repo(tmp_path)
     target = repo / AGENT_PATH
     generated = target.read_text(encoding="utf-8")
-    definition = repo / ".agents" / "definitions" / "studio-tester.md"
-    definition.write_text(
-        definition.read_text(encoding="utf-8") + "\ncanonical change\n", encoding="utf-8"
+    changed = sample_bundle()
+    agents = dict(changed.agents)
+    agents["studio-tester"] = make_agent("studio-tester", instructions="Canonical change.\n")
+    changed = type(changed)(
+        agents=agents,
+        rules=changed.rules,
+        skills=changed.skills,
+        skill_files=changed.skill_files,
+        protocol=changed.protocol,
     )
 
     plan = plan_divergences(
-        repo, load_manifest(repo), managed_hashes={AGENT_PATH: hash_text(generated)}
+        repo,
+        load_manifest(repo),
+        planned=_planned(repo, changed),
+        managed_hashes={AGENT_PATH: hash_text(generated)},
     )
 
     assert not plan
@@ -99,10 +105,11 @@ def test_managed_block_edits_are_not_whole_file_divergences(tmp_path: Path) -> N
         encoding="utf-8",
     )
     manifest = load_manifest(repo)
-    report = observe(repo, manifest)
+    planned = _planned(repo)
+    report = observe(repo, manifest, planned=planned)
     assert any(item.path == "AGENTS.md" and item.state == "modified" for item in report.files)
 
-    plan = plan_divergences(repo, manifest)
+    plan = plan_divergences(repo, manifest, planned=planned)
 
     assert not plan
 

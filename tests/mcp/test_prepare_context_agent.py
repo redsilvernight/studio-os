@@ -16,7 +16,6 @@ from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import Principal, load_principal
 from studio_client.adapters import get_adapter
-from studio_client.canonical import build_offline_resolved
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate
 from studio_contracts.library import (
     DependencyPin,
@@ -27,6 +26,7 @@ from studio_contracts.library import (
 from studio_contracts.tasks import TaskCreate
 from studio_mcp.tools.context import studio_prepare_context
 
+from tests.library_bundle import make_agent, make_rule
 from tests.library_seed import studio_admin
 from tests.mcp.conftest import FakeContext
 
@@ -153,8 +153,13 @@ async def test_cross_harness_resume(
     """P3.9: Agent A configured from the Claude projection, Agent B from the
     OpenCode projection of the SAME canonical source. B has zero A history
     and still resumes via one prepare_context."""
-    claude_cfg = get_adapter("claude-code").translate(build_offline_resolved(REPO, "studio-tester"))
-    opencode_cfg = get_adapter("opencode").translate(build_offline_resolved(REPO, "studio-tester"))
+    canon = make_agent(
+        "studio-tester",
+        instructions="You are the QA specialist.\n",
+        rules=[make_rule("python-conventions", "Type everything.\n")],
+    )
+    claude_cfg = get_adapter("claude-code").translate(canon)
+    opencode_cfg = get_adapter("opencode").translate(canon)
     # Same canon, two envelopes: identical instructions and rule sets.
     assert "You are the QA specialist" in claude_cfg.artifacts[0].content
     assert "You are the QA specialist" in opencode_cfg.artifacts[0].content

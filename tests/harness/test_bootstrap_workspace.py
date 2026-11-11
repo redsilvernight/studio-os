@@ -24,6 +24,7 @@ from studio_contracts.local.identity import ProfileRef
 from studio_workspaces import register_workspace
 
 from tests.harness.support import FakeProvisioner, base_env, install_fake
+from tests.library_bundle import sample_bundle
 
 PROFILE = ProfileRef(profile_id="default", server_origin="https://studio.example")
 
@@ -98,12 +99,13 @@ def test_cli_init_detects_and_sync_wires(
     monkeypatch.setenv("PATH", machine.env["PATH"])
     monkeypatch.setenv("HOME", str(machine.home))
     monkeypatch.setenv("USERPROFILE", str(machine.home))
+    monkeypatch.setattr(cli, "_projection_bundle", lambda args, config: sample_bundle())
     common = ["--repo-root", str(machine.repo), "--registry-dir", str(machine.registry)]
     cli.main(
         ["bootstrap", "init", "--project-slug", "demo", "--project-name", "Demo", "--json", *common]
     )
     assert json.loads(capsys.readouterr().out)["harnesses"] == ["codex"]
-    cli.main(["bootstrap", "sync", "--wire-mcp", "--json", *common])
+    cli.main(["bootstrap", "sync", "--wire-mcp", "--json", "--project-id", str(uuid4()), *common])
     out = json.loads(capsys.readouterr().out)
     assert out["mcp"] == [{"adapter_id": "codex", "applied": False, "changes": 1}]
     assert not machine.codex_config.exists()
@@ -115,6 +117,7 @@ def test_cli_wire_mcp_needs_a_registered_workspace(
     repo = tmp_path / "repo"
     repo.mkdir()
     monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "https://studio.example")
+    monkeypatch.setattr(cli, "_projection_bundle", lambda args, config: sample_bundle())
     common = ["--repo-root", str(repo), "--registry-dir", str(tmp_path / "registry")]
     cli.main(
         [
@@ -130,5 +133,5 @@ def test_cli_wire_mcp_needs_a_registered_workspace(
         ]
     )
     with pytest.raises(SystemExit) as exc:
-        cli.main(["bootstrap", "sync", "--wire-mcp", *common])
+        cli.main(["bootstrap", "sync", "--wire-mcp", "--project-id", str(uuid4()), *common])
     assert exc.value.code == 1

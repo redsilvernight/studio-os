@@ -43,10 +43,11 @@ from studio_contracts.local.machine_setup import (
     SetupUnavailableReason,
 )
 
-from studio_client.adapters_check import check_adapters, has_canonical_definitions
+from studio_client.adapters_check import check_adapters
 from studio_client.config import ClientConfig
 from studio_client.daemon import skills_bridge
 from studio_client.daemon.local_features import LocalFeatureError
+from studio_client.daemon.project_projections import RepoTarget, _fetch_bundle
 from studio_client.errors import AuthenticationError, StudioApiError
 from studio_client.hooks import HARNESSES
 from studio_client.machine_setup import (
@@ -121,6 +122,7 @@ class SetupBridge:
         *,
         home: Callable[[], Path] = Path.home,
         roots: Callable[[], Sequence[Path]] = lambda: (),
+        targets: Callable[[], Sequence[RepoTarget]] = lambda: (),
         path_dirs: Callable[[], Sequence[str]] = _path_dirs,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
@@ -128,6 +130,7 @@ class SetupBridge:
         self._token_store = token_store
         self._home = home
         self._roots = roots
+        self._targets = targets
         self._path_dirs = path_dirs
         self._clock = clock
         self._plans: dict[str, _StoredPlan] = {}
@@ -230,22 +233,23 @@ class SetupBridge:
         return step, plan
 
     def _check_adapters(self) -> SetupAdaptersStep:
-        roots = [root for root in self._roots() if has_canonical_definitions(root)]
-        if not roots:
+        targets = [target for target in self._targets() if target.repo_path.is_dir()]
+        if not targets:
             return SetupAdaptersStep(state=SetupAdaptersState.NOT_APPLICABLE)
         checked = 0
         drifted = 0
         try:
-            for root in roots:
-                report = check_adapters(root)
+            for target in targets:
+                bundle = _fetch_bundle(self._config, self._token_store, target.project_id)
+                report = check_adapters(target.repo_path, bundle)
                 checked += report.checked
                 drifted += len({(f["adapter"], f["key"]) for f in report.failures})
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, StudioApiError, AuthenticationError) as exc:
             _LOGGER.warning("setup.plan: adapters check failed (%s)", type(exc).__name__)
-            return SetupAdaptersStep(state=SetupAdaptersState.UNAVAILABLE, workspaces=len(roots))
+            return SetupAdaptersStep(state=SetupAdaptersState.UNAVAILABLE, workspaces=len(targets))
         return SetupAdaptersStep(
             state=SetupAdaptersState.CHECKED,
-            workspaces=len(roots),
+            workspaces=len(targets),
             checked=checked,
             drifted=min(drifted, checked),
         )

@@ -33,12 +33,12 @@ DEFINITION = "00000000-0000-0000-0000-000000000005"
 HASH = "a" * 64
 START = {"project_id": PROJECT, "agent_id": AGENT, "task_id": TASK}
 PREPARE = {"project_id": PROJECT, "task_id": TASK}
-RULE = ".agents/rules/studio-protocol.md"
-TASK_SKILL = ".agents/skills/studio-task/SKILL.md"
-CONTEXT_SKILL = ".agents/skills/studio-context/SKILL.md"
-HANDOFF_SKILL = ".agents/skills/studio-handoff/SKILL.md"
-COMPLETION_RULES = ".agents/skills/studio-task/references/completion.md"
-ROLES = ".agents/skills/studio-task/references/roles.md"
+RULE = ".studio/studio-protocol.md"
+TASK_SKILL = ".claude/skills/studio-task/SKILL.md"
+CONTEXT_SKILL = ".claude/skills/studio-context/SKILL.md"
+HANDOFF_SKILL = ".claude/skills/studio-handoff/SKILL.md"
+COMPLETION_RULES = ".claude/skills/studio-task/references/completion.md"
+ROLES = ".claude/skills/studio-task/references/roles.md"
 
 
 def _signature(tool: str) -> inspect.Signature:

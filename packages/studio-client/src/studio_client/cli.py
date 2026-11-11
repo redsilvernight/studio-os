@@ -776,21 +776,6 @@ def _adapters_list(args: argparse.Namespace, config: ClientConfig) -> None:
             print(f"{adapter_id}\t{get_adapter(adapter_id).managed_dir}")
 
 
-def _fetch_library_snapshot(
-    args: argparse.Namespace, config: ClientConfig | None, stable_key: str
-) -> Any:
-    """Fetch one Library snapshot for `--with-library` (P4/AIB-D, DEC-0168).
-    Fail closed: transport/auth errors exit inside `_run`, never fall back
-    to offline silently."""
-    assert config is not None  # Library fetch needs the API configuration.
-    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
-
-    async def action(client: StudioApiClient) -> Any:
-        return await client.fetch_library_snapshot(stable_key, project_id=project_id)
-
-    return _run(config, action)
-
-
 def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Resolve one AgentDefinition over P7 HTTP, then project it locally
     with `studio_client.adapters` (P10/DEC-0074).
@@ -806,26 +791,6 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> N
     except AdapterError as exc:
         print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
         raise SystemExit(1) from None
-
-    if args.with_library and not args.from_canonical:
-        print("error: --with-library requires --from-canonical", file=sys.stderr)
-        raise SystemExit(1)
-
-    if args.from_canonical:
-        from studio_client.canonical import build_merged_resolved, build_offline_resolved
-
-        try:
-            if args.with_library:
-                library = _fetch_library_snapshot(args, config, args.stable_key)
-                resolved = build_merged_resolved(args.repo_root, args.stable_key, library=library)
-            else:
-                resolved = build_offline_resolved(args.repo_root, args.stable_key)
-            result = adapter.translate(resolved)
-        except (AdapterError, ValueError, OSError) as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            raise SystemExit(1) from None
-        _print_export_result(adapter, result, args)
-        return
 
     project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
     if args.with_context and project_id is None:
@@ -903,13 +868,7 @@ def _print_export_result(adapter: Any, result: Any, args: argparse.Namespace) ->
 
 
 def _projection_bundle(args: argparse.Namespace, config: ClientConfig | None) -> Any:
-    """`--from-library`: the projection source is the Library resolution of
-    `--project-id` (P40), never `.agents/`. None keeps the file source."""
-    if not args.from_library:
-        return None
-    if not args.project_id:
-        print("error: --from-library requires --project-id", file=sys.stderr)
-        raise SystemExit(1)
+    """The projection source is the Library resolution of `--project-id`."""
     from studio_client.projection_source import fetch_projection_bundle
 
     assert config is not None  # Library fetch needs the API configuration.
@@ -921,34 +880,27 @@ def _projection_bundle(args: argparse.Namespace, config: ClientConfig | None) ->
     return _run(config, action)
 
 
-def _projection_manifest(args: argparse.Namespace, bundle: Any) -> Any:
-    """The manifest file when present; with a Library bundle and no file, all
-    local adapters."""
+def _projection_manifest(args: argparse.Namespace) -> Any:
+    """The manifest file when present, else all local adapters."""
     from studio_client.adapters import list_adapters
-    from studio_client.bootstrap import MANIFEST_RELATIVE_PATH, load_manifest, make_manifest
+    from studio_client.bootstrap import load_manifest, make_manifest, manifest_path
 
-    if bundle is not None and not (Path(args.repo_root) / MANIFEST_RELATIVE_PATH).is_file():
+    if not manifest_path(args.repo_root).is_file():
         return make_manifest("library-projection", "Library projection", list(list_adapters()))
     return load_manifest(args.repo_root)
 
 
 def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Anti-drift gate (P3.7): managed harness files must equal a fresh
-    offline export of the canonical definitions. Never merges — reports
-    every mismatch and exits non-zero."""
+    projection of the Library resolution of `--project-id`. Never merges —
+    reports every mismatch and exits non-zero."""
     from studio_client.adapters_check import check_adapters
 
-    if args.from_library and args.with_library:
-        print("error: --from-library and --with-library are exclusive", file=sys.stderr)
-        raise SystemExit(1)
     outcome = check_adapters(
         Path(args.repo_root),
+        _projection_bundle(args, config),
         adapter_id=args.adapter,
         stable_key=args.stable_key,
-        bundle=_projection_bundle(args, config),
-        library_for=(
-            (lambda key: _fetch_library_snapshot(args, config, key)) if args.with_library else None
-        ),
     )
     checked = outcome.checked
     failures = list(outcome.failures)
@@ -985,7 +937,7 @@ def _registered_workspace(
 
 
 def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> None:
-    """Write the `.agents/bootstrap.json` manifest (P3, offline)."""
+    """Write the `.studio/bootstrap.json` manifest (P3, offline)."""
     from studio_client.adapters import list_adapters
     from studio_client.bootstrap import BootstrapError, make_manifest, write_manifest
 
@@ -1049,7 +1001,7 @@ def _bootstrap_report(
 
     try:
         bundle = _projection_bundle(args, config)
-        manifest = _projection_manifest(args, bundle)
+        manifest = _projection_manifest(args)
         planned = plan_files(args.repo_root, manifest, bundle)
         report = observe(args.repo_root, manifest, planned=planned)
         diff = diff_text(args.repo_root, manifest, planned=planned) if emit_diff else ""
@@ -1129,7 +1081,7 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
 
     try:
         bundle = _projection_bundle(args, config)
-        manifest = _projection_manifest(args, bundle)
+        manifest = _projection_manifest(args)
         planned = plan_files(args.repo_root, manifest, bundle)
         report = observe(args.repo_root, manifest, planned=planned)
         written = apply_files(
@@ -1235,11 +1187,14 @@ def _bootstrap_rebuild(args: argparse.Namespace, config: ClientConfig) -> None:
 
     project_id = _parse_uuid(args.project_id, field="project_id")
     registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    bundle = _projection_bundle(args, config)
     try:
         profile = ProfileRef(
             profile_id=config.profile_id, server_origin=origin_of(config.api_base_url)
         )
-        result = rebuild(args.repo_root, registry_dir, profile, project_id, confirm=args.yes)
+        result = rebuild(
+            args.repo_root, registry_dir, profile, project_id, bundle, confirm=args.yes
+        )
     except BootstrapError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -1578,149 +1533,6 @@ def _library_dependency_updates(args: argparse.Namespace, config: ClientConfig) 
 
     result = _run(config, action)
     print(result.model_dump_json(indent=2))
-
-
-def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
-    """Publish canonical `.agents/` rules, skills and agent definitions to the
-    Library (P4). Reads are always allowed; nothing is written with
-    `--dry-run`, and nothing activates without `--activate`."""
-    from studio_contracts.library import LibraryScope
-
-    from studio_client.publish import PublishError, build_publish_items, publish_items
-
-    scope = LibraryScope(args.scope)
-    project_id = UUID(args.project_id) if args.project_id else None
-    kinds = tuple(args.kind) if args.kind else ("rule", "skill", "agent")
-    try:
-        items = build_publish_items(args.repo_root, kinds=kinds, keys=args.key)
-
-        async def action(client: StudioApiClient) -> Any:
-            return await publish_items(
-                client,
-                items,
-                scope=scope,
-                project_id=project_id,
-                activate=args.activate,
-                dry_run=args.dry_run,
-            )
-
-        results = _run(config, action)
-    except (PublishError, FileNotFoundError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
-    if args.json:
-        print(
-            json.dumps(
-                {"dry_run": args.dry_run, "results": [vars(result) for result in results]},
-                indent=2,
-            )
-        )
-        return
-    for result in results:
-        suffix = " (activated)" if result.activated else ""
-        print(f"{result.kind}\t{result.stable_key}\tv{result.version}\t{result.action}{suffix}")
-    changed = sum(1 for result in results if result.action != "unchanged")
-    verb = "would publish" if args.dry_run else "published"
-    print(f"{verb} {changed} of {len(results)} resources")
-
-
-def _library_import_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
-    """P43 gate: the harness projections rebuilt from the Library contents
-    (`.agents/` published in memory) must equal the committed files. Read-only,
-    offline, exits 1 on any gap that is not `excluded`."""
-    from studio_client.library_equivalence import DifferenceNature, check_equivalence
-
-    _ = config
-    try:
-        differences = check_equivalence(args.repo_root)
-    except (OSError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
-    failures = [item for item in differences if item.nature.blocking]
-    unprojected = sum(1 for item in differences if item.nature is DifferenceNature.UNPROJECTED)
-    excluded = sum(1 for item in differences if item.nature is DifferenceNature.EXCLUDED)
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "differences": [item.to_dict() for item in differences],
-                    "failures": len(failures),
-                    "unprojected": unprojected,
-                    "excluded": excluded,
-                },
-                indent=2,
-            )
-        )
-    else:
-        for item in differences:
-            detail = f"  ({item.detail})" if item.detail else ""
-            print(f"{item.nature.value:11} {item.path}{detail}")
-        print(f"gaps {len(failures)}, unprojected {unprojected}, excluded {excluded}")
-    if failures:
-        raise SystemExit(1)
-
-
-def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
-    """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
-    AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
-    backed up first."""
-    from studio_client.bootstrap import backup_file, backup_root_for
-    from studio_client.canonical import (
-        canonical_rule_keys,
-        load_rule_meta,
-        merge_agents_rules,
-        render_claude_rule,
-        skill_projections,
-    )
-
-    _ = config
-    root = Path(args.repo_root)
-    agents_md = root / "AGENTS.md"
-    text = agents_md.read_text(encoding="utf-8") if agents_md.exists() else ""
-    try:
-        updated = merge_agents_rules(root, text)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
-    backup_root = backup_root_for(root)
-    written: list[str] = []
-    for key in canonical_rule_keys(root):
-        applies_to, body = load_rule_meta(root, key)
-        target = root / ".claude" / "rules" / f"{key}.md"
-        content = render_claude_rule(key, applies_to, body)
-        if target.is_file() and target.read_text(encoding="utf-8") == content:
-            continue
-        if target.exists() and not args.overwrite:
-            print(f"skip {target} (exists, pass --overwrite)")
-            continue
-        if target.exists():
-            backup_file(root, target.relative_to(root).as_posix(), backup_root)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        written.append(str(target))
-
-    if updated != text:
-        if agents_md.exists():
-            backup_file(root, "AGENTS.md", backup_root)
-        agents_md.write_text(updated, encoding="utf-8")
-        written.append(str(agents_md))
-    for relative, content in skill_projections(root).items():
-        target = root / relative
-        if target.is_file() and target.read_text(encoding="utf-8") == content:
-            continue
-        if target.exists() and not args.overwrite:
-            print(f"skip {target} (exists, pass --overwrite)")
-            continue
-        if target.exists():
-            backup_file(root, relative, backup_root)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        written.append(str(target))
-    if args.json:
-        print(json.dumps({"written": written}))
-    else:
-        for path in written:
-            print(f"Wrote {path}.")
 
 
 _SKILL_TARGET_LABELS = {"opencode": "opencode(~/.config/opencode/skills)"}
@@ -2283,17 +2095,6 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(adapters_list)
     adapters_list.set_defaults(func=_adapters_list)
 
-    adapters_sync = adapters_sub.add_parser(
-        "sync",
-        help="Generate project rule and workflow projections from .agents (legacy: rules sync).",
-    )
-    adapters_sync.add_argument("--repo-root", default=".", help="Repository root.")
-    adapters_sync.add_argument(
-        "--overwrite", action="store_true", help="Back up and replace projections."
-    )
-    _add_json_flag(adapters_sync)
-    adapters_sync.set_defaults(func=_rules_sync)
-
     adapters_export = adapters_sub.add_parser(
         "export", help="Resolve an agent (P7 HTTP) and translate it locally."
     )
@@ -2314,58 +2115,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Attach a generic P9 Context Package (requires --project-id).",
     )
     adapters_export.add_argument("--library-limit", type=int, default=100)
-    adapters_export.add_argument(
-        "--from-canonical",
-        action="store_true",
-        help="Build from `.agents/definitions/` files (authoring source, no server).",
-    )
-    adapters_export.add_argument(
-        "--with-library",
-        action="store_true",
-        help="Merge the Library snapshot over --from-canonical (needs API access).",
-    )
-    adapters_export.add_argument(
-        "--repo-root",
-        default=".",
-        help="Repository root for --from-canonical and check (default: cwd).",
-    )
     _add_json_flag(adapters_export)
     adapters_export.set_defaults(func=_adapters_export)
 
     adapters_check = adapters_sub.add_parser(
         "check",
-        help="Fail when managed harness files drift from the canonical definitions.",
+        help="Fail when managed harness files drift from the Library resolution.",
     )
     adapters_check.add_argument("--adapter", help="Check one adapter id (default: all).")
     adapters_check.add_argument("--stable-key", help="Check one agent key (default: all).")
     adapters_check.add_argument("--repo-root", default=".", help="Repository root.")
-    adapters_check.add_argument(
-        "--from-library",
-        action="store_true",
-        help="Check against the Library resolution of --project-id instead of `.agents/` (P40).",
-    )
-    adapters_check.add_argument("--project-id", help="Project UUID for --with-library.")
-    adapters_check.add_argument(
-        "--with-library",
-        action="store_true",
-        help="Merge the Library snapshot per key before translating (needs API access).",
-    )
+    adapters_check.add_argument("--project-id", required=True, help="Project UUID.")
     _add_json_flag(adapters_check)
     adapters_check.set_defaults(func=_adapters_check)
-
-    rules_parser = subparsers.add_parser(
-        "rules", help="Project rule projections from `.agents/rules/` (P3)."
-    )
-    rules_sub = rules_parser.add_subparsers(dest="rules_command", required=True)
-    rules_sync = rules_sub.add_parser(
-        "sync", help="Regenerate `.claude/rules/` and the AGENTS.md rules block."
-    )
-    rules_sync.add_argument("--repo-root", default=".", help="Repository root.")
-    rules_sync.add_argument(
-        "--overwrite", action="store_true", help="Replace existing projection files."
-    )
-    _add_json_flag(rules_sync)
-    rules_sync.set_defaults(func=_rules_sync)
 
     skills_parser = subparsers.add_parser(
         "skills", help="Synchronize active Studio Library skills to local AI harnesses."
@@ -2487,47 +2249,14 @@ def _build_parser() -> argparse.ArgumentParser:
     library_updates.add_argument("--limit", type=int, default=20)
     library_updates.add_argument("--offset", type=int, default=0)
     library_updates.set_defaults(func=_library_dependency_updates)
-    library_publish = library_sub.add_parser(
-        "publish",
-        help="Publish `.agents/` rules, skills, agents to the Library (drafts unless --activate).",
-    )
-    library_publish.add_argument("--repo-root", default=".", help="Repository root.")
-    library_publish.add_argument(
-        "--scope", choices=("studio", "project"), default="project", help="Target scope."
-    )
-    library_publish.add_argument("--project-id", help="Project UUID (required for project scope).")
-    library_publish.add_argument(
-        "--kind",
-        action="append",
-        choices=("rule", "skill", "agent"),
-        help="Restrict to a kind (repeatable); default all.",
-    )
-    library_publish.add_argument(
-        "--key", action="append", default=[], help="Restrict to a stable key (repeatable)."
-    )
-    library_publish.add_argument(
-        "--activate", action="store_true", help="Activate the published versions."
-    )
-    library_publish.add_argument(
-        "--dry-run", action="store_true", help="Report what would change; write nothing."
-    )
-    _add_json_flag(library_publish)
-    library_publish.set_defaults(func=_library_publish)
-    library_import_check = library_sub.add_parser(
-        "import-check",
-        help="Check the Library rendering of `.agents/` against the committed projections (P43).",
-    )
-    library_import_check.add_argument("--repo-root", default=".", help="Repository root.")
-    _add_json_flag(library_import_check)
-    library_import_check.set_defaults(func=_library_import_check)
 
     bootstrap_parser = subparsers.add_parser(
-        "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
+        "bootstrap", help="Generate the project AI bundle from the Library (P3)."
     )
     bootstrap_sub = bootstrap_parser.add_subparsers(dest="bootstrap_command", required=True)
 
     bootstrap_init = bootstrap_sub.add_parser(
-        "init", help="Write the `.agents/bootstrap.json` manifest."
+        "init", help="Write the `.studio/bootstrap.json` manifest."
     )
     bootstrap_init.add_argument("--project-slug", required=True)
     bootstrap_init.add_argument("--project-name", required=True)
@@ -2548,12 +2277,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "check", help="Report bundle drift (exit 1 when out of date)."
     )
     bootstrap_check.add_argument("--repo-root", default=".")
-    bootstrap_check.add_argument(
-        "--from-library",
-        action="store_true",
-        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
-    )
-    bootstrap_check.add_argument("--project-id", help="Project UUID for --from-library.")
+    bootstrap_check.add_argument("--project-id", required=True, help="Project UUID.")
     bootstrap_check.add_argument("--registry-dir")
     _add_json_flag(bootstrap_check)
     bootstrap_check.set_defaults(func=_bootstrap_check)
@@ -2562,12 +2286,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "diff", help="Print the unified diff needed to sync the bundle."
     )
     bootstrap_diff.add_argument("--repo-root", default=".")
-    bootstrap_diff.add_argument(
-        "--from-library",
-        action="store_true",
-        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
-    )
-    bootstrap_diff.add_argument("--project-id", help="Project UUID for --from-library.")
+    bootstrap_diff.add_argument("--project-id", required=True, help="Project UUID.")
     bootstrap_diff.add_argument("--registry-dir")
     _add_json_flag(bootstrap_diff)
     bootstrap_diff.set_defaults(func=_bootstrap_diff)
@@ -2576,12 +2295,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "sync", help="Write missing or changed bundle files (idempotent)."
     )
     bootstrap_sync.add_argument("--repo-root", default=".")
-    bootstrap_sync.add_argument(
-        "--from-library",
-        action="store_true",
-        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
-    )
-    bootstrap_sync.add_argument("--project-id", help="Project UUID for --from-library.")
+    bootstrap_sync.add_argument("--project-id", required=True, help="Project UUID.")
     bootstrap_sync.add_argument("--registry-dir")
     bootstrap_sync.add_argument(
         "--yes",
@@ -2658,19 +2372,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if (
-        getattr(args, "adapters_command", None) in ("check", "sync")
-        or (
-            getattr(args, "adapters_command", None) == "export"
-            and getattr(args, "from_canonical", False)
-        )
-        or getattr(args, "rules_command", None) in ("sync",)
-        or getattr(args, "worktrees_command", None) in ("prune",)
+        getattr(args, "worktrees_command", None) in ("prune",)
         or getattr(args, "workspaces_command", None) in ("auto-link", "auto-link-consent")
-        or getattr(args, "bootstrap_command", None)
-        in ("init", "check", "diff", "sync", "rollback", "scan")
+        or getattr(args, "bootstrap_command", None) in ("init", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
         or getattr(args, "library_command", None) == "restore"
-        or getattr(args, "library_command", None) == "import-check"
         or getattr(args, "completion_command", None) == "check"
     ):
         # Offline canonical commands need no server configuration.

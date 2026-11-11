@@ -6,44 +6,25 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 
 | Décision | Nombre |
 |---|---:|
-| CORE_PUBLIC | 42 |
+| CORE_PUBLIC | 38 |
 | EXCLUDED_DUPLICATE | 6 |
 | NOT_PUBLISHABLE | 4 |
 | NOT_READY | 10 |
 | PERSONAL_PRIVATE | 16 |
-| PROJECT_SPECIFIC | 21 |
+| PROJECT_SPECIFIC | 2 |
 
 | Package | Entrées prêtes |
 |---|---:|
-| core | 42 |
-| project | 21 |
+| core | 38 |
+| project | 2 |
 | personal | 16 |
 
 ## Décisions
 
 | Origine | Type | Clé | Version | Décision | Destination | Source | Justification |
 |---|---|---|---:|---|---|---|---|
-| project | agent_definition | `contract-guardian` | 2 | PROJECT_SPECIFIC | project | `.agents/definitions/contract-guardian.md` | Agent spécialisé sur les contrats/migrations/sync/a11y de Studi'OS. Remplace project/agent_definition/contract-guardian v1. |
-| project | agent_definition | `dashboard-a11y` | 2 | PROJECT_SPECIFIC | project | `.agents/definitions/dashboard-a11y.md` | Agent spécialisé sur les contrats/migrations/sync/a11y de Studi'OS. Remplace project/agent_definition/dashboard-a11y v1. |
-| project | agent_definition | `migration-reviewer` | 2 | PROJECT_SPECIFIC | project | `.agents/definitions/migration-reviewer.md` | Agent spécialisé sur les contrats/migrations/sync/a11y de Studi'OS. Remplace project/agent_definition/migration-reviewer v1. |
-| project | agent_definition | `studio-architect` | 2 | PROJECT_SPECIFIC | project | `.agents/definitions/studio-architect.md` | Agent spécialisé sur les contrats/migrations/sync/a11y de Studi'OS. Remplace project/agent_definition/studio-architect v1. |
-| project | agent_definition | `studio-tester` | 3 | PROJECT_SPECIFIC | project | `.agents/definitions/studio-tester.md` | Agent spécialisé sur les contrats/migrations/sync/a11y de Studi'OS. Remplace project/agent_definition/studio-tester v2. |
-| project | agent_definition | `sync-debugger` | 2 | PROJECT_SPECIFIC | project | `.agents/definitions/sync-debugger.md` | Agent spécialisé sur les contrats/migrations/sync/a11y de Studi'OS. Remplace project/agent_definition/sync-debugger v1. |
 | project | model_profile | `architecture-deep` | 1 | PROJECT_SPECIFIC | project | `library/project/profiles/architecture-deep.md` | Profil de modèle des agents de revue du projet ; contenu récupéré depuis la Library. |
 | project | model_profile | `coding-standard` | 1 | PROJECT_SPECIFIC | project | `library/project/profiles/coding-standard.md` | Profil de modèle des agents de revue du projet ; contenu récupéré depuis la Library. |
-| project | rule | `contracts` | 2 | PROJECT_SPECIFIC | project | `.agents/rules/contracts.md` | Convention propre au code Studi'OS (contrats, base, sync, stockage). Remplace project/rule/contracts v1. |
-| project | rule | `database` | 2 | PROJECT_SPECIFIC | project | `.agents/rules/database.md` | Convention propre au code Studi'OS (contrats, base, sync, stockage). Remplace project/rule/database v1. |
-| project | rule | `mcp-tools` | 2 | PROJECT_SPECIFIC | project | `.agents/rules/mcp-tools.md` | Convention propre au code Studi'OS (contrats, base, sync, stockage). Remplace project/rule/mcp-tools v1. |
-| project | rule | `offline-sync` | 2 | PROJECT_SPECIFIC | project | `.agents/rules/offline-sync.md` | Convention propre au code Studi'OS (contrats, base, sync, stockage). Remplace project/rule/offline-sync v1. |
-| project | rule | `python-conventions` | 2 | PROJECT_SPECIFIC | project | `.agents/rules/python-conventions.md` | Convention propre au code Studi'OS (contrats, base, sync, stockage). Remplace project/rule/python-conventions v1. |
-| project | rule | `storage-transfers` | 2 | PROJECT_SPECIFIC | project | `.agents/rules/storage-transfers.md` | Convention propre au code Studi'OS (contrats, base, sync, stockage). Remplace project/rule/storage-transfers v1. |
-| project (nouveau) | rule | `testing` | 1 | PROJECT_SPECIFIC | project | `.agents/rules/testing.md` | Nouvel élément canonique absent du catalogue historique. Règles de test du dépôt. |
-| project | skill | `alembic-migration` | 2 | PROJECT_SPECIFIC | project | `.agents/skills/alembic-migration` | Procédure propre au dépôt Studi'OS. Remplace project/skill/alembic-migration v1. |
-| project | skill | `contract-change` | 2 | PROJECT_SPECIFIC | project | `.agents/skills/contract-change` | Procédure propre au dépôt Studi'OS. Remplace project/skill/contract-change v1. |
-| project (nouveau) | skill | `graphify` | 1 | PROJECT_SPECIFIC | project | `.agents/skills/graphify` | Nouvel élément canonique absent du catalogue historique. Dépend du lanceur `scripts/graphify-studio.ps1` du dépôt ; graphe, caches et index jamais publiés. |
-| project | skill | `offline-sync-testing` | 2 | PROJECT_SPECIFIC | project | `.agents/skills/offline-sync-testing` | Procédure propre au dépôt Studi'OS. Remplace project/skill/offline-sync-testing v1. |
-| project | skill | `openapi-sync` | 2 | PROJECT_SPECIFIC | project | `.agents/skills/openapi-sync` | Procédure propre au dépôt Studi'OS. Remplace project/skill/openapi-sync v1. |
-| project | workflow | `feature-validation` | 1 | PROJECT_SPECIFIC | project | `library/project/workflows/feature-validation.md` | Cycle architecte → contrats → tests du projet ; contenu récupéré depuis la Library. |
 | studio | agent_definition | `chef-marketing` | 1 | CORE_PUBLIC | core | `library/studio/agents/chef-marketing.md` | Spécialisé mais générique : prérequis (outils, comptes) déclarés avec repli, aucune référence personnelle ; installé seulement sur demande. |
 | studio | agent_definition | `devops` | 1 | CORE_PUBLIC | core | `library/studio/agents/devops.md` | Spécialisé mais générique : prérequis (outils, comptes) déclarés avec repli, aucune référence personnelle ; installé seulement sur demande. |
 | studio | agent_definition | `godot-tester` | 1 | CORE_PUBLIC | core | `library/studio/agents/godot-tester.md` | Spécialisé mais générique : prérequis (outils, comptes) déclarés avec repli, aucune référence personnelle ; installé seulement sur demande. |
@@ -62,7 +43,7 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 | studio | rule | `git-flow` | 1 | CORE_PUBLIC | core | `library/studio/rules/git-flow.md` | Règle neutre (sans chemin, outil privé ni fournisseur) ; analyse de contenu par le contrôle de confidentialité. |
 | studio | rule | `memory` | 1 | CORE_PUBLIC | core | `library/studio/rules/memory.md` | Règle neutre (sans chemin, outil privé ni fournisseur) ; analyse de contenu par le contrôle de confidentialité. |
 | studio | rule | `routing` | 1 | CORE_PUBLIC | core | `library/studio/rules/routing.md` | Règle neutre (sans chemin, outil privé ni fournisseur) ; analyse de contenu par le contrôle de confidentialité. |
-| studio | rule | `studio-protocol` | 3 | CORE_PUBLIC | core | `.agents/rules/studio-protocol.md` | Remplacée par la rule canonique `.agents/rules/studio-protocol.md` (8 points, entrées read-only/mutable) ; l'ancien texte v2 n'est plus la source. Remplace studio/rule/studio-protocol v2 (library/studio/rules/studio-protocol.md). |
+| studio | rule | `studio-protocol` | 3 | CORE_PUBLIC | core | `.studio/studio-protocol.md` | Remplacée par la rule canonique `.studio/studio-protocol.md` (8 points, entrées read-only/mutable) ; l'ancien texte v2 n'est plus la source. Remplace studio/rule/studio-protocol v2 (library/studio/rules/studio-protocol.md). |
 | studio | rule | `studio-workflow` | 2 | CORE_PUBLIC | core | `library/studio/rules/studio-workflow.md` | Règle neutre (sans chemin, outil privé ni fournisseur) ; analyse de contenu par le contrôle de confidentialité. |
 | studio | skill | `delegate` | 1 | CORE_PUBLIC | core | `library/studio/skills/delegate` | Procédure réutilisable sans dépendance personnelle ; prérequis déclarés dans le texte. |
 | studio | skill | `itch-io-publish` | 1 | CORE_PUBLIC | core | `library/studio/skills/itch-io-publish` | Spécialisé mais générique : prérequis (outils, comptes) déclarés avec repli, aucune référence personnelle ; installé seulement sur demande. |
@@ -74,10 +55,6 @@ Généré par `scripts/library_packages.py build` à partir de `library/packages
 | studio | skill | `review-pr` | 1 | CORE_PUBLIC | core | `library/studio/skills/review-pr` | Procédure réutilisable sans dépendance personnelle ; prérequis déclarés dans le texte. |
 | studio | skill | `roadmap-builder` | 1 | CORE_PUBLIC | core | `library/studio/skills/roadmap-builder` | Procédure réutilisable sans dépendance personnelle ; prérequis déclarés dans le texte. |
 | studio | skill | `sound-design` | 1 | CORE_PUBLIC | core | `library/studio/skills/sound-design` | Spécialisé mais générique : prérequis (outils, comptes) déclarés avec repli, aucune référence personnelle ; installé seulement sur demande. |
-| studio (nouveau) | skill | `studio-context` | 1 | CORE_PUBLIC | core | `.agents/skills/studio-context` | Nouvel élément canonique absent du catalogue historique. Point d'entrée compatible conservé ; renvoie à studio-task, rôle distinct (lecture de contexte seule). |
-| studio (nouveau) | skill | `studio-decision` | 1 | CORE_PUBLIC | core | `.agents/skills/studio-decision` | Nouvel élément canonique absent du catalogue historique. Enregistrement des décisions durables. |
-| studio (nouveau) | skill | `studio-handoff` | 1 | CORE_PUBLIC | core | `.agents/skills/studio-handoff` | Nouvel élément canonique absent du catalogue historique. Point d'entrée compatible conservé ; clôture avec preuves. |
-| studio (nouveau) | skill | `studio-task` | 1 | CORE_PUBLIC | core | `.agents/skills/studio-task` | Nouvel élément canonique absent du catalogue historique. Cycle unique de travail suivi (avec references/). |
 | studio | skill | `tiktok-pipeline` | 1 | CORE_PUBLIC | core | `library/studio/skills/tiktok-pipeline` | Spécialisé mais générique : prérequis (outils, comptes) déclarés avec repli, aucune référence personnelle ; installé seulement sur demande. |
 | studio | skill | `triage` | 1 | CORE_PUBLIC | core | `library/studio/skills/triage` | Procédure réutilisable sans dépendance personnelle ; prérequis déclarés dans le texte. |
 | studio | skill | `workstation-setup` | 1 | CORE_PUBLIC | core | `library/studio/skills/workstation-setup` | Procédure réutilisable sans dépendance personnelle ; prérequis déclarés dans le texte. |

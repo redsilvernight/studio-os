@@ -39,7 +39,6 @@ patterns = [
 [exclude.skill_copies]
 patterns = [
   ".claude/skills/graphify/**",
-  ".agents/skills/graphify/**",
 ]
 
 [exclude.transient]

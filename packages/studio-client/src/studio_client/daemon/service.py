@@ -134,6 +134,7 @@ from studio_client.daemon.local_features import (
 from studio_client.daemon.logging import configure_daemon_logging
 from studio_client.daemon.machine_identity import MachineResolver, resolve_machine_id
 from studio_client.daemon.project_projections import (
+    RepoTarget,
     apply_project_update,
     project_projections_status,
 )
@@ -318,6 +319,7 @@ class DaemonController:
             self._token_store,
             home=skills_home,
             roots=self._workspace_roots,
+            targets=self._project_repo_targets,
         )
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
@@ -519,6 +521,10 @@ class DaemonController:
             self.data_root,
             request.workspace_id,
         )
+
+    def _project_repo_targets(self) -> list[RepoTarget]:
+        runtime = self._runtime
+        return [] if runtime is None else runtime.project_repo_targets()
 
     def _workspace_roots(self) -> tuple[Path, ...]:
         features = self.local_features

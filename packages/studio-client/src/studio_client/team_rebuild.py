@@ -5,7 +5,7 @@ carries no absolute path and no secret-shaped text. `rebuild` reconstructs a
 machine's configuration from the committed manifest alone: it links this
 checkout to the project in the machine-local registry (the project<->path
 mapping stays on the machine, never in the repository), then runs the
-idempotent bundle sync. Offline: no network call.
+idempotent bundle sync from the Library bundle the caller fetched.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from studio_workspaces import register_workspace
 from studio_workspaces.registration import WorkspaceRegistration
 
 from studio_client.bootstrap import BootstrapError, load_manifest, sync
+from studio_client.projection_source import ProjectionBundle
 
 _SCANNED_PREFIXES = (".agents/", ".claude/", ".codex/", ".opencode/", ".studio/")
 _SCANNED_FILES = frozenset({"AGENTS.md", "CLAUDE.md", ".mcp.json", "opencode.json"})
@@ -90,6 +91,7 @@ def rebuild(
     registry_dir: Path,
     profile: ProfileRef,
     project_id: UUID,
+    bundle: ProjectionBundle,
     *,
     confirm: bool = False,
 ) -> RebuildResult:
@@ -111,5 +113,5 @@ def rebuild(
         str(root.resolve()),
         project_slug=manifest.project.slug,
     )
-    report, written = sync(root, manifest, confirm=confirm)
+    report, written = sync(root, manifest, bundle, confirm=confirm)
     return RebuildResult(registration, report, written, issues)
