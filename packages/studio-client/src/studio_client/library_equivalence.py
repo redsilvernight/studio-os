@@ -140,7 +140,9 @@ def check_equivalence(
     else:
         library_items = list(items)
 
-    index = {(item.kind, item.stable_key): item for item in library_items}
+    index: dict[tuple[str, str], PublishItem] = {
+        (item.kind, item.stable_key): item for item in library_items
+    }
     problems: list[Difference] = []
     sources = _skill_sources(index, problems)
     expected: dict[str, str] = {}
