@@ -6,28 +6,37 @@ canonical resources in memory (`publish.build_publish_items`), then rebuilds
 every managed harness file from those contents alone — rules through
 `canonical.render_claude_rule`, agents through the local adapters on a
 `LibrarySnapshot` resolved by `canonical.build_merged_resolved`, skills through
-`skill_sync.render_skill` — and compares the result with the committed files.
+the committed skill mechanisms (`canonical.workflow_skill_projections_from` for
+`.codex`/`.opencode`, verbatim `SKILL.md` + `references/` for `.claude`) — and
+compares the result with the committed files.
 
-Two consequences, both deliberate:
+Three consequences, all deliberate:
 
 * a piece the Library content does not carry (the `studio-protocol` bootstrap
   rule, the `AGENTS.md`/`CLAUDE.md` managed blocks, hooks/MCP wiring) is
   reported as `excluded`, never dropped in silence;
-* a field that only the file path knows (a rule `applies_to` before `rule/v2`,
-  an agent `instructions`/`tools` before `agent_definition/v2`) shows up as a
-  real gap: that is exactly what the schema migration has to close.
+* a skill the repository never projected into a harness (a harness only
+  projects the workflow entry points, or a skill added after the last sync) is
+  reported as `unprojected`: listed, not a gap — absence is the normal state;
+* a field only the file holds (a rule `applies_to` before `rule/v2`, an agent
+  `instructions`/`tools` before `agent_definition/v2`, a skill frontmatter key
+  beyond `name`/`description`, which `skill/v1` drops) shows up as a real gap
+  with the diverging field or line named: that is exactly what the schema
+  migration has to close.
 
 Read-only: no network, no filesystem write, no server configuration.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from hashlib import sha256
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import yaml
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, keeps this module import-light
     from studio_client.publish import PublishItem
@@ -40,9 +49,10 @@ SKILL_DIRS: dict[str, str] = {
     "codex": ".codex/skills",
     "opencode": ".opencode/skills",
 }
-"""Harness id -> managed skills directory. Only the directories that exist in
-the repository are compared (a harness the project does not target owns
-none)."""
+"""Harness id -> managed skills directory. Only the directories the repository
+already has are inspected; `.codex`/`.opencode` only project the workflow
+entry points (`canonical.workflow_skill_projections_from`), everything else is
+reported `unprojected` rather than missing."""
 
 _LIBRARY_ONLY_ROOT = (".studio-os", "library-equivalence")
 """Path that never holds canonical files: `build_merged_resolved` resolves every
@@ -79,8 +89,18 @@ class DifferenceNature(StrEnum):
     UNRESOLVED = "unresolved"
     """A Library content that cannot be projected at all (missing text, pin,
     invalid globs, unsafe key)."""
+    UNPROJECTED = "unprojected"
+    """No committed projection for this skill in this harness: the normal state
+    for a skill the harness does not target. Listed, not compared."""
     EXCLUDED = "excluded"
     """Outside the Library surface by design: listed, never compared."""
+
+    @property
+    def blocking(self) -> bool:
+        """True when the difference disproves the equivalence; absence and
+        out-of-surface state are reported without failing the gate."""
+
+        return self not in (DifferenceNature.UNPROJECTED, DifferenceNature.EXCLUDED)
 
 
 @dataclass(frozen=True)
@@ -121,13 +141,15 @@ def check_equivalence(
 
     index = {(item.kind, item.stable_key): item for item in library_items}
     problems: list[Difference] = []
+    sources = _skill_sources(index, problems)
     expected: dict[str, str] = {}
     expected.update(_agent_projections(root, index, problems))
     expected.update(_rule_projections(index, problems))
-    expected.update(_skill_projections(root, index, problems))
+    expected.update(_skill_projections(root, sources, index, problems))
 
     differences = _compare(root, expected)
     differences.extend(problems)
+    differences.extend(_unprojected(root, sources))
     differences.extend(_excluded(root, index))
     # One gap per (path, nature, detail): the same broken agent is seen once
     # per adapter directory otherwise.
@@ -286,43 +308,103 @@ def _rule_projections(
     return files
 
 
-def _skill_projections(
-    root: Path, index: dict[tuple[str, str], PublishItem], problems: list[Difference]
+def _skill_sources(
+    index: dict[tuple[str, str], PublishItem], problems: list[Difference]
 ) -> dict[str, str]:
-    """`<harness>/skills/<key>/SKILL.md` (plus auxiliary files) rebuilt from
-    each skill version, for every skills directory the repository has."""
+    """Verbatim `SKILL.md` text rebuilt from each skill version.
 
-    from studio_client.context.library import LibraryContextItem
-    from studio_client.skill_sync import SkillSyncError, render_skill
+    `skill/v1` carries the body with the frontmatter stripped; the canonical
+    projection is the raw file, so the frontmatter is restored exactly the way
+    `projection_source` derives it from a resolved skill (`name` + the
+    description the publisher read). Anything the committed file holds beyond
+    those two keys is a real loss, reported by `_compare`."""
 
-    library_items = [(key, item) for (kind, key), item in sorted(index.items()) if kind == "skill"]
-    files: dict[str, str] = {}
-    for relative in sorted(set(SKILL_DIRS.values())):
-        if not root.joinpath(*relative.split("/")).is_dir():
+    from studio_contracts.library import LibraryScope, VersionOrigin
+    from studio_contracts.resolution import ResolvedSkill
+
+    from studio_client.canonical import _namespace, _prov
+    from studio_client.projection_source import _skill_source
+
+    sources: dict[str, str] = {}
+    for (kind, key), item in sorted(index.items()):
+        if kind != "skill":
             continue
-        for key, item in library_items:
-            try:
-                projection = LibraryContextItem(
-                    library_kind="skill",
-                    stable_key=key,
-                    version=1,
-                    version_origin="active",
-                    scope="studio",
-                    title=item.title,
-                    text=_text(item),
-                    content_schema=_schema(item, "skill"),
-                    files=_aux_files(item),
-                )
-                rendered = render_skill(projection)
-            except (SkillSyncError, ValueError) as exc:
-                problems.append(
-                    Difference(f"{relative}/{key}/SKILL.md", DifferenceNature.UNRESOLVED, str(exc))
-                )
-                continue
-            files[f"{relative}/{key}/SKILL.md"] = rendered
-            for aux_path, aux_text in projection.files:
-                files[f"{relative}/{key}/{aux_path}"] = aux_text
+        try:
+            resolved = ResolvedSkill(
+                resource_id=_namespace("resource", key),
+                stable_key=key,
+                scope=LibraryScope.STUDIO,
+                version=1,
+                version_origin=VersionOrigin.ACTIVE,
+                title=item.title,
+                content={"text": _text(item)},
+                provenance=_prov(key),
+            )
+            sources[key] = _skill_source(resolved)
+        except ValueError as exc:
+            problems.append(
+                Difference(f".agents/skills/{key}/SKILL.md", DifferenceNature.UNRESOLVED, str(exc))
+            )
+    return sources
+
+
+def _skill_projections(
+    root: Path,
+    sources: dict[str, str],
+    index: dict[tuple[str, str], PublishItem],
+    problems: list[Difference],
+) -> dict[str, str]:
+    """Committed skill projections, rebuilt from the Library sources alone.
+
+    `.codex`/`.opencode` follow `canonical.workflow_skill_projections_from` (the
+    workflow entry points, verbatim). `.claude` copies every skill verbatim,
+    `references/` included — never the dashboard install envelope
+    (`skill_sync.render_skill`), which no repository commits."""
+
+    from studio_client.canonical import workflow_skill_projections_from
+
+    files: dict[str, str] = {}
+    for relative, text in workflow_skill_projections_from(sources).items():
+        harness_dir = "/".join(relative.split("/")[:2])
+        if root.joinpath(*harness_dir.split("/")).is_dir():
+            files[relative] = text
+    claude_dir = SKILL_DIRS["claude-code"]
+    if not root.joinpath(*claude_dir.split("/")).is_dir():
+        return files
+    for key, source in sources.items():
+        files[f"{claude_dir}/{key}/SKILL.md"] = source
+        item = index[("skill", key)]
+        try:
+            aux_files = _aux_files(item)
+        except ValueError as exc:
+            problems.append(
+                Difference(f"{claude_dir}/{key}", DifferenceNature.UNRESOLVED, str(exc))
+            )
+            continue
+        for aux_path, aux_text in aux_files:
+            files[f"{claude_dir}/{key}/{aux_path}"] = aux_text
     return files
+
+
+def _unprojected(root: Path, sources: dict[str, str]) -> list[Difference]:
+    """Skills the repository never projected into a harness it does target:
+    absence is the normal state of a skill outside that harness, never a gap."""
+
+    unprojected: list[Difference] = []
+    for harness_dir in sorted(set(SKILL_DIRS.values())):
+        if not root.joinpath(*harness_dir.split("/")).is_dir():
+            continue
+        for key in sorted(sources):
+            if root.joinpath(*f"{harness_dir}/{key}".split("/")).is_dir():
+                continue
+            unprojected.append(
+                Difference(
+                    f"{harness_dir}/{key}",
+                    DifferenceNature.UNPROJECTED,
+                    "no committed projection for this skill in this harness",
+                )
+            )
+    return unprojected
 
 
 def _aux_files(item: PublishItem) -> tuple[tuple[str, str], ...]:
@@ -352,12 +434,19 @@ def _requirements(item: PublishItem) -> Any:
 def _compare(root: Path, expected: dict[str, str]) -> list[Difference]:
     """Byte comparison (LF-normalized, like every other drift check here)
     between the Library projection and the committed files, plus the files no
-    Library content reproduces."""
+    Library content reproduces.
+
+    A file missing from a managed skills directory whose skill directory is
+    absent is not a gap: nothing was ever projected (see `_unprojected`).
+    """
 
     differences: list[Difference] = []
     for relative, content in sorted(expected.items()):
         target = root.joinpath(*relative.split("/"))
         if not target.is_file():
+            skill_dir = _committed_skill_dir(root, relative)
+            if skill_dir is not None and not skill_dir.is_dir():
+                continue
             differences.append(
                 Difference(
                     relative,
@@ -374,13 +463,13 @@ def _compare(root: Path, expected: dict[str, str]) -> list[Difference]:
             )
             continue
         if _normalize(current) != _normalize(content):
-            differences.append(
-                Difference(
-                    relative,
-                    DifferenceNature.CONTENT,
-                    f"sha256 library={_digest(content)} committed={_digest(current)}",
-                )
-            )
+            semantic = _committed_skill_dir(root, relative) is not None
+            detail = _describe(content, current, semantic=semantic)
+            if detail is None:
+                # Skills only: identical fields and body, the raw bytes differ
+                # by frontmatter quoting — a rendering detail, not a loss.
+                continue
+            differences.append(Difference(relative, DifferenceNature.CONTENT, detail))
     for relative in sorted(_managed_files(root) - set(expected)):
         differences.append(
             Difference(
@@ -390,6 +479,86 @@ def _compare(root: Path, expected: dict[str, str]) -> list[Difference]:
             )
         )
     return differences
+
+
+def _committed_skill_dir(root: Path, relative: str) -> Path | None:
+    """The `<harness>/skills/<key>` directory a managed relative path belongs
+    to, or None for a path outside the skills projections."""
+
+    for harness_dir in SKILL_DIRS.values():
+        prefix = f"{harness_dir}/"
+        if relative.startswith(prefix):
+            key = relative[len(prefix) :].split("/", 1)[0]
+            return root.joinpath(*f"{harness_dir}/{key}".split("/"))
+    return None
+
+
+def _describe(expected: str, committed: str, *, semantic: bool = False) -> str | None:
+    """Human diagnosis of a divergent projection: the frontmatter keys the
+    Library cannot carry, the fields whose value differs and the first body
+    line that diverges — never an opaque hash.
+
+    `semantic=True` (skills) compares fields and body: a file whose parsed
+    content matches but whose raw bytes differ only by frontmatter quoting is
+    not a loss, and returns None."""
+
+    expected_fields, expected_body = _frontmatter(expected)
+    committed_fields, committed_body = _frontmatter(committed)
+    details: list[str] = []
+    for field in sorted(set(committed_fields) - set(expected_fields)):
+        details.append(f"frontmatter field {field!r} is not carried by the Library content")
+    for field in sorted(set(expected_fields) - set(committed_fields)):
+        details.append(f"frontmatter field {field!r} is missing from the committed file")
+    for field in sorted(set(expected_fields) & set(committed_fields)):
+        if expected_fields[field] != committed_fields[field]:
+            details.append(
+                f"frontmatter field {field!r} differs: "
+                f"committed {committed_fields[field]!r} library {expected_fields[field]!r}"
+            )
+    if expected_body != committed_body:
+        details.append(_first_divergent_line(expected_body, committed_body))
+    if details:
+        return "; ".join(details)
+    return None if semantic else "contents differ"
+
+
+_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n?(.*)\Z", re.DOTALL)
+
+
+def _frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """`(fields, body)` of a projected file, body normalized like the canonical
+    reader does (`strip()` + one newline), so only real content diverges."""
+
+    normalized = _normalize(text)
+    match = _FRONTMATTER_RE.match(normalized)
+    if match is None:
+        return {}, normalized
+    try:
+        fields = yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError:
+        return {}, normalized
+    if not isinstance(fields, dict):
+        return {}, normalized
+    return fields, match.group(2).strip() + "\n"
+
+
+def _first_divergent_line(expected: str, committed: str) -> str:
+    expected_lines, committed_lines = expected.split("\n"), committed.split("\n")
+    for number, (expected_line, committed_line) in enumerate(
+        zip(expected_lines, committed_lines, strict=False), start=1
+    ):
+        if expected_line != committed_line:
+            return (
+                f"first divergent body line {number}: "
+                f"committed {_short(committed_line)} library {_short(expected_line)}"
+            )
+    return (
+        f"body line count differs: committed {len(committed_lines)} library {len(expected_lines)}"
+    )
+
+
+def _short(line: str, limit: int = 80) -> str:
+    return repr(line if len(line) <= limit else line[: limit - 1] + "…")
 
 
 def _managed_files(root: Path) -> set[str]:
@@ -445,7 +614,3 @@ def _schema(item: PublishItem, kind: str) -> str:
 
 def _normalize(text: str) -> str:
     return text.replace("\r\n", "\n")
-
-
-def _digest(text: str) -> str:
-    return sha256(_normalize(text).encode("utf-8")).hexdigest()[:12]

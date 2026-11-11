@@ -1636,14 +1636,16 @@ def _library_import_check(args: argparse.Namespace, config: ClientConfig | None)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
-    failures = [item for item in differences if item.nature is not DifferenceNature.EXCLUDED]
-    excluded = len(differences) - len(failures)
+    failures = [item for item in differences if item.nature.blocking]
+    unprojected = sum(1 for item in differences if item.nature is DifferenceNature.UNPROJECTED)
+    excluded = sum(1 for item in differences if item.nature is DifferenceNature.EXCLUDED)
     if args.json:
         print(
             json.dumps(
                 {
                     "differences": [item.to_dict() for item in differences],
                     "failures": len(failures),
+                    "unprojected": unprojected,
                     "excluded": excluded,
                 },
                 indent=2,
@@ -1652,8 +1654,8 @@ def _library_import_check(args: argparse.Namespace, config: ClientConfig | None)
     else:
         for item in differences:
             detail = f"  ({item.detail})" if item.detail else ""
-            print(f"{item.nature.value:10} {item.path}{detail}")
-        print(f"gaps {len(failures)}, excluded {excluded}")
+            print(f"{item.nature.value:11} {item.path}{detail}")
+        print(f"gaps {len(failures)}, unprojected {unprojected}, excluded {excluded}")
     if failures:
         raise SystemExit(1)
 
