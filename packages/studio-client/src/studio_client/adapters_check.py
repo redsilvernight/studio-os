@@ -40,7 +40,7 @@ def check_adapters(
         legacy_rules_text,
         render_agents_rules_block_from,
         render_claude_rule,
-        workflow_skill_projections_from,
+        skill_projections_from,
     )
     from studio_client.projection_source import bundle_from_repo
 
@@ -105,7 +105,7 @@ def check_adapters(
                     "error": "AGENTS.md block drifted, duplicated or conflicting owner",
                 }
             )
-        for relative, content in workflow_skill_projections_from(bundle.skills).items():
+        for relative, content in skill_projections_from(bundle.skills, bundle.skill_files).items():
             checked += 1
             target = root / relative
             if not target.is_file() or target.read_text(encoding="utf-8") != content:

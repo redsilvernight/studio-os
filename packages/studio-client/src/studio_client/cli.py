@@ -1670,7 +1670,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
         load_rule_meta,
         merge_agents_rules,
         render_claude_rule,
-        workflow_skill_projections,
+        skill_projections,
     )
 
     _ = config
@@ -1704,7 +1704,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
             backup_file(root, "AGENTS.md", backup_root)
         agents_md.write_text(updated, encoding="utf-8")
         written.append(str(agents_md))
-    for relative, content in workflow_skill_projections(root).items():
+    for relative, content in skill_projections(root).items():
         target = root / relative
         if target.is_file() and target.read_text(encoding="utf-8") == content:
             continue

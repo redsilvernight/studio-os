@@ -26,6 +26,7 @@ from studio_client.canonical import (
     canonical_rule_keys,
     canonical_skill_keys,
     load_rule_meta,
+    load_skill_files,
     load_skill_source,
 )
 
@@ -38,6 +39,7 @@ class ProjectionBundle:
     agents: dict[str, ResolvedAgentDefinition] = field(default_factory=dict)
     rules: dict[str, tuple[list[str], str]] = field(default_factory=dict)
     skills: dict[str, str] = field(default_factory=dict)
+    skill_files: dict[str, tuple[tuple[str, str], ...]] = field(default_factory=dict)
     protocol: str | None = None
 
 
@@ -48,6 +50,10 @@ def bundle_from_repo(repo_root: Path | str) -> ProjectionBundle:
         agents={key: build_offline_resolved(root, key) for key in canonical_agent_keys(root)},
         rules={key: load_rule_meta(root, key) for key in canonical_rule_keys(root)},
         skills={key: load_skill_source(root, key) for key in canonical_skill_keys(root)},
+        skill_files={
+            key: tuple((file["path"], file["text"]) for file in load_skill_files(root, key))
+            for key in canonical_skill_keys(root)
+        },
         protocol=protocol_path.read_text(encoding="utf-8") if protocol_path.is_file() else None,
     )
 
@@ -56,6 +62,7 @@ def bundle_from_resolved(definitions: Iterable[ResolvedAgentDefinition]) -> Proj
     agents: dict[str, ResolvedAgentDefinition] = {}
     rules: dict[str, tuple[list[str], str]] = {}
     skills: dict[str, str] = {}
+    skill_files: dict[str, tuple[tuple[str, str], ...]] = {}
     protocol: str | None = None
     for definition in sorted(definitions, key=lambda item: item.agent.stable_key):
         if definition.agent.scope is LibraryScope.USER:
@@ -71,7 +78,10 @@ def bundle_from_resolved(definitions: Iterable[ResolvedAgentDefinition]) -> Proj
         for skill in definition.skills:
             if skill.scope is not LibraryScope.USER:
                 skills[skill.stable_key] = _skill_source(skill)
-    return ProjectionBundle(agents=agents, rules=rules, skills=skills, protocol=protocol)
+                skill_files[skill.stable_key] = _resolved_skill_files(skill)
+    return ProjectionBundle(
+        agents=agents, rules=rules, skills=skills, skill_files=skill_files, protocol=protocol
+    )
 
 
 async def fetch_projection_bundle(client: Any, project_id: UUID | None) -> ProjectionBundle:
@@ -121,3 +131,22 @@ def _skill_source(skill: ResolvedSkill) -> str:
         f"{_FRONTMATTER_START}name: {json.dumps(skill.stable_key, ensure_ascii=False)}\n"
         f"description: {json.dumps(description, ensure_ascii=False)}\n{flag}---\n\n{text}"
     )
+
+
+def _resolved_skill_files(skill: ResolvedSkill) -> tuple[tuple[str, str], ...]:
+    """Auxiliary `references/` files carried by a resolved skill (`files[]`).
+
+    `skill/v1` content shape: a list of `{path, text}` objects. Anything
+    else is ignored here (the Library equivalence gate reports it as
+    `unresolved`); only string `path`/`text` pairs are projected."""
+    raw = skill.content.get("files")
+    if not isinstance(raw, list):
+        return ()
+    files: list[tuple[str, str]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        path, text = entry.get("path"), entry.get("text")
+        if isinstance(path, str) and isinstance(text, str):
+            files.append((path, text))
+    return tuple(files)

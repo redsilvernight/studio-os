@@ -60,6 +60,7 @@ from studio_client.canonical import (
     render_agents_rules_block_from,
     render_claude_md_block_from,
     render_claude_rule,
+    skill_projections_from,
 )
 from studio_client.drift import (
     DivergencePlan,
@@ -249,15 +250,16 @@ def plan_files(
                 kind="rule",
             )
         )
+    projected_skills = skill_projections_from(bundle.skills, bundle.skill_files)
     for ref in manifest.harnesses:
         try:
             skills_dir = _SKILL_DIRS[ref.id]
         except KeyError:
             raise BootstrapError(f"harness {ref.id!r} has no skills target") from None
-        for key, source in sorted(bundle.skills.items()):
-            files.append(
-                PlannedFile(path=f"{skills_dir}/{key}/SKILL.md", content=source, kind="skill")
-            )
+        prefix = f"{skills_dir}/"
+        for relative, content in sorted(projected_skills.items()):
+            if relative.startswith(prefix):
+                files.append(PlannedFile(path=relative, content=content, kind="skill"))
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH,

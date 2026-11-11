@@ -170,6 +170,6 @@ def test_three_harness_candidates_are_coherent(tmp_path: Path) -> None:
                 target.write_text(artifact.content, encoding="utf-8")
     cli.main(["adapters", "sync", "--repo-root", str(tmp_path), "--overwrite"])
     first = check_adapters(tmp_path)
-    assert first.checked == 35 and not first.failures
+    assert first.checked == 84 and not first.failures
     cli.main(["adapters", "sync", "--repo-root", str(tmp_path), "--overwrite"])
     assert check_adapters(tmp_path) == first
