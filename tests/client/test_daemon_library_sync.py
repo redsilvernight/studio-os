@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -154,7 +155,9 @@ def test_auto_sync_includes_user_skills_and_excludes_project_skills(
         assert not (home / f".{harness}" / "skills" / "project-only").exists()
 
 
-def test_local_conflict_blocks_every_kind_and_stays_visible(tmp_path: Path, monkeypatch) -> None:
+def test_local_conflict_skips_only_its_target_and_stays_visible(
+    tmp_path: Path, monkeypatch
+) -> None:
     home = tmp_path / "home"
     edited = home / ".claude" / "rules" / "coding-standard.md"
     edited.parent.mkdir(parents=True)
@@ -170,8 +173,8 @@ def test_local_conflict_blocks_every_kind_and_stays_visible(tmp_path: Path, monk
     _run(home, tmp_path / "data")
 
     assert edited.read_text(encoding="utf-8") == "hand edited\n"
-    assert not (home / ".agents" / "skills" / "studio-git-flow").exists()
-    assert not (home / ".agents" / "rules" / "coding-standard.md").exists()
+    assert (home / ".agents" / "skills" / "studio-git-flow" / "SKILL.md").is_file()
+    assert (home / ".agents" / "rules" / "coding-standard.md").is_file()
     status = skills_bridge._load_status(tmp_path / "data")
     assert status is not None
     assert status.state.value == "conflicts"
@@ -241,6 +244,21 @@ class _ReadOnlyApi:
         self.calls.append("list_library_versions")
         return [row for row in self.versions if row.resource_id == resource_id]
 
+    async def batch_library_versions(self, refs: list[tuple[UUID, int]]) -> Any:
+        self.calls.append("batch_library_versions")
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(
+                    resource_id=r,
+                    version=v,
+                    detail=next(
+                        (x for x in self.versions if x.resource_id == r and x.version == v), None
+                    ),
+                )
+                for r, v in refs
+            ]
+        )
+
 
 def test_fetch_only_reads_the_library_never_publishes() -> None:
     resources = [
@@ -270,7 +288,7 @@ def test_fetch_only_reads_the_library_never_publishes() -> None:
     result = asyncio.run(skills_bridge.fetch_library_projections(api, None))
 
     assert {item.library_kind for item in result} == {"skill", "rule", "agent_definition"}
-    assert set(api.calls) == {"list_library_resources", "list_library_versions"}
+    assert set(api.calls) == {"list_library_resources", "batch_library_versions"}
     assert not any(
         word in call
         for call in api.calls

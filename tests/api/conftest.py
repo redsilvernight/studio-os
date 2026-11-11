@@ -97,11 +97,16 @@ async def machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
 
 
 @pytest_asyncio.fixture
-async def admin_auth_headers(db_session: AsyncSession) -> dict[str, str]:
+async def admin_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
     admin = await provisioning_service.create_user(
         db_session, "Admin", f"{uuid.uuid4()}@example.test", "admin"
     )
-    _, token = await provisioning_service.create_machine(db_session, admin.id, "admin-machine")
+    return await provisioning_service.create_machine(db_session, admin.id, "admin-machine")
+
+
+@pytest_asyncio.fixture
+async def admin_auth_headers(admin_machine: tuple[MachineModel, str]) -> dict[str, str]:
+    _, token = admin_machine
     return {"Authorization": f"Bearer {token}"}
 
 

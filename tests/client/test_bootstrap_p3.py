@@ -18,7 +18,10 @@ import pytest
 from studio_client import cli
 from studio_client.bootstrap import (
     MANIFEST_RELATIVE_PATH,
+    BootstrapConflictCode,
     BootstrapError,
+    BootstrapFileState,
+    apply_files,
     diff_text,
     list_backups,
     load_manifest,
@@ -280,9 +283,10 @@ def test_rules_sync_backs_up_agents_md(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _init(repo)
     cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
-    rule = repo / ".agents/rules/testing.md"
-    rule.write_text(
-        rule.read_text(encoding="utf-8").replace("tests/**/*.py", "tests/**"), encoding="utf-8"
+    agents_md = repo / "AGENTS.md"
+    agents_md.write_text(
+        agents_md.read_text(encoding="utf-8").replace("Canonical rules", "Stale rules"),
+        encoding="utf-8",
     )
     cli.main(["rules", "sync", "--repo-root", str(repo), "--overwrite"])
     backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("AGENTS.md"))
@@ -378,7 +382,17 @@ def test_rollback_restores_replaced_file_bytes(tmp_path: Path) -> None:
     original = "CUSTOM CONTRACT RULE\r\nsecond line\r\n"
     target.write_bytes(original.encode("utf-8"))
 
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo), "--yes"])
+    cli.main(
+        [
+            "bootstrap",
+            "sync",
+            "--repo-root",
+            str(repo),
+            "--yes",
+            "--overwrite",
+            ".claude/rules/contracts.md",
+        ]
+    )
     assert target.read_bytes() != original.encode("utf-8")
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
@@ -412,7 +426,17 @@ def test_rollback_refuses_backup_path_traversal(tmp_path: Path) -> None:
     target = repo / ".claude" / "rules" / "contracts.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("original\n", encoding="utf-8")
-    cli.main(["bootstrap", "sync", "--repo-root", str(repo), "--yes"])
+    cli.main(
+        [
+            "bootstrap",
+            "sync",
+            "--repo-root",
+            str(repo),
+            "--yes",
+            "--overwrite",
+            ".claude/rules/contracts.md",
+        ]
+    )
     after_sync = target.read_bytes()
 
     backup_dir = next((repo / ".studio-os" / "backups" / "bootstrap").iterdir())
@@ -499,11 +523,30 @@ def test_skills_sync_writes_verbatim_copies_and_is_idempotent(
     keys = canonical_skill_keys(repo)
     assert len(keys) == 9
     planned = {item.path for item in plan_files(repo, load_manifest(repo)) if item.kind == "skill"}
-    assert planned == {f".claude/skills/{key}/SKILL.md" for key in keys}
+    expected = {f".claude/skills/{key}/SKILL.md" for key in keys}
+    expected |= {
+        ".claude/skills/studio-task/references/completion.md",
+        ".claude/skills/studio-task/references/roles.md",
+        ".claude/skills/graphify/references/add-watch.md",
+        ".claude/skills/graphify/references/exports.md",
+        ".claude/skills/graphify/references/extraction-spec.md",
+        ".claude/skills/graphify/references/github-and-merge.md",
+        ".claude/skills/graphify/references/hooks.md",
+        ".claude/skills/graphify/references/query.md",
+        ".claude/skills/graphify/references/transcribe.md",
+        ".claude/skills/graphify/references/update.md",
+    }
+    assert planned == expected
     for key in keys:
         source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
         target = repo / ".claude" / "skills" / key / "SKILL.md"
         assert target.read_text(encoding="utf-8") == source
+    for relative in sorted(expected):
+        if relative.endswith("SKILL.md"):
+            continue
+        canonical = repo / ".agents" / "skills" / relative.removeprefix(".claude/skills/")
+        target = repo / relative
+        assert target.read_text(encoding="utf-8") == canonical.read_text(encoding="utf-8")
 
     cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert capsys.readouterr().out.strip() == "Already up to date."
@@ -563,6 +606,47 @@ def test_skills_multi_harness_projects_per_harness(tmp_path: Path) -> None:
             source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
             target = repo / base / "skills" / key / "SKILL.md"
             assert target.read_text(encoding="utf-8") == source
+    for base in (".claude", ".opencode"):
+        for relative in (
+            "studio-task/references/completion.md",
+            "studio-task/references/roles.md",
+        ):
+            canonical = repo / ".agents" / "skills" / relative
+            target = repo / base / "skills" / relative
+            assert target.read_text(encoding="utf-8") == canonical.read_text(encoding="utf-8")
+
+
+def test_skills_codex_openai_policy_only_for_flagged_skills(tmp_path: Path) -> None:
+    from studio_client.canonical import CODEX_OPENAI_POLICY_TEXT
+
+    repo = _repo(tmp_path)
+    cli.main(
+        [
+            "bootstrap",
+            "init",
+            "--project-slug",
+            "demo",
+            "--project-name",
+            "Demo",
+            "--harness",
+            "claude-code",
+            "--harness",
+            "codex",
+            "--repo-root",
+            str(repo),
+        ]
+    )
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+
+    policy = repo / ".codex" / "skills" / "alembic-migration" / "agents" / "openai.yaml"
+    assert policy.read_text(encoding="utf-8") == CODEX_OPENAI_POLICY_TEXT
+    # No policy for unflagged skills, and never outside `.codex`.
+    assert not (repo / ".codex" / "skills" / "studio-task" / "agents" / "openai.yaml").exists()
+    assert not (repo / ".claude" / "skills" / "alembic-migration" / "agents").exists()
+    # The flag itself stays verbatim in every harness SKILL.md.
+    for base in (".claude", ".codex"):
+        source = repo / base / "skills" / "alembic-migration" / "SKILL.md"
+        assert "disable-model-invocation: true" in source.read_text(encoding="utf-8")
 
 
 def test_skills_crlf_on_disk_is_not_drift(tmp_path: Path) -> None:
@@ -575,3 +659,48 @@ def test_skills_crlf_on_disk_is_not_drift(tmp_path: Path) -> None:
     target.write_bytes(crlf.encode("utf-8"))
 
     cli.main(["bootstrap", "check", "--repo-root", str(repo)])
+
+
+def test_unmanaged_same_key_file_is_reported_as_conflict(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _init(repo, "--on-modified", "ask")
+    manifest = load_manifest(repo)
+    planned = plan_files(repo, manifest)
+    skill = next(item for item in planned if item.kind == "skill")
+    target = repo / Path(*skill.path.split("/"))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("user-owned content without provenance\n", encoding="utf-8")
+
+    report = observe(repo, manifest, planned=planned)
+
+    by_path = {item.path: item for item in report.files}
+    assert by_path[skill.path].state is BootstrapFileState.MODIFIED
+    assert (BootstrapConflictCode.UNMANAGED_TARGET, skill.path) in {
+        (conflict.code, conflict.path) for conflict in report.conflicts
+    }
+    assert report.sync_allowed is False
+
+
+def test_unmanaged_file_is_never_overwritten_without_explicit_overwrite(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path)
+    _init(repo, "--on-modified", "ask")
+    manifest = load_manifest(repo)
+    planned = plan_files(repo, manifest)
+    skill = next(item for item in planned if item.kind == "skill")
+    target = repo / Path(*skill.path.split("/"))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    before = b"user-owned content without provenance\n"
+    target.write_bytes(before)
+    report = observe(repo, manifest, planned=planned)
+
+    with pytest.raises(BootstrapError, match="unmanaged"):
+        apply_files(repo, manifest, report, planned=planned, confirm=True)
+    assert target.read_bytes() == before
+
+    written = apply_files(
+        repo, manifest, report, planned=planned, confirm=True, overwrite=[skill.path]
+    )
+    assert skill.path in written
+    assert target.read_bytes() != before

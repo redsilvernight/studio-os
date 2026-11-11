@@ -63,7 +63,24 @@ def test_migration_and_twice_generation(tmp_path: Path, layout: str) -> None:
     assert merge_agents_rules(root, updated) == updated
     assert agents_rules_current(root, updated)
     assert "Keep secrets." not in updated
-    assert ".agents/rules/x.md" in updated and "src/**" in updated
+    assert "`.agents/rules/`" in updated
+
+
+def test_block_is_stable_across_rule_versions(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    (root / ".agents/rules/studio-protocol.md").write_text("# Protocol v1\n", encoding="utf-8")
+    before = render_agents_rules_block(root)
+    (root / ".agents/rules/studio-protocol.md").write_text(
+        "# Protocol v2\nmore\n", encoding="utf-8"
+    )
+    (root / ".agents/rules/x.md").write_text(
+        '---\nname: x\nstable_key: x\napplies_to: ["lib/**"]\n---\n\n# Safety\nNew text.\n',
+        encoding="utf-8",
+    )
+    assert render_agents_rules_block(root) == before
+    assert ".agents/rules/studio-protocol.md" in before
+    text = "intro\n\n" + before + "outro\n"
+    assert merge_agents_rules(root, text) == text
 
 
 @pytest.mark.parametrize(
@@ -97,7 +114,7 @@ def test_changed_rule_and_duplicate_detection(tmp_path: Path) -> None:
     rule = root / ".agents/rules/x.md"
     rule.write_text(rule.read_text(encoding="utf-8").replace("src/**", "lib/**"), encoding="utf-8")
     updated = merge_agents_rules(root, original)
-    assert "lib/**" in updated and "src/**" not in updated
+    assert updated == original
     assert updated.startswith("user\n")
     assert merge_agents_rules(root, updated) == updated
     (root / "AGENTS.md").write_text(updated + updated, encoding="utf-8")
@@ -153,6 +170,6 @@ def test_three_harness_candidates_are_coherent(tmp_path: Path) -> None:
                 target.write_text(artifact.content, encoding="utf-8")
     cli.main(["adapters", "sync", "--repo-root", str(tmp_path), "--overwrite"])
     first = check_adapters(tmp_path)
-    assert first.checked == 35 and not first.failures
+    assert first.checked == 84 and not first.failures
     cli.main(["adapters", "sync", "--repo-root", str(tmp_path), "--overwrite"])
     assert check_adapters(tmp_path) == first

@@ -5,10 +5,19 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
-from studio_contracts.library import RuleContent, SkillContent
+from studio_contracts.library import (
+    LIBRARY_VERSION_BATCH_MAX,
+    RuleContent,
+    RuleContentV2,
+    SkillContent,
+    SkillContentV2,
+    parse_rule_content,
+    parse_skill_content,
+)
 
 from studio_client.context.errors import ContextError
 from studio_client.context.manifest import SourceRef
+from studio_client.errors import StudioApiError
 
 LIBRARY_CONTEXT_KIND = "library"
 """Additive Context Package kind carrying AI Library excerpts (P9/DEC-0073).
@@ -38,6 +47,10 @@ selection, no server rule reimplemented, no invisible candidate ever named.
 """
 
 
+def _is_deprecated_override(resource: Any) -> bool:
+    return str(resource.scope) == "user" and str(getattr(resource, "status", "")) == "deprecated"
+
+
 @dataclass(frozen=True)
 class LibraryContextItem:
     """One effective Library definition normalized for the Context Package."""
@@ -54,6 +67,7 @@ class LibraryContextItem:
     description: str | None = None
     files: tuple[tuple[str, str], ...] = ()
     """Auxiliary skill files as (relative path, text); never part of the Context Package."""
+    disable_model_invocation: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -104,6 +118,20 @@ class LibraryContextProvider:
 
     def __init__(self, api_client: Any) -> None:
         self._api = api_client
+        self._versions: dict[UUID, list[Any]] = {}
+        self._batched: dict[tuple[UUID, int], Any | None] = {}
+        self._batch_supported = True
+
+    async def _list_all(self, *, limit: int, **filters: Any) -> list[Any]:
+        """Page `list_library_resources` until a short page: no silent cap."""
+        page_size = max(1, min(limit, 500))
+        resources: list[Any] = []
+        while True:
+            extra = {"offset": len(resources)} if resources else {}
+            page = await self._api.list_library_resources(limit=page_size, **filters, **extra)
+            resources.extend(page)
+            if len(page) < page_size:
+                return resources
 
     async def fetch(
         self,
@@ -114,7 +142,7 @@ class LibraryContextProvider:
         stable_keys: dict[str, set[str]] | None = None,
     ) -> LibraryFetchResult:
         wanted = set(kinds)
-        resources = await self._api.list_library_resources(limit=limit)
+        resources = await self._list_all(limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
@@ -142,6 +170,9 @@ class LibraryContextProvider:
         items: list[LibraryContextItem] = []
         skipped: dict[str, int] = {}
         skipped["out_of_scope"] = sum(1 for r in all_effective if str(r.kind) not in wanted)
+        await self._prefetch_versions(
+            [r for r in effective if str(r.kind) in TEXTUAL_LIBRARY_KINDS], locked_version
+        )
         for resource in sorted(effective, key=lambda r: (str(r.kind), r.stable_key)):
             kind = str(resource.kind)
             if kind not in TEXTUAL_LIBRARY_KINDS:
@@ -170,7 +201,7 @@ class LibraryContextProvider:
         """Effective (shadowed, lock-aware) raw versions of one structured
         kind, for local projections that need the full content rather than
         injectable text (e.g. `hook`)."""
-        resources = await self._api.list_library_resources(kind=kind, limit=limit)
+        resources = await self._list_all(kind=kind, limit=limit)
         locks = (
             await self._api.list_library_locks(project_id=project_id)
             if project_id is not None
@@ -185,7 +216,9 @@ class LibraryContextProvider:
         ]
         visible = [r for r in selected if self._is_applicable(r, project_id)]
         rows: list[LibraryEffectiveVersion] = []
-        for resource in sorted(self._apply_shadowing(visible), key=lambda r: r.stable_key):
+        shadowed = self._apply_shadowing(visible)
+        await self._prefetch_versions(shadowed, locked_version)
+        for resource in sorted(shadowed, key=lambda r: r.stable_key):
             version_number = locked_version.get(resource.id, resource.active_version)
             if version_number <= 0:
                 continue
@@ -220,7 +253,13 @@ class LibraryContextProvider:
         Deterministic regardless of HTTP/DB return order.
         """
         best: dict[tuple[str, str], Any] = {}
+        live = [r for r in resources if not _is_deprecated_override(r)]
+        keys_with_live = {(str(r.kind), r.stable_key) for r in live}
         for resource in resources:
+            if _is_deprecated_override(resource) and (
+                (str(resource.kind), resource.stable_key) in keys_with_live
+            ):
+                continue
             key = (str(resource.kind), resource.stable_key)
             rank = _SCOPE_RANK.get(str(resource.scope), 99)
             current = best.get(key)
@@ -228,8 +267,39 @@ class LibraryContextProvider:
                 best[key] = resource
         return list(best.values())
 
+    async def _prefetch_versions(
+        self, resources: list[Any], locked_version: dict[UUID, int]
+    ) -> None:
+        """Resolve the effective versions in batches of `LIBRARY_VERSION_BATCH_MAX`
+        (one call each) instead of one history read per resource. A server
+        without the batch route (404/405) falls back to the per-resource path."""
+        pairs = [
+            (r.id, locked_version.get(r.id, r.active_version))
+            for r in resources
+            if locked_version.get(r.id, r.active_version) > 0
+        ]
+        pairs = [p for p in pairs if p not in self._batched and p[0] not in self._versions]
+        for start in range(0, len(pairs), LIBRARY_VERSION_BATCH_MAX):
+            if not self._batch_supported:
+                return
+            chunk = pairs[start : start + LIBRARY_VERSION_BATCH_MAX]
+            try:
+                result = await self._api.batch_library_versions(chunk)
+            except StudioApiError as exc:
+                if exc.status_code not in (404, 405):
+                    raise
+                self._batch_supported = False
+                return
+            for item in result.items:
+                self._batched[(item.resource_id, item.version)] = item.detail
+
     async def _find_version(self, resource_id: UUID, version_number: int) -> Any | None:
-        versions = await self._api.list_library_versions(resource_id)
+        if (resource_id, version_number) in self._batched:
+            return self._batched[(resource_id, version_number)]
+        versions = self._versions.get(resource_id)
+        if versions is None:
+            versions = await self._api.list_library_versions(resource_id)
+            self._versions[resource_id] = versions
         for row in versions:
             if row.version == version_number:
                 return row
@@ -243,9 +313,11 @@ class LibraryContextProvider:
         content = dict(version_row.content)
         try:
             if kind == "rule":
-                parsed: RuleContent | SkillContent = RuleContent.model_validate(content)
+                parsed: RuleContent | RuleContentV2 | SkillContent | SkillContentV2 = (
+                    parse_rule_content(content)
+                )
             elif kind == "skill":
-                parsed = SkillContent.model_validate(content)
+                parsed = parse_skill_content(content)
             else:
                 raise ContextError(
                     "unsupported_library_kind",
@@ -270,6 +342,7 @@ class LibraryContextProvider:
             content_schema=str(parsed.content_schema),
             deprecated=status == "deprecated",
             files=tuple((f.path, f.text) for f in getattr(parsed, "files", ())),
+            disable_model_invocation=bool(getattr(parsed, "disable_model_invocation", False)),
         )
 
 

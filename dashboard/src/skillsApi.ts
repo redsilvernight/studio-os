@@ -83,6 +83,7 @@ export const SYNC_STATE_LABELS: Record<SkillSyncStatusState, string> = {
   in_progress: "Library : synchronisation…",
   up_to_date: "Library à jour",
   updated: "Library mise à jour",
+  update_pending: "Library : mise à jour disponible",
   conflicts: "Library : conflits à résoudre",
   not_synced: "Library non synchronisée",
   disabled: "Library : synchro désactivée",
@@ -92,6 +93,7 @@ export const SYNC_STATE_LEVELS: Record<SkillSyncStatusState, "ok" | "info" | "wa
   in_progress: "info",
   up_to_date: "ok",
   updated: "ok",
+  update_pending: "info",
   conflicts: "warn",
   not_synced: "warn",
   disabled: "info",
@@ -102,6 +104,7 @@ export const SYNC_STATE_MESSAGES: Record<SkillSyncStatusState, string> = {
   in_progress: "La synchronisation de la Library (skills, rules, agents) est en cours.",
   up_to_date: "Les skills, rules et agents de la Library sont à jour sur ce poste.",
   updated: "Des skills, rules ou agents de la Library ont été ajoutés ou mis à jour sur ce poste.",
+  update_pending: "Une nouvelle version de la Library est disponible. Rien n'a été écrit sur ce poste avant votre confirmation.",
   conflicts:
     "Des skills, rules ou agents modifiés à la main n'ont pas été écrasés. Comparez les versions et choisissez celle à garder pour chaque fichier.",
   not_synced:

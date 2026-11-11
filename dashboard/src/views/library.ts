@@ -99,6 +99,7 @@ import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { getPlatform } from "../platform";
+import { isAdminIdentity } from "../identityApi";
 import { getSkillsSyncStatus, type SkillsSyncStatus } from "../skillsApi";
 
 export interface LibraryContext {
@@ -587,11 +588,12 @@ function contentEditorsHtml(kind: LibraryKind): string {
 }
 
 /** Corps du formulaire de création — mêmes `name=` que P12 (contrat + E2E). */
-export function createFormFieldsHtml(kind: LibraryKind): string {
+/** La portée Studio est réservée aux admins (P70a) : masquée sinon (indice UI, le serveur tranche). */
+export function createFormFieldsHtml(kind: LibraryKind, isAdmin = true): string {
   return (
     `<fieldset class="library-fieldset"><legend>Informations principales</legend>` +
     `<label class="stack">Clé stable <input name="stable_key" required autocomplete="off" placeholder="ma-ressource" /></label>` +
-    `<label class="stack">Portée <select name="scope">${SCOPE_VALUES.map((scope) => `<option value="${scope}">${esc(scopeLabel(scope))}</option>`).join("")}</select></label>` +
+    `<label class="stack">Portée <select name="scope">${SCOPE_VALUES.filter((scope) => isAdmin || scope !== "studio").map((scope) => `<option value="${scope}">${esc(scopeLabel(scope))}</option>`).join("")}</select></label>` +
     `<label class="stack">ID projet (exigé pour la portée Projet) <input name="project_id" placeholder="uuid" autocomplete="off" /></label>` +
     `<label class="stack">Titre <input name="title" required autocomplete="off" placeholder="Titre lisible de la version 1" /></label>` +
     `<label class="stack">Description <input name="description" autocomplete="off" placeholder="À quoi sert cette ressource (facultatif)" /></label>` +
@@ -802,6 +804,7 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
   const hookContents = meta.kind === "hook" ? await loadHookListContent(ctx.client, resources) : undefined;
   const sync = ctx.authed ? await loadLibrarySyncStatus() : null;
   const state: LibraryListState = { query: "", scope: "all", status: "all" };
+  const isAdmin = await isAdminIdentity(ctx.client);
 
   const paint = (): void => {
     root.innerHTML =
@@ -809,7 +812,7 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
       dsModalHtml({
         id: "library-create-dialog",
         title: `Nouvelle ${fr.singular.toLowerCase()}`,
-        body: `<form data-create id="library-create-form" novalidate>${createFormFieldsHtml(meta.kind)}` +
+        body: `<form data-create id="library-create-form" novalidate>${createFormFieldsHtml(meta.kind, isAdmin)}` +
           `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
           `<button class="ds-btn ds-btn--primary" type="submit" id="library-create-submit">Créer</button></div></form>`,
       }) +
@@ -1003,8 +1006,10 @@ export function libraryDetailHtml(
   versions: LibraryVersion[],
   locks: LibraryProjectLock[],
   siblings: LibraryResource[] = [],
+  isAdmin = true,
 ): string {
   const fr = kindFr(resource.kind);
+  const lifecycleLocked = resource.scope === "studio" && !isAdmin;
   const relevantLocks = locks.filter((lock) => lock.resource_id === resource.id);
   const sorted = [...versions].sort((a, b) => b.version - a.version);
   const activeVersion = versions.find((version) => version.version === resource.active_version) ?? null;
@@ -1052,8 +1057,10 @@ export function libraryDetailHtml(
     `${inspectorLinkHtml(resource)}` +
     (resource.kind === "hook" ? hookIncomingSectionHtml() : "") +
     `<section class="ds-panel" aria-label="Cycle de vie"><header><h2>Cycle de vie</h2></header><div class="body">` +
-    `${lifecycleFormsHtml(resource)}` +
-    `<p><button class="ds-btn" type="button" id="library-version-new">+ Nouvelle version</button></p>` +
+    (lifecycleLocked
+      ? `<div class="ds-notice ds-notice--info" role="note" data-library-studio-locked>Les ressources de portée Studio sont réservées aux administrateurs : activation, dépréciation et nouvelles versions sont indisponibles.</div>`
+      : `${lifecycleFormsHtml(resource)}` +
+        `<p><button class="ds-btn" type="button" id="library-version-new">+ Nouvelle version</button></p>`) +
     dsModalHtml({
       id: "library-version-dialog",
       title: "Nouvelle version",
@@ -1136,7 +1143,7 @@ export async function renderLibraryDetail(
     locksError === undefined
       ? ""
       : `<div class="ds-notice ds-notice--warning" role="alert"><strong>Verrous indisponibles.</strong> ${esc(locksError)}</div>`;
-  root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings) + locksWarning;
+  root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings, await isAdminIdentity(ctx.client)) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {

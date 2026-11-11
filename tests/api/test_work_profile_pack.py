@@ -2,11 +2,19 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+import pytest_asyncio
 from httpx import AsyncClient
 
 from tests.api.test_library_bindings import _create, _payload
 
 URL = "/api/v1/resolutions/work-profile-pack"
+
+
+@pytest_asyncio.fixture
+async def auth_headers(admin_auth_headers: dict[str, str]) -> dict[str, str]:
+    """Studio writes are admin-only (P70a): these tests exercise dependency
+    pins and pack composition, so the seeding caller is an admin."""
+    return admin_auth_headers
 
 
 async def _activate(

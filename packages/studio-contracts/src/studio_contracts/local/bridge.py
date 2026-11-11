@@ -84,6 +84,11 @@ from studio_contracts.local.machine_setup import (
     SetupPlanRequest,
 )
 from studio_contracts.local.outbox import OutboxLegacyStatus
+from studio_contracts.local.project_projections import (
+    ProjectProjectionsApplyRequest,
+    ProjectProjectionsApplyResult,
+    ProjectProjectionsStatus,
+)
 from studio_contracts.local.publication import (
     PublicationPlan,
     PublicationPreviewRequest,
@@ -183,6 +188,8 @@ class BridgeCommand(StrEnum):
     SKILLS_APPLY = "skills.apply"
     SKILLS_STATUS = "skills.status"
     SKILLS_CONFIGURE = "skills.configure"
+    PROJECT_PROJECTIONS_STATUS = "project_projections.status"
+    PROJECT_PROJECTIONS_APPLY = "project_projections.apply"
     SETUP_PLAN = "setup.plan"
     SETUP_APPLY = "setup.apply"
     SETUP_HOOKS_CHECK = "hooks.check"
@@ -418,6 +425,19 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             BridgeCommand.SKILLS_CONFIGURE,
             SkillsConfigureRequest,
             SkillsSyncStatus,
+            "skills.apply",
+            mutating=True,
+        ),
+        _spec(
+            BridgeCommand.PROJECT_PROJECTIONS_STATUS,
+            EmptyPayload,
+            ProjectProjectionsStatus,
+            "skills.read",
+        ),
+        _spec(
+            BridgeCommand.PROJECT_PROJECTIONS_APPLY,
+            ProjectProjectionsApplyRequest,
+            ProjectProjectionsApplyResult,
             "skills.apply",
             mutating=True,
         ),

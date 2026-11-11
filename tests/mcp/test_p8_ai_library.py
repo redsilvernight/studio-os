@@ -36,6 +36,7 @@ from studio_contracts.runtime import (
 from studio_mcp.errors import McpError
 from studio_mcp.tools import ai_library as p8
 
+from tests.library_seed import studio_admin
 from tests.mcp.conftest import FakeContext
 
 AGENT = LibraryKind.AGENT_DEFINITION
@@ -137,6 +138,8 @@ async def _create(
     dependencies: list[DependencyPin] | None = None,
     scope: LibraryScope = LibraryScope.STUDIO,
 ):
+    if scope == LibraryScope.STUDIO:
+        principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -426,13 +429,13 @@ async def test_p8_discover_list_and_read(
 
 
 async def test_p8_publish_lifecycle(
-    auth_ctx: FakeContext,
+    admin_ctx: FakeContext,
     readonly_auth_ctx: FakeContext,
 ) -> None:
     key = _key("p8-pub")
     created = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=key,
         scope="studio",
@@ -460,7 +463,7 @@ async def test_p8_publish_lifecycle(
 
     second = await p8.studio_publish_definition(
         "create_version",
-        auth_ctx,
+        admin_ctx,
         resource_id=resource_id,
         title="v2",
         content={"content_schema": "studio.library.rule/v1", "text": "v2"},
@@ -471,7 +474,7 @@ async def test_p8_publish_lifecycle(
 
     activated = await p8.studio_publish_definition(
         "activate",
-        auth_ctx,
+        admin_ctx,
         resource_id=resource_id,
         version=2,
         expected_resource_version=current_version,
@@ -479,14 +482,14 @@ async def test_p8_publish_lifecycle(
     assert as_dict(activated)["resource"]["active_version"] == 2
 
     stale = await p8.studio_publish_definition(
-        "activate", auth_ctx, resource_id=resource_id, version=1, expected_resource_version=1
+        "activate", admin_ctx, resource_id=resource_id, version=1, expected_resource_version=1
     )
     assert isinstance(stale, McpError)
     assert stale.error_code == "version_conflict"
 
     deprecated = await p8.studio_publish_definition(
         "deprecate",
-        auth_ctx,
+        admin_ctx,
         resource_id=resource_id,
         expected_resource_version=as_dict(activated)["resource"]["version"],
     )
@@ -494,7 +497,7 @@ async def test_p8_publish_lifecycle(
 
     bad_content = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=_key("p8-bad"),
         scope="studio",
@@ -506,13 +509,13 @@ async def test_p8_publish_lifecycle(
 
 
 async def test_p8_publish_idempotency_and_principal_first(
-    auth_ctx: FakeContext,
+    admin_ctx: FakeContext,
     readonly_auth_ctx: FakeContext,
 ) -> None:
     key, idem = _key("p8-idem"), f"p8-{_key('k')}"
     first = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=key,
         scope="studio",
@@ -522,7 +525,7 @@ async def test_p8_publish_idempotency_and_principal_first(
     )
     replay = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=key,
         scope="studio",
@@ -534,7 +537,7 @@ async def test_p8_publish_idempotency_and_principal_first(
 
     mismatch = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=key,
         scope="studio",
@@ -560,7 +563,7 @@ async def test_p8_publish_idempotency_and_principal_first(
     assert denied.error_code == "forbidden"
     allowed = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=_key("p8-x"),
         scope="studio",
@@ -782,11 +785,11 @@ async def test_p8_auth_and_isolation(
 
 async def test_p8_http_mcp_parity(
     db_session: AsyncSession,
-    machine: tuple[MachineModel, str],
-    auth_ctx: FakeContext,
+    admin_machine: tuple[MachineModel, str],
+    admin_ctx: FakeContext,
     project: ProjectModel,
 ) -> None:
-    mine = await _principal(db_session, machine)
+    mine = await _principal(db_session, admin_machine)
     agent_key, profile_key = _key("p8-par"), _key("p8-parm")
     await _create(db_session, mine, PROFILE, profile_key, _profile_content(coding=True))
     await _create(
@@ -805,7 +808,7 @@ async def test_p8_http_mcp_parity(
             target_kind=AGENT,
             target_stable_key=agent_key,
             target=RuntimeTarget(
-                machine_id=machine[0].id, capabilities=RuntimeCapabilities(coding=True)
+                machine_id=admin_machine[0].id, capabilities=RuntimeCapabilities(coding=True)
             ),
         ),
     )
@@ -815,7 +818,7 @@ async def test_p8_http_mcp_parity(
         db_session,
         mine,
     )
-    mcp_resolved = await p8.studio_resolve_agent(agent_key, auth_ctx, project_id=str(project.id))
+    mcp_resolved = await p8.studio_resolve_agent(agent_key, admin_ctx, project_id=str(project.id))
     assert as_dict(mcp_resolved) == http_resolved.model_dump(mode="json")
 
     rule_key = _key("p8-parr")
@@ -835,7 +838,7 @@ async def test_p8_http_mcp_parity(
     mcp_key = _key("p8-parm2")
     mcp_created = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="rule",
         stable_key=mcp_key,
         scope="studio",
@@ -853,7 +856,7 @@ async def test_p8_http_mcp_parity(
             level=RuntimeLevel.USER,
             target_kind=AGENT,
             target_stable_key=bind_key,
-            target=RuntimeTarget(machine_id=machine[0].id),
+            target=RuntimeTarget(machine_id=admin_machine[0].id),
         ),
         _http_request(),
         db_session,
@@ -863,11 +866,11 @@ async def test_p8_http_mcp_parity(
     mcp_bind_key = _key("p8-parb2")
     mcp_binding = await p8.studio_configure_runtime(
         "set",
-        auth_ctx,
+        admin_ctx,
         level="user",
         target_kind="agent_definition",
         target_stable_key=mcp_bind_key,
-        target={"machine_id": str(machine[0].id)},
+        target={"machine_id": str(admin_machine[0].id)},
     )
     assert _stable(as_dict(mcp_binding), "target_stable_key") == _stable(
         http_binding.model_dump(mode="json"), "target_stable_key"
@@ -881,7 +884,7 @@ async def test_p8_http_mcp_parity(
         None,
     )
     mcp_runtime = await p8.studio_register_runtime(
-        "register", auth_ctx, provider_ref="parity", model_ref="m"
+        "register", admin_ctx, provider_ref="parity", model_ref="m"
     )
     assert _stable(as_dict(mcp_runtime)) == _stable(http_runtime.model_dump(mode="json"))
 
@@ -935,7 +938,7 @@ async def test_p8_register_update_parity(
 async def test_p8_workflow_publish_and_discover(
     db_session: AsyncSession,
     machine: tuple[MachineModel, str],
-    auth_ctx: FakeContext,
+    admin_ctx: FakeContext,
 ) -> None:
     mine = await _principal(db_session, machine)
     writer_key = _key("p8-wf-writer")
@@ -946,7 +949,7 @@ async def test_p8_workflow_publish_and_discover(
     key = _key("p8-wf")
     created = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="workflow",
         stable_key=key,
         scope="studio",
@@ -992,7 +995,7 @@ async def test_p8_workflow_publish_and_discover(
 
     activated = await p8.studio_publish_definition(
         "activate",
-        auth_ctx,
+        admin_ctx,
         resource_id=detail["resource"]["id"],
         version=1,
         expected_resource_version=detail["resource"]["version"],
@@ -1000,7 +1003,7 @@ async def test_p8_workflow_publish_and_discover(
     assert not isinstance(activated, McpError)
 
     discovered = await p8.studio_discover_definitions(
-        auth_ctx, kind="workflow", stable_key=key, include_versions=True
+        admin_ctx, kind="workflow", stable_key=key, include_versions=True
     )
     found = as_dict(discovered)
     assert found["resource"]["stable_key"] == key
@@ -1008,7 +1011,7 @@ async def test_p8_workflow_publish_and_discover(
 
     cyclic = await p8.studio_publish_definition(
         "create",
-        auth_ctx,
+        admin_ctx,
         kind="workflow",
         stable_key=_key("p8-wf-bad"),
         scope="studio",

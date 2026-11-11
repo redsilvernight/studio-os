@@ -902,16 +902,50 @@ def _print_export_result(adapter: Any, result: Any, args: argparse.Namespace) ->
         print(f"warning {warning.code}: {warning.detail}")
 
 
+def _projection_bundle(args: argparse.Namespace, config: ClientConfig | None) -> Any:
+    """`--from-library`: the projection source is the Library resolution of
+    `--project-id` (P40), never `.agents/`. None keeps the file source."""
+    if not args.from_library:
+        return None
+    if not args.project_id:
+        print("error: --from-library requires --project-id", file=sys.stderr)
+        raise SystemExit(1)
+    from studio_client.projection_source import fetch_projection_bundle
+
+    assert config is not None  # Library fetch needs the API configuration.
+    project_id = _parse_uuid(args.project_id, field="project_id")
+
+    async def action(client: StudioApiClient) -> Any:
+        return await fetch_projection_bundle(client, project_id)
+
+    return _run(config, action)
+
+
+def _projection_manifest(args: argparse.Namespace, bundle: Any) -> Any:
+    """The manifest file when present; with a Library bundle and no file, all
+    local adapters."""
+    from studio_client.adapters import list_adapters
+    from studio_client.bootstrap import MANIFEST_RELATIVE_PATH, load_manifest, make_manifest
+
+    if bundle is not None and not (Path(args.repo_root) / MANIFEST_RELATIVE_PATH).is_file():
+        return make_manifest("library-projection", "Library projection", list(list_adapters()))
+    return load_manifest(args.repo_root)
+
+
 def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Anti-drift gate (P3.7): managed harness files must equal a fresh
     offline export of the canonical definitions. Never merges — reports
     every mismatch and exits non-zero."""
     from studio_client.adapters_check import check_adapters
 
+    if args.from_library and args.with_library:
+        print("error: --from-library and --with-library are exclusive", file=sys.stderr)
+        raise SystemExit(1)
     outcome = check_adapters(
         Path(args.repo_root),
         adapter_id=args.adapter,
         stable_key=args.stable_key,
+        bundle=_projection_bundle(args, config),
         library_for=(
             (lambda key: _fetch_library_snapshot(args, config, key)) if args.with_library else None
         ),
@@ -1011,12 +1045,14 @@ def _missing_harnesses(
 def _bootstrap_report(
     args: argparse.Namespace, config: ClientConfig | None, *, emit_diff: bool
 ) -> None:
-    from studio_client.bootstrap import BootstrapError, diff_text, load_manifest, observe
+    from studio_client.bootstrap import BootstrapError, diff_text, observe, plan_files
 
     try:
-        manifest = load_manifest(args.repo_root)
-        report = observe(args.repo_root, manifest)
-        diff = diff_text(args.repo_root, manifest) if emit_diff else ""
+        bundle = _projection_bundle(args, config)
+        manifest = _projection_manifest(args, bundle)
+        planned = plan_files(args.repo_root, manifest, bundle)
+        report = observe(args.repo_root, manifest, planned=planned)
+        diff = diff_text(args.repo_root, manifest, planned=planned) if emit_diff else ""
     except BootstrapError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -1030,7 +1066,11 @@ def _bootstrap_report(
         print(diff if diff else "no changes")
     else:
         for observed in report.files:
-            print(f"{observed.state.value:11} {observed.path}")
+            suffix = f"  ({observed.message})" if observed.message else ""
+            print(f"{observed.state.value:11} {observed.path}{suffix}")
+        for conflict in report.conflicts:
+            if conflict.blocking:
+                print(f"conflict {conflict.code.value} {conflict.path or ''}".rstrip())
         summary = report.summary
         print(
             f"absent={summary.absent} obsolete={summary.obsolete} "
@@ -1083,16 +1123,23 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
     from studio_client.bootstrap import (
         BootstrapError,
         apply_files,
-        load_manifest,
         observe,
         plan_files,
     )
 
     try:
-        manifest = load_manifest(args.repo_root)
-        planned = plan_files(args.repo_root, manifest)
+        bundle = _projection_bundle(args, config)
+        manifest = _projection_manifest(args, bundle)
+        planned = plan_files(args.repo_root, manifest, bundle)
         report = observe(args.repo_root, manifest, planned=planned)
-        written = apply_files(args.repo_root, manifest, report, planned=planned, confirm=args.yes)
+        written = apply_files(
+            args.repo_root,
+            manifest,
+            report,
+            planned=planned,
+            confirm=args.yes,
+            overwrite=args.overwrite,
+        )
     except BootstrapError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -1577,6 +1624,42 @@ def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
     print(f"{verb} {changed} of {len(results)} resources")
 
 
+def _library_import_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """P43 gate: the harness projections rebuilt from the Library contents
+    (`.agents/` published in memory) must equal the committed files. Read-only,
+    offline, exits 1 on any gap that is not `excluded`."""
+    from studio_client.library_equivalence import DifferenceNature, check_equivalence
+
+    _ = config
+    try:
+        differences = check_equivalence(args.repo_root)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    failures = [item for item in differences if item.nature.blocking]
+    unprojected = sum(1 for item in differences if item.nature is DifferenceNature.UNPROJECTED)
+    excluded = sum(1 for item in differences if item.nature is DifferenceNature.EXCLUDED)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "differences": [item.to_dict() for item in differences],
+                    "failures": len(failures),
+                    "unprojected": unprojected,
+                    "excluded": excluded,
+                },
+                indent=2,
+            )
+        )
+    else:
+        for item in differences:
+            detail = f"  ({item.detail})" if item.detail else ""
+            print(f"{item.nature.value:11} {item.path}{detail}")
+        print(f"gaps {len(failures)}, unprojected {unprojected}, excluded {excluded}")
+    if failures:
+        raise SystemExit(1)
+
+
 def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
     AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
@@ -1587,7 +1670,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
         load_rule_meta,
         merge_agents_rules,
         render_claude_rule,
-        workflow_skill_projections,
+        skill_projections,
     )
 
     _ = config
@@ -1621,7 +1704,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
             backup_file(root, "AGENTS.md", backup_root)
         agents_md.write_text(updated, encoding="utf-8")
         written.append(str(agents_md))
-    for relative, content in workflow_skill_projections(root).items():
+    for relative, content in skill_projections(root).items():
         target = root / relative
         if target.is_file() and target.read_text(encoding="utf-8") == content:
             continue
@@ -1669,6 +1752,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                 "written": [str(path) for path in result.written],
                 "backups": [str(path) for path in result.backups],
                 "removed": [str(path) for path in result.removed],
+                "conflicts": [str(path) for path in result.conflicts],
                 "manifest": str(result.manifest_path),
             }
             if args.json:
@@ -1678,7 +1762,8 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                     f"synchronized {payload['skills']} skills; "
                     f"wrote {len(result.written)} files; "
                     f"created {len(result.backups)} backups; "
-                    f"removed {len(result.removed)} deprecated copies"
+                    f"removed {len(result.removed)} deprecated copies; "
+                    f"skipped {len(result.conflicts)} conflicting files"
                 )
                 print(f"manifest: {result.manifest_path}")
             return
@@ -1766,7 +1851,9 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
                 "written": [str(path) for path in result.written],
                 "deleted": [str(path) for path in result.deleted],
                 "backups": [str(path) for path in result.backups],
+                "conflicts": [str(path) for path in result.conflicts],
                 "manifest": str(result.manifest_path),
+                "pending_consent": len(plan.needs_consent),
             }
             if args.json:
                 print(json.dumps(payload, indent=2))
@@ -1775,10 +1862,13 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
                     print(f"{row['stable_key']} v{row['version']}: {row['status']}")
                 print(
                     f"wrote {len(result.written)} files; deleted {len(result.deleted)}; "
-                    f"created {len(result.backups)} backups"
+                    f"created {len(result.backups)} backups; "
+                    f"skipped {len(result.conflicts)} conflicting files; "
+                    f"{len(plan.needs_consent)} pending consent"
                 )
             return
-        failures = len(plan.pending) + len(plan.needs_consent)
+        pending_consent = len(plan.needs_consent)
+        failures = len(plan.pending) + pending_consent
         if args.json:
             print(
                 json.dumps(
@@ -1786,6 +1876,7 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
                         "hooks": rows,
                         "files": files,
                         "removed": list(plan.removed),
+                        "pending_consent": pending_consent,
                         "failures": failures,
                     },
                     indent=2,
@@ -1798,7 +1889,9 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
             for item in files:
                 if item["state"] != "current":
                     print(f"{item['state']}: {item['path']}")
-            print(f"checked {len(rows)} hooks, failures {failures}")
+            print(
+                f"checked {len(rows)} hooks, {pending_consent} pending consent, failures {failures}"
+            )
         if args.hooks_command == "check" and failures:
             raise SystemExit(1)
     except HookSyncError as exc:
@@ -2246,6 +2339,11 @@ def _build_parser() -> argparse.ArgumentParser:
     adapters_check.add_argument("--adapter", help="Check one adapter id (default: all).")
     adapters_check.add_argument("--stable-key", help="Check one agent key (default: all).")
     adapters_check.add_argument("--repo-root", default=".", help="Repository root.")
+    adapters_check.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Check against the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
     adapters_check.add_argument("--project-id", help="Project UUID for --with-library.")
     adapters_check.add_argument(
         "--with-library",
@@ -2415,6 +2513,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(library_publish)
     library_publish.set_defaults(func=_library_publish)
+    library_import_check = library_sub.add_parser(
+        "import-check",
+        help="Check the Library rendering of `.agents/` against the committed projections (P43).",
+    )
+    library_import_check.add_argument("--repo-root", default=".", help="Repository root.")
+    _add_json_flag(library_import_check)
+    library_import_check.set_defaults(func=_library_import_check)
 
     bootstrap_parser = subparsers.add_parser(
         "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
@@ -2443,6 +2548,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "check", help="Report bundle drift (exit 1 when out of date)."
     )
     bootstrap_check.add_argument("--repo-root", default=".")
+    bootstrap_check.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
+    bootstrap_check.add_argument("--project-id", help="Project UUID for --from-library.")
     bootstrap_check.add_argument("--registry-dir")
     _add_json_flag(bootstrap_check)
     bootstrap_check.set_defaults(func=_bootstrap_check)
@@ -2451,6 +2562,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "diff", help="Print the unified diff needed to sync the bundle."
     )
     bootstrap_diff.add_argument("--repo-root", default=".")
+    bootstrap_diff.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
+    bootstrap_diff.add_argument("--project-id", help="Project UUID for --from-library.")
     bootstrap_diff.add_argument("--registry-dir")
     _add_json_flag(bootstrap_diff)
     bootstrap_diff.set_defaults(func=_bootstrap_diff)
@@ -2459,11 +2576,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "sync", help="Write missing or changed bundle files (idempotent)."
     )
     bootstrap_sync.add_argument("--repo-root", default=".")
+    bootstrap_sync.add_argument(
+        "--from-library",
+        action="store_true",
+        help="Project the Library resolution of --project-id instead of `.agents/` (P40).",
+    )
+    bootstrap_sync.add_argument("--project-id", help="Project UUID for --from-library.")
     bootstrap_sync.add_argument("--registry-dir")
     bootstrap_sync.add_argument(
         "--yes",
         action="store_true",
         help="Confirm replacements under the `ask` policy and apply the MCP wiring.",
+    )
+    bootstrap_sync.add_argument(
+        "--overwrite",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Replace an unmanaged file the check reported as a conflict (repeatable).",
     )
     bootstrap_sync.add_argument(
         "--wire-mcp",
@@ -2540,6 +2670,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         in ("init", "check", "diff", "sync", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
         or getattr(args, "library_command", None) == "restore"
+        or getattr(args, "library_command", None) == "import-check"
         or getattr(args, "completion_command", None) == "check"
     ):
         # Offline canonical commands need no server configuration.

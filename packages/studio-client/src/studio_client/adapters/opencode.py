@@ -18,6 +18,7 @@ from studio_client.adapters.base import (
     ensure_supported,
     render_shared_body,
     sanitize_agent_filename,
+    unprojected_field_warnings,
     yaml_quoted,
 )
 
@@ -95,6 +96,9 @@ class OpenCodeAdapter:
             *warnings,
             AdapterWarning("permissions_defaulted", policy_note + " (bash unrestrictable)"),
             *capability_notes(self.adapter_id, self.capabilities(), edit_policy=edit_policy_str),
+            *unprojected_field_warnings(
+                self.adapter_id, content_map, tools=False, edit_policies=("ask",)
+            ),
         ]
         profile = resolved.model_profile
         if profile is not None and profile.requirements.tools_required:

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from studio_client.canonical import load_rule_meta, load_rule_text
 from studio_client.publish import (
     PublishError,
     build_publish_items,
     publish_items,
 )
 from studio_contracts.library import (
+    SKILL_FILES_MAX,
     LibraryActivate,
     LibraryKind,
     LibraryResource,
@@ -114,11 +117,31 @@ def _run(client: FakeClient, **kwargs: Any) -> Any:
 
 def test_items_ordered_rules_skills_agents_and_agent_pins() -> None:
     items = build_publish_items(REPO)
+    order = {"rule": 0, "skill": 1, "model_profile": 2, "agent": 3}
     kinds = [item.kind for item in items]
-    assert kinds == sorted(kinds, key={"rule": 0, "skill": 1, "agent": 2}.__getitem__)
+    assert kinds == sorted(kinds, key=order.__getitem__)
     tester = next(i for i in items if i.kind == "agent" and i.stable_key == "studio-tester")
     assert ("rule", "contracts") in tester.pins
-    assert "instructions" not in tester.content
+    assert ("model_profile", "studio-tester-profile") in tester.pins
+    assert tester.content["content_schema"] == "studio.library.agent_definition/v2"
+    assert str(tester.content["instructions"]).startswith("Common lifecycle")
+    assert str(tester.content["intended_use"]).startswith("Use after implementing")
+
+
+def test_model_profile_items_carry_agent_requirements() -> None:
+    items = build_publish_items(REPO, kinds=("agent",))
+    profiles = {i.stable_key: i for i in items if i.kind == "model_profile"}
+    assert "studio-tester-profile" in profiles
+    profile = profiles["studio-tester-profile"]
+    assert profile.content["content_schema"] == "studio.library.model_profile/v1"
+    assert profile.content["requirements"] == {
+        "reasoning": "medium",
+        "coding": False,
+        "tools_required": [],
+        "local_compatible": False,
+    }
+    with pytest.raises(PublishError, match="published with its agent"):
+        build_publish_items(REPO, kinds=("model_profile",))
 
 
 def test_unknown_key_and_scope_mismatch_fail_closed() -> None:
@@ -147,8 +170,13 @@ def test_publish_creates_then_is_idempotent() -> None:
         r for r in client.resources.values() if r.kind == LibraryKind.AGENT_DEFINITION
     )
     pins = client.versions[agent_resource.id][0].dependencies
-    assert {(p.kind.value, p.stable_key, p.version) for p in pins} >= {("rule", "contracts", 1)}
+    assert {(p.kind.value, p.stable_key, p.version) for p in pins} >= {
+        ("rule", "contracts", 1),
+        ("model_profile", "studio-tester-profile", 1),
+    }
     assert agent.version == 1
+    # The profile is published before the agent that pins it.
+    assert [r.kind for r in first].index("model_profile") < [r.kind for r in first].index("agent")
 
     writes_before = len(client.writes)
     second = _run(
@@ -160,6 +188,40 @@ def test_publish_creates_then_is_idempotent() -> None:
     )
     assert all(r.action == "unchanged" and not r.activated for r in second)
     assert len(client.writes) == writes_before
+
+
+def test_rule_content_v2_carries_applies_to() -> None:
+    (item,) = build_publish_items(REPO, kinds=("rule",), keys=["contracts"])
+    applies_to, body = load_rule_meta(REPO, "contracts")
+    assert item.content == {
+        "content_schema": "studio.library.rule/v2",
+        "text": body,
+        "applies_to": applies_to,
+    }
+    assert applies_to and body == load_rule_text(REPO, "contracts")
+
+
+def test_skill_references_publish_as_files() -> None:
+    (graphify,) = build_publish_items(REPO, kinds=("skill",), keys=["graphify"])
+    files = graphify.content["files"]
+    assert isinstance(files, list) and len(files) == 8
+    assert [f["path"] for f in files] == sorted(f["path"] for f in files)
+    assert all(f["path"].startswith("references/") for f in files)
+    assert all(f["sha256"] == hashlib.sha256(f["text"].encode("utf-8")).hexdigest() for f in files)
+    (single,) = build_publish_items(REPO, kinds=("skill",), keys=["openapi-sync"])
+    assert "files" not in single.content
+
+
+def test_skill_files_budget_fails_closed(tmp_path: Path) -> None:
+    skill = tmp_path / ".agents" / "skills" / "heavy"
+    (skill / "references").mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: heavy\ndescription: Heavy skill\n---\n\nbody\n", encoding="utf-8"
+    )
+    for index in range(SKILL_FILES_MAX + 1):
+        (skill / "references" / f"f{index:02d}.md").write_text(f"file {index}\n", encoding="utf-8")
+    with pytest.raises(PublishError, match="auxiliary files, max"):
+        build_publish_items(tmp_path, kinds=("skill",))
 
 
 def test_changed_content_adds_version_without_activating() -> None:
@@ -188,4 +250,5 @@ def test_missing_dependency_pin_fails_closed() -> None:
     client = FakeClient()
     with pytest.raises(PublishError, match="no published version to pin"):
         _run(client, items=items, scope=LibraryScope.STUDIO, project_id=None)
-    assert client.writes == []
+    # The agent is never written: only its own model_profile precedes it in the run.
+    assert client.writes == ["create:studio-tester-profile"]

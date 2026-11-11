@@ -27,6 +27,7 @@ from studio_contracts.library import (
 from studio_contracts.tasks import TaskCreate
 from studio_mcp.tools.context import studio_prepare_context
 
+from tests.library_seed import studio_admin
 from tests.mcp.conftest import FakeContext
 
 Machine = tuple[MachineModel, str]
@@ -55,6 +56,7 @@ async def _project(db_session: AsyncSession):
 
 
 async def _resource(db_session, principal, kind, key, content, dependencies=None):
+    principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,

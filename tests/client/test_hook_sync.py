@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -54,6 +55,20 @@ class _FakeApi:
 
     async def list_library_versions(self, resource_id: UUID) -> list[_Version]:
         return [row for row in self.versions if row.resource_id == resource_id]
+
+    async def batch_library_versions(self, refs: list[tuple[UUID, int]]) -> Any:
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(
+                    resource_id=r,
+                    version=v,
+                    detail=next(
+                        (x for x in self.versions if x.resource_id == r and x.version == v), None
+                    ),
+                )
+                for r, v in refs
+            ]
+        )
 
 
 def _content(body: str = "echo guard\n", **overrides: Any) -> dict[str, Any]:
@@ -332,3 +347,45 @@ def test_fingerprint_is_canonical() -> None:
     reordered = dict(reversed(list(_content().items())))
     second = HookProjection("k", 2, "active", "studio", "t", HookContent.model_validate(reordered))
     assert first.fingerprint == second.fingerprint
+
+
+def test_needs_consent_hooks_are_never_applied(tmp_path: Path) -> None:
+    provider = _Provider()
+    provider.publish("guard", 1, _content())
+    provider.publish("other", 1, _content("echo other\n"))
+
+    plan = plan_hook_sync(tmp_path, provider.projections(), consent=["guard"], os_name=HookOs.LINUX)
+
+    assert [entry.status for entry in plan.entries] == ["installed", "needs_consent"]
+    assert [entry.projection.stable_key for entry in plan.needs_consent] == ["other"]
+
+    result = apply_hook_sync(plan)
+
+    assert _script(tmp_path, "guard").exists()
+    assert not _script(tmp_path, "other").exists()
+    settings_text = (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8")
+    assert "other" not in settings_text
+    assert all("other" not in str(path) for path in result.written)
+
+
+def test_cli_check_reports_exact_pending_consent_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    provider = _Provider()
+    provider.publish("guard", 1, _content())
+    provider.publish("other", 1, _content("echo other\n"))
+    plan = plan_hook_sync(tmp_path, provider.projections(), consent=["guard"], os_name=HookOs.LINUX)
+    apply_hook_sync(plan)
+    monkeypatch.setattr(cli, "_load_config", lambda: object())
+    monkeypatch.setattr(cli, "_run", lambda _config, _action: provider.projections())
+
+    with pytest.raises(SystemExit, match="1"):
+        cli.main(["hooks-library", "check", "--home", str(tmp_path), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    expected = sum(1 for row in payload["hooks"] if row["status"] == "needs_consent")
+    assert payload["pending_consent"] == expected == 1
+
+    with pytest.raises(SystemExit, match="1"):
+        cli.main(["hooks-library", "check", "--home", str(tmp_path)])
+    assert "1 pending consent" in capsys.readouterr().out

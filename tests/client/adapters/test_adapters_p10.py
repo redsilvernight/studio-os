@@ -584,3 +584,47 @@ def test_core_stays_free_of_harness_provider_branches() -> None:
             if hits:
                 offenders.append(f"{path.relative_to(repo)}: {hits}")
     assert offenders == []
+
+
+# --- P32: agent v2 projection ------------------------------------------------
+
+
+def _v2_resolved(**fields: object) -> ResolvedAgentDefinition:
+    base = _resolved("none")
+    content = {
+        "content_schema": "studio.library.agent_definition/v2",
+        "summary": "Reviews code.",
+        "instructions": "Read the diff first.",
+        "triggers": ["before merge"],
+        "edit_policy": "deny",
+        "tools": ["read", "grep"],
+        **fields,
+    }
+    return base.model_copy(update={"agent": base.agent.model_copy(update={"content": content})})
+
+
+@pytest.mark.parametrize("harness", ["claude-code", "codex", "opencode"])
+def test_v2_agent_projects_to_every_harness(harness: str) -> None:
+    result = get_adapter(harness).translate(_v2_resolved())
+    content = result.artifacts[0].content
+    assert "Read the diff first." in content
+    assert "before merge" in content
+    flagged = any("canonical tool needs" in w.detail for w in result.warnings)
+    assert flagged == (harness != "claude-code")
+
+
+def test_v2_claude_tools_and_opencode_edit_policy() -> None:
+    claude = get_adapter("claude-code").translate(_v2_resolved()).artifacts[0].content
+    assert "tools: Read, Grep" in claude
+    opencode = get_adapter("opencode").translate(_v2_resolved(edit_policy="ask"))
+    assert "  edit: ask" in opencode.artifacts[0].content
+    assert "edit_policy_not_projected" not in {w.code for w in opencode.warnings}
+
+
+@pytest.mark.parametrize(
+    ("harness", "flagged"),
+    [("claude-code", True), ("codex", True), ("opencode", True)],
+)
+def test_v2_edit_policy_allow_is_flagged(harness: str, flagged: bool) -> None:
+    result = get_adapter(harness).translate(_v2_resolved(edit_policy="allow"))
+    assert ("edit_policy_not_projected" in {w.code for w in result.warnings}) == flagged

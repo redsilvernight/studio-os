@@ -34,6 +34,7 @@ from studio_mcp.tools.decisions import studio_get_decisions
 from studio_mcp.tools.projects import studio_get_project_state, studio_get_projects
 from studio_mcp.tools.tasks import studio_get_active_tasks, studio_get_task
 
+from tests.library_seed import studio_admin
 from tests.mcp.conftest import FakeContext
 
 Machine = tuple[MachineModel, str]
@@ -112,6 +113,8 @@ async def _library(
     title: str | None = None,
     activate: bool = True,
 ):
+    if scope == LibraryScope.STUDIO:
+        principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -317,7 +320,9 @@ async def test_superseded_decisions_and_deprecated_or_unactivated_rules_are_left
     await _decision(db_session, principal, project, "Old watcher design", status="superseded")
     await _library(db_session, principal, RULE, "draft-watcher", "watcher", activate=False)
     deprecated = await _library(db_session, principal, RULE, "old-watcher", "watcher")
-    await library_service.deprecate_resource(db_session, principal, deprecated, deprecated.version)
+    await library_service.deprecate_resource(
+        db_session, await studio_admin(db_session), deprecated, deprecated.version
+    )
 
     result = await _prepare(auth_ctx, project, "watcher")
 

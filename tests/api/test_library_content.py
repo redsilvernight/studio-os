@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from studio_contracts.library import (
     RULE_SKILL_TEXT_MAX_LENGTH,
@@ -192,6 +193,91 @@ def test_agent_definition_content_rejects_inline_capabilities_and_runtime(
 def test_agent_definition_content_rejects_wrong_schema() -> None:
     content = {"content_schema": "studio.library.rule/v1", "summary": "x"}
     assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
+
+
+def _agent_v2_content() -> dict[str, object]:
+    return {
+        "content_schema": "studio.library.agent_definition/v2",
+        "summary": "Fictional debugger.",
+        "instructions": "Investigate first.",
+        "triggers": ["bug"],
+        "edit_policy": "deny",
+        "tools": ["read", "grep"],
+    }
+
+
+def test_agent_definition_v1_unchanged_and_v2_valid() -> None:
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, _agent_content()) == []
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, _agent_v2_content()) == []
+    assert (
+        content_validation_errors(
+            LibraryKind.AGENT_DEFINITION,
+            {"content_schema": "studio.library.agent_definition/v2"},
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"model": "x"},
+        {"provider": "x"},
+        {"harness": "x"},
+        {"requirements": {}},
+        {"edit_policy": "maybe"},
+        {"tools": ["Read"]},
+        {"triggers": [""]},
+        {"instructions": "x" * (RULE_SKILL_TEXT_MAX_LENGTH + 1)},
+    ],
+)
+def test_agent_definition_v2_rejects_invalid(patch: dict[str, object]) -> None:
+    content = {**_agent_v2_content(), **patch}
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
+
+
+def test_agent_definition_v1_still_rejects_v2_fields() -> None:
+    content = {**_agent_content(), "instructions": "x"}
+    assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
+
+
+def _rule_v2_content() -> dict[str, object]:
+    return {
+        "content_schema": "studio.library.rule/v2",
+        "text": "Do not upgrade a locked resource.",
+        "applies_to": ["src/**/*.py", "tests/**"],
+    }
+
+
+def test_rule_v1_unchanged_and_v2_valid() -> None:
+    assert content_validation_errors(LibraryKind.RULE, _rule_content()) == []
+    assert content_validation_errors(LibraryKind.RULE, _rule_v2_content()) == []
+
+
+def test_rule_v2_applies_to_defaults_to_empty() -> None:
+    content = {"content_schema": "studio.library.rule/v2", "text": "Global rule."}
+    assert content_validation_errors(LibraryKind.RULE, content) == []
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"applies_to": "src/**"},
+        {"applies_to": [1]},
+        {"applies_to": [""]},
+        {"applies_to": None},
+        {"model": "x"},
+        {"text": ""},
+    ],
+)
+def test_rule_v2_rejects_invalid(patch: dict[str, object]) -> None:
+    content = {**_rule_v2_content(), **patch}
+    assert content_validation_errors(LibraryKind.RULE, content) != []
+
+
+def test_rule_v1_still_rejects_applies_to() -> None:
+    content = {**_rule_content(), "applies_to": ["src/**"]}
+    assert content_validation_errors(LibraryKind.RULE, content) != []
 
 
 # --- P3 schemas: workflow now owns the P11 schema (DEC-0075) ---------------------
@@ -627,3 +713,10 @@ async def test_create_hook_rejects_invalid_hook(
     assert response.status_code == 422, response.text
     detail = response.json()["detail"]
     assert detail == {"error_code": "invalid_hook", "reason": reason, "field": field}
+
+
+@pytest_asyncio.fixture
+async def auth_headers(admin_auth_headers: dict[str, str]) -> dict[str, str]:
+    """Studio-scope writes are admin-only (P70a): these suites seed Studio
+    definitions through the default caller, so it is an admin here."""
+    return admin_auth_headers

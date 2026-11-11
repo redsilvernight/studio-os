@@ -264,6 +264,10 @@ class BootstrapConflictCode(StrEnum):
 
     MODIFIED_NEEDS_CONFIRMATION = "modified_needs_confirmation"
     INCOMPATIBLE_TARGET = "incompatible_target"
+    UNMANAGED_TARGET = "unmanaged_target"
+    """The path exists but nothing proves Studio OS wrote it (no managed
+    record, no Library provenance): the depot never wins silently, and the
+    file is replaced only when its path is named explicitly."""
 
 
 class BootstrapConflict(ContractModel):

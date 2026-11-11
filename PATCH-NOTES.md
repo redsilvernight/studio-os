@@ -1,3 +1,24 @@
+# Studio OS v0.11.0 — 11/11/2026
+
+## Nouveautés
+
+- Bibliothèque canonique synchronisée : tous les skills, règles et agents sont générés depuis le Library vers Claude Code, Codex et OpenCode (contrats `rule/v2`, `skill/v2`, `agent_definition/v2`, contrôle d'équivalence `library import-check`).
+- Détection des mises à jour de la bibliothèque côté daemon, écrites seulement sur confirmation ; indicateur dashboard distinguant conflits et mises à jour en attente.
+- Overrides utilisateur avec `derived_from` ; une override dépréciée réactive la version commune ; scope Studio réservé aux administrateurs.
+- Hooks personnels (session-start, git-guard, stop-check) publiés au scope user ; lecture des versions par lots (endpoint dédié, lots de 500).
+
+## Corrections
+
+- « Quoi de neuf » : la version vue est enregistrée avant l'ouverture et à l'interaction, la fenêtre ne réapparaît plus à chaque lancement.
+- Aucun fichier local non géré n'est écrasé silencieusement ; bloc AGENTS.md stable sans contenu de règle.
+- Les lecteurs rule/skill acceptent v1 et v2 (une règle v2 n'était plus lue par le contexte projet).
+- `alembic/env.py` ne désactive plus les loggers existants.
+
+## Notes de mise à jour (contrats, migrations, config)
+
+- Migration `0040_library_version_derived_from` (colonne `derived_from`), appliquée par `alembic upgrade head` au déploiement ; jamais annulée en prod.
+- Contrats additifs : `studio.library.rule/v2`, `skill/v2`, `agent_definition/v2` ; les versions v1 restent lisibles.
+
 # Studio OS v0.9.2 — 31/10/2026
 
 ## Nouveautés

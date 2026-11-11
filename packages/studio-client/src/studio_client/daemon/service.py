@@ -94,6 +94,11 @@ from studio_contracts.local.machine_setup import (
     SetupPlanRequest,
 )
 from studio_contracts.local.outbox import OutboxLegacyStatus
+from studio_contracts.local.project_projections import (
+    ProjectProjectionsApplyRequest,
+    ProjectProjectionsApplyResult,
+    ProjectProjectionsStatus,
+)
 from studio_contracts.local.skills import (
     SkillsApplyRequest,
     SkillsApplyResult,
@@ -128,6 +133,10 @@ from studio_client.daemon.local_features import (
 )
 from studio_client.daemon.logging import configure_daemon_logging
 from studio_client.daemon.machine_identity import MachineResolver, resolve_machine_id
+from studio_client.daemon.project_projections import (
+    apply_project_update,
+    project_projections_status,
+)
 from studio_client.daemon.runtime import (
     AlreadyRunningError,
     DaemonRuntime,
@@ -148,7 +157,7 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.10.0"
+DAEMON_VERSION = "0.11.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
@@ -220,6 +229,8 @@ SERVED = frozenset(
         BridgeCommand.SKILLS_APPLY,
         BridgeCommand.SKILLS_STATUS,
         BridgeCommand.SKILLS_CONFIGURE,
+        BridgeCommand.PROJECT_PROJECTIONS_STATUS,
+        BridgeCommand.PROJECT_PROJECTIONS_APPLY,
         BridgeCommand.SETUP_PLAN,
         BridgeCommand.SETUP_APPLY,
         BridgeCommand.SETUP_HOOKS_CHECK,
@@ -490,6 +501,23 @@ class DaemonController:
             self._token_store,
             home=self._skills_home(),
             data_root=self.data_root,
+        )
+
+    def project_projections_status(self) -> ProjectProjectionsStatus:
+        return project_projections_status(self.data_root)
+
+    def project_projections_apply(
+        self, request: ProjectProjectionsApplyRequest
+    ) -> ProjectProjectionsApplyResult:
+        runtime = self._runtime
+        if runtime is None:
+            raise ValueError("the daemon runtime is not running")
+        return apply_project_update(
+            self.config,
+            self._token_store,
+            runtime.project_repo_targets(),
+            self.data_root,
+            request.workspace_id,
         )
 
     def _workspace_roots(self) -> tuple[Path, ...]:
@@ -996,6 +1024,15 @@ class BridgeService:
 
             EmptyPayload.model_validate(request.payload)
             return self.controller.skills_status()
+        if request.command is BridgeCommand.PROJECT_PROJECTIONS_STATUS:
+            from studio_contracts.local.bridge import EmptyPayload
+
+            EmptyPayload.model_validate(request.payload)
+            return self.controller.project_projections_status()
+        if request.command is BridgeCommand.PROJECT_PROJECTIONS_APPLY:
+            return self.controller.project_projections_apply(
+                ProjectProjectionsApplyRequest.model_validate(request.payload)
+            )
         if request.command is BridgeCommand.SETUP_PLAN:
             SetupPlanRequest.model_validate(request.payload)
             return self.controller.setup_plan()
