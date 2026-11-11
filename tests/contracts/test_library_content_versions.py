@@ -62,3 +62,13 @@ def test_context_item_reads_v2_contents(kind: str, content: dict[str, object], f
     item = LibraryContextProvider._to_item(resource, row, 1, "active")
     assert isinstance(item, LibraryContextItem)
     assert item.text == "body" and item.disable_model_invocation is flag
+
+
+@pytest.mark.parametrize(("flag", "expected"), [(True, True), (False, False)])
+def test_projection_source_emits_the_invocation_flag(flag: bool, expected: bool) -> None:
+    from studio_client.projection_source import _skill_source
+
+    skill = SimpleNamespace(
+        stable_key="k", title="t", content={**SKILL_V2, "disable_model_invocation": flag}
+    )
+    assert ("disable-model-invocation: true" in _skill_source(skill)) is expected  # type: ignore[arg-type]
