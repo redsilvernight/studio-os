@@ -160,6 +160,27 @@ def test_render_has_compatible_frontmatter_and_provenance() -> None:
     assert "\r" not in rendered
 
 
+def test_render_emits_disable_model_invocation_only_when_set() -> None:
+    plain = _projection()
+    assert plain.disable_model_invocation is False
+    assert "disable-model-invocation" not in render_skill(plain)
+
+    flagged = LibraryContextItem(
+        library_kind="skill",
+        stable_key="alembic-migration",
+        version=3,
+        version_origin="active",
+        scope="studio",
+        title="Alembic Migration",
+        text="Body.",
+        content_schema="studio.library.skill/v2",
+        description="Migrations.",
+        disable_model_invocation=True,
+    )
+    rendered = render_skill(flagged)
+    assert "\ndisable-model-invocation: true\n---\n" in rendered
+
+
 @pytest.mark.parametrize("description", [None, "", " \t\r\n "])
 def test_render_falls_back_to_title_for_empty_description(description: str | None) -> None:
     rendered = render_skill(_projection(description=description))

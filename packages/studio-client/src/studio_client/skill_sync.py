@@ -187,6 +187,7 @@ def render_skill(projection: LibraryContextItem, *, allow_project: bool = False)
     if not description:
         description = " ".join(projection.title.split())
     body = projection.text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    flag = "disable-model-invocation: true\n" if projection.disable_model_invocation else ""
     provenance = (
         "<!-- studio-os-library: "
         f"stable_key={projection.stable_key}; version={projection.version}; "
@@ -196,6 +197,7 @@ def render_skill(projection: LibraryContextItem, *, allow_project: bool = False)
         "---\n"
         f"name: {json.dumps(projection.stable_key, ensure_ascii=False)}\n"
         f"description: {json.dumps(description, ensure_ascii=False)}\n"
+        f"{flag}"
         "---\n\n"
         f"{provenance}\n"
     )

@@ -126,6 +126,22 @@ def load_skill_text(repo_root: Path | str, stable_key: str) -> str:
     return body
 
 
+def load_skill_disable_model_invocation(repo_root: Path | str, stable_key: str) -> bool:
+    """`disable_model_invocation` of the canonical skill, `False` by default.
+
+    Read from the harness-native `disable-model-invocation` frontmatter key
+    (the neutral "invoked by the user only, never by the model" flag) and
+    published as `skill/v2` `disable_model_invocation`. A non-boolean value is
+    an authoring error, never coerced: `"true"` or `1` would project a flag
+    nobody asked for."""
+    path = Path(repo_root) / ".agents" / "skills" / stable_key / "SKILL.md"
+    data, _ = _split_frontmatter(path.read_text(encoding="utf-8"), source=str(path))
+    value = data.get("disable-model-invocation", False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{path}: disable-model-invocation must be a boolean, got {value!r}")
+    return value
+
+
 def load_skill_source(repo_root: Path | str, stable_key: str) -> str:
     """Raw text of the canonical skill, frontmatter included.
 

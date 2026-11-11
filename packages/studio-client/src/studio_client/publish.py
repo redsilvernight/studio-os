@@ -29,6 +29,7 @@ from studio_client.canonical import (
     canonical_skill_keys,
     load_definition,
     load_rule_meta,
+    load_skill_disable_model_invocation,
     load_skill_files,
     load_skill_text,
     model_profile_key,
@@ -163,8 +164,9 @@ def build_publish_items(
             if selected and key not in selected:
                 continue
             content: dict[str, object] = {
-                "content_schema": "studio.library.skill/v1",
+                "content_schema": "studio.library.skill/v2",
                 "text": load_skill_text(root, key),
+                "disable_model_invocation": load_skill_disable_model_invocation(root, key),
             }
             files = _skill_files(root, key)
             if files:

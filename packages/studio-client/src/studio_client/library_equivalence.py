@@ -20,7 +20,8 @@ Three consequences, all deliberate:
   reported as `unprojected`: listed, not a gap — absence is the normal state;
 * a field only the file holds (a rule `applies_to` before `rule/v2`, an agent
   `instructions`/`tools` before `agent_definition/v2`, a skill frontmatter key
-  beyond `name`/`description`, which `skill/v1` drops) shows up as a real gap
+  beyond `name`/`description`/`disable-model-invocation`, which `skill/v2`
+  drops) shows up as a real gap
   with the diverging field or line named: that is exactly what the schema
   migration has to close.
 
@@ -313,11 +314,14 @@ def _skill_sources(
 ) -> dict[str, str]:
     """Verbatim `SKILL.md` text rebuilt from each skill version.
 
-    `skill/v1` carries the body with the frontmatter stripped; the canonical
-    projection is the raw file, so the frontmatter is restored exactly the way
-    `projection_source` derives it from a resolved skill (`name` + the
-    description the publisher read). Anything the committed file holds beyond
-    those two keys is a real loss, reported by `_compare`."""
+    `skill/v2` carries the body with the frontmatter stripped, the
+    `disable_model_invocation` flag and `files[]` for references; the
+    canonical projection is the raw file, so the frontmatter is restored
+    exactly the way `projection_source` derives it from a resolved skill
+    (`name`, the description the publisher read, plus
+    `disable-model-invocation` when the Library content carries it).
+    Anything else the committed file holds beyond those keys is a real
+    loss, reported by `_compare`."""
 
     from studio_contracts.library import LibraryScope, VersionOrigin
     from studio_contracts.resolution import ResolvedSkill
@@ -337,7 +341,10 @@ def _skill_sources(
                 version=1,
                 version_origin=VersionOrigin.ACTIVE,
                 title=item.title,
-                content={"text": _text(item)},
+                content={
+                    "text": _text(item),
+                    "disable_model_invocation": bool(item.content.get("disable_model_invocation")),
+                },
                 provenance=_prov(key),
             )
             sources[key] = _skill_source(resolved)
