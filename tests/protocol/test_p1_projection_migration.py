@@ -68,9 +68,10 @@ def test_migration_and_twice_generation(tmp_path: Path, layout: str) -> None:
 
 def test_block_is_stable_across_rule_versions(tmp_path: Path) -> None:
     root = _root(tmp_path)
-    (root / ".agents/rules/studio-protocol.md").write_text("# Protocol v1\n", encoding="utf-8")
+    (root / ".studio").mkdir()
+    (root / ".studio/studio-protocol.md").write_text("# Protocol v1\n", encoding="utf-8")
     before = render_agents_rules_block(root)
-    (root / ".agents/rules/studio-protocol.md").write_text(
+    (root / ".studio/studio-protocol.md").write_text(
         "# Protocol v2\nmore\n", encoding="utf-8"
     )
     (root / ".agents/rules/x.md").write_text(
@@ -78,7 +79,7 @@ def test_block_is_stable_across_rule_versions(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert render_agents_rules_block(root) == before
-    assert ".agents/rules/studio-protocol.md" in before
+    assert ".studio/studio-protocol.md" in before
     text = "intro\n\n" + before + "outro\n"
     assert merge_agents_rules(root, text) == text
 

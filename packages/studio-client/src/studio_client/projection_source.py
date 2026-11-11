@@ -21,6 +21,7 @@ from studio_contracts.library import LibraryKind, LibraryScope, LibraryStatus
 from studio_contracts.resolution import ResolvedAgentDefinition, ResolvedRule, ResolvedSkill
 
 from studio_client.canonical import (
+    PROTOCOL_PATH,
     build_offline_resolved,
     canonical_agent_keys,
     canonical_rule_keys,
@@ -45,7 +46,7 @@ class ProjectionBundle:
 
 def bundle_from_repo(repo_root: Path | str) -> ProjectionBundle:
     root = Path(repo_root)
-    protocol_path = root / ".agents" / "rules" / f"{PROTOCOL_RULE_KEY}.md"
+    protocol_path = root / PROTOCOL_PATH
     return ProjectionBundle(
         agents={key: build_offline_resolved(root, key) for key in canonical_agent_keys(root)},
         rules={key: load_rule_meta(root, key) for key in canonical_rule_keys(root)},

@@ -49,6 +49,7 @@ from studio_client.adapters import (
     sanitize_agent_filename,
 )
 from studio_client.canonical import (
+    PROTOCOL_PATH,
     AGENTS_BEGIN_MARKER,
     AGENTS_END_MARKER,
     CLAUDE_BEGIN_MARKER,
@@ -260,6 +261,8 @@ def plan_files(
         for relative, content in sorted(projected_skills.items()):
             if relative.startswith(prefix):
                 files.append(PlannedFile(path=relative, content=content, kind="skill"))
+    if bundle.protocol is not None:
+        files.append(PlannedFile(path=PROTOCOL_PATH, content=bundle.protocol, kind="rule"))
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH,

@@ -59,7 +59,7 @@ piece from the injected `LibrarySnapshot` there, so the check cannot fall back
 to — and silently echo — `.agents/`."""
 
 _EXCLUDED_PATHS: dict[str, str] = {
-    ".agents/rules/studio-protocol.md": "bootstrap protocol text, not a Library rule",
+    ".studio/studio-protocol.md": "bootstrap protocol text, not a Library rule",
     ".agents/bootstrap.json": "bootstrap manifest (harness policy), outside the Library",
     "AGENTS.md": "managed rules block merged into a shared file",
     "CLAUDE.md": "managed pointer block merged into a shared file",

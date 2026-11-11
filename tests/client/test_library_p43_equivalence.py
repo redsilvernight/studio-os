@@ -441,11 +441,11 @@ def test_bundle_from_resolved_carries_skill_files(repo: Path) -> None:
 
 
 def test_out_of_library_fields_are_listed_not_ignored(repo: Path) -> None:
-    _write(repo / ".agents" / "rules" / "studio-protocol.md", "---\nname: studio-protocol\n---\n")
+    _write(repo / ".studio" / "studio-protocol.md", "---\nname: studio-protocol\n---\n")
     _write(repo / "AGENTS.md", "<!-- BEGIN GENERATED RULES from .agents/rules -->\n")
     differences = check_equivalence(repo, items=_items())
     excluded = {item.path for item in differences if item.nature is DifferenceNature.EXCLUDED}
-    assert excluded == {".agents/rules/studio-protocol.md", "AGENTS.md"}
+    assert excluded == {".studio/studio-protocol.md", "AGENTS.md"}
     assert [item for item in differences if item.nature is not DifferenceNature.EXCLUDED] == []
 
 

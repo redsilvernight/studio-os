@@ -584,7 +584,7 @@ def canonical_rule_keys(repo_root: Path | str) -> list[str]:
     """Stable keys of every Library-projectable canonical rule, sorted.
 
     Only files whose frontmatter carries `applies_to` qualify: the P1
-    bootstrap protocol rule (`.agents/rules/studio-protocol.md`) is a
+    bootstrap protocol rule (`.studio/studio-protocol.md`) is a
     harness bootstrap text, not a Library rule, and is guarded by its own
     budget test instead."""
     keys = []
@@ -623,12 +623,13 @@ AGENTS_END_MARKER = "<!-- END GENERATED RULES -->"
 CLAUDE_BEGIN_MARKER = "<!-- BEGIN STUDIO-OS MANAGED -->"
 CLAUDE_END_MARKER = "<!-- END STUDIO-OS MANAGED -->"
 _PROTOCOL_RULE_KEY = "studio-protocol"
+PROTOCOL_PATH = f".studio/{_PROTOCOL_RULE_KEY}.md"
 
 
 def render_claude_md_block(repo_root: Path | str) -> str:
     """The CLAUDE.md managed section: a pointer to the canonical `.agents/`
     sources, importing the protocol rule when the project has one."""
-    return render_claude_md_block_from(_PROTOCOL_RULE_KEY in canonical_rule_keys(repo_root))
+    return render_claude_md_block_from((Path(repo_root) / PROTOCOL_PATH).is_file())
 
 
 def render_claude_md_block_from(has_protocol: bool) -> str:
@@ -637,21 +638,20 @@ def render_claude_md_block_from(has_protocol: bool) -> str:
         "Règles et skills canoniques : `.agents/` (projections régénérées).",
     ]
     if has_protocol:
-        lines.append(f"@.agents/rules/{_PROTOCOL_RULE_KEY}.md")
+        lines.append(f"@{PROTOCOL_PATH}")
     lines.append(CLAUDE_END_MARKER)
     return "\n".join(lines) + "\n"
 
 
 def render_agents_rules_block(repo_root: Path | str) -> str:
     """Stable pointer block: no rule content, so a new rule version never changes it."""
-    protocol = Path(repo_root) / ".agents/rules/studio-protocol.md"
-    return render_agents_rules_block_from(protocol.is_file())
+    return render_agents_rules_block_from((Path(repo_root) / PROTOCOL_PATH).is_file())
 
 
 def render_agents_rules_block_from(has_protocol: bool) -> str:
     parts = []
     if has_protocol:
-        parts.append(f"Read `.agents/rules/{_PROTOCOL_RULE_KEY}.md` before any task.")
+        parts.append(f"Read `{PROTOCOL_PATH}` before any task.")
     parts.append(
         "Canonical rules live in `.agents/rules/`; before editing a path, read the rules "
         "whose `applies_to` front matter matches it (scopes are not automatic in every harness)."

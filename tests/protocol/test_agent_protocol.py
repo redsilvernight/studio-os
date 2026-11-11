@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-RULE = ROOT / ".agents/rules/studio-protocol.md"
+RULE = ROOT / ".studio/studio-protocol.md"
 
 SKILLS = {
     "studio-context": ROOT / ".agents/skills/studio-context/SKILL.md",
