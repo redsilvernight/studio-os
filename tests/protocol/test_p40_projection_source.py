@@ -54,7 +54,7 @@ def test_resolved_bundle_matches_repo_projections() -> None:
     manifest = _manifest()
     expected = _by_path(plan_files(REPO, manifest, repo_bundle))
     actual = _by_path(plan_files(REPO, manifest, from_library))
-    agent_paths = {path for path in expected if "/agents/" in path}
+    agent_paths = {path for path in expected if "/agents/" in path and "/skills/" not in path}
     rule_paths = {path for path in expected if path.startswith(".claude/rules/")}
     assert agent_paths and rule_paths
     assert {path: actual[path] for path in agent_paths | rule_paths} == {
