@@ -114,7 +114,10 @@ def _skill_source(skill: ResolvedSkill) -> str:
     if text.startswith(_FRONTMATTER_START):
         return text
     description = " ".join((skill.title or skill.stable_key).split())
+    disabled = bool(skill.content.get("disable_model_invocation"))
+    flag = "disable-model-invocation: true\n" if disabled else ""
     return (
         f"{_FRONTMATTER_START}name: {json.dumps(skill.stable_key, ensure_ascii=False)}\n"
-        f"description: {json.dumps(description, ensure_ascii=False)}\n---\n\n{text}"
+        f"description: {json.dumps(description, ensure_ascii=False)}\n"
+        f"{flag}---\n\n{text}"
     )

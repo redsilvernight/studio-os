@@ -6,18 +6,18 @@ for agents, `render_claude_rule` for rules, and the committed skill mechanisms
 for skills — `workflow_skill_projections_from` (`.codex`/`.opencode`) plus the
 verbatim `.claude` copy with its `references/`. The check rebuilds the same
 files from fabricated Library items — `rule/v2`, `agent_definition/v2`,
-`skill/v1` (frontmatter stripped, `files[]` for references),
-`model_profile/v1` — so it proves the Library content alone carries the
-projection surface.
+`skill/v2` (frontmatter stripped, `disable_model_invocation` flag, `files[]`
+for references), `model_profile/v1` — so it proves the Library content alone
+carries the projection surface.
 
-Tests run on fabricated `PublishItem`s on purpose: `build_publish_items` still
-emits the v1 payloads (the `rule/v2` + `agent/v2` migration is a separate
-workstream), and the check accepts injected items for exactly that window.
+Tests run on fabricated `PublishItem`s on purpose: `build_publish_items` emits
+the v2 payloads, and the check accepts injected items for exactly that window.
 
 Three behaviours are pinned: a skill the repository never projected is
-`unprojected` (listed, not a gap); a frontmatter key the Library drops
-(`disable-model-invocation`) is a real `content` gap naming the field; and only
-skills whose directory already exists can be `missing`.
+`unprojected` (listed, not a gap); the `disable-model-invocation` frontmatter
+key is carried by the Library (no gap); any other uncarried frontmatter key
+is a real `content` gap naming the field; and only skills whose directory
+already exists can be `missing`.
 """
 
 from __future__ import annotations
@@ -99,11 +99,17 @@ def _write(path: Path, text: str) -> None:
 
 
 def _skill_item(
-    key: str, description: str, text: str, files: Sequence[tuple[str, str]] = ()
+    key: str,
+    description: str,
+    text: str,
+    files: Sequence[tuple[str, str]] = (),
+    *,
+    disable_model_invocation: bool = False,
 ) -> PublishItem:
     content: dict[str, object] = {
-        "content_schema": "studio.library.skill/v1",
+        "content_schema": "studio.library.skill/v2",
         "text": text,
+        "disable_model_invocation": disable_model_invocation,
     }
     if files:
         content["files"] = [{"path": path, "text": value} for path, value in files]
@@ -231,21 +237,43 @@ def test_altered_skill_copy_names_the_divergent_line(repo: Path) -> None:
     assert "Do something else." in differences[0].detail
 
 
-def test_skill_frontmatter_key_the_library_drops_is_a_gap(repo: Path) -> None:
-    """`skill/v1` keeps the body and the description only: a harness-specific
-    frontmatter key cannot be reproduced, and the detail names it."""
+def test_skill_disable_model_invocation_is_carried_not_a_gap(repo: Path) -> None:
+    """`skill/v2` carries `disable-model-invocation`: a committed flag the
+    Library content also carries reproduces byte-identically (no gap)."""
+
+    flagged = SKILL_SOURCE.replace("---\n\n", "disable-model-invocation: true\n---\n\n", 1)
+    for harness in (".claude", ".codex", ".opencode"):
+        target = repo.joinpath(harness, "skills", SKILL_KEY, "SKILL.md")
+        target.write_text(flagged, encoding="utf-8")
+    items = [
+        item
+        if item.stable_key != SKILL_KEY
+        else _skill_item(
+            SKILL_KEY,
+            SKILL_DESCRIPTION,
+            SKILL_TEXT,
+            files=((SKILL_AUX_PATH, SKILL_AUX_TEXT),),
+            disable_model_invocation=True,
+        )
+        for item in _items()
+    ]
+    assert check_equivalence(repo, items=items) == []
+
+
+def test_skill_unexpected_frontmatter_key_is_still_a_gap(repo: Path) -> None:
+    """Any other frontmatter key the Library does not carry stays a gap."""
 
     relative = f".claude/skills/{SKILL_KEY}/SKILL.md"
     target = repo.joinpath(*relative.split("/"))
     target.write_text(
-        SKILL_SOURCE.replace("---\n\n", "disable-model-invocation: true\n---\n\n", 1),
+        SKILL_SOURCE.replace("---\n\n", "license: custom-only\n---\n\n", 1),
         encoding="utf-8",
     )
     differences = check_equivalence(repo, items=_items())
     assert [(item.path, item.nature) for item in differences] == [
         (relative, DifferenceNature.CONTENT)
     ]
-    assert "disable-model-invocation" in differences[0].detail
+    assert "license" in differences[0].detail
 
 
 def test_skill_without_committed_projection_is_unprojected_not_missing(repo: Path) -> None:
@@ -337,3 +365,15 @@ def test_cli_import_check_reports_a_gap_and_exits_one(
     assert f".claude/agents/{AGENT_KEY}.md" in payload
     assert '"failures": 1' in payload
     assert '"unprojected": 0' in payload
+
+
+def test_real_repository_import_check_has_zero_gaps() -> None:
+    """End-to-end on the real depot: `build_publish_items` + `check_equivalence`
+    reports no blocking gap (`unprojected`/`excluded` stay listed, not gaps)."""
+
+    from studio_client.publish import build_publish_items
+
+    real_repo = Path(__file__).resolve().parents[2]
+    differences = check_equivalence(real_repo, items=build_publish_items(real_repo))
+    blocking = [item for item in differences if item.nature.blocking]
+    assert blocking == []

@@ -80,6 +80,7 @@ def test_skills_keep_body_and_reference_files() -> None:
     multi_file = {key for key, item in items.items() if item.content.get("files")}
     assert multi_file == {"graphify", "studio-task"}
     for key, item in items.items():
+        assert item.content["content_schema"] == "studio.library.skill/v2"
         assert item.content["text"] == load_skill_text(REPO, key)
         expected = load_skill_files(REPO, key)
         if not expected:
@@ -182,3 +183,32 @@ def test_skill_files_respect_the_contract_budget(key: str) -> None:
     assert len(files) <= SKILL_FILES_MAX
     assert all(len(file["text"]) <= SKILL_FILE_TEXT_MAX_LENGTH for file in files)
     assert sum(len(file["text"]) for file in files) <= SKILL_FILES_TOTAL_MAX_LENGTH
+
+
+def test_skills_publish_disable_model_invocation_flag() -> None:
+    """`skill/v2` carries the frontmatter `disable-model-invocation` flag:
+    true for `alembic-migration`, false everywhere else."""
+
+    from studio_client.canonical import load_skill_disable_model_invocation
+
+    items = {item.stable_key: item for item in _items() if item.kind == "skill"}
+    for key, item in items.items():
+        assert item.content["disable_model_invocation"] is (
+            load_skill_disable_model_invocation(REPO, key)
+        )
+    assert items["alembic-migration"].content["disable_model_invocation"] is True
+    others = {key for key in items if key != "alembic-migration"}
+    assert others, "expected other skills besides alembic-migration"
+    assert all(items[key].content["disable_model_invocation"] is False for key in others)
+
+
+def test_non_boolean_disable_model_invocation_fails_closed(tmp_path: Path) -> None:
+    skill = tmp_path / ".agents" / "skills" / "flagged"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: flagged\ndescription: Flagged skill\n"
+        "disable-model-invocation: 'true'\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="disable-model-invocation must be a boolean"):
+        build_publish_items(tmp_path, kinds=("skill",))
