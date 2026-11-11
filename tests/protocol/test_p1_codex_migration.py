@@ -60,7 +60,7 @@ def test_two_complete_generations_are_identical(tmp_path: Path) -> None:
                     target.write_text(artifact.content, encoding="utf-8")
         cli.main(["adapters", "sync", "--repo-root", str(tmp_path), "--overwrite"])
         result = check_adapters(tmp_path)
-        assert result.checked == 35 and not result.failures
+        assert result.checked == 84 and not result.failures
         snapshots.append(
             {
                 p.relative_to(tmp_path).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()

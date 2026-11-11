@@ -163,6 +163,8 @@ class HookSyncResult:
     deleted: tuple[Path, ...]
     backups: tuple[Path, ...]
     manifest_path: Path
+    conflicts: tuple[Path, ...] = ()
+    """Locally modified targets left untouched (only when ``overwrite`` is False)."""
 
 
 def hook_fingerprint(content: HookContent) -> str:
@@ -180,7 +182,7 @@ def hook_fingerprint(content: HookContent) -> str:
 async def fetch_hook_projections(
     api: Any,
     project_id: UUID | None,
-    limit: int = 100,
+    limit: int = 500,
 ) -> tuple[HookProjection, ...]:
     """Fetch effective active hooks; deprecated or draft rows are absent."""
 
@@ -368,14 +370,14 @@ def diff_hook_plan(plan: HookSyncPlan) -> str:
 
 
 def apply_hook_sync(plan: HookSyncPlan, *, overwrite: bool = False) -> HookSyncResult:
-    """Apply a plan: back up, write atomically, delete obsolete, persist state."""
+    """Apply a plan: back up, write atomically, delete obsolete, persist state.
 
-    conflicts = plan.locally_modified
-    if conflicts and not overwrite:
-        paths = ", ".join(str(target.path) for target in conflicts)
-        raise HookSyncConflictError(
-            f"refusing to overwrite locally modified hook files without overwrite=True: {paths}"
-        )
+    Locally modified targets are skipped (never overwritten) unless ``overwrite``
+    is True; they are reported in ``result.conflicts``.
+    """
+
+    skipped = () if overwrite else plan.locally_modified
+    skipped_paths = {target.path for target in skipped}
     _verify_plan_is_fresh(plan)
 
     backups: list[Path] = []
@@ -387,6 +389,8 @@ def apply_hook_sync(plan: HookSyncPlan, *, overwrite: bool = False) -> HookSyncR
         / datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     )
     for target in plan.pending:
+        if target.path in skipped_paths:
+            continue
         needs_backup = target.current_text is not None and (
             target.role == "claude_settings" or target.state in {"locally_modified", "obsolete"}
         )
@@ -399,6 +403,8 @@ def apply_hook_sync(plan: HookSyncPlan, *, overwrite: bool = False) -> HookSyncR
     written: list[Path] = []
     deleted: list[Path] = []
     for target in plan.pending:
+        if target.path in skipped_paths:
+            continue
         if target.desired_text is None:
             target.path.unlink()
             deleted.append(target.path)
@@ -414,6 +420,7 @@ def apply_hook_sync(plan: HookSyncPlan, *, overwrite: bool = False) -> HookSyncR
         deleted=tuple(deleted),
         backups=tuple(backups),
         manifest_path=plan.manifest_path,
+        conflicts=tuple(target.path for target in skipped),
     )
 
 

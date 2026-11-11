@@ -91,6 +91,7 @@ class SkillSyncStatusState(StrEnum):
     IN_PROGRESS = "in_progress"
     UP_TO_DATE = "up_to_date"
     UPDATED = "updated"
+    UPDATE_PENDING = "update_pending"
     CONFLICTS = "conflicts"
     NOT_SYNCED = "not_synced"
     DISABLED = "disabled"

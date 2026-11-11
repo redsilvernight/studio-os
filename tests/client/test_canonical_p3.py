@@ -32,6 +32,7 @@ from studio_client.canonical import (
     canonical_rule_keys,
     load_definition,
     load_rule_meta,
+    load_rule_text,
     render_claude_rule,
     to_publish_payload,
 )
@@ -84,9 +85,12 @@ def test_offline_build_deterministic_and_publishable() -> None:
         "storage-transfers",
     }
     content, pins = to_publish_payload(load_definition(REPO, "studio-tester"))
-    assert content["content_schema"] == "studio.library.agent_definition/v1"
-    assert "instructions" not in content  # Library forbids file-only keys
+    assert content["content_schema"] == "studio.library.agent_definition/v2"
+    # P43: the Markdown body is published as instructions, never as intended_use.
+    assert str(content["instructions"]).startswith("Common lifecycle")
+    assert not str(content["intended_use"]).startswith("Common lifecycle")
     assert ("rule", "contracts") in pins and ("skill", "graphify") in pins
+    assert ("model_profile", "studio-tester-profile") in pins
 
 
 def test_capabilities_cover_all_dimensions() -> None:
@@ -249,7 +253,7 @@ def test_merged_roundtrip_through_snapshot() -> None:
     assert build_merged_resolved(REPO, "studio-tester", library=snapshot) == offline
 
 
-def test_merged_project_file_wins_over_library() -> None:
+def test_merged_library_wins_over_project_file() -> None:
     offline = build_offline_resolved(REPO, "studio-tester")
     snapshot = LibrarySnapshot.from_resolved(offline)
     poisoned_rule = snapshot.rules["contracts"].model_copy(
@@ -267,8 +271,9 @@ def test_merged_project_file_wins_over_library() -> None:
     )
     merged = build_merged_resolved(REPO, "studio-tester", library=poisoned)
     by_key = {rule.stable_key: rule for rule in merged.rules}
-    assert by_key["contracts"].content["text"] != "POISON"
-    assert by_key["contracts"].version == 1  # file namespace, not Library 99
+    assert by_key["contracts"].content["text"] == "POISON"
+    assert by_key["contracts"].version == 99
+    assert by_key["contracts"].resource_id == poisoned_rule.resource_id
 
 
 def test_merged_library_fills_missing_project_files(tmp_path: Path) -> None:
@@ -286,7 +291,25 @@ def test_merged_library_fills_missing_project_files(tmp_path: Path) -> None:
     assert [rule.stable_key for rule in merged.rules] == ["x-rule"]
     assert merged.rules[0].resource_id == library_rule.resource_id
     assert merged.rules[0].version == library_rule.version
-    assert merged.agent.content["instructions"] == "Body.\n"  # file head wins
+    assert merged.agent.content["instructions"] == "Body.\n"  # file head kept
+
+
+def test_merged_project_file_fills_library_gap() -> None:
+    """A depot piece the Library does not carry still resolves from the
+    file, with the file identity namespace — the gap-fill direction."""
+    offline = build_offline_resolved(REPO, "studio-tester")
+    snapshot = LibrarySnapshot.from_resolved(offline)
+    gap = LibrarySnapshot(
+        agent=snapshot.agent,
+        rules={key: rule for key, rule in snapshot.rules.items() if key != "contracts"},
+        skills=snapshot.skills,
+        requirements=snapshot.requirements,
+    )
+    merged = build_merged_resolved(REPO, "studio-tester", library=gap)
+    by_key = {rule.stable_key: rule for rule in merged.rules}
+    assert "contracts" in by_key
+    assert by_key["contracts"].content["text"] == load_rule_text(REPO, "contracts")
+    assert by_key["contracts"].version == 1
 
 
 def test_merged_no_project_files_uses_library_head(tmp_path: Path) -> None:

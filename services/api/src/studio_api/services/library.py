@@ -25,7 +25,9 @@ from studio_contracts.library import (
     LibraryScope,
     LibraryStatus,
     LibraryVersion,
+    LibraryVersionBatchItem,
     LibraryVersionCreate,
+    LibraryVersionRef,
     ResourceDependencyPin,
     VersionOrigin,
     binding_relation_for,
@@ -47,7 +49,6 @@ from studio_api.services.authz import (
     ALL_PROJECTS,
     Principal,
     ProjectAction,
-    ensure_can_provision,
     ensure_can_write,
     ensure_project_access,
     ensure_shared_access,
@@ -232,6 +233,39 @@ def _invalid_binding(reason: str) -> HTTPException:
     )
 
 
+async def _check_derived_from(
+    session: AsyncSession,
+    principal: Principal,
+    resource: LibraryResourceModel,
+    ref: LibraryVersionRef,
+) -> None:
+    """Only a user version derives, from an existing common (studio) version
+    of the same `(kind, stable_key)` (P50a/D1)."""
+    source = await session.get(LibraryResourceModel, ref.resource_id)
+    if (
+        source is None
+        or not _can_read(principal, source)
+        or await _version_row(session, source.id, ref.version) is None
+    ):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail={"error_code": "derived_from_not_found"}
+        )
+    reason = (
+        "not_user_scope"
+        if resource.scope != "user"
+        else "not_common_scope"
+        if source.scope != "studio"
+        else "key_mismatch"
+        if (source.kind, source.stable_key) != (resource.kind, resource.stable_key)
+        else None
+    )
+    if reason is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "invalid_derived_from", "reason": reason},
+        )
+
+
 async def _create_version_row(
     session: AsyncSession,
     principal: Principal,
@@ -241,6 +275,7 @@ async def _create_version_row(
     description: str | None,
     content: dict[str, Any],
     dependencies: Sequence[DependencyPin],
+    derived_from: LibraryVersionRef | None = None,
 ) -> LibraryResourceVersionModel:
     # P3/DEC-0066: per-kind semantic validation, applied identically to the
     # initial version and every later one. Both callers (`create_resource`,
@@ -272,6 +307,8 @@ async def _create_version_row(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "invalid_hook", **hook_errors[0]},
             )
+    if derived_from is not None:
+        await _check_derived_from(session, principal, resource, derived_from)
     version_row = LibraryResourceVersionModel(
         resource_id=resource.id,
         version=version,
@@ -279,6 +316,8 @@ async def _create_version_row(
         description=description,
         content=dict(content),
         created_by_user_id=principal.user.id,
+        derived_from_resource_id=derived_from.resource_id if derived_from else None,
+        derived_from_version=derived_from.version if derived_from else None,
     )
     session.add(version_row)
     await session.flush()
@@ -332,41 +371,68 @@ async def _emit_library_event(
     resource: LibraryResourceModel,
     ref: str,
     extra: dict[str, object] | None = None,
+    occurrence: int | None = None,
+    only_project: UUID | None = None,
 ) -> None:
-    """Server-internal traceability (gate decision): `events` and
-    `ai_work_logs` require a non-null `project_id`, so only project-scoped
-    resources emit `library.*` events. Studio/User mutations stay auditable
-    through the immutable version rows (`created_by_user_id`, `created_at`)
-    plus the agent's explicit AIWorkLog (existing task cycle).
+    """Server-internal traceability: `events` require a non-null `project_id`.
+    A project resource emits to its project; a Studio resource, shared by every
+    project, emits one event per active project (or only to `only_project` for
+    a lock, which belongs to one project); User resources stay private and emit
+    nothing, auditable through the immutable version rows.
 
     `ref` makes the deterministic `event_id` unique per action: a
     release/re-lock cycle on the same `(resource, version)` must emit again,
-    never be swallowed by `create_event`'s get-or-create."""
-    if resource.project_id is None:
+    never be swallowed by `create_event`'s get-or-create. A state that can
+    flip back (activate v2, v1, v2 again; deprecate, reactivate, deprecate)
+    passes `occurrence`, the resource's optimistic `version` after the
+    transition, so each transition keeps a distinct, replay-stable id."""
+    identity = f"{resource.id}:{event_type.value}:{ref}"
+    if occurrence is not None:
+        identity = f"{identity}:{occurrence}"
+    project_ids: Sequence[UUID]
+    if resource.project_id is not None:
+        project_ids = [resource.project_id]
+    elif resource.scope == LibraryScope.STUDIO.value:
+        project_ids = (
+            [only_project]
+            if only_project is not None
+            else list(
+                (
+                    await session.execute(
+                        select(ProjectModel.id).where(ProjectModel.archived.is_(False))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        )
+    else:
         return
-    await events_service.create_event(
-        session,
-        EventCreate(
-            event_id=uuid.uuid5(
-                _LIBRARY_EVENT_NAMESPACE, f"{resource.id}:{event_type.value}:{ref}"
+    for project_id in project_ids:
+        await events_service.create_event(
+            session,
+            EventCreate(
+                event_id=uuid.uuid5(
+                    _LIBRARY_EVENT_NAMESPACE,
+                    identity if resource.project_id else f"{identity}:{project_id}",
+                ),
+                event_type=event_type,
+                project_id=project_id,
+                task_id=None,
+                machine_id=principal.machine.id,
+                actor_type="user",
+                actor_id=principal.user.id,
+                client_timestamp=datetime.now(UTC),
+                payload={
+                    "resource_id": str(resource.id),
+                    "kind": resource.kind,
+                    "stable_key": resource.stable_key,
+                    "scope": resource.scope,
+                    "ref": ref,
+                    **(extra or {}),
+                },
             ),
-            event_type=event_type,
-            project_id=resource.project_id,
-            task_id=None,
-            machine_id=principal.machine.id,
-            actor_type="user",
-            actor_id=principal.user.id,
-            client_timestamp=datetime.now(UTC),
-            payload={
-                "resource_id": str(resource.id),
-                "kind": resource.kind,
-                "stable_key": resource.stable_key,
-                "scope": resource.scope,
-                "ref": ref,
-                **(extra or {}),
-            },
-        ),
-    )
+        )
 
 
 def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
@@ -374,6 +440,15 @@ def authorize_write(principal: Principal, resource: LibraryResourceModel) -> Non
     idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_resource_scope(principal, resource, "write")
     ensure_can_write(principal, "library")
+    if resource.scope == "studio":
+        _ensure_studio_admin(principal)
+
+
+def _ensure_studio_admin(principal: Principal) -> None:
+    """Studio scope is shared by every project: only an admin mutates it
+    (P70a, DEC D3); a developer keeps Project and User scope."""
+    if principal.role != Role.ADMIN:
+        raise forbidden("library", "provision")
 
 
 def authorize_create(principal: Principal, scope: str, project_id: UUID | None) -> None:
@@ -381,7 +456,7 @@ def authorize_create(principal: Principal, scope: str, project_id: UUID | None) 
     run ahead of the idempotency replay short-circuit."""
     _ensure_scope_access(principal, project_id, scope == "user", "write")
     if scope == "studio":
-        ensure_can_provision(principal, "library")
+        _ensure_studio_admin(principal)
     else:
         ensure_can_write(principal, "library")
 
@@ -403,7 +478,7 @@ async def create_resource(
     owner_id: UUID | None = None
     project_id: UUID | None = None
     if data.scope.value == "studio":
-        ensure_can_provision(principal, "library")
+        _ensure_studio_admin(principal)
         if data.project_id is not None:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -461,6 +536,7 @@ async def create_resource(
             data.description,
             data.content,
             data.dependencies,
+            data.derived_from,
         )
     except HTTPException:
         # Atomicity (P5/DEC-0067): a rejected pin/binding must leave neither
@@ -516,6 +592,7 @@ async def create_resource_version(
             data.description,
             data.content,
             data.dependencies,
+            data.derived_from,
         )
     except HTTPException:
         # Same atomicity as `create_resource`: no partial version/links.
@@ -565,6 +642,7 @@ async def activate_resource_version(
             resource,
             f"v{version}",
             {"version": version},
+            occurrence=resource.version,
         )
     return resource
 
@@ -595,6 +673,7 @@ async def deprecate_resource(
             resource,
             f"v{resource.active_version}",
             {"version": resource.active_version},
+            occurrence=resource.version,
         )
     return resource
 
@@ -680,6 +759,54 @@ async def list_versions(
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def batch_get_versions(
+    session: AsyncSession, principal: Principal, refs: Sequence[LibraryVersionRef]
+) -> list[LibraryVersionBatchItem]:
+    """Exact versions: one resource query, one version query, then one detail
+    per resolved row (<= 500), answered in request order (each distinct pair
+    is resolved once). A project
+    the caller cannot read fails the whole batch (403, as `get_resource`);
+    absent, other users' User-scope and absent-version rows are all
+    `not_found`."""
+    wanted = list(dict.fromkeys((ref.resource_id, ref.version) for ref in refs))
+    resource_ids = {resource_id for resource_id, _ in wanted}
+    resources = {
+        row.id: row
+        for row in (
+            await session.execute(
+                select(LibraryResourceModel).where(LibraryResourceModel.id.in_(resource_ids))
+            )
+        )
+        .scalars()
+        .all()
+    }
+    for resource in resources.values():
+        ensure_resource_scope(principal, resource)
+    readable = {rid for rid, resource in resources.items() if _can_read(principal, resource)}
+    rows = {
+        (row.resource_id, row.version): row
+        for row in (
+            await session.execute(
+                select(LibraryResourceVersionModel).where(
+                    LibraryResourceVersionModel.resource_id.in_(readable)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    resolved: dict[tuple[UUID, int], LibraryVersionBatchItem] = {}
+    for resource_id, version in wanted:
+        row = rows.get((resource_id, version))
+        resolved[(resource_id, version)] = LibraryVersionBatchItem(
+            resource_id=resource_id,
+            version=version,
+            status="ok" if row is not None else "not_found",
+            detail=await version_detail(session, row) if row is not None else None,
+        )
+    return [resolved[(ref.resource_id, ref.version)] for ref in refs]
+
+
 async def get_lock(session: AsyncSession, lock_id: UUID) -> LibraryProjectLockModel | None:
     return await session.get(LibraryProjectLockModel, lock_id)
 
@@ -714,6 +841,15 @@ async def version_detail(
         description=version_row.description,
         content=dict(version_row.content),
         dependencies=pins,
+        derived_from=(
+            LibraryVersionRef(
+                resource_id=version_row.derived_from_resource_id,
+                version=version_row.derived_from_version,
+            )
+            if version_row.derived_from_resource_id is not None
+            and version_row.derived_from_version is not None
+            else None
+        ),
         created_by_user_id=version_row.created_by_user_id,
         created_at=version_row.created_at,
     )
@@ -784,6 +920,7 @@ async def set_lock(
             "project_id": str(data.project_id),
             "locked_version": data.locked_version,
         },
+        only_project=data.project_id,
     )
     return lock
 
@@ -824,6 +961,7 @@ async def release_lock(
                 "project_id": str(lock_project_id),
                 "locked_version": locked_version,
             },
+            only_project=lock_project_id,
         )
     return released
 
@@ -893,7 +1031,8 @@ async def _resolve_inner(
     )
     if not visible:
         raise _Unresolvable("missing_or_invisible_definition")
-    effective = visible[0]
+    live = [r for r in visible if not (r.scope == "user" and r.status == "deprecated")]
+    effective = (live or visible)[0]
 
     origin = VersionOrigin.ACTIVE
     version_number = effective.active_version

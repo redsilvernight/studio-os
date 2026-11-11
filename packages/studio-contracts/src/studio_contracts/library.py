@@ -6,10 +6,10 @@ from collections import deque
 from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, TypeAdapter, ValidationError, model_validator
+from pydantic import Field, StringConstraints, TypeAdapter, ValidationError, model_validator
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 from studio_contracts.local.common import contains_secret_material
@@ -174,6 +174,11 @@ class LibraryResource(VersionedModel):
     created_by_user_id: UUID | None = None
 
 
+class LibraryVersionRef(ContractModel):
+    resource_id: UUID
+    version: int = Field(ge=1)
+
+
 class LibraryResourceCreate(IdempotentCreate):
     """Creates the resource row plus its draft version 1 (which never moves
     `active_version` by itself — activation is a separate explicit operation,
@@ -189,6 +194,7 @@ class LibraryResourceCreate(IdempotentCreate):
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencySelection] = []
+    derived_from: LibraryVersionRef | None = None
 
 
 class LibraryVersion(ContractModel):
@@ -201,8 +207,32 @@ class LibraryVersion(ContractModel):
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencyPin] = []
+    derived_from: LibraryVersionRef | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
+
+
+LIBRARY_VERSION_BATCH_MAX = 500
+
+
+class LibraryVersionBatchGet(ContractModel):
+    """Bounded read of exact versions; duplicates are collapsed server-side."""
+
+    items: list[LibraryVersionRef] = Field(min_length=1, max_length=LIBRARY_VERSION_BATCH_MAX)
+
+
+class LibraryVersionBatchItem(ContractModel):
+    resource_id: UUID
+    version: int
+    status: Literal["ok", "not_found"]
+    detail: LibraryVersion | None = None
+
+
+class LibraryVersionBatchResult(ContractModel):
+    """Items aligned with the request; `not_found` hides absent resources,
+    other users' User-scope resources and absent versions alike."""
+
+    items: list[LibraryVersionBatchItem]
 
 
 class LibraryVersionCreate(IdempotentCreate):
@@ -210,6 +240,7 @@ class LibraryVersionCreate(IdempotentCreate):
     description: str | None = None
     content: dict[str, object] = {}
     dependencies: list[DependencySelection] = []
+    derived_from: LibraryVersionRef | None = None
 
 
 class LibraryActivate(ContractModel):
@@ -352,6 +383,15 @@ class RuleContent(ContractModel):
     text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
 
 
+class RuleContentV2(ContractModel):
+    """Additive `rule/v2` (P40): v1 plus `applies_to` globs (empty = global
+    rule). Still prose only; `extra="forbid"` rejects any other key."""
+
+    content_schema: Literal["studio.library.rule/v2"]
+    text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    applies_to: list[Annotated[str, StringConstraints(min_length=1)]] = Field(default_factory=list)
+
+
 SKILL_FILES_MAX = 64
 SKILL_FILE_TEXT_MAX_LENGTH = RULE_SKILL_TEXT_MAX_LENGTH
 SKILL_FILES_TOTAL_MAX_LENGTH = 524_288
@@ -418,17 +458,38 @@ class SkillContent(ContractModel):
 
     @model_validator(mode="after")
     def _check_files(self) -> SkillContent:
-        seen: set[str] = set()
-        for file in self.files:
-            folded = file.path.casefold()
-            if folded in seen:
-                raise ValueError(f"duplicate skill file path {file.path!r}")
-            seen.add(folded)
-        for a in seen:
-            if any(b.startswith(a + "/") for b in seen):
-                raise ValueError(f"skill file path {a!r} is also a directory")
-        if sum(len(f.text) for f in self.files) > SKILL_FILES_TOTAL_MAX_LENGTH:
-            raise ValueError("skill files exceed the total size limit")
+        _check_skill_files(self.files)
+        return self
+
+
+def _check_skill_files(files: list[SkillFile]) -> None:
+    seen: set[str] = set()
+    for file in files:
+        folded = file.path.casefold()
+        if folded in seen:
+            raise ValueError(f"duplicate skill file path {file.path!r}")
+        seen.add(folded)
+    for a in seen:
+        if any(b.startswith(a + "/") for b in seen):
+            raise ValueError(f"skill file path {a!r} is also a directory")
+    if sum(len(f.text) for f in files) > SKILL_FILES_TOTAL_MAX_LENGTH:
+        raise ValueError("skill files exceed the total size limit")
+
+
+class SkillContentV2(ContractModel):
+    """Additive `skill/v2`: v1 plus `disable_model_invocation`, the neutral
+    "invoked only by the user, never by the model" flag that harnesses
+    project in their own syntax. Still prose and files only; `extra="forbid"`
+    rejects any other key."""
+
+    content_schema: Literal["studio.library.skill/v2"]
+    text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    files: list[SkillFile] = Field(default_factory=list, max_length=SKILL_FILES_MAX)
+    disable_model_invocation: bool = False
+
+    @model_validator(mode="after")
+    def _check_files(self) -> SkillContentV2:
+        _check_skill_files(self.files)
         return self
 
 
@@ -457,6 +518,28 @@ class AgentDefinitionContent(ContractModel):
     content_schema: Literal["studio.library.agent_definition/v1"]
     summary: str | None = None
     intended_use: str | None = None
+
+
+AGENT_TOOL_NAME_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
+"""Harness-neutral tool-need vocabulary for `agent_definition/v2` (P31):
+lowercase labels such as `read`, `grep`, `bash`. Open vocabulary validated by
+pattern; adapters map labels to harness-specific names."""
+
+
+class AgentDefinitionContentV2(ContractModel):
+    """Additive `agent_definition/v2` (P31): v1 plus the agent's instructions,
+    triggers, edit policy and neutral tool needs. Still no provider, model,
+    harness or inline capabilities; `extra="forbid"` rejects them."""
+
+    content_schema: Literal["studio.library.agent_definition/v2"]
+    summary: str | None = None
+    intended_use: str | None = None
+    instructions: str | None = Field(default=None, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    triggers: list[Annotated[str, StringConstraints(min_length=1)]] = Field(default_factory=list)
+    edit_policy: Literal["deny", "ask", "allow"] | None = None
+    tools: list[Annotated[str, StringConstraints(pattern=AGENT_TOOL_NAME_PATTERN)]] = Field(
+        default_factory=list
+    )
 
 
 WORKFLOW_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_-]{0,127}$"
@@ -860,6 +943,15 @@ def content_validation_errors(
     model = _CONTENT_SCHEMAS.get(kind)
     if model is None:
         return []
+    if (
+        kind is LibraryKind.AGENT_DEFINITION
+        and content.get("content_schema") == "studio.library.agent_definition/v2"
+    ):
+        model = AgentDefinitionContentV2
+    elif kind is LibraryKind.RULE and content.get("content_schema") == "studio.library.rule/v2":
+        model = RuleContentV2
+    elif kind is LibraryKind.SKILL and content.get("content_schema") == "studio.library.skill/v2":
+        model = SkillContentV2
     try:
         model.model_validate(dict(content))
     except ValidationError as exc:
@@ -869,6 +961,22 @@ def content_validation_errors(
             details.append({"field": field, "reason": str(error["msg"])})
         return details
     return []
+
+
+def parse_rule_content(content: dict[str, object]) -> RuleContent | RuleContentV2:
+    """The typed rule content, whichever additive version it declares."""
+
+    if content.get("content_schema") == "studio.library.rule/v2":
+        return RuleContentV2.model_validate(dict(content))
+    return RuleContent.model_validate(dict(content))
+
+
+def parse_skill_content(content: dict[str, object]) -> SkillContent | SkillContentV2:
+    """The typed skill content, whichever additive version it declares."""
+
+    if content.get("content_schema") == "studio.library.skill/v2":
+        return SkillContentV2.model_validate(dict(content))
+    return SkillContent.model_validate(dict(content))
 
 
 def validate_library_content(kind: LibraryKind, content: dict[str, object]) -> None:

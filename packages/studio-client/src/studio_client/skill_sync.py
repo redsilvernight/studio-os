@@ -17,7 +17,7 @@ from uuid import UUID
 from studio_contracts.library import skill_file_path_error
 
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
-from studio_client.drift import SyncState, classify_state
+from studio_client.drift import SyncState, carries_library_provenance, classify_state
 from studio_client.projection_backups import (
     ProjectionBackup,
     commit_projection_backup,
@@ -59,6 +59,9 @@ class SkillTargetPlan:
     desired_text: str | None = None
     rel: str | None = None
     """Path relative to the skill directory for an auxiliary file (None = SKILL.md)."""
+    managed: bool = True
+    """False when nothing proves Studio OS owns the existing file (no manifest
+    hash, no Library provenance marker): a same-key file of the user."""
 
 
 @dataclass(frozen=True)
@@ -126,6 +129,16 @@ class SkillSyncPlan:
     def locally_modified(self) -> tuple[SkillTargetPlan, ...]:
         return self._targets_with_state("locally_modified")
 
+    @property
+    def unmanaged(self) -> tuple[SkillTargetPlan, ...]:
+        """Same-key files Studio OS never wrote, kept out of every write."""
+        return tuple(
+            target
+            for entry in self.entries
+            for target in entry.all_files
+            if not target.managed and target.state != "current"
+        )
+
     def _targets_with_state(self, state: SyncState) -> tuple[SkillTargetPlan, ...]:
         return tuple(
             target for entry in self.entries for target in entry.all_files if target.state == state
@@ -140,12 +153,14 @@ class SkillSyncResult:
     backups: tuple[Path, ...]
     manifest_path: Path
     removed: tuple[Path, ...] = ()
+    conflicts: tuple[Path, ...] = ()
+    """Locally modified targets left untouched (only when ``overwrite`` is False)."""
 
 
 async def fetch_skill_projections(
     api: Any,
     project_id: UUID | None,
-    limit: int = 100,
+    limit: int = 500,
 ) -> tuple[LibraryContextItem, ...]:
     """Fetch effective skills visible to the caller for global projection.
 
@@ -172,6 +187,7 @@ def render_skill(projection: LibraryContextItem, *, allow_project: bool = False)
     if not description:
         description = " ".join(projection.title.split())
     body = projection.text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    flag = "disable-model-invocation: true\n" if projection.disable_model_invocation else ""
     provenance = (
         "<!-- studio-os-library: "
         f"stable_key={projection.stable_key}; version={projection.version}; "
@@ -181,6 +197,7 @@ def render_skill(projection: LibraryContextItem, *, allow_project: bool = False)
         "---\n"
         f"name: {json.dumps(projection.stable_key, ensure_ascii=False)}\n"
         f"description: {json.dumps(description, ensure_ascii=False)}\n"
+        f"{flag}"
         "---\n\n"
         f"{provenance}\n"
     )
@@ -390,10 +407,16 @@ def diff_skill_plan(plan: SkillSyncPlan) -> str:
 
     chunks: list[str] = []
     for entry in plan.entries:
+        seen: set[tuple[str | None, str]] = set()
         for target in entry.all_files:
             if target.state == "current":
                 continue
-            desired_lines = _desired_text(entry, target).splitlines(keepends=True)
+            desired = _desired_text(entry, target)
+            if target.state != "missing":
+                if (target.current_text, desired) in seen:
+                    continue
+                seen.add((target.current_text, desired))
+            desired_lines = desired.splitlines(keepends=True)
             relative = target.path.relative_to(plan.home).as_posix()
             current_lines = (
                 [] if target.current_text is None else target.current_text.splitlines(keepends=True)
@@ -449,19 +472,16 @@ def apply_skill_sync(
             manifest_before=previous_text,
             manifest_text=json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         )
-    conflicts = [target for target in plan.locally_modified]
-    if conflicts and not overwrite:
-        paths = ", ".join(str(target.path) for target in conflicts)
-        raise SkillSyncConflictError(
-            f"refusing to overwrite locally modified skill files without overwrite=True: {paths}"
-        )
+    conflicts = tuple(target for target in plan.locally_modified)
+    skipped = () if overwrite else conflicts
+    skipped_paths = {target.path for target in skipped}
     _verify_plan_is_fresh(plan)
 
     desired: dict[Path, str | None] = {
         target.path: _desired_text(entry, target)
         for entry in plan.entries
         for target in entry.all_files
-        if target.state != "current"
+        if target.state != "current" and target.path not in skipped_paths
     }
     desired.update({target.path: None for target in plan.retired})
     desired[plan.manifest_path] = plan.manifest_text
@@ -470,7 +490,7 @@ def apply_skill_sync(
 
     backup_root: Path | None = None
     backups: list[Path] = []
-    if conflicts:
+    if conflicts and overwrite:
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         backup_root = plan.home / ".studio-os" / "backups" / "skills" / timestamp
         for entry in plan.entries:
@@ -489,7 +509,7 @@ def apply_skill_sync(
     written: list[Path] = []
     for entry in plan.entries:
         for target in entry.all_files:
-            if target.state == "current":
+            if target.state == "current" or target.path in skipped_paths:
                 continue
             _atomic_write(target.path, _desired_text(entry, target))
             written.append(target.path)
@@ -508,6 +528,7 @@ def apply_skill_sync(
         backups=tuple(backups),
         manifest_path=plan.manifest_path,
         removed=tuple(removed),
+        conflicts=tuple(target.path for target in skipped),
     )
 
 
@@ -578,7 +599,15 @@ def _plan_opencode_target(
     state = classify_state(current_base, rendered, managed_hash)
     if state == "current" and current != desired:
         state = "outdated"
-    return SkillTargetPlan("opencode", path, state, current, _sha256(current), desired)
+    return SkillTargetPlan(
+        "opencode",
+        path,
+        state,
+        current,
+        _sha256(current),
+        desired,
+        managed=_is_managed(current, managed_hash),
+    )
 
 
 def _plan_target(
@@ -599,7 +628,9 @@ def _plan_target(
         raise SkillSyncError(f"skill target is not valid UTF-8: {path}") from exc
     current_hash = _sha256(current)
     state = classify_state(current, rendered, managed_hash)
-    return SkillTargetPlan(harness, path, state, current, current_hash)
+    return SkillTargetPlan(
+        harness, path, state, current, current_hash, managed=_is_managed(current, managed_hash)
+    )
 
 
 def _plan_retired_targets(
@@ -753,9 +784,24 @@ def _plan_aux_targets(
                 raise SkillSyncError(f"skill file target is not valid UTF-8: {path}") from exc
             state = classify_state(current, text, managed.get(rel))
             targets.append(
-                SkillTargetPlan(harness, path, state, current, _sha256(current), text, rel)
+                SkillTargetPlan(
+                    harness,
+                    path,
+                    state,
+                    current,
+                    _sha256(current),
+                    text,
+                    rel,
+                    managed=_is_managed(current, managed.get(rel)),
+                )
             )
     return tuple(targets)
+
+
+def _is_managed(current: str | None, managed_hash: str | None) -> bool:
+    if managed_hash is not None:
+        return True
+    return current is not None and carries_library_provenance(current)
 
 
 def _plan_removed_files(

@@ -227,6 +227,8 @@ export async function checkWhatsNewAtStart(
     return;
   }
   if (!decision.show) return;
-  openWhatsNew(document, decision.entries);
   saveSeenVersion(current);
+  const host = openWhatsNew(document, decision.entries);
+  host?.addEventListener("click", () => saveSeenVersion(current));
+  window.addEventListener("pagehide", () => saveSeenVersion(current), { once: true });
 }

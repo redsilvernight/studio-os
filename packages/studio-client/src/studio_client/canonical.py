@@ -11,20 +11,23 @@ Two canonical stores, one precedence rule (P3.2):
 * files (`.agents/`) win at *authoring* time — review, diff, anti-drift check;
 * the AI Library wins at *resolution* time — `resolve_full` never reads files.
 
-Runtime fusion (P4/AIB-D, DEC-0168): `build_merged_resolved` takes an
-injected `LibrarySnapshot` — project files win per piece when present,
-Library entries fill the gaps, anything missing on both sides fails
+Runtime fusion (P4/AIB-D): `build_merged_resolved` takes an
+injected `LibrarySnapshot` — the Library wins per piece when it carries the
+key, project files fill the gaps, anything missing on both sides fails
 exactly like the offline path. This module stays pure: the snapshot is
 pre-fetched by the caller (see `StudioApiClient.fetch_library_snapshot`).
 
-Publishing a file to the Library strips file-only keys (`instructions`,
-`triggers`, `edit_policy`, `tools`) and pins versions server-side; see
-`to_publish_payload`. Generated harness files always derive from the files,
-never from a third manual copy.
+Publishing a file to the Library keeps every canonical field (`summary`,
+`intended_use`, `instructions`, `triggers`, `edit_policy`, `tools`) in the
+`agent_definition/v2` content, exports each agent's `requirements` as its own
+`model_profile` content, and pins versions server-side; see
+`to_publish_payload` / `to_model_profile_payload`. Generated harness files
+always derive from the files, never from a third manual copy.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -123,6 +126,22 @@ def load_skill_text(repo_root: Path | str, stable_key: str) -> str:
     return body
 
 
+def load_skill_disable_model_invocation(repo_root: Path | str, stable_key: str) -> bool:
+    """`disable_model_invocation` of the canonical skill, `False` by default.
+
+    Read from the harness-native `disable-model-invocation` frontmatter key
+    (the neutral "invoked by the user only, never by the model" flag) and
+    published as `skill/v2` `disable_model_invocation`. A non-boolean value is
+    an authoring error, never coerced: `"true"` or `1` would project a flag
+    nobody asked for."""
+    path = Path(repo_root) / ".agents" / "skills" / stable_key / "SKILL.md"
+    data, _ = _split_frontmatter(path.read_text(encoding="utf-8"), source=str(path))
+    value = data.get("disable-model-invocation", False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{path}: disable-model-invocation must be a boolean, got {value!r}")
+    return value
+
+
 def load_skill_source(repo_root: Path | str, stable_key: str) -> str:
     """Raw text of the canonical skill, frontmatter included.
 
@@ -130,6 +149,33 @@ def load_skill_source(repo_root: Path | str, stable_key: str) -> str:
     harness-native format, so no envelope is added here."""
     path = Path(repo_root) / ".agents" / "skills" / stable_key / "SKILL.md"
     return path.read_text(encoding="utf-8")
+
+
+def load_skill_files(repo_root: Path | str, stable_key: str) -> list[dict[str, str]]:
+    """Auxiliary text files of a canonical skill, as `skill/v1` `files[]`.
+
+    Every file under `.agents/skills/<key>/references/**`, recursively:
+    relative POSIX path (from the skill directory), its text and the SHA-256
+    of that text. Deterministic (sorted by path); the count/size budgets
+    (`SKILL_FILES_MAX`, `SKILL_FILES_TOTAL_MAX_LENGTH`) are enforced by the
+    publisher, which reports them as `PublishError`."""
+    base = Path(repo_root) / ".agents" / "skills" / stable_key
+    references = base / "references"
+    if not references.is_dir():
+        return []
+    files: list[dict[str, str]] = []
+    for path in sorted(references.rglob("*"), key=lambda p: p.relative_to(base).as_posix()):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        files.append(
+            {
+                "path": path.relative_to(base).as_posix(),
+                "text": text,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            }
+        )
+    return files
 
 
 def canonical_skill_keys(repo_root: Path | str) -> list[str]:
@@ -339,34 +385,30 @@ def build_offline_resolved(repo_root: Path | str, stable_key: str) -> ResolvedAg
     )
 
 
-def _file_or_library_text(
+def _library_or_file_text(
     root: Path,
     kind: str,
     key: str,
     library: LibrarySnapshot,
 ) -> tuple[str, ResolvedRule | ResolvedSkill | None]:
-    """Project file text win, Library entry second. A corrupt project file
-    (`ValueError`) always raises — it must never silently fall back. Only a
-    missing file (`FileNotFoundError`) falls back; missing on both sides
-    raises the same `FileNotFoundError` the offline path raises."""
-    loader = load_rule_text if kind == "rule" else load_skill_text
-    try:
-        return loader(root, key), None
-    except FileNotFoundError:
-        pass
+    """Library entry first, project file as gap-fill. A same-key file the
+    Library also carries never wins silently: the managed check compares the
+    on-disk file against this Library-backed text and reports the drift
+    instead of echoing the file back to itself. A corrupt project file
+    (`ValueError`) still raises when the Library has no entry for the key;
+    missing on both sides raises the same `FileNotFoundError` the offline
+    path raises."""
     if kind == "rule":
         entry: ResolvedRule | ResolvedSkill | None = library.rules.get(key)
     else:
         entry = library.skills.get(key)
-    if entry is None:
-        path = root / ".agents" / ("rules" if kind == "rule" else "skills")
-        raise FileNotFoundError(
-            f"{path}: no project file and no Library entry for {key!r}"
-        ) from None
-    text = entry.content.get("text")
-    if not isinstance(text, str):  # pragma: no cover - guarded by from_resolved
-        raise ValueError(f"library snapshot: {kind} {key!r} has no text content")
-    return text, entry
+    if entry is not None:
+        text = entry.content.get("text")
+        if not isinstance(text, str):  # pragma: no cover - guarded by from_resolved
+            raise ValueError(f"library snapshot: {kind} {key!r} has no text content")
+        return text, entry
+    loader = load_rule_text if kind == "rule" else load_skill_text
+    return loader(root, key), None
 
 
 def build_merged_resolved(
@@ -375,17 +417,18 @@ def build_merged_resolved(
     *,
     library: LibrarySnapshot | None = None,
 ) -> ResolvedAgentDefinition:
-    """Runtime fusion (P4/AIB-D, DEC-0168): the project `.agents/` authoring
-    source merged with a pre-fetched `LibrarySnapshot`, per piece. Project
-    files win when present (review/diff/anti-drift source); Library entries
-    fill the gaps, so a near-empty repo (manifest + managed blocks) still
-    resolves the studio resources. `library=None` is the strict offline
-    path, identical to `build_offline_resolved`. Library-backed pieces
-    carry their real identity and provenance (version-truthful);
-    Library-backed heads default the file-only keys the Library never
-    carries (`instructions`, `triggers`, `edit_policy`, `tools`). This
-    function never re-decides versions (DEC-0144): it only picks whole
-    pieces from the two sources."""
+    """Runtime fusion (P4/AIB-D): the project `.agents/` authoring source
+    merged with a pre-fetched `LibrarySnapshot`, per piece. The Library wins
+    when it carries the key — a same-key depot file never shadows it
+    silently; the anti-drift check reports the depot file as drifted
+    instead. Project files fill the gaps (keys the Library does not
+    carry), so a near-empty repo still resolves. `library=None` is the
+    strict offline path, identical to `build_offline_resolved`.
+    Library-backed pieces carry their real identity and provenance
+    (version-truthful); Library-backed heads default the file-only keys
+    the Library never carries (`instructions`, `triggers`, `edit_policy`,
+    `tools`). This function never re-decides versions (DEC-0144): it only
+    picks whole pieces from the two sources."""
     if library is None:
         return build_offline_resolved(repo_root, stable_key)
     if library.agent.stable_key != stable_key:
@@ -429,7 +472,7 @@ def build_merged_resolved(
         requirements = CapabilityRequirement.model_validate(agent.requirements)
     rules = []
     for key in keys_rules:
-        text, entry = _file_or_library_text(root, "rule", key, library)
+        text, entry = _library_or_file_text(root, "rule", key, library)
         if entry is None:
             rules.append(
                 _resolved_rule(
@@ -457,7 +500,7 @@ def build_merged_resolved(
             )
     skills = []
     for key in keys_skills:
-        text, entry = _file_or_library_text(root, "skill", key, library)
+        text, entry = _library_or_file_text(root, "skill", key, library)
         if entry is None:
             skills.append(
                 _resolved_skill(
@@ -491,18 +534,44 @@ def build_merged_resolved(
     )
 
 
+def model_profile_key(agent_stable_key: str) -> str:
+    """Stable key of the `model_profile` an agent's `requirements` publish to."""
+    return f"{agent_stable_key}-profile"
+
+
 def to_publish_payload(agent: CanonicalAgent) -> tuple[dict[str, object], list[tuple[str, str]]]:
-    """Split a canonical agent into a Library-publishable content dict plus
-    `(kind, stable_key)` pin pairs. Versions are pinned server-side at publish
-    time (active versions), never invented here — the returned pairs carry no
-    version."""
+    """Split a canonical agent into its `agent_definition/v2` Library content
+    plus `(kind, stable_key)` pin pairs. Every canonical field is carried —
+    the Markdown body becomes `instructions`, never `intended_use` — and an
+    agent declaring `requirements` pins the `model_profile` published from
+    them. Versions are pinned server-side at publish time (active versions),
+    never invented here — the returned pairs carry no version."""
     content: dict[str, object] = {
-        "content_schema": "studio.library.agent_definition/v1",
+        "content_schema": "studio.library.agent_definition/v2",
         "summary": agent.summary,
         "intended_use": agent.intended_use,
+        "instructions": agent.instructions,
+        "triggers": list(agent.triggers),
+        "edit_policy": agent.edit_policy,
+        "tools": list(agent.tools),
     }
     pins = [("rule", key) for key in agent.rules] + [("skill", key) for key in agent.skills]
+    if agent.requirements:
+        pins.append(("model_profile", model_profile_key(agent.stable_key)))
     return content, pins
+
+
+def to_model_profile_payload(agent: CanonicalAgent) -> dict[str, object]:
+    """`model_profile/v1` content built from an agent's `requirements`.
+
+    Vendor-neutral only: the `CapabilityRequirement` dimensions, no provider,
+    model, harness or ranking."""
+    requirement = CapabilityRequirement.model_validate(agent.requirements)
+    return {
+        "content_schema": "studio.library.model_profile/v1",
+        "requirements": requirement.model_dump(mode="json", exclude_none=True),
+        "description": f"Capability requirements declared by the {agent.stable_key} agent.",
+    }
 
 
 def canonical_agent_keys(repo_root: Path | str) -> list[str]:
@@ -559,27 +628,34 @@ _PROTOCOL_RULE_KEY = "studio-protocol"
 def render_claude_md_block(repo_root: Path | str) -> str:
     """The CLAUDE.md managed section: a pointer to the canonical `.agents/`
     sources, importing the protocol rule when the project has one."""
+    return render_claude_md_block_from(_PROTOCOL_RULE_KEY in canonical_rule_keys(repo_root))
+
+
+def render_claude_md_block_from(has_protocol: bool) -> str:
     lines = [
         CLAUDE_BEGIN_MARKER,
         "Règles et skills canoniques : `.agents/` (projections régénérées).",
     ]
-    if _PROTOCOL_RULE_KEY in canonical_rule_keys(repo_root):
+    if has_protocol:
         lines.append(f"@.agents/rules/{_PROTOCOL_RULE_KEY}.md")
     lines.append(CLAUDE_END_MARKER)
     return "\n".join(lines) + "\n"
 
 
 def render_agents_rules_block(repo_root: Path | str) -> str:
-    """Permanent protocol and on-demand path rules, from one canonical source."""
+    """Stable pointer block: no rule content, so a new rule version never changes it."""
     protocol = Path(repo_root) / ".agents/rules/studio-protocol.md"
-    parts = [protocol.read_text(encoding="utf-8").strip()] if protocol.is_file() else []
+    return render_agents_rules_block_from(protocol.is_file())
+
+
+def render_agents_rules_block_from(has_protocol: bool) -> str:
+    parts = []
+    if has_protocol:
+        parts.append(f"Read `.agents/rules/{_PROTOCOL_RULE_KEY}.md` before any task.")
     parts.append(
-        "Before editing matching paths, read the canonical rule below; "
-        "scopes are not automatic in every harness."
+        "Canonical rules live in `.agents/rules/`; before editing a path, read the rules "
+        "whose `applies_to` front matter matches it (scopes are not automatic in every harness)."
     )
-    for key in canonical_rule_keys(repo_root):
-        applies_to, _ = load_rule_meta(repo_root, key)
-        parts.append(f"- `.agents/rules/{key}.md` — applies to {_glob_list(applies_to)}")
     return (
         AGENTS_BEGIN_MARKER
         + "\n# Project rules (studio-client)\n\n"
@@ -590,14 +666,24 @@ def render_agents_rules_block(repo_root: Path | str) -> str:
     )
 
 
+def legacy_rules_text(rules: dict[str, tuple[list[str], str]]) -> str:
+    parts = [
+        f"## {key} — applies to {_glob_list(paths)}\n\n{body.rstrip()}"
+        for key, (paths, body) in sorted(rules.items())
+    ]
+    return "# Claude rules imported for Codex\n\n" + "\n\n".join(parts)
+
+
 def merge_agents_rules(repo_root: Path | str, text: str) -> str:
     """Migrate only verified legacy blocks; preserve every byte outside spans."""
+    rules = {key: load_rule_meta(repo_root, key) for key in canonical_rule_keys(repo_root)}
+    return merge_agents_rules_with(
+        render_agents_rules_block(repo_root), legacy_rules_text(rules), text
+    )
+
+
+def merge_agents_rules_with(block: str, legacy: str, text: str) -> str:
     text = text.replace("\r\n", "\n")
-    legacy_parts = []
-    for key in canonical_rule_keys(repo_root):
-        paths, body = load_rule_meta(repo_root, key)
-        legacy_parts.append(f"## {key} — applies to {_glob_list(paths)}\n\n{body.rstrip()}")
-    legacy = "# Claude rules imported for Codex\n\n" + "\n\n".join(legacy_parts)
     markers = {
         AGENTS_BEGIN_MARKER: AGENTS_END_MARKER,
         "<!-- BEGIN SYNCED CLAUDE RULES -->": "<!-- END SYNCED CLAUDE RULES -->",
@@ -645,7 +731,7 @@ def merge_agents_rules(repo_root: Path | str, text: str) -> str:
         start = candidates[0]
         spans.append((start, start + len(legacy)))
     spans.sort()
-    block = render_agents_rules_block(repo_root).rstrip("\n")
+    block = block.rstrip("\n")
     if not spans:
         separator = "\n\n" if text and not text.endswith("\n") else "\n" if text else ""
         return text + separator + block + "\n"
@@ -663,13 +749,72 @@ def agents_rules_current(repo_root: Path | str, text: str) -> bool:
         return False
 
 
-def workflow_skill_projections(repo_root: Path | str) -> dict[str, str]:
-    """Project compatible workflow entry points; references stay canonical."""
+def agents_rules_current_with(block: str, legacy: str, text: str) -> bool:
+    try:
+        return merge_agents_rules_with(block, legacy, text) == text.replace("\r\n", "\n")
+    except ValueError:
+        return False
+
+
+_HARNESS_SKILL_DIRS = (".claude", ".codex", ".opencode")
+
+CODEX_OPENAI_POLICY_PATH = "agents/openai.yaml"
+CODEX_OPENAI_POLICY_TEXT = "policy:\n  allow_implicit_invocation: false\n"
+"""Codex-native equivalent of the `disable-model-invocation` frontmatter flag.
+
+OpenCode honours the frontmatter key verbatim; Codex does not, so a flagged
+skill also projects `.codex/skills/<key>/agents/openai.yaml` carrying this
+policy (implicit invocation off, explicit `$skill` still allowed). The
+`SKILL.md` frontmatter itself stays verbatim in every harness."""
+
+
+def _skill_disables_model_invocation(source: str) -> bool:
+    """True when a `SKILL.md` source carries `disable-model-invocation: true`.
+
+    Covers both bundle shapes: the repo bundle carries the verbatim frontmatter
+    and the resolved bundle rebuilds it from `disable_model_invocation`
+    (`projection_source._skill_source`), so one parse serves both."""
+    match = _FRONTMATTER_RE.match(source)
+    if match is None:
+        return False
+    try:
+        data = yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError:
+        return False
+    return data.get("disable-model-invocation") is True
+
+
+def skill_projections(repo_root: Path | str) -> dict[str, str]:
+    """Every canonical skill projected into every harness, references included.
+
+    `<harness>/skills/<key>/SKILL.md` carries the verbatim skill source and
+    `<harness>/skills/<key>/<references/...>` the auxiliary files. A skill
+    flagged `disable-model-invocation` additionally projects the Codex-native
+    `.codex/skills/<key>/agents/openai.yaml` policy; the flag itself stays
+    verbatim in every `SKILL.md`."""
     root = Path(repo_root)
-    result: dict[str, str] = {}
-    for key in ("studio-task", "studio-context", "studio-handoff"):
-        source = root / ".agents/skills" / key / "SKILL.md"
-        if source.is_file():
-            for harness in (".claude", ".codex", ".opencode"):
-                result[f"{harness}/skills/{key}/SKILL.md"] = source.read_text(encoding="utf-8")
-    return result
+    skills = {
+        key: (root / ".agents/skills" / key / "SKILL.md").read_text(encoding="utf-8")
+        for key in canonical_skill_keys(root)
+    }
+    skill_files: dict[str, tuple[tuple[str, str], ...]] = {
+        key: tuple((file["path"], file["text"]) for file in load_skill_files(root, key))
+        for key in skills
+    }
+    return skill_projections_from(skills, skill_files)
+
+
+def skill_projections_from(
+    skills: dict[str, str],
+    skill_files: dict[str, tuple[tuple[str, str], ...]] | None = None,
+) -> dict[str, str]:
+    files = skill_files or {}
+    projected: dict[str, str] = {}
+    for key in sorted(skills):
+        for harness in _HARNESS_SKILL_DIRS:
+            projected[f"{harness}/skills/{key}/SKILL.md"] = skills[key]
+            for relative, text in files.get(key, ()):
+                projected[f"{harness}/skills/{key}/{relative}"] = text
+        if _skill_disables_model_invocation(skills[key]):
+            projected[f".codex/skills/{key}/{CODEX_OPENAI_POLICY_PATH}"] = CODEX_OPENAI_POLICY_TEXT
+    return projected

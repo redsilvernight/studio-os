@@ -44,6 +44,8 @@ from studio_contracts.runtime import (
     RuntimeTarget,
 )
 
+from tests.library_seed import studio_admin
+
 AGENT = LibraryKind.AGENT_DEFINITION
 RULE = LibraryKind.RULE
 SKILL = LibraryKind.SKILL
@@ -83,6 +85,8 @@ async def _create(
     dependencies: list[DependencyPin] | None = None,
     activate: bool = True,
 ):
+    if scope == LibraryScope.STUDIO:
+        principal = await studio_admin(db_session)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -113,6 +117,8 @@ async def _add_version(
     *,
     activate: bool = True,
 ):
+    if resource.scope == LibraryScope.STUDIO.value:  # type: ignore[attr-defined]
+        principal = await studio_admin(db_session)
     row = await library_service.create_resource_version(
         db_session,
         principal,

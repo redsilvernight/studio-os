@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -36,6 +37,7 @@ from studio_api.services import provisioning as provisioning_service
 from studio_api.services import runtime_bindings as bindings_service
 from studio_api.services import runtime_registry as registry_service
 from studio_api.services.authz import Principal, load_principal
+from studio_contracts.auth import Role
 from studio_contracts.library import (
     DependencyPin,
     LibraryKind,
@@ -118,6 +120,8 @@ async def _create(
     project_id: UUID | None = None,
     activate: bool = True,
 ):
+    if scope == LibraryScope.STUDIO:  # Studio writes are admin-only (P70a)
+        principal = replace(principal, role=Role.ADMIN)
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -149,6 +153,8 @@ async def _add_version(
     dependencies: list[DependencyPin] | None = None,
     activate: bool = True,
 ):
+    if resource.scope == "studio":  # Studio writes are admin-only (P70a)
+        principal = replace(principal, role=Role.ADMIN)
     row = await library_service.create_resource_version(
         db_session,
         principal,
@@ -1510,10 +1516,9 @@ async def test_p13_resolution_is_deterministic_across_repeats(
 async def test_p13_workflow_declarative_lifecycle_and_boundary(
     client: AsyncClient,
     db_session: AsyncSession,
-    auth_headers: dict[str, str],
     p13_admin: tuple[Principal, dict[str, str]],
 ) -> None:
-    admin, _ = p13_admin
+    admin, admin_headers = p13_admin
     for agent_key in ("flow-implementer", "flow-tester", "flow-documenter", "flow-reviewer"):
         await _create(db_session, admin, AGENT, agent_key, _agent_content(agent_key))
 
@@ -1570,7 +1575,7 @@ async def test_p13_workflow_declarative_lifecycle_and_boundary(
     created = await client.post(
         "/api/v1/library",
         json=payload,
-        headers={**auth_headers, "Idempotency-Key": f"p13-flow-{uuid.uuid4().hex[:8]}"},
+        headers={**admin_headers, "Idempotency-Key": f"p13-flow-{uuid.uuid4().hex[:8]}"},
     )
     assert created.status_code == 201, created.text
     resource_id = created.json()["id"]
@@ -1578,11 +1583,11 @@ async def test_p13_workflow_declarative_lifecycle_and_boundary(
     active = await client.post(
         f"/api/v1/library/{resource_id}/activate",
         json={"version": 1, "expected_resource_version": created.json()["version"]},
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert active.status_code == 200, active.text
 
-    detail = await client.get(f"/api/v1/library/{resource_id}", headers=auth_headers)
+    detail = await client.get(f"/api/v1/library/{resource_id}", headers=admin_headers)
     assert detail.status_code == 200
     assert detail.json()["kind"] == "workflow"
 
@@ -1608,7 +1613,7 @@ async def test_p13_workflow_declarative_lifecycle_and_boundary(
     dup = await client.post(
         "/api/v1/library",
         json=duplicate,
-        headers={**auth_headers, "Idempotency-Key": f"p13-dup-{uuid.uuid4().hex[:8]}"},
+        headers={**admin_headers, "Idempotency-Key": f"p13-dup-{uuid.uuid4().hex[:8]}"},
     )
     assert dup.status_code == 422
     assert dup.json()["detail"]["error_code"] == "invalid_workflow"

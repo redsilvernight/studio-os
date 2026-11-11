@@ -5,6 +5,7 @@
         "in_progress",
         "up_to_date",
         "updated",
+        "update_pending",
         "conflicts",
         "not_synced",
         "disabled"

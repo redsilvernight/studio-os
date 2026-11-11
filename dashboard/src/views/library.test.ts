@@ -276,6 +276,33 @@ describe("shadowNoteHtml", () => {
 
 /* ---------------- Création : contrat préservé, champs par kind ---------------- */
 
+describe("portée Studio réservée aux admins (P70a)", () => {
+  it("masque la portée Studio du formulaire de création pour un non-admin", () => {
+    expect(createFormFieldsHtml("rule", false)).not.toContain('<option value="studio">');
+    expect(createFormFieldsHtml("rule", false)).toContain('<option value="project">');
+    expect(createFormFieldsHtml("rule", true)).toContain('<option value="studio">');
+  });
+
+  it("retire activation, dépréciation et nouvelle version d'une ressource Studio pour un non-admin", () => {
+    const studio = resource({ scope: "studio" });
+    const locked = libraryDetailHtml(studio, [], [], [], false);
+    expect(locked).toContain("data-library-studio-locked");
+    expect(locked).not.toContain("data-activate");
+    expect(locked).not.toContain("data-deprecate");
+    expect(locked).not.toContain('id="library-version-new"');
+    const admin = libraryDetailHtml(studio, [], [], [], true);
+    expect(admin).not.toContain("data-library-studio-locked");
+    expect(admin).toContain("data-activate");
+    expect(admin).toContain('id="library-version-new"');
+  });
+
+  it("garde les actions d'une ressource de projet pour un non-admin", () => {
+    const html = libraryDetailHtml(resource({ scope: "project" }), [], [], [], false);
+    expect(html).toContain("data-activate");
+    expect(html).toContain('id="library-version-new"');
+  });
+});
+
 describe("createFormFieldsHtml (POST /library, Idempotency-Key par tentative)", () => {
   it("conserve les noms de champs du contrat pour les règles", () => {
     const html = createFormFieldsHtml("rule");

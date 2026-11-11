@@ -12,6 +12,8 @@ from studio_contracts.library import (
     LibraryResource,
     LibraryResourceCreate,
     LibraryVersion,
+    LibraryVersionBatchGet,
+    LibraryVersionBatchResult,
     LibraryVersionCreate,
 )
 
@@ -79,7 +81,8 @@ async def list_library(
     status_code=status.HTTP_201_CREATED,
     description=(
         "Create a library definition plus its draft version 1 (which never "
-        "activates itself). Studio scope requires a privileged role; "
+        "activates itself). Studio scope requires the `admin` role (also for "
+        "versions, activation and deprecation of a Studio definition); "
         "project scope requires its `project_id`; user scope is owned by "
         "the caller. Accepts `Idempotency-Key` for safe retries."
     ),
@@ -122,6 +125,25 @@ async def create_library_resource(
         _create,
         status.HTTP_201_CREATED,
     )
+
+
+@router.post(
+    "/versions/batch-get",
+    response_model=LibraryVersionBatchResult,
+    description=(
+        "Read up to 500 exact `(resource_id, version)` pairs in one call, "
+        "answered in request order; duplicates are resolved once. "
+        "`not_found` covers an absent resource, another user's User-scope "
+        "resource and an absent version alike. A resource of a project the "
+        "caller cannot read answers `403 forbidden` for the whole batch."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def batch_get_library_versions(
+    batch: LibraryVersionBatchGet, session: DbSession, principal: CurrentPrincipal
+) -> LibraryVersionBatchResult:
+    items = await library_service.batch_get_versions(session, principal, batch.items)
+    return LibraryVersionBatchResult(items=items)
 
 
 @router.get(

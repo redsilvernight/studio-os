@@ -13,7 +13,7 @@ from studio_client.context.library import LibraryContextItem
 from studio_client.daemon import skills_bridge
 from studio_client.daemon.local_features import LocalFeatureError
 from studio_client.daemon.service import BridgeService, DaemonController
-from studio_client.errors import AuthenticationError, StudioApiError
+from studio_client.errors import AuthenticationError, RateLimitError, StudioApiError
 from studio_client.skill_sync import apply_skill_sync, plan_skill_sync
 from studio_client.tokens import MemoryTokenStore
 from studio_contracts.local.bridge import BridgeRequest
@@ -372,6 +372,58 @@ def test_upstream_errors_are_mapped(tmp_path: Path, monkeypatch, exc, code, retr
     assert str(tmp_path) not in err.value.error.message
 
 
+def test_rate_limit_is_readable_retryable_and_leaves_home_untouched(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    apply_skill_sync(plan_skill_sync(home, [_projection("delegate")]))
+    before = _snapshot(home)
+    limited = RateLimitError(429, None, "slow down")
+    limited.retry_after = 90
+    _patch_fetch(monkeypatch, limited)
+    controller = _controller(tmp_path / "data", home)
+    with pytest.raises(LocalFeatureError) as err:
+        controller.skills_check()
+    assert err.value.error.retryable is True
+    assert "rate limiting" in err.value.error.message and "90s" in err.value.error.message
+    with pytest.raises(LocalFeatureError):
+        controller.skills_preview()
+    assert _snapshot(home) == before
+
+
+def test_targeted_apply_replay_is_idempotent(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    projections = [_projection(key) for key in ("delegate", "graphify")]
+    _patch_fetch(monkeypatch, projections)
+    controller = _controller(tmp_path / "data", home)
+    token = {e.stable_key: e.preview_hash for e in controller.skills_preview().skills}
+    request = SkillsApplyRequest(
+        confirm=True,
+        resolutions=[
+            SkillResolution(stable_key="delegate", choice="library", preview_hash=token["delegate"])
+        ],
+    )
+    controller.skills_apply(request)
+    after_first = _snapshot(home)
+    assert not any("graphify" in name for name in after_first)
+    with pytest.raises(LocalFeatureError):
+        controller.skills_apply(request)
+    assert _snapshot(home) == after_first
+    fresh = {e.stable_key: e.preview_hash for e in controller.skills_preview().skills}
+    replay = controller.skills_apply(
+        SkillsApplyRequest(
+            confirm=True,
+            resolutions=[
+                SkillResolution(
+                    stable_key="delegate", choice="library", preview_hash=fresh["delegate"]
+                )
+            ],
+        )
+    )
+    assert replay.written == []
+    assert _snapshot(home) == after_first
+
+
 def test_skills_check_does_not_use_definition_endpoint(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -513,13 +565,14 @@ def _modified_home(tmp_path: Path) -> tuple[Path, Path]:
     return home, target
 
 
-def test_apply_refuses_conflicts_without_overwrite(tmp_path: Path, monkeypatch) -> None:
+def test_apply_skips_conflicts_without_overwrite(tmp_path: Path, monkeypatch) -> None:
     home, target = _modified_home(tmp_path)
     _patch_fetch(monkeypatch, [_projection()])
     controller = _controller(tmp_path, home)
-    with pytest.raises(LocalFeatureError):
-        controller.skills_apply(SkillsApplyRequest(confirm=True))
+    result = controller.skills_apply(SkillsApplyRequest(confirm=True))
     assert "local edit" in target.read_text(encoding="utf-8")
+    assert result.conflicts != []
+    assert controller.skills_status().state.value == "conflicts"
 
 
 def test_apply_overwrite_backs_up_and_resolves_conflicts(tmp_path: Path, monkeypatch) -> None:

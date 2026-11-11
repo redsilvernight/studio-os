@@ -125,6 +125,15 @@ describe("whats-new at start", () => {
     expect(overlay()).toBeNull();
   });
 
+  it("persists the seen version before opening and again on interaction", async () => {
+    saveSeenVersion("0.1.0");
+    await checkWhatsNewAtStart(desktop("0.3.0"), NOTES);
+    expect(loadSeenVersion()).toBe("0.3.0");
+    localStorage.clear();
+    overlay()?.querySelector<HTMLElement>("[data-ds-close]")?.click();
+    expect(loadSeenVersion()).toBe("0.3.0");
+  });
+
   it("stays silent on a web build", async () => {
     await checkWhatsNewAtStart({ mode: "web", desktopInfo: async () => null });
     expect(overlay()).toBeNull();

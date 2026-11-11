@@ -9,6 +9,12 @@ import { esc } from "./ui";
 import { harnessErrorMessage } from "./harnessApi";
 import type { Platform } from "./platform";
 import {
+  applyProjectProjections,
+  getProjectProjectionsStatus,
+  projectProjectionsHtml,
+  type ProjectProjectionsStatus,
+} from "./projectProjections";
+import {
   applySkills,
   configureSkillsSync,
   getSkillsSyncStatus,
@@ -31,6 +37,7 @@ const TIMEOUT = Symbol("timeout");
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let current: SkillsSyncStatus | null = null;
+let projectUpdates: ProjectProjectionsStatus | null = null;
 let unavailable = false;
 let busy = false;
 let preview: SkillsPreviewResult | null = null;
@@ -118,8 +125,13 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
   const known = status !== null && !failed;
   const level = known ? SYNC_STATE_LEVELS[status.state] : "warn";
   const label = known ? SYNC_STATE_LABELS[status.state] : "Library : état indisponible";
-  const pending = known ? (status.conflicts ?? []).length || (status.updated ?? []).length + (status.added ?? []).length : 0;
-  const suffix = known && pending > 0 && status.state !== "up_to_date" ? ` (${pending})` : "";
+  const conflicts = known ? (status.conflicts ?? []).length : 0;
+  const updates = known ? (status.updated ?? []).length + (status.added ?? []).length : 0;
+  const parts = [
+    conflicts > 0 ? `${conflicts} conflit${conflicts > 1 ? "s" : ""}` : "",
+    updates > 0 ? `${updates} mise${updates > 1 ? "s" : ""} à jour` : "",
+  ].filter(Boolean);
+  const suffix = known && parts.length && status.state !== "up_to_date" ? ` (${parts.join(", ")})` : "";
   return (
     `<button class="app-connection app-connection--${level} app-skills-sync" id="skills-sync" type="button" ` +
     `data-testid="skills-sync" data-state="${known ? status.state : "unavailable"}" ` +
@@ -150,6 +162,7 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
     (!confirming && pending.length ? `<h3 class="skills-sync-section-title">Choisissez la version à utiliser</h3><ul class="skills-sync-list">${pending.map(skillRowHtml).join("")}</ul>` : "") +
     confirmation +
     (operationNote ? `<p class="skills-sync-help" role="status">${esc(operationNote)}</p>` : "") +
+    projectProjectionsHtml(projectUpdates, busy) +
     `<details class="skills-sync-technical"><summary>Détails de synchronisation</summary>` +
     `<p>Dernière vérification : ${esc(formatDate(status?.last_check))}<br>Dernière synchronisation réussie : ${esc(formatDate(status?.last_successful_sync))}</p>` +
     (status?.added?.length ? `<h3>Ajoutés</h3>${nameList(status.added)}` : "") +
@@ -177,6 +190,9 @@ function notifyIfChanged(status: SkillsSyncStatus): void {
   if (status.state === "updated") {
     const count = (status.added ?? []).length + (status.updated ?? []).length;
     dsNotify(`Library synchronisée : ${count} élément(s) ajouté(s) ou mis à jour.`, "success");
+  } else if (status.state === "update_pending") {
+    const count = (status.added ?? []).length + (status.updated ?? []).length;
+    dsNotify(`Library : ${count} mise(s) à jour à confirmer.`, "info");
   } else if (status.state === "conflicts") {
     dsNotify(`Library : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
   } else {
@@ -313,6 +329,26 @@ function bindActions(platform: Platform): void {
       }
     })();
   });
+  root.querySelectorAll<HTMLElement>("[data-project-projections-apply]").forEach((button) => button.addEventListener("click", () => {
+    const workspaceId = button.dataset["projectProjectionsApply"];
+    if (busy || !workspaceId) return;
+    busy = true;
+    renderDetail(platform);
+    void (async () => {
+      try {
+        const outcome = await applyProjectProjections(platform, workspaceId);
+        operationNote = outcome.ok
+          ? `Dépôt mis à jour : ${outcome.value.written?.length ?? 0} fichier(s) écrit(s).`
+          : harnessErrorMessage(outcome.error);
+      } catch {
+        operationNote = "Impossible d'écrire dans le dépôt. Vérifiez que l'assistant local est démarré puis réessayez.";
+      } finally {
+        busy = false;
+        await refresh(platform, false);
+        renderDetail(platform);
+      }
+    })();
+  }));
   root.querySelector('[data-skills-action="toggle"]')?.addEventListener("click", () => {
     if (busy) return;
     busy = true;
@@ -336,6 +372,8 @@ async function refresh(platform: Platform, notify = true): Promise<void> {
     current = outcome.value;
     if (notify) notifyIfChanged(outcome.value);
   }
+  const projects = await withDeadline(getProjectProjectionsStatus(platform)).catch(() => null);
+  if (projects !== null && projects !== TIMEOUT && projects.ok) projectUpdates = projects.value;
   paint();
   if (timer !== null) clearTimeout(timer);
   timer = setTimeout(() => void refresh(platform), current?.state === "in_progress" ? RUNNING_POLL_MS : IDLE_POLL_MS);
@@ -371,6 +409,7 @@ export function resetSkillsSyncForTests(): void {
   if (timer !== null) clearTimeout(timer);
   timer = null;
   current = null;
+  projectUpdates = null;
   unavailable = false;
   busy = false;
   preview = null;

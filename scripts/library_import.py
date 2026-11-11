@@ -3,7 +3,7 @@
 Never writes to the database: every write is an authenticated call of the
 official client (`studio_client.publish`), so scopes, owners, roles, content
 schemas and pin rules are the server's own. The caller decides the principal:
-Core needs a privileged role, Project a project writer, Personal its owner.
+Core (studio scope) needs the admin role, Project a project writer, Personal its owner.
 
     uv run python scripts/library_import.py check          # offline: hashes + schemas
     uv run python scripts/library_import.py import --layer core --api-url URL \

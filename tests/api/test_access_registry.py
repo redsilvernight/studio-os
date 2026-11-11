@@ -255,6 +255,12 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
             },
         ),
     ),
+    ("POST", "/api/v1/library/versions/batch-get"): (
+        Probe(
+            "/api/v1/library/versions/batch-get",
+            {"items": [{"resource_id": "{lib}", "version": 1}]},
+        ),
+    ),
     ("GET", "/api/v1/library/{resource_id}"): (Probe(_LIB),),
     ("GET", "/api/v1/library/{resource_id}/versions"): (Probe(_LIB + "/versions"),),
     ("GET", "/api/v1/library/{resource_id}/versions/{version}/dependency-updates"): (

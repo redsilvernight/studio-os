@@ -73,6 +73,10 @@ class LibraryResourceVersionModel(UUIDPKMixin, Base):
     __table_args__ = (
         sa.UniqueConstraint("resource_id", "version", name="uq_library_version_number"),
         sa.Index("ix_library_versions_resource", "resource_id"),
+        sa.CheckConstraint(
+            "(derived_from_resource_id IS NULL) = (derived_from_version IS NULL)",
+            name="ck_library_version_derived_from_pair",
+        ),
     )
 
     resource_id: Mapped[uuid.UUID] = mapped_column(
@@ -85,6 +89,10 @@ class LibraryResourceVersionModel(UUIDPKMixin, Base):
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), default=None
     )
+    derived_from_resource_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("library_resources.id"), default=None
+    )
+    derived_from_version: Mapped[int | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

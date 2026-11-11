@@ -371,7 +371,7 @@ metier nulle part (tasks, claims, sessions, ai-work, decisions, events,
 transfers, library). `agent` : memes ecritures que `developer`, jamais
 `POST /projects` / `POST /machines` / `POST /machines/{id}/revoke` /
 `POST /users` (`## Provisioning` ci-dessus) ni creation
-Library en scope studio (provisioning-like, voir ci-dessous). Heartbeat
+Library en scope studio (admin seul, voir ci-dessous). Heartbeat
 est l'exception explicite : ecrit son propre etat (`last_seen_at`) meme sous
 `readonly` — jamais gate par `ensure_can_write`.
 
@@ -391,9 +391,10 @@ composee avec l'acces projet (membres ou `admin`) ; lecture Studio reservee a
 ci-dessus) ; lecture User restreinte au owner ou `admin`, tout autre
 acces direct repondant `404` et non `403` (aucune surface — get, liste,
 recherche, resolution, erreur, compteur, metadonnee — ne doit reveler
-l'existence d'une ressource User d'autrui) ; creation Studio exige
-`admin`/`developer` (`ensure_can_provision`), creations Project/User tout
-writer ; `GET /library` et `GET /library-locks` filtrent silencieusement
+l'existence d'une ressource User d'autrui) ; creation, nouvelle version,
+activation et depreciation Studio exigent `admin` (P70a, DEC D3 : `403`
+`forbidden`/`provision` pour `developer`, `agent`, `readonly` ; le dashboard
+masque ces actions), memes actions Project/User : tout writer ; `GET /library` et `GET /library-locks` filtrent silencieusement
 les lignes invisibles au lieu de 403.
 
 Exception a l'ownership ci-dessus (DEC-0041) : sur `PATCH /ai-work/{id}`, un

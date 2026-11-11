@@ -241,6 +241,39 @@ def capability_notes(
     return notes
 
 
+def unprojected_field_warnings(
+    adapter_id: str,
+    content: dict[str, object],
+    *,
+    tools: bool,
+    edit_policies: tuple[str, ...],
+) -> list[AdapterWarning]:
+    """Flags v2 agent fields this harness format cannot carry (P32): a
+    canonical field is never dropped silently. `tools` is flagged when the
+    format has no allowlist; `edit_policy` when its value has no native
+    representation (`deny` degradation is covered by `capability_notes`)."""
+    warnings: list[AdapterWarning] = []
+    needs = content.get("tools")
+    if not tools and isinstance(needs, list) and needs:
+        warnings.append(
+            AdapterWarning(
+                "tools_not_projected",
+                f"{adapter_id}: canonical tool needs {needs} not projected "
+                "(no allowlist in this format)",
+            )
+        )
+    policy = content.get("edit_policy")
+    if isinstance(policy, str) and policy != "deny" and policy not in edit_policies:
+        warnings.append(
+            AdapterWarning(
+                "edit_policy_not_projected",
+                f"{adapter_id}: canonical edit_policy {policy!r} has no native "
+                "representation; harness defaults apply",
+            )
+        )
+    return warnings
+
+
 def ensure_supported(
     adapter_id: str,
     capabilities: dict[str, CapabilitySupport],

@@ -74,7 +74,7 @@ ressource rattachee a un projet.
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. `POST /task-launches/{id}/snapshot` (DEC-0199) : N/A — idempotent par contenu (meme payload = snapshot d'origine, contenu different = `409 execution_snapshot_immutable`). Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. `POST /task-launches/{id}/snapshot` (DEC-0199) : N/A — idempotent par contenu (meme payload = snapshot d'origine, contenu different = `409 execution_snapshot_immutable`). Lectures pures (`GET`, `POST /resolutions`, `POST /library/versions/batch-get`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
@@ -875,6 +875,14 @@ les evenements sont inchanges.
   `studio-client skills sync` utilise cette description dans le frontmatter
   `SKILL.md`, avec repli sur `title` si absente, vide ou composee uniquement
   d'espaces ; les espaces et retours a la ligne sont normalises.
+- POST /library/versions/batch-get (additif, lecture seule, DEC-0315 proposee) — body `LibraryVersionBatchGet` :
+  1 a 500 couples `{resource_id, version >= 1}` (50 avant P11-scale ; releve additive, un ancien client reste valide, un client recent contre un ancien serveur doit rester a 50) (`422` au-dela ; les doublons sont
+  dedupliques, jamais rejetes). Reponse 200 `LibraryVersionBatchResult` alignee sur la
+  requete : `{resource_id, version, status: ok|not_found, detail}`. `not_found` =
+  ressource absente, User-scope d'autrui ou version absente (indiscernables).
+  `403 forbidden` pour tout le lot si une ressource releve d'un projet illisible.
+  Aucune resolution de cle ni masquage (DEC-0065 reste cote client) ; 1 jeton du
+  bucket general par lot. Pas de migration ; `API_CONTRACT_VERSION` inchange (ajout).
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
   `active_version`). `Idempotency-Key` supporte. Dependances epinglees
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
@@ -951,7 +959,17 @@ les evenements sont inchanges.
 - POST /library/{id}/deprecate — body `LibraryDeprecate`
   (`expected_resource_version`) : remplace la suppression (historique et
   `active_version` conserves), no-op si deja depreciee. `Idempotency-Key`
-  supporte (rejeu d'une reponse non vue).
+  supporte (rejeu d'une reponse non vue). Une override `user` depreciee ne
+  masque plus la version commune : la resolution (serveur et client) et la
+  synchro reviennent a la version studio/project visible (DEC-0324).
+- Provenance (P50, DEC-0323, additif) : `derived_from` optionnel
+  (`LibraryVersionRef` : `resource_id`, `version`, defaut `null`) sur
+  `POST /library`, `POST /library/{id}/versions` et les reponses de version.
+  Seule une version `user` derive, d'une version commune (`studio`) de meme
+  `(kind, stable_key)`. Reference inexistante ou invisible = `404
+  {"error_code": "derived_from_not_found"}` ; autre cas = `422
+  {"error_code": "invalid_derived_from", "reason": "not_user_scope" |
+  "not_common_scope" | "key_mismatch"}`.
 - GET /library-locks (`project_id` optionnel), POST /library-locks
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou

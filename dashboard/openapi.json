@@ -4760,7 +4760,7 @@
      "library"
     ],
     "summary": "Create Library Resource",
-    "description": "Create a library definition plus its draft version 1 (which never activates itself). Studio scope requires a privileged role; project scope requires its `project_id`; user scope is owned by the caller. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Create a library definition plus its draft version 1 (which never activates itself). Studio scope requires the `admin` role (also for versions, activation and deprecation of a Studio definition); project scope requires its `project_id`; user scope is owned by the caller. Accepts `Idempotency-Key` for safe retries.",
     "operationId": "create_library_resource_api_v1_library_post",
     "security": [
      {
@@ -4870,6 +4870,77 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/library/versions/batch-get": {
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Batch Get Library Versions",
+    "description": "Read up to 500 exact `(resource_id, version)` pairs in one call, answered in request order; duplicates are resolved once. `not_found` covers an absent resource, another user's User-scope resource and an absent version alike. A resource of a project the caller cannot read answers `403 forbidden` for the whole batch.",
+    "operationId": "batch_get_library_versions_api_v1_library_versions_batch_get_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryVersionBatchGet"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryVersionBatchResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
    }
   },
   "/api/v1/library/{resource_id}": {
@@ -21772,7 +21843,7 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, acknowledged), the task's new\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
    },
    "HarnessReport": {
     "properties": {
@@ -22964,6 +23035,16 @@
       "type": "array",
       "title": "Dependencies",
       "default": []
+     },
+     "derived_from": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -23040,6 +23121,16 @@
       "title": "Dependencies",
       "default": []
      },
+     "derived_from": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
      "created_by_user_id": {
       "anyOf": [
        {
@@ -23069,6 +23160,83 @@
     ],
     "title": "LibraryVersion",
     "description": "One immutable snapshot of a resource version."
+   },
+   "LibraryVersionBatchGet": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryVersionRef"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Items"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "LibraryVersionBatchGet",
+    "description": "Bounded read of exact versions; duplicates are collapsed server-side."
+   },
+   "LibraryVersionBatchItem": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "not_found"
+      ],
+      "title": "Status"
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersion"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "version",
+     "status"
+    ],
+    "title": "LibraryVersionBatchItem"
+   },
+   "LibraryVersionBatchResult": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryVersionBatchItem"
+      },
+      "type": "array",
+      "title": "Items"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "LibraryVersionBatchResult",
+    "description": "Items aligned with the request; `not_found` hides absent resources,\nother users' User-scope resources and absent versions alike."
    },
    "LibraryVersionCreate": {
     "properties": {
@@ -23108,6 +23276,16 @@
       "type": "array",
       "title": "Dependencies",
       "default": []
+     },
+     "derived_from": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryVersionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -23116,6 +23294,27 @@
      "title"
     ],
     "title": "LibraryVersionCreate"
+   },
+   "LibraryVersionRef": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "version"
+    ],
+    "title": "LibraryVersionRef"
    },
    "LinkTask": {
     "properties": {
@@ -29783,7 +29982,7 @@
      "next_cursor"
     ],
     "title": "SyncResult",
-    "description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call (unchanged when nothing new). Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned items per `why` category;\n`resync` (scan truncated) refers to `prepare_context` for the full\npicture \u2014 raw history is never dumped. An empty answer serializes to\nwell under 300 characters."
+    "description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call. Truncated scans can advance over irrelevant events.\nUnacknowledged signals to other live sessions of the task also hold back\nthis cursor, without exposing their text. Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned or temporarily withheld signals\nper `why` category. `resync` (scan truncated) requires further sync/ack;\n`prepare_context` supplies context, not pending signal contents.\nAn empty answer serializes to\nwell under 300 characters."
    },
    "Task": {
     "properties": {

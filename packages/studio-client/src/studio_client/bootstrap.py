@@ -20,12 +20,14 @@ import json
 import os
 import re
 import shutil
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from studio_contracts.bootstrap import (
+    BootstrapConflict,
+    BootstrapConflictCode,
     BootstrapDryRunReport,
     BootstrapFileReport,
     BootstrapFileState,
@@ -40,24 +42,34 @@ from studio_contracts.bootstrap import (
 )
 from studio_contracts.initialization import InitializationProjectSpec
 
-from studio_client.adapters import AdapterError, get_adapter, sanitize_agent_filename
+from studio_client.adapters import (
+    MANAGED_MARKER,
+    AdapterError,
+    get_adapter,
+    sanitize_agent_filename,
+)
 from studio_client.canonical import (
     AGENTS_BEGIN_MARKER,
     AGENTS_END_MARKER,
     CLAUDE_BEGIN_MARKER,
     CLAUDE_END_MARKER,
-    agents_rules_current,
-    build_offline_resolved,
-    canonical_agent_keys,
-    canonical_rule_keys,
-    canonical_skill_keys,
-    load_rule_meta,
-    load_skill_source,
+    agents_rules_current_with,
+    legacy_rules_text,
     merge_agents_rules,
-    render_agents_rules_block,
-    render_claude_md_block,
+    merge_agents_rules_with,
+    render_agents_rules_block_from,
+    render_claude_md_block_from,
     render_claude_rule,
+    skill_projections_from,
 )
+from studio_client.drift import (
+    DivergencePlan,
+    DivergentFile,
+    carries_library_provenance,
+    classify_state,
+    divergence_state,
+)
+from studio_client.projection_source import ProjectionBundle, bundle_from_repo
 
 MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
 AGENTS_MD_PATH = "AGENTS.md"
@@ -72,6 +84,7 @@ _SKILL_DIRS = {
     "opencode": ".opencode/skills",
 }
 HASH_PREFIX = "sha256:"
+UNMANAGED_MESSAGE = "unmanaged: not written by Studio OS, needs an explicit choice"
 
 
 class BootstrapError(RuntimeError):
@@ -92,6 +105,7 @@ class PlannedFile:
     block: bool = False
     incompatible: bool = False
     message: str | None = None
+    legacy: str | None = None
 
     @property
     def markers(self) -> tuple[str, str]:
@@ -185,21 +199,28 @@ def write_manifest(
     return path
 
 
-def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[PlannedFile]:
+def plan_files(
+    repo_root: Path | str,
+    manifest: BootstrapManifest,
+    bundle: ProjectionBundle | None = None,
+) -> list[PlannedFile]:
     """Deterministic expected output: agent projections per targeted harness,
     then rule projections, then skill projections per targeted harness, then
-    the `AGENTS.md` and `CLAUDE.md` managed blocks."""
-    root = Path(repo_root)
+    the `AGENTS.md` and `CLAUDE.md` managed blocks. `bundle` defaults to the
+    canonical `.agents/` files of `repo_root`."""
+    try:
+        bundle = bundle if bundle is not None else bundle_from_repo(repo_root)
+    except (ValueError, OSError) as exc:
+        raise BootstrapError(f"cannot read canonical sources: {exc}") from exc
     files: list[PlannedFile] = []
-    agent_keys = canonical_agent_keys(root)
     for ref in manifest.harnesses:
         try:
             adapter = get_adapter(ref.id)
         except AdapterError as exc:
             raise BootstrapError(f"harness {ref.id!r} has no local adapter: {exc.message}") from exc
-        for key in agent_keys:
+        for key, resolved in bundle.agents.items():
             try:
-                result = adapter.translate(build_offline_resolved(root, key))
+                result = adapter.translate(resolved)
             except AdapterError as exc:
                 files.append(
                     PlannedFile(
@@ -221,8 +242,7 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
                         kind="agent",
                     )
                 )
-    for key in canonical_rule_keys(root):
-        applies_to, body = load_rule_meta(root, key)
+    for key, (applies_to, body) in sorted(bundle.rules.items()):
         files.append(
             PlannedFile(
                 path=f"{_RULE_DIR}/{key}.md",
@@ -230,34 +250,31 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
                 kind="rule",
             )
         )
-    skill_keys = canonical_skill_keys(root)
-    skill_sources: dict[str, str] = {}
-    for key in skill_keys:
-        try:
-            skill_sources[key] = load_skill_source(root, key)
-        except OSError as exc:
-            raise BootstrapError(f"cannot read skill {key!r}: {exc}") from exc
+    projected_skills = skill_projections_from(bundle.skills, bundle.skill_files)
     for ref in manifest.harnesses:
         try:
             skills_dir = _SKILL_DIRS[ref.id]
         except KeyError:
             raise BootstrapError(f"harness {ref.id!r} has no skills target") from None
-        for key in skill_keys:
-            files.append(
-                PlannedFile(
-                    path=f"{skills_dir}/{key}/SKILL.md",
-                    content=skill_sources[key],
-                    kind="skill",
-                )
-            )
+        prefix = f"{skills_dir}/"
+        for relative, content in sorted(projected_skills.items()):
+            if relative.startswith(prefix):
+                files.append(PlannedFile(path=relative, content=content, kind="skill"))
     files.append(
         PlannedFile(
-            path=AGENTS_MD_PATH, content=render_agents_rules_block(root), kind="block", block=True
+            path=AGENTS_MD_PATH,
+            content=render_agents_rules_block_from(bundle.protocol is not None),
+            kind="block",
+            block=True,
+            legacy=legacy_rules_text(bundle.rules),
         )
     )
     files.append(
         PlannedFile(
-            path=CLAUDE_MD_PATH, content=render_claude_md_block(root), kind="block", block=True
+            path=CLAUDE_MD_PATH,
+            content=render_claude_md_block_from(bundle.protocol is not None),
+            kind="block",
+            block=True,
         )
     )
     return files
@@ -273,15 +290,16 @@ def observe(
     """Read-only: the current state of every planned file as a P1 report.
 
     `managed_hashes` maps a planned path to the sha256 of the normalized
-    content this tool last generated for it (the AIB-C marker store feeds it;
-    `drift.load_managed_hashes` reads that shape). With it, a file that
-    differs from the bundle but still carries its managed hash is reported
-    `OBSOLETE` instead of `MODIFIED`; without it, behavior is unchanged.
+    content this tool last generated for it. It defaults to the journal
+    store of `repo_root` (`managed_markers`), so a file this tool never
+    wrote and that carries no Library provenance is reported `MODIFIED`
+    with an `unmanaged_target` conflict: the depot never wins silently.
     `INCOMPATIBLE` planned files are reported as-is, never read from disk."""
     root = Path(repo_root)
     planned = planned if planned is not None else plan_files(root, manifest)
-    hashes = dict(managed_hashes) if managed_hashes is not None else {}
+    hashes = dict(managed_hashes) if managed_hashes is not None else managed_markers(root)
     reports: list[BootstrapFileReport] = []
+    unmanaged: list[str] = []
     for item in planned:
         if item.incompatible:
             reports.append(
@@ -290,16 +308,75 @@ def observe(
                 )
             )
             continue
-        state = _observe_state(root, item, hashes.get(item.path))
+        managed_hash = hashes.get(item.path)
+        state = _observe_state(root, item, managed_hash)
         if state is BootstrapFileState.ABSENT:
             reports.append(BootstrapFileReport(path=item.path, state=state))
-        else:
-            reports.append(
-                BootstrapFileReport(
-                    path=item.path, state=state, origin_version=1, content_hash=_label(item.content)
-                )
+            continue
+        message = None
+        if state is BootstrapFileState.MODIFIED and _is_unmanaged(root, item, managed_hash):
+            unmanaged.append(item.path)
+            message = UNMANAGED_MESSAGE
+        reports.append(
+            BootstrapFileReport(
+                path=item.path,
+                state=state,
+                origin_version=1,
+                content_hash=_label(item.content),
+                message=message,
             )
-    return build_dry_run_report(manifest, reports)
+        )
+    report = build_dry_run_report(manifest, reports)
+    if unmanaged:
+        report = report.model_copy(
+            update={
+                "conflicts": [
+                    *report.conflicts,
+                    *(
+                        BootstrapConflict(
+                            code=BootstrapConflictCode.UNMANAGED_TARGET,
+                            path=path,
+                            message=UNMANAGED_MESSAGE,
+                        )
+                        for path in unmanaged
+                    ),
+                ],
+                "sync_allowed": False,
+            }
+        )
+    return report
+
+
+def plan_divergences(
+    repo_root: Path | str,
+    manifest: BootstrapManifest,
+    *,
+    planned: list[PlannedFile] | None = None,
+    managed_hashes: Mapping[str, str] | None = None,
+) -> DivergencePlan:
+    """Read-only: every whole-file projection edited locally, with the managed
+    base and the local content. A file that still carries its managed hash is
+    `outdated`, not divergent; managed blocks are excluded because their base is
+    a merged document rather than a file. Nothing on disk is written."""
+    root = Path(repo_root)
+    planned = planned if planned is not None else plan_files(root, manifest)
+    hashes = dict(managed_hashes) if managed_hashes is not None else {}
+    files: list[DivergentFile] = []
+    for item in planned:
+        if item.block or item.incompatible:
+            continue
+        target = _target(root, item.path)
+        if not target.is_file():
+            continue
+        current = _normalize(target.read_text(encoding="utf-8"))
+        desired = _normalize(item.content)
+        state = divergence_state(classify_state(current, desired, hashes.get(item.path)))
+        if state is None:
+            continue
+        files.append(
+            DivergentFile(path=item.path, kind=item.kind, base=desired, local=current, state=state)
+        )
+    return DivergencePlan(files=tuple(sorted(files, key=lambda item: item.path)))
 
 
 def diff_text(
@@ -320,7 +397,7 @@ def diff_text(
         if item.block:
             if item.path != AGENTS_MD_PATH and expected.rstrip("\n") in current:
                 continue
-            expected = _merge_block(current, item.content, item.markers, repo_root=root)
+            expected = _merge_block(current, item.content, item.markers, legacy=item.legacy)
         elif current == expected:
             continue
         chunks.append(
@@ -344,14 +421,23 @@ def apply_files(
     *,
     planned: list[PlannedFile] | None = None,
     confirm: bool = False,
+    overwrite: Collection[str] = (),
 ) -> list[str]:
     """Write only the files whose state is not `up_to_date`, backing up every
     replaced file and recording a journal so the run can be rolled back.
-    Conflicting or needs-confirmation reports are refused."""
+    Conflicting or needs-confirmation reports are refused. A file this tool
+    never wrote is only replaced when its path is named in `overwrite`: a
+    blanket confirmation is not a choice about somebody else's file."""
     root = Path(repo_root)
     planned = planned if planned is not None else plan_files(root, manifest)
-    if any(conflict.blocking for conflict in report.conflicts):
-        codes = ", ".join(sorted({c.code.value for c in report.conflicts}))
+    named = frozenset(overwrite)
+    blocking = [
+        conflict
+        for conflict in report.conflicts
+        if conflict.blocking and (conflict.path is None or conflict.path not in named)
+    ]
+    if blocking:
+        codes = ", ".join(sorted({c.code.value for c in blocking}))
         raise BootstrapError(f"sync blocked by conflicts: {codes}")
     if report.needs_confirmation and not confirm:
         raise BootstrapError("policy 'ask': explicit confirmation required (pass confirm=True)")
@@ -364,11 +450,23 @@ def apply_files(
     ]
     if not pending:
         return []
+    markers = managed_markers(root)
+    anonymous = [
+        observed.path
+        for observed in pending
+        if observed.path not in named
+        and _is_unmanaged(root, by_path[observed.path], markers.get(observed.path))
+    ]
+    if anonymous:
+        raise BootstrapError(
+            "sync blocked by unmanaged files (pass --overwrite for each): "
+            + ", ".join(sorted(anonymous))
+        )
     for item in planned:
         if item.path == AGENTS_MD_PATH:
             target = _safe_target(root, item.path)
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            _merge_block(existing, item.content, item.markers, repo_root=root)
+            _merge_block(existing, item.content, item.markers, legacy=item.legacy)
     backup_root = root / Path(*BACKUP_RELATIVE_DIR.split("/")) / _timestamp()
     written: list[str] = []
     entries: list[BackupEntry] = []
@@ -380,7 +478,7 @@ def apply_files(
             _backup(root, item.path, backup_root)
         if item.block:
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            content = _merge_block(existing, item.content, item.markers, repo_root=root)
+            content = _merge_block(existing, item.content, item.markers, legacy=item.legacy)
         else:
             content = item.content
         _write_text(target, content)
@@ -462,11 +560,39 @@ def sync(
     return report, written
 
 
+def managed_markers(repo_root: Path | str) -> dict[str, str]:
+    """Planned path -> sha256 of the content the latest applied sync wrote.
+
+    The backup journals are the only record of what this tool generated in a
+    repository; a path absent from them has no provenance."""
+    markers: dict[str, str] = {}
+    for directory in reversed(_backup_dirs(Path(repo_root))):
+        try:
+            journal = _read_journal(directory)
+        except BootstrapError:
+            continue
+        if journal.status == "rolled_back":
+            continue
+        for entry in journal.entries:
+            if entry.action in {"created", "replaced"}:
+                markers[entry.path] = entry.after_label.removeprefix(HASH_PREFIX)
+    return markers
+
+
+def _is_unmanaged(root: Path, item: PlannedFile, managed_hash: str | None) -> bool:
+    """An existing, differing target nothing proves Studio OS owns."""
+    if item.block or managed_hash is not None:
+        return False
+    target = _target(root, item.path)
+    if not target.is_file():
+        return False
+    text = target.read_text(encoding="utf-8")
+    return not (carries_library_provenance(text) or MANAGED_MARKER in text)
+
+
 def _observe_state(
     root: Path, item: PlannedFile, managed_hash: str | None = None
 ) -> BootstrapFileState:
-    from studio_client.drift import classify_state
-
     target = _target(root, item.path)
     if item.block:
         if not target.is_file():
@@ -479,7 +605,7 @@ def _observe_state(
                 return BootstrapFileState.ABSENT
             return (
                 BootstrapFileState.UP_TO_DATE
-                if agents_rules_current(root, text)
+                if agents_rules_current_with(item.content, item.legacy or "", text)
                 else BootstrapFileState.MODIFIED
             )
         if _normalize(item.content).rstrip("\n") in text:
@@ -503,11 +629,19 @@ def _observe_state(
 
 
 def _merge_block(
-    existing: str, block: str, markers: tuple[str, str], *, repo_root: Path | None = None
+    existing: str,
+    block: str,
+    markers: tuple[str, str],
+    *,
+    repo_root: Path | None = None,
+    legacy: str | None = None,
 ) -> str:
-    if markers[0] == AGENTS_BEGIN_MARKER and repo_root is not None:
+    if markers[0] == AGENTS_BEGIN_MARKER and (repo_root is not None or legacy is not None):
         try:
-            return merge_agents_rules(repo_root, existing)
+            if legacy is not None:
+                return merge_agents_rules_with(block, legacy, existing)
+            if repo_root is not None:
+                return merge_agents_rules(repo_root, existing)
         except ValueError as exc:
             raise BootstrapError(str(exc)) from exc
     begin, end_marker = markers

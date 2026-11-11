@@ -4,7 +4,6 @@ from pathlib import Path
 
 import library_import as li
 import pytest
-from studio_client.skill_sync import SkillSyncConflictError
 
 from .conftest import World
 from .install_helpers import RUNTIMES, install
@@ -139,6 +138,6 @@ async def test_locally_modified_skill_is_not_overwritten(
     skills = await fetch_skill_projections(world.outsider.client, world.outsider_project_id)
     plan = plan_skill_sync(tmp_path, skills, include_opencode=True)
     assert plan.locally_modified
-    with pytest.raises(SkillSyncConflictError):
-        apply_skill_sync(plan)
+    result = apply_skill_sync(plan)
+    assert target in result.conflicts
     assert target.read_text(encoding="utf-8").endswith("local edit")

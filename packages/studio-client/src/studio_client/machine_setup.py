@@ -520,6 +520,8 @@ def skills_without_conflicts(plan: SkillSyncPlan) -> SkillSyncPlan:
                 _keep(entry.targets[0]),
                 _keep(entry.targets[1]),
             ),
+            opencode=_keep(entry.opencode) if entry.opencode is not None else None,
+            aux=tuple(_keep(target) for target in entry.aux),
         )
         for entry in plan.entries
     )

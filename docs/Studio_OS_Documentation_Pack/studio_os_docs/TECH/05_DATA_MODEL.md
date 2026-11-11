@@ -478,6 +478,19 @@ Contrainte unique `(resource_id, version)`.
 version, `to_resource_id` FK ressource, `to_version`) — des references, jamais
 de contenu duplique. Contrainte unique `(from_version_id, to_resource_id)`.
 
+## AI Library — P50 derived_from (D1, migration Alembic `0040`, additive)
+
+`library_resource_versions` gagne `derived_from_resource_id` (FK
+`library_resources`, nullable) et `derived_from_version` (int, nullable),
+poses ensemble ou pas du tout (CHECK `ck_library_version_derived_from_pair`).
+Une version de ressource scope `user` peut nommer la version commune (scope
+`studio`, meme `(kind, stable_key)`) dont elle derive ; sinon 404
+`derived_from_not_found` / 422 `invalid_derived_from` (`not_user_scope`,
+`not_common_scope`, `key_mismatch`). Contrat : champ optionnel `derived_from`
+(`{resource_id, version}`) sur `LibraryResourceCreate`, `LibraryVersionCreate`
+et `LibraryVersion` ; les clients existants l'ignorent. Migration reversible
+(`downgrade` retire contrainte, FK et colonnes), sans backfill ni verrou long.
+
 ## AI Library — P5 bindings (DEC-0067, migration Alembic `0010`, additive)
 
 > Library Bindings uniquement (arêtes entre définitions). Les User/Runtime
@@ -505,10 +518,10 @@ par le P5 (voir la section P4 ci-dessous).
 `(project_id, resource_id)`. Advisory comme les claims : avertit la
 resolution, ne bloque aucune ecriture.
 
-Traçabilite : mutations projet-scope emettent `library.*` (types additifs,
-`TECH/03_EVENT_CONTRACT.md`) ; scopes Studio/User sans projet restant
-audites par les lignes de version (`created_by_user_id`, `created_at`) et
-l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
+Traçabilite : mutations projet-scope et Studio emettent `library.*` (types
+additifs, `TECH/03_EVENT_CONTRACT.md` ; Studio : un evenement par projet non
+archive) ; le scope User sans projet reste audite par les lignes de version
+(`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
 
 ## AI Library — P3 semantic content (DEC-0066, validation applicative, sans DDL)
 
@@ -526,6 +539,13 @@ concret ; les exigences passent par un lien vers `model_profile`, un
 AgentDefinition sans lien n'exprime aucune exigence) ; `WorkflowContent`
 (P11/DEC-0075, `studio.library.workflow/v1`, section dediee ci-dessous).
 Champs inconnus interdits (`extra="forbid"`).
+Versions additives (v1 reste valide, lue telle quelle) : `rule/v2` ajoute
+`applies_to` (globs, vide = regle globale) ; `skill/v2` ajoute
+`disable_model_invocation` (booleen, defaut faux : skill invocable par
+l'utilisateur seulement, projete par chaque harnais dans sa syntaxe) ;
+`agent_definition/v2` ajoute `instructions`, `triggers`, `edit_policy`,
+`tools` (besoins d'outils neutres). Les lecteurs passent par
+`parse_rule_content` / `parse_skill_content`, jamais par le modele v1 seul.
 `content_schema` versionne la forme de l'artefact stocke, jamais les
 payloads MCP/API (DEC-0048 inchange). Matcher fige : `coding`,
 `context_window_min` (>=), `tools_required` (subset),
