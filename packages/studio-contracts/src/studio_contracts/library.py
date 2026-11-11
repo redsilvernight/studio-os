@@ -458,17 +458,38 @@ class SkillContent(ContractModel):
 
     @model_validator(mode="after")
     def _check_files(self) -> SkillContent:
-        seen: set[str] = set()
-        for file in self.files:
-            folded = file.path.casefold()
-            if folded in seen:
-                raise ValueError(f"duplicate skill file path {file.path!r}")
-            seen.add(folded)
-        for a in seen:
-            if any(b.startswith(a + "/") for b in seen):
-                raise ValueError(f"skill file path {a!r} is also a directory")
-        if sum(len(f.text) for f in self.files) > SKILL_FILES_TOTAL_MAX_LENGTH:
-            raise ValueError("skill files exceed the total size limit")
+        _check_skill_files(self.files)
+        return self
+
+
+def _check_skill_files(files: list[SkillFile]) -> None:
+    seen: set[str] = set()
+    for file in files:
+        folded = file.path.casefold()
+        if folded in seen:
+            raise ValueError(f"duplicate skill file path {file.path!r}")
+        seen.add(folded)
+    for a in seen:
+        if any(b.startswith(a + "/") for b in seen):
+            raise ValueError(f"skill file path {a!r} is also a directory")
+    if sum(len(f.text) for f in files) > SKILL_FILES_TOTAL_MAX_LENGTH:
+        raise ValueError("skill files exceed the total size limit")
+
+
+class SkillContentV2(ContractModel):
+    """Additive `skill/v2`: v1 plus `disable_model_invocation`, the neutral
+    "invoked only by the user, never by the model" flag that harnesses
+    project in their own syntax. Still prose and files only; `extra="forbid"`
+    rejects any other key."""
+
+    content_schema: Literal["studio.library.skill/v2"]
+    text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+    files: list[SkillFile] = Field(default_factory=list, max_length=SKILL_FILES_MAX)
+    disable_model_invocation: bool = False
+
+    @model_validator(mode="after")
+    def _check_files(self) -> SkillContentV2:
+        _check_skill_files(self.files)
         return self
 
 
@@ -929,6 +950,8 @@ def content_validation_errors(
         model = AgentDefinitionContentV2
     elif kind is LibraryKind.RULE and content.get("content_schema") == "studio.library.rule/v2":
         model = RuleContentV2
+    elif kind is LibraryKind.SKILL and content.get("content_schema") == "studio.library.skill/v2":
+        model = SkillContentV2
     try:
         model.model_validate(dict(content))
     except ValidationError as exc:
@@ -938,6 +961,22 @@ def content_validation_errors(
             details.append({"field": field, "reason": str(error["msg"])})
         return details
     return []
+
+
+def parse_rule_content(content: dict[str, object]) -> RuleContent | RuleContentV2:
+    """The typed rule content, whichever additive version it declares."""
+
+    if content.get("content_schema") == "studio.library.rule/v2":
+        return RuleContentV2.model_validate(dict(content))
+    return RuleContent.model_validate(dict(content))
+
+
+def parse_skill_content(content: dict[str, object]) -> SkillContent | SkillContentV2:
+    """The typed skill content, whichever additive version it declares."""
+
+    if content.get("content_schema") == "studio.library.skill/v2":
+        return SkillContentV2.model_validate(dict(content))
+    return SkillContent.model_validate(dict(content))
 
 
 def validate_library_content(kind: LibraryKind, content: dict[str, object]) -> None:
