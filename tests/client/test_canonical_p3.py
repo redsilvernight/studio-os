@@ -85,9 +85,12 @@ def test_offline_build_deterministic_and_publishable() -> None:
         "storage-transfers",
     }
     content, pins = to_publish_payload(load_definition(REPO, "studio-tester"))
-    assert content["content_schema"] == "studio.library.agent_definition/v1"
-    assert "instructions" not in content  # Library forbids file-only keys
+    assert content["content_schema"] == "studio.library.agent_definition/v2"
+    # P43: the Markdown body is published as instructions, never as intended_use.
+    assert str(content["instructions"]).startswith("Common lifecycle")
+    assert not str(content["intended_use"]).startswith("Common lifecycle")
     assert ("rule", "contracts") in pins and ("skill", "graphify") in pins
+    assert ("model_profile", "studio-tester-profile") in pins
 
 
 def test_capabilities_cover_all_dimensions() -> None:

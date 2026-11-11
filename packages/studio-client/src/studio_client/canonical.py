@@ -17,14 +17,17 @@ key, project files fill the gaps, anything missing on both sides fails
 exactly like the offline path. This module stays pure: the snapshot is
 pre-fetched by the caller (see `StudioApiClient.fetch_library_snapshot`).
 
-Publishing a file to the Library strips file-only keys (`instructions`,
-`triggers`, `edit_policy`, `tools`) and pins versions server-side; see
-`to_publish_payload`. Generated harness files always derive from the files,
-never from a third manual copy.
+Publishing a file to the Library keeps every canonical field (`summary`,
+`intended_use`, `instructions`, `triggers`, `edit_policy`, `tools`) in the
+`agent_definition/v2` content, exports each agent's `requirements` as its own
+`model_profile` content, and pins versions server-side; see
+`to_publish_payload` / `to_model_profile_payload`. Generated harness files
+always derive from the files, never from a third manual copy.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -130,6 +133,33 @@ def load_skill_source(repo_root: Path | str, stable_key: str) -> str:
     harness-native format, so no envelope is added here."""
     path = Path(repo_root) / ".agents" / "skills" / stable_key / "SKILL.md"
     return path.read_text(encoding="utf-8")
+
+
+def load_skill_files(repo_root: Path | str, stable_key: str) -> list[dict[str, str]]:
+    """Auxiliary text files of a canonical skill, as `skill/v1` `files[]`.
+
+    Every file under `.agents/skills/<key>/references/**`, recursively:
+    relative POSIX path (from the skill directory), its text and the SHA-256
+    of that text. Deterministic (sorted by path); the count/size budgets
+    (`SKILL_FILES_MAX`, `SKILL_FILES_TOTAL_MAX_LENGTH`) are enforced by the
+    publisher, which reports them as `PublishError`."""
+    base = Path(repo_root) / ".agents" / "skills" / stable_key
+    references = base / "references"
+    if not references.is_dir():
+        return []
+    files: list[dict[str, str]] = []
+    for path in sorted(references.rglob("*"), key=lambda p: p.relative_to(base).as_posix()):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        files.append(
+            {
+                "path": path.relative_to(base).as_posix(),
+                "text": text,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            }
+        )
+    return files
 
 
 def canonical_skill_keys(repo_root: Path | str) -> list[str]:
@@ -488,18 +518,44 @@ def build_merged_resolved(
     )
 
 
+def model_profile_key(agent_stable_key: str) -> str:
+    """Stable key of the `model_profile` an agent's `requirements` publish to."""
+    return f"{agent_stable_key}-profile"
+
+
 def to_publish_payload(agent: CanonicalAgent) -> tuple[dict[str, object], list[tuple[str, str]]]:
-    """Split a canonical agent into a Library-publishable content dict plus
-    `(kind, stable_key)` pin pairs. Versions are pinned server-side at publish
-    time (active versions), never invented here — the returned pairs carry no
-    version."""
+    """Split a canonical agent into its `agent_definition/v2` Library content
+    plus `(kind, stable_key)` pin pairs. Every canonical field is carried —
+    the Markdown body becomes `instructions`, never `intended_use` — and an
+    agent declaring `requirements` pins the `model_profile` published from
+    them. Versions are pinned server-side at publish time (active versions),
+    never invented here — the returned pairs carry no version."""
     content: dict[str, object] = {
-        "content_schema": "studio.library.agent_definition/v1",
+        "content_schema": "studio.library.agent_definition/v2",
         "summary": agent.summary,
         "intended_use": agent.intended_use,
+        "instructions": agent.instructions,
+        "triggers": list(agent.triggers),
+        "edit_policy": agent.edit_policy,
+        "tools": list(agent.tools),
     }
     pins = [("rule", key) for key in agent.rules] + [("skill", key) for key in agent.skills]
+    if agent.requirements:
+        pins.append(("model_profile", model_profile_key(agent.stable_key)))
     return content, pins
+
+
+def to_model_profile_payload(agent: CanonicalAgent) -> dict[str, object]:
+    """`model_profile/v1` content built from an agent's `requirements`.
+
+    Vendor-neutral only: the `CapabilityRequirement` dimensions, no provider,
+    model, harness or ranking."""
+    requirement = CapabilityRequirement.model_validate(agent.requirements)
+    return {
+        "content_schema": "studio.library.model_profile/v1",
+        "requirements": requirement.model_dump(mode="json", exclude_none=True),
+        "description": f"Capability requirements declared by the {agent.stable_key} agent.",
+    }
 
 
 def canonical_agent_keys(repo_root: Path | str) -> list[str]:
