@@ -539,6 +539,13 @@ concret ; les exigences passent par un lien vers `model_profile`, un
 AgentDefinition sans lien n'exprime aucune exigence) ; `WorkflowContent`
 (P11/DEC-0075, `studio.library.workflow/v1`, section dediee ci-dessous).
 Champs inconnus interdits (`extra="forbid"`).
+Versions additives (v1 reste valide, lue telle quelle) : `rule/v2` ajoute
+`applies_to` (globs, vide = regle globale) ; `skill/v2` ajoute
+`disable_model_invocation` (booleen, defaut faux : skill invocable par
+l'utilisateur seulement, projete par chaque harnais dans sa syntaxe) ;
+`agent_definition/v2` ajoute `instructions`, `triggers`, `edit_policy`,
+`tools` (besoins d'outils neutres). Les lecteurs passent par
+`parse_rule_content` / `parse_skill_content`, jamais par le modele v1 seul.
 `content_schema` versionne la forme de l'artefact stocke, jamais les
 payloads MCP/API (DEC-0048 inchange). Matcher fige : `coding`,
 `context_window_min` (>=), `tools_required` (subset),
