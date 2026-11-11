@@ -6,8 +6,8 @@ canonical resources in memory (`publish.build_publish_items`), then rebuilds
 every managed harness file from those contents alone — rules through
 `canonical.render_claude_rule`, agents through the local adapters on a
 `LibrarySnapshot` resolved by `canonical.build_merged_resolved`, skills through
-the committed skill mechanisms (`canonical.workflow_skill_projections_from` for
-`.codex`/`.opencode`, verbatim `SKILL.md` + `references/` for `.claude`) — and
+the committed skill mechanism (`canonical.skill_projections_from` for
+`.claude`/`.codex`/`.opencode`, verbatim `SKILL.md` + `references/`) — and
 compares the result with the committed files.
 
 Three consequences, all deliberate:
@@ -15,9 +15,8 @@ Three consequences, all deliberate:
 * a piece the Library content does not carry (the `studio-protocol` bootstrap
   rule, the `AGENTS.md`/`CLAUDE.md` managed blocks, hooks/MCP wiring) is
   reported as `excluded`, never dropped in silence;
-* a skill the repository never projected into a harness (a harness only
-  projects the workflow entry points, or a skill added after the last sync) is
-  reported as `unprojected`: listed, not a gap — absence is the normal state;
+* every skill is projected into every harness: a missing skill file is a
+  `missing` gap, never a normal absence;
 * a field only the file holds (a rule `applies_to` before `rule/v2`, an agent
   `instructions`/`tools` before `agent_definition/v2`, a skill frontmatter key
   beyond `name`/`description`/`disable-model-invocation`, which `skill/v2`
@@ -50,10 +49,9 @@ SKILL_DIRS: dict[str, str] = {
     "codex": ".codex/skills",
     "opencode": ".opencode/skills",
 }
-"""Harness id -> managed skills directory. Only the directories the repository
-already has are inspected; `.codex`/`.opencode` only project the workflow
-entry points (`canonical.workflow_skill_projections_from`), everything else is
-reported `unprojected` rather than missing."""
+"""Harness id -> managed skills directory. Every skill is projected into
+every harness directory the repository has (`canonical.skill_projections_from`);
+a missing skill file is a gap, never a normal absence."""
 
 _LIBRARY_ONLY_ROOT = (".studio-os", "library-equivalence")
 """Path that never holds canonical files: `build_merged_resolved` resolves every
@@ -365,55 +363,38 @@ def _skill_projections(
 ) -> dict[str, str]:
     """Committed skill projections, rebuilt from the Library sources alone.
 
-    `.codex`/`.opencode` follow `canonical.workflow_skill_projections_from` (the
-    workflow entry points, verbatim). `.claude` copies every skill verbatim,
-    `references/` included — never the dashboard install envelope
-    (`skill_sync.render_skill`), which no repository commits."""
+    Every skill is projected into every harness the repository has, verbatim
+    `SKILL.md` plus `references/` — plus the Codex-native `agents/openai.yaml`
+    policy for skills whose Library content carries `disable_model_invocation`
+    (the expected `SKILL.md` keeps the verbatim flag). Never the dashboard
+    install envelope (`skill_sync.render_skill`), which no repository commits."""
 
-    from studio_client.canonical import workflow_skill_projections_from
+    from studio_client.canonical import skill_projections_from
 
+    aux_map: dict[str, tuple[tuple[str, str], ...]] = {}
+    for key in sources:
+        item = index[("skill", key)]
+        try:
+            aux_map[key] = _aux_files(item)
+        except ValueError as exc:
+            problems.append(
+                Difference(f".claude/skills/{key}", DifferenceNature.UNRESOLVED, str(exc))
+            )
+            aux_map[key] = ()
     files: dict[str, str] = {}
-    for relative, text in workflow_skill_projections_from(sources).items():
+    for relative, text in skill_projections_from(sources, aux_map).items():
         harness_dir = "/".join(relative.split("/")[:2])
         if root.joinpath(*harness_dir.split("/")).is_dir():
             files[relative] = text
-    claude_dir = SKILL_DIRS["claude-code"]
-    if not root.joinpath(*claude_dir.split("/")).is_dir():
-        return files
-    for key, source in sources.items():
-        files[f"{claude_dir}/{key}/SKILL.md"] = source
-        item = index[("skill", key)]
-        try:
-            aux_files = _aux_files(item)
-        except ValueError as exc:
-            problems.append(
-                Difference(f"{claude_dir}/{key}", DifferenceNature.UNRESOLVED, str(exc))
-            )
-            continue
-        for aux_path, aux_text in aux_files:
-            files[f"{claude_dir}/{key}/{aux_path}"] = aux_text
     return files
 
 
 def _unprojected(root: Path, sources: dict[str, str]) -> list[Difference]:
-    """Skills the repository never projected into a harness it does target:
-    absence is the normal state of a skill outside that harness, never a gap."""
+    """Kept for the report shape: every skill is projected into every
+    harness, so nothing is ever unprojected."""
 
-    unprojected: list[Difference] = []
-    for harness_dir in sorted(set(SKILL_DIRS.values())):
-        if not root.joinpath(*harness_dir.split("/")).is_dir():
-            continue
-        for key in sorted(sources):
-            if root.joinpath(*f"{harness_dir}/{key}".split("/")).is_dir():
-                continue
-            unprojected.append(
-                Difference(
-                    f"{harness_dir}/{key}",
-                    DifferenceNature.UNPROJECTED,
-                    "no committed projection for this skill in this harness",
-                )
-            )
-    return unprojected
+    _ = (root, sources)
+    return []
 
 
 def _aux_files(item: PublishItem) -> tuple[tuple[str, str], ...]:
@@ -443,19 +424,13 @@ def _requirements(item: PublishItem) -> Any:
 def _compare(root: Path, expected: dict[str, str]) -> list[Difference]:
     """Byte comparison (LF-normalized, like every other drift check here)
     between the Library projection and the committed files, plus the files no
-    Library content reproduces.
-
-    A file missing from a managed skills directory whose skill directory is
-    absent is not a gap: nothing was ever projected (see `_unprojected`).
-    """
+    Library content reproduces. Every expected skill file is compared: a
+    missing file is a gap."""
 
     differences: list[Difference] = []
     for relative, content in sorted(expected.items()):
         target = root.joinpath(*relative.split("/"))
         if not target.is_file():
-            skill_dir = _committed_skill_dir(root, relative)
-            if skill_dir is not None and not skill_dir.is_dir():
-                continue
             differences.append(
                 Difference(
                     relative,

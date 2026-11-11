@@ -756,25 +756,65 @@ def agents_rules_current_with(block: str, legacy: str, text: str) -> bool:
         return False
 
 
-_WORKFLOW_SKILL_KEYS = ("studio-task", "studio-context", "studio-handoff")
+_HARNESS_SKILL_DIRS = (".claude", ".codex", ".opencode")
+
+CODEX_OPENAI_POLICY_PATH = "agents/openai.yaml"
+CODEX_OPENAI_POLICY_TEXT = "policy:\n  allow_implicit_invocation: false\n"
+"""Codex-native equivalent of the `disable-model-invocation` frontmatter flag.
+
+OpenCode honours the frontmatter key verbatim; Codex does not, so a flagged
+skill also projects `.codex/skills/<key>/agents/openai.yaml` carrying this
+policy (implicit invocation off, explicit `$skill` still allowed). The
+`SKILL.md` frontmatter itself stays verbatim in every harness."""
 
 
-def workflow_skill_projections(repo_root: Path | str) -> dict[str, str]:
-    """Project compatible workflow entry points; references stay canonical."""
+def _skill_disables_model_invocation(source: str) -> bool:
+    """True when a `SKILL.md` source carries `disable-model-invocation: true`.
+
+    Covers both bundle shapes: the repo bundle carries the verbatim frontmatter
+    and the resolved bundle rebuilds it from `disable_model_invocation`
+    (`projection_source._skill_source`), so one parse serves both."""
+    match = _FRONTMATTER_RE.match(source)
+    if match is None:
+        return False
+    try:
+        data = yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError:
+        return False
+    return data.get("disable-model-invocation") is True
+
+
+def skill_projections(repo_root: Path | str) -> dict[str, str]:
+    """Every canonical skill projected into every harness, references included.
+
+    `<harness>/skills/<key>/SKILL.md` carries the verbatim skill source and
+    `<harness>/skills/<key>/<references/...>` the auxiliary files. A skill
+    flagged `disable-model-invocation` additionally projects the Codex-native
+    `.codex/skills/<key>/agents/openai.yaml` policy; the flag itself stays
+    verbatim in every `SKILL.md`."""
     root = Path(repo_root)
-    return workflow_skill_projections_from(
-        {
-            key: (root / ".agents/skills" / key / "SKILL.md").read_text(encoding="utf-8")
-            for key in _WORKFLOW_SKILL_KEYS
-            if (root / ".agents/skills" / key / "SKILL.md").is_file()
-        }
-    )
-
-
-def workflow_skill_projections_from(skills: dict[str, str]) -> dict[str, str]:
-    return {
-        f"{harness}/skills/{key}/SKILL.md": skills[key]
-        for key in _WORKFLOW_SKILL_KEYS
-        if key in skills
-        for harness in (".claude", ".codex", ".opencode")
+    skills = {
+        key: (root / ".agents/skills" / key / "SKILL.md").read_text(encoding="utf-8")
+        for key in canonical_skill_keys(root)
     }
+    skill_files: dict[str, tuple[tuple[str, str], ...]] = {
+        key: tuple((file["path"], file["text"]) for file in load_skill_files(root, key))
+        for key in skills
+    }
+    return skill_projections_from(skills, skill_files)
+
+
+def skill_projections_from(
+    skills: dict[str, str],
+    skill_files: dict[str, tuple[tuple[str, str], ...]] | None = None,
+) -> dict[str, str]:
+    files = skill_files or {}
+    projected: dict[str, str] = {}
+    for key in sorted(skills):
+        for harness in _HARNESS_SKILL_DIRS:
+            projected[f"{harness}/skills/{key}/SKILL.md"] = skills[key]
+            for relative, text in files.get(key, ()):
+                projected[f"{harness}/skills/{key}/{relative}"] = text
+        if _skill_disables_model_invocation(skills[key]):
+            projected[f".codex/skills/{key}/{CODEX_OPENAI_POLICY_PATH}"] = CODEX_OPENAI_POLICY_TEXT
+    return projected

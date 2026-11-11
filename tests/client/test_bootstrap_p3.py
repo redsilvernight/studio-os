@@ -523,11 +523,30 @@ def test_skills_sync_writes_verbatim_copies_and_is_idempotent(
     keys = canonical_skill_keys(repo)
     assert len(keys) == 9
     planned = {item.path for item in plan_files(repo, load_manifest(repo)) if item.kind == "skill"}
-    assert planned == {f".claude/skills/{key}/SKILL.md" for key in keys}
+    expected = {f".claude/skills/{key}/SKILL.md" for key in keys}
+    expected |= {
+        ".claude/skills/studio-task/references/completion.md",
+        ".claude/skills/studio-task/references/roles.md",
+        ".claude/skills/graphify/references/add-watch.md",
+        ".claude/skills/graphify/references/exports.md",
+        ".claude/skills/graphify/references/extraction-spec.md",
+        ".claude/skills/graphify/references/github-and-merge.md",
+        ".claude/skills/graphify/references/hooks.md",
+        ".claude/skills/graphify/references/query.md",
+        ".claude/skills/graphify/references/transcribe.md",
+        ".claude/skills/graphify/references/update.md",
+    }
+    assert planned == expected
     for key in keys:
         source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
         target = repo / ".claude" / "skills" / key / "SKILL.md"
         assert target.read_text(encoding="utf-8") == source
+    for relative in sorted(expected):
+        if relative.endswith("SKILL.md"):
+            continue
+        canonical = repo / ".agents" / "skills" / relative.removeprefix(".claude/skills/")
+        target = repo / relative
+        assert target.read_text(encoding="utf-8") == canonical.read_text(encoding="utf-8")
 
     cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
     assert capsys.readouterr().out.strip() == "Already up to date."
@@ -587,6 +606,47 @@ def test_skills_multi_harness_projects_per_harness(tmp_path: Path) -> None:
             source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
             target = repo / base / "skills" / key / "SKILL.md"
             assert target.read_text(encoding="utf-8") == source
+    for base in (".claude", ".opencode"):
+        for relative in (
+            "studio-task/references/completion.md",
+            "studio-task/references/roles.md",
+        ):
+            canonical = repo / ".agents" / "skills" / relative
+            target = repo / base / "skills" / relative
+            assert target.read_text(encoding="utf-8") == canonical.read_text(encoding="utf-8")
+
+
+def test_skills_codex_openai_policy_only_for_flagged_skills(tmp_path: Path) -> None:
+    from studio_client.canonical import CODEX_OPENAI_POLICY_TEXT
+
+    repo = _repo(tmp_path)
+    cli.main(
+        [
+            "bootstrap",
+            "init",
+            "--project-slug",
+            "demo",
+            "--project-name",
+            "Demo",
+            "--harness",
+            "claude-code",
+            "--harness",
+            "codex",
+            "--repo-root",
+            str(repo),
+        ]
+    )
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+
+    policy = repo / ".codex" / "skills" / "alembic-migration" / "agents" / "openai.yaml"
+    assert policy.read_text(encoding="utf-8") == CODEX_OPENAI_POLICY_TEXT
+    # No policy for unflagged skills, and never outside `.codex`.
+    assert not (repo / ".codex" / "skills" / "studio-task" / "agents" / "openai.yaml").exists()
+    assert not (repo / ".claude" / "skills" / "alembic-migration" / "agents").exists()
+    # The flag itself stays verbatim in every harness SKILL.md.
+    for base in (".claude", ".codex"):
+        source = repo / base / "skills" / "alembic-migration" / "SKILL.md"
+        assert "disable-model-invocation: true" in source.read_text(encoding="utf-8")
 
 
 def test_skills_crlf_on_disk_is_not_drift(tmp_path: Path) -> None:
