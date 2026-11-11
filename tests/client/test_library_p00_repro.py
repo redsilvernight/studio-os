@@ -199,8 +199,6 @@ def test_conflict_on_one_item_does_not_block_the_others(
 
 
 # --- Gap 4: agents and rules lose fields on publish --------------------------
-# Closed by P43: the markers below used to be strict xfails and were removed
-# when `build_publish_items` started publishing rule/v2 and agent_definition/v2.
 
 
 def test_published_rule_keeps_applies_to() -> None:
