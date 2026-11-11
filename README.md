@@ -111,7 +111,6 @@ uv run pytest -n 6 -q
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy packages/studio-contracts/src packages/studio-client/src packages/studio-workspaces/src packages/studio-code-graph/src services/api/src services/mcp/src
-uv run --package studio-client studio-client adapters check --repo-root .
 ```
 
 `test-env.ps1` vérifie PostgreSQL migré à la dernière révision et MinIO. Il ne
