@@ -201,15 +201,14 @@ def test_conflict_on_one_item_does_not_block_the_others(
 # --- Gap 4: agents and rules lose fields on publish --------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="gap 4: rule payload carries no applies_to")
 def test_published_rule_keeps_applies_to() -> None:
     (item,) = build_publish_items(REPO, kinds=("rule",), keys=["contracts"])
     assert item.content.get("applies_to")
 
 
-@pytest.mark.xfail(strict=True, reason="gap 4: agent payload drops instructions/edit_policy/tools")
 def test_published_agent_keeps_instructions_and_edit_policy() -> None:
-    (item,) = build_publish_items(REPO, kinds=("agent",), keys=["studio-tester"])
+    items = build_publish_items(REPO, kinds=("agent",), keys=["studio-tester"])
+    (item,) = [entry for entry in items if entry.kind == "agent"]
     assert item.content.get("instructions")
     assert item.content.get("edit_policy") == "deny"
     assert item.content.get("tools")

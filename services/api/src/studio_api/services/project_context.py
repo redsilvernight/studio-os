@@ -37,7 +37,7 @@ from collections.abc import Mapping, Sequence
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.library import LibraryKind, RuleContent, SkillContent
+from studio_contracts.library import LibraryKind, parse_rule_content, parse_skill_content
 from studio_contracts.project_context import (
     AIWORK_BUDGET_SHARE,
     AIWORK_LIST_CAP,
@@ -621,9 +621,9 @@ async def _select_library(
         )
         if version_row is None:
             continue
-        content_model = RuleContent if kind is LibraryKind.RULE else SkillContent
+        parse = parse_rule_content if kind is LibraryKind.RULE else parse_skill_content
         try:
-            text = content_model.model_validate(version_row.content).text
+            text = parse(version_row.content).text
         except ValueError:
             continue
         total += 1

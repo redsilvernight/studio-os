@@ -1624,6 +1624,42 @@ def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
     print(f"{verb} {changed} of {len(results)} resources")
 
 
+def _library_import_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """P43 gate: the harness projections rebuilt from the Library contents
+    (`.agents/` published in memory) must equal the committed files. Read-only,
+    offline, exits 1 on any gap that is not `excluded`."""
+    from studio_client.library_equivalence import DifferenceNature, check_equivalence
+
+    _ = config
+    try:
+        differences = check_equivalence(args.repo_root)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    failures = [item for item in differences if item.nature.blocking]
+    unprojected = sum(1 for item in differences if item.nature is DifferenceNature.UNPROJECTED)
+    excluded = sum(1 for item in differences if item.nature is DifferenceNature.EXCLUDED)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "differences": [item.to_dict() for item in differences],
+                    "failures": len(failures),
+                    "unprojected": unprojected,
+                    "excluded": excluded,
+                },
+                indent=2,
+            )
+        )
+    else:
+        for item in differences:
+            detail = f"  ({item.detail})" if item.detail else ""
+            print(f"{item.nature.value:11} {item.path}{detail}")
+        print(f"gaps {len(failures)}, unprojected {unprojected}, excluded {excluded}")
+    if failures:
+        raise SystemExit(1)
+
+
 def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
     AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
@@ -2477,6 +2513,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(library_publish)
     library_publish.set_defaults(func=_library_publish)
+    library_import_check = library_sub.add_parser(
+        "import-check",
+        help="Check the Library rendering of `.agents/` against the committed projections (P43).",
+    )
+    library_import_check.add_argument("--repo-root", default=".", help="Repository root.")
+    _add_json_flag(library_import_check)
+    library_import_check.set_defaults(func=_library_import_check)
 
     bootstrap_parser = subparsers.add_parser(
         "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
@@ -2627,6 +2670,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         in ("init", "check", "diff", "sync", "rollback", "scan")
         or (getattr(args, "library_command", None) == "profile-preview" and args.validate_only)
         or getattr(args, "library_command", None) == "restore"
+        or getattr(args, "library_command", None) == "import-check"
         or getattr(args, "completion_command", None) == "check"
     ):
         # Offline canonical commands need no server configuration.

@@ -5,7 +5,15 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
-from studio_contracts.library import LIBRARY_VERSION_BATCH_MAX, RuleContent, SkillContent
+from studio_contracts.library import (
+    LIBRARY_VERSION_BATCH_MAX,
+    RuleContent,
+    RuleContentV2,
+    SkillContent,
+    SkillContentV2,
+    parse_rule_content,
+    parse_skill_content,
+)
 
 from studio_client.context.errors import ContextError
 from studio_client.context.manifest import SourceRef
@@ -59,6 +67,7 @@ class LibraryContextItem:
     description: str | None = None
     files: tuple[tuple[str, str], ...] = ()
     """Auxiliary skill files as (relative path, text); never part of the Context Package."""
+    disable_model_invocation: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -304,9 +313,11 @@ class LibraryContextProvider:
         content = dict(version_row.content)
         try:
             if kind == "rule":
-                parsed: RuleContent | SkillContent = RuleContent.model_validate(content)
+                parsed: RuleContent | RuleContentV2 | SkillContent | SkillContentV2 = (
+                    parse_rule_content(content)
+                )
             elif kind == "skill":
-                parsed = SkillContent.model_validate(content)
+                parsed = parse_skill_content(content)
             else:
                 raise ContextError(
                     "unsupported_library_kind",
@@ -331,6 +342,7 @@ class LibraryContextProvider:
             content_schema=str(parsed.content_schema),
             deprecated=status == "deprecated",
             files=tuple((f.path, f.text) for f in getattr(parsed, "files", ())),
+            disable_model_invocation=bool(getattr(parsed, "disable_model_invocation", False)),
         )
 
 
