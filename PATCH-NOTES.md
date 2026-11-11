@@ -9,6 +9,7 @@
 
 ## Corrections
 
+- « Quoi de neuf » : la version vue est enregistrée avant l'ouverture et à l'interaction, la fenêtre ne réapparaît plus à chaque lancement.
 - Aucun fichier local non géré n'est écrasé silencieusement ; bloc AGENTS.md stable sans contenu de règle.
 - Les lecteurs rule/skill acceptent v1 et v2 (une règle v2 n'était plus lue par le contexte projet).
 - `alembic/env.py` ne désactive plus les loggers existants.
