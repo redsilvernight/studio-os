@@ -157,7 +157,7 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.10.0"
+DAEMON_VERSION = "0.11.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
