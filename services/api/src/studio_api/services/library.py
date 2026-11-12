@@ -128,6 +128,7 @@ async def get_resource(
     ensure_resource_scope(principal, resource)
     if not _can_read(principal, resource):
         return None
+    await annotate_base_updates(session, [resource])
     return resource
 
 
@@ -140,6 +141,62 @@ async def find_readable_resource(
     if resource is None or not _can_read(principal, resource):
         return None
     return resource
+
+
+async def annotate_base_updates(
+    session: AsyncSession, resources: Sequence[LibraryResourceModel]
+) -> None:
+    """Fill the read-only base-update projection on User-scope overrides (P60).
+
+    A stale base means the resource's *active* version derives from a common
+    (Studio) version that is no longer that common's active version. Only
+    rows the caller may already read are inspected, so the alert can never
+    appear for another user's override. Read-only by construction: no version
+    is created, no pointer moves, no content is copied.
+    """
+    overrides = [
+        resource
+        for resource in resources
+        if resource.scope == LibraryScope.USER.value and resource.active_version > 0
+    ]
+    for resource in resources:
+        resource.base_update_available = False
+        resource.base_active_version = None
+    if not overrides:
+        return
+    active_versions = {resource.id: resource.active_version for resource in overrides}
+    stmt = select(
+        LibraryResourceVersionModel.resource_id,
+        LibraryResourceVersionModel.version,
+        LibraryResourceVersionModel.derived_from_resource_id,
+        LibraryResourceVersionModel.derived_from_version,
+    ).where(
+        LibraryResourceVersionModel.resource_id.in_(list(active_versions)),
+        LibraryResourceVersionModel.derived_from_resource_id.is_not(None),
+    )
+    derived = {
+        row.resource_id: row
+        for row in (await session.execute(stmt)).all()
+        if row.version == active_versions.get(row.resource_id)
+    }
+    if not derived:
+        return
+    base_ids = {row.derived_from_resource_id for row in derived.values()}
+    base_rows = (
+        await session.execute(
+            select(LibraryResourceModel.id, LibraryResourceModel.active_version).where(
+                LibraryResourceModel.id.in_(base_ids)
+            )
+        )
+    ).all()
+    base_active = {row.id: row.active_version for row in base_rows}
+    by_id = {resource.id: resource for resource in overrides}
+    for resource_id, row in derived.items():
+        new_base = base_active.get(row.derived_from_resource_id)
+        if new_base is None or new_base <= 0 or new_base == row.derived_from_version:
+            continue
+        by_id[resource_id].base_update_available = True
+        by_id[resource_id].base_active_version = new_base
 
 
 async def list_resources(
@@ -172,7 +229,9 @@ async def list_resources(
     if conditions:
         stmt = stmt.where(and_(*conditions))
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    resources = list(result.scalars().all())
+    await annotate_base_updates(session, resources)
+    return resources
 
 
 async def _resolve_pin(
@@ -461,9 +520,16 @@ def authorize_create(principal: Principal, scope: str, project_id: UUID | None) 
         ensure_can_write(principal, "library")
 
 
-def _ensure_owner_or_admin(principal: Principal, resource: LibraryResourceModel) -> None:
+def authorize_mutation(principal: Principal, resource: LibraryResourceModel) -> None:
+    """Write gate of an existing definition (P70b, DEC-0063 amende).
+
+    Project scope belongs to the project, not to whichever member created the
+    row: any member in a write role (`developer`/`agent`) may version,
+    activate and deprecate a definition another member owns. User scope stays
+    owner-or-admin (the row is private, DEC-0063) and Studio scope stays
+    admin-only (P70a)."""
     authorize_write(principal, resource)
-    if principal.role == Role.ADMIN:
+    if resource.scope != "user" or principal.role == Role.ADMIN:
         return
     if resource.owner_user_id != principal.user.id:
         raise forbidden("library", "write")
@@ -566,7 +632,7 @@ async def create_resource_version(
     """Adds draft version N+1. The resource row is locked (`FOR UPDATE`) so
     two concurrent creators serialize instead of colliding on the
     `(resource_id, version)` unique constraint."""
-    _ensure_owner_or_admin(principal, resource)
+    authorize_mutation(principal, resource)
     locked = (
         await session.execute(
             select(LibraryResourceModel)
@@ -621,7 +687,7 @@ async def activate_resource_version(
 ) -> LibraryResourceModel:
     """Explicit activation (DEC-0064 precision 3). Reactivating the already
     active version is a successful no-op."""
-    _ensure_owner_or_admin(principal, resource)
+    authorize_mutation(principal, resource)
     if resource.version != expected_resource_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -644,6 +710,7 @@ async def activate_resource_version(
             {"version": version},
             occurrence=resource.version,
         )
+    await annotate_base_updates(session, [resource])
     return resource
 
 
@@ -655,7 +722,7 @@ async def deprecate_resource(
 ) -> LibraryResourceModel:
     """Deprecation replaces deletion: the row and its history stay, only the
     status flips. Already deprecated is a successful no-op."""
-    _ensure_owner_or_admin(principal, resource)
+    authorize_mutation(principal, resource)
     if resource.version != expected_resource_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -675,6 +742,7 @@ async def deprecate_resource(
             {"version": resource.active_version},
             occurrence=resource.version,
         )
+    await annotate_base_updates(session, [resource])
     return resource
 
 

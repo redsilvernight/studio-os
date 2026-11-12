@@ -5575,6 +5575,13 @@ export interface components {
             project_id?: string | null;
             /** Created By User Id */
             created_by_user_id?: string | null;
+            /**
+             * Base Update Available
+             * @default false
+             */
+            base_update_available: boolean;
+            /** Base Active Version */
+            base_active_version?: number | null;
         };
         /**
          * LibraryResourceCreate

@@ -172,6 +172,13 @@ class LibraryResource(VersionedModel):
     owner_user_id: UUID | None = None
     project_id: UUID | None = None
     created_by_user_id: UUID | None = None
+    base_update_available: bool = False
+    """Read-only alert for a User-scope override (P60): the common version its
+    active version derives from (`derived_from`) is no longer the active one.
+    Purely informational — nothing is re-based or re-applied automatically."""
+    base_active_version: int | None = None
+    """Active version of that common base when the alert is raised; `None`
+    when the resource has no derived base or no update to report."""
 
 
 class LibraryVersionRef(ContractModel):
