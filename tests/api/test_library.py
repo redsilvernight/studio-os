@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.services import projects as projects_service
+from studio_api.services import provisioning as provisioning_service
 from studio_contracts.library import (
     CapabilityRequirement,
     RuntimeCapabilities,
@@ -609,3 +612,178 @@ async def test_developer_cannot_touch_studio_resources(
         json={"expected_resource_version": activated.json()["version"]},
     )
     assert deprecated.status_code == 200
+
+
+# --- P70b: Project scope writes belong to the project, not to the creator ----
+
+
+def _headers(machine: tuple[MachineModel, str]) -> dict[str, str]:
+    return {"Authorization": f"Bearer {machine[1]}"}
+
+
+async def _grant(
+    db_session: AsyncSession, project: ProjectModel, *machines: tuple[MachineModel, str]
+) -> None:
+    """Memberships are written through the service (the API only lets an
+    admin manage them); the granter is a throwaway admin."""
+    grantor = await provisioning_service.create_user(
+        db_session, "Grantor", f"{uuid.uuid4()}@example.test", "admin"
+    )
+    for machine_model, _ in machines:
+        await projects_service.grant_member(
+            db_session, project.id, machine_model.owner_user_id, granted_by_user_id=grantor.id
+        )
+
+
+async def _other_project(
+    db_session: AsyncSession, *machines: tuple[MachineModel, str]
+) -> ProjectModel:
+    """An accessible project the caller belongs to but which owns nothing
+    under test: it keeps a 403 distinguishable from "no membership at all"."""
+    project = await projects_service.create_project(
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Elsewhere", None, creator=None
+    )
+    await _grant(db_session, project, *machines)
+    return project
+
+
+@pytest.mark.isolation
+async def test_project_member_in_write_role_versions_and_activates_another_members_resource(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    other_machine: tuple[MachineModel, str],
+) -> None:
+    """P70b criterion 1: a `developer` member versions and activates a Project
+    definition created by another member (deprecation follows the same rule)."""
+    creator_headers, actor_headers = _headers(machine), _headers(other_machine)
+    await _grant(db_session, project, machine, other_machine)
+
+    created = (
+        await client.post(
+            "/api/v1/library",
+            headers=creator_headers,
+            json={**_rule_payload("project"), "project_id": str(project.id)},
+        )
+    ).json()
+    rid = created["id"]
+
+    version = await client.post(
+        f"/api/v1/library/{rid}/versions",
+        headers=actor_headers,
+        json={
+            "title": "Other member v2",
+            "content": {"content_schema": "studio.library.rule/v1", "text": "v2"},
+        },
+    )
+    assert version.status_code == 201, version.text
+    assert version.json()["created_by_user_id"] == str(other_machine[0].owner_user_id)
+
+    current = (await client.get(f"/api/v1/library/{rid}", headers=actor_headers)).json()
+    activated = await client.post(
+        f"/api/v1/library/{rid}/activate",
+        headers=actor_headers,
+        json={"version": 2, "expected_resource_version": current["version"]},
+    )
+    assert activated.status_code == 200, activated.text
+    assert activated.json()["active_version"] == 2
+
+    deprecated = await client.post(
+        f"/api/v1/library/{rid}/deprecate",
+        headers=actor_headers,
+        json={"expected_resource_version": activated.json()["version"]},
+    )
+    assert deprecated.status_code == 200, deprecated.text
+    assert deprecated.json()["status"] == "deprecated"
+
+
+@pytest.mark.isolation
+async def test_project_non_member_cannot_version_or_activate(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    other_machine: tuple[MachineModel, str],
+) -> None:
+    """P70b criterion 2: a `developer` outside the project gets the canonical
+    403, like any other project surface, before any write happens."""
+    creator_headers, outsider_headers = _headers(machine), _headers(other_machine)
+    await _grant(db_session, project, machine)
+    await _other_project(db_session, other_machine)
+
+    created = (
+        await client.post(
+            "/api/v1/library",
+            headers=creator_headers,
+            json={**_rule_payload("project"), "project_id": str(project.id)},
+        )
+    ).json()
+    rid = created["id"]
+
+    denied = await client.post(
+        f"/api/v1/library/{rid}/versions",
+        headers=outsider_headers,
+        json={
+            "title": "Outsider v2",
+            "content": {"content_schema": "studio.library.rule/v1", "text": "v2"},
+        },
+    )
+    assert denied.status_code == 403, denied.text
+    # The read-level project gate answers first (as every by-id Library surface
+    # does, DEC-0103 §8); the write gate is never reached, so nothing is written.
+    assert denied.json()["detail"] == {
+        "error_code": "forbidden",
+        "resource": "project",
+        "action": "read",
+    }
+
+    activation = await client.post(
+        f"/api/v1/library/{rid}/activate",
+        headers=outsider_headers,
+        json={"version": 1, "expected_resource_version": created["version"]},
+    )
+    assert activation.status_code == 403, activation.text
+
+    versions = await client.get(f"/api/v1/library/{rid}/versions", headers=creator_headers)
+    assert [v["version"] for v in versions.json()] == [1]
+
+
+async def test_user_scope_writes_stay_owner_only(
+    client: AsyncClient,
+    machine: tuple[MachineModel, str],
+    other_machine: tuple[MachineModel, str],
+) -> None:
+    """P70b criterion 3: User scope is unchanged — another user cannot version
+    or activate it (masked as 404, no existence leak), the owner can."""
+    owner_headers, other_headers = _headers(machine), _headers(other_machine)
+    created = (
+        await client.post(
+            "/api/v1/library", headers=owner_headers, json=_skill_payload("user", key="owner-skill")
+        )
+    ).json()
+    rid = created["id"]
+    body = {
+        "title": "Owner v2",
+        "content": {"content_schema": "studio.library.skill/v1", "text": "v2"},
+    }
+
+    denied = await client.post(f"/api/v1/library/{rid}/versions", headers=other_headers, json=body)
+    assert denied.status_code == 404, denied.text
+    denied_activation = await client.post(
+        f"/api/v1/library/{rid}/activate",
+        headers=other_headers,
+        json={"version": 1, "expected_resource_version": created["version"]},
+    )
+    assert denied_activation.status_code == 404, denied_activation.text
+
+    version = await client.post(f"/api/v1/library/{rid}/versions", headers=owner_headers, json=body)
+    assert version.status_code == 201, version.text
+    current = (await client.get(f"/api/v1/library/{rid}", headers=owner_headers)).json()
+    activated = await client.post(
+        f"/api/v1/library/{rid}/activate",
+        headers=owner_headers,
+        json={"version": 2, "expected_resource_version": current["version"]},
+    )
+    assert activated.status_code == 200, activated.text
+    assert activated.json()["active_version"] == 2
