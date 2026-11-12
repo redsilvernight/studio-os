@@ -128,6 +128,7 @@ async def get_resource(
     ensure_resource_scope(principal, resource)
     if not _can_read(principal, resource):
         return None
+    await annotate_base_updates(session, [resource])
     return resource
 
 
@@ -140,6 +141,62 @@ async def find_readable_resource(
     if resource is None or not _can_read(principal, resource):
         return None
     return resource
+
+
+async def annotate_base_updates(
+    session: AsyncSession, resources: Sequence[LibraryResourceModel]
+) -> None:
+    """Fill the read-only base-update projection on User-scope overrides (P60).
+
+    A stale base means the resource's *active* version derives from a common
+    (Studio) version that is no longer that common's active version. Only
+    rows the caller may already read are inspected, so the alert can never
+    appear for another user's override. Read-only by construction: no version
+    is created, no pointer moves, no content is copied.
+    """
+    overrides = [
+        resource
+        for resource in resources
+        if resource.scope == LibraryScope.USER.value and resource.active_version > 0
+    ]
+    for resource in resources:
+        resource.base_update_available = False
+        resource.base_active_version = None
+    if not overrides:
+        return
+    active_versions = {resource.id: resource.active_version for resource in overrides}
+    stmt = select(
+        LibraryResourceVersionModel.resource_id,
+        LibraryResourceVersionModel.version,
+        LibraryResourceVersionModel.derived_from_resource_id,
+        LibraryResourceVersionModel.derived_from_version,
+    ).where(
+        LibraryResourceVersionModel.resource_id.in_(list(active_versions)),
+        LibraryResourceVersionModel.derived_from_resource_id.is_not(None),
+    )
+    derived = {
+        row.resource_id: row
+        for row in (await session.execute(stmt)).all()
+        if row.version == active_versions.get(row.resource_id)
+    }
+    if not derived:
+        return
+    base_ids = {row.derived_from_resource_id for row in derived.values()}
+    base_rows = (
+        await session.execute(
+            select(LibraryResourceModel.id, LibraryResourceModel.active_version).where(
+                LibraryResourceModel.id.in_(base_ids)
+            )
+        )
+    ).all()
+    base_active = {row.id: row.active_version for row in base_rows}
+    by_id = {resource.id: resource for resource in overrides}
+    for resource_id, row in derived.items():
+        new_base = base_active.get(row.derived_from_resource_id)
+        if new_base is None or new_base <= 0 or new_base == row.derived_from_version:
+            continue
+        by_id[resource_id].base_update_available = True
+        by_id[resource_id].base_active_version = new_base
 
 
 async def list_resources(
@@ -172,7 +229,9 @@ async def list_resources(
     if conditions:
         stmt = stmt.where(and_(*conditions))
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    resources = list(result.scalars().all())
+    await annotate_base_updates(session, resources)
+    return resources
 
 
 async def _resolve_pin(
@@ -651,6 +710,7 @@ async def activate_resource_version(
             {"version": version},
             occurrence=resource.version,
         )
+    await annotate_base_updates(session, [resource])
     return resource
 
 
@@ -682,6 +742,7 @@ async def deprecate_resource(
             {"version": resource.active_version},
             occurrence=resource.version,
         )
+    await annotate_base_updates(session, [resource])
     return resource
 
 

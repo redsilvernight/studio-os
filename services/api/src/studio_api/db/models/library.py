@@ -21,6 +21,7 @@ class LibraryResourceModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     `active_version == 0` means nothing has been activated yet."""
 
     __tablename__ = "library_resources"
+    __allow_unmapped__ = True
     __table_args__ = (
         sa.Index(
             "uq_library_resource_studio",
@@ -62,6 +63,11 @@ class LibraryResourceModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), default=None
     )
+
+    # Transient projection fields (never columns, never persisted): filled by
+    # `services.library.annotate_base_updates` for the P60 read-only alert.
+    base_update_available: bool = False
+    base_active_version: int | None = None
 
 
 class LibraryResourceVersionModel(UUIDPKMixin, Base):
