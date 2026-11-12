@@ -884,7 +884,10 @@ les evenements sont inchanges.
   Aucune resolution de cle ni masquage (DEC-0065 reste cote client) ; 1 jeton du
   bucket general par lot. Pas de migration ; `API_CONTRACT_VERSION` inchange (ajout).
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
-  `active_version`). `Idempotency-Key` supporte. Dependances epinglees
+  `active_version`). `Idempotency-Key` supporte. Autorisation par scope
+  (P70b) : Project = tout membre en role d'ecriture (`developer`/`agent`),
+  meme si un autre membre a cree la ressource ; User = proprietaire ou
+  `admin` ; Studio = `admin` seul. Dependances epinglees
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
   epinglee inexistante = `404 pin_version_not_found`, pin
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
@@ -955,11 +958,14 @@ les evenements sont inchanges.
 - POST /library/{id}/activate — body `LibraryActivate`
   (`version`, `expected_resource_version`) : deplace explicitement
   `active_version` (passe `status` a `active`), `409 version_conflict` sur
-  version perimee, no-op si deja active. `Idempotency-Key` supporte.
+  version perimee, no-op si deja active. `Idempotency-Key` supporte. Meme
+  autorisation par scope que la creation d'une version (P70b : Project
+  ouvert a tout membre en role d'ecriture).
 - POST /library/{id}/deprecate — body `LibraryDeprecate`
   (`expected_resource_version`) : remplace la suppression (historique et
   `active_version` conserves), no-op si deja depreciee. `Idempotency-Key`
-  supporte (rejeu d'une reponse non vue). Une override `user` depreciee ne
+  supporte (rejeu d'une reponse non vue). Meme autorisation par scope
+  (P70b). Une override `user` depreciee ne
   masque plus la version commune : la resolution (serveur et client) et la
   synchro reviennent a la version studio/project visible (DEC-0324).
 - Provenance (P50, DEC-0323, additif) : `derived_from` optionnel

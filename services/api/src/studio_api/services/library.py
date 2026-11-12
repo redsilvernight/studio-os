@@ -461,9 +461,16 @@ def authorize_create(principal: Principal, scope: str, project_id: UUID | None) 
         ensure_can_write(principal, "library")
 
 
-def _ensure_owner_or_admin(principal: Principal, resource: LibraryResourceModel) -> None:
+def authorize_mutation(principal: Principal, resource: LibraryResourceModel) -> None:
+    """Write gate of an existing definition (P70b, DEC-0063 amende).
+
+    Project scope belongs to the project, not to whichever member created the
+    row: any member in a write role (`developer`/`agent`) may version,
+    activate and deprecate a definition another member owns. User scope stays
+    owner-or-admin (the row is private, DEC-0063) and Studio scope stays
+    admin-only (P70a)."""
     authorize_write(principal, resource)
-    if principal.role == Role.ADMIN:
+    if resource.scope != "user" or principal.role == Role.ADMIN:
         return
     if resource.owner_user_id != principal.user.id:
         raise forbidden("library", "write")
@@ -566,7 +573,7 @@ async def create_resource_version(
     """Adds draft version N+1. The resource row is locked (`FOR UPDATE`) so
     two concurrent creators serialize instead of colliding on the
     `(resource_id, version)` unique constraint."""
-    _ensure_owner_or_admin(principal, resource)
+    authorize_mutation(principal, resource)
     locked = (
         await session.execute(
             select(LibraryResourceModel)
@@ -621,7 +628,7 @@ async def activate_resource_version(
 ) -> LibraryResourceModel:
     """Explicit activation (DEC-0064 precision 3). Reactivating the already
     active version is a successful no-op."""
-    _ensure_owner_or_admin(principal, resource)
+    authorize_mutation(principal, resource)
     if resource.version != expected_resource_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -655,7 +662,7 @@ async def deprecate_resource(
 ) -> LibraryResourceModel:
     """Deprecation replaces deletion: the row and its history stay, only the
     status flips. Already deprecated is a successful no-op."""
-    _ensure_owner_or_admin(principal, resource)
+    authorize_mutation(principal, resource)
     if resource.version != expected_resource_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
