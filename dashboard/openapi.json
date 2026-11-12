@@ -22957,6 +22957,22 @@
        }
       ],
       "title": "Created By User Id"
+     },
+     "base_update_available": {
+      "type": "boolean",
+      "title": "Base Update Available",
+      "default": false
+     },
+     "base_active_version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Base Active Version"
      }
     },
     "additionalProperties": false,

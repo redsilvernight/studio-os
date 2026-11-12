@@ -270,6 +270,17 @@ export function filterLibraryResources(resources: LibraryResource[], state: Libr
 /* premier plan : stable_key, badges portée/état, version active).     */
 /* ------------------------------------------------------------------ */
 
+function baseUpdateNoticeHtml(resource: LibraryResource, compact = false): string {
+  if (resource.base_update_available !== true) return "";
+  const active = resource.base_active_version != null ? ` (commun actif v${resource.base_active_version})` : "";
+  return (
+    `<div class="ds-notice ds-notice--warning" role="status" data-library-base-update>` +
+    `<strong>Base commune mise à jour${compact ? "" : active}.</strong>` +
+    `Cet override dérive d'une base commune qui a changé${compact ? active : ""}. ` +
+    `Rien n'est appliqué automatiquement : comparez puis créez une nouvelle version si vous le souhaitez.</div>`
+  );
+}
+
 function resourceItemHtml(resource: LibraryResource, hookContent?: HookListContent): string {
   const active =
     resource.active_version === 0
@@ -278,8 +289,9 @@ function resourceItemHtml(resource: LibraryResource, hookContent?: HookListConte
   return (
     `<li class="ds-card library-item"><div class="library-item-top">` +
     `<h3 class="library-item-title"><a href="${esc(libraryKindHref(resource.kind, resource.id))}"><code class="mono">${esc(resource.stable_key)}</code></a></h3>` +
-    `<span class="library-item-badges">${scopeBadge(resource.scope)}${statusBadge(resource.status)}</span></div>` +
-    `${active}${resource.kind === "hook" ? hookListMetadataHtml(hookContent, resource.active_version) : ""}<p class="ds-list-sub">Mis à jour le ${fmtTime(resource.updated_at)}</p></li>`
+    `<span class="library-item-badges">${scopeBadge(resource.scope)}${statusBadge(resource.status)}${resource.base_update_available === true ? dsBadge("Base commune mise à jour", "warning") : ""}</span></div>` +
+    `${active}${resource.kind === "hook" ? hookListMetadataHtml(hookContent, resource.active_version) : ""}` +
+    `${baseUpdateNoticeHtml(resource, true)}<p class="ds-list-sub">Mis à jour le ${fmtTime(resource.updated_at)}</p></li>`
   );
 }
 
@@ -1049,6 +1061,7 @@ export function libraryDetailHtml(
       : dsBadge(`Version active : v${resource.active_version}`, "info")) +
     `<span class="ds-list-sub"><code class="mono">${esc(resource.stable_key)}</code></span></p>` +
     `${shadowNoteForDetail(resource, siblings)}` +
+    `${baseUpdateNoticeHtml(resource)}` +
     `<section class="ds-panel library-reading" aria-label="Contenu actuel"><header><h2>Contenu actuel${activeVersion !== null ? ` — v${activeVersion.version}` : ""}</h2></header><div class="body">` +
     (activeVersion !== null
       ? `${versionContentHtml(resource.kind, activeVersion)}<h4>Dépendances de la version active</h4>${dependenciesTableHtml(activeVersion.dependencies)}`
