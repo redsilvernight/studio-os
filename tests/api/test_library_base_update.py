@@ -89,9 +89,7 @@ async def test_owner_is_alerted_when_common_moves_without_any_auto_apply(
     assert detail["base_active_version"] == 2
 
     listed = (
-        await client.get(
-            "/api/v1/library", headers=admin_auth_headers, params={"scope": "user"}
-        )
+        await client.get("/api/v1/library", headers=admin_auth_headers, params={"scope": "user"})
     ).json()
     flagged = [item for item in listed if item["id"] == override["id"]]
     assert len(flagged) == 1
@@ -107,9 +105,7 @@ async def test_owner_is_alerted_when_common_moves_without_any_auto_apply(
         assert again["active_version"] == 1
         assert again["status"] == "active"
     versions = (
-        await client.get(
-            f"/api/v1/library/{override['id']}/versions", headers=admin_auth_headers
-        )
+        await client.get(f"/api/v1/library/{override['id']}/versions", headers=admin_auth_headers)
     ).json()
     assert len(versions) == 1
     assert versions[0]["content"]["text"] == "my override"
