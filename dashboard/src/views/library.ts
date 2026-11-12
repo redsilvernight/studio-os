@@ -96,6 +96,7 @@ import {
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
+import { libraryMergeSectionHtml, type LibraryMergeData } from "./libraryMerge";
 import { FALLBACK_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { getPlatform } from "../platform";
@@ -927,6 +928,15 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
 /* Détail : d'abord LECTURE (contenu prioritaire), technique repliée.  */
 /* ------------------------------------------------------------------ */
 
+/** Comparaison trois volets : données fournies → UI complète ; base
+ * périmée sans données → repli honnête (aucune route API de fusion) ;
+ * sinon rien (le détail reste calme). */
+function mergeSectionForDetail(resource: LibraryResource, merge: LibraryMergeData | null): string {
+  if (merge !== null) return libraryMergeSectionHtml(merge);
+  if (resource.base_update_available === true) return libraryMergeSectionHtml(null);
+  return "";
+}
+
 /** Deep link Inspector (agent-definitions uniquement) en langage utilisateur. */
 export function inspectorLinkHtml(resource: LibraryResource): string {
   if (resource.kind !== "agent_definition") return "";
@@ -1019,6 +1029,7 @@ export function libraryDetailHtml(
   locks: LibraryProjectLock[],
   siblings: LibraryResource[] = [],
   isAdmin = true,
+  merge: LibraryMergeData | null = null,
 ): string {
   const fr = kindFr(resource.kind);
   const lifecycleLocked = resource.scope === "studio" && !isAdmin;
@@ -1068,6 +1079,7 @@ export function libraryDetailHtml(
       : dsEmptyState("Aucune version activée", "Créez une version puis activez-la pour donner un contenu lisible à cette ressource.")) +
     `</div></section>` +
     `${inspectorLinkHtml(resource)}` +
+    `${mergeSectionForDetail(resource, merge)}` +
     (resource.kind === "hook" ? hookIncomingSectionHtml() : "") +
     `<section class="ds-panel" aria-label="Cycle de vie"><header><h2>Cycle de vie</h2></header><div class="body">` +
     (lifecycleLocked
