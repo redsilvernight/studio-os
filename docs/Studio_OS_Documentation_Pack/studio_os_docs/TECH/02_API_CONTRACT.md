@@ -976,6 +976,15 @@ les evenements sont inchanges.
   {"error_code": "derived_from_not_found"}` ; autre cas = `422
   {"error_code": "invalid_derived_from", "reason": "not_user_scope" |
   "not_common_scope" | "key_mismatch"}`.
+- GET /library/{id}/merge-preview — le propriétaire d’un override actif
+  peut comparer le texte commun d’origine (`derived_from`), son texte actif
+  et le texte commun actif. `inputs` contient `base`, `ours`, `theirs`.
+  `result` contient le texte fusionné (`content`) et les `conflicts`.
+  Chaque conflit contient les trois fragments et leurs positions
+  (`start_line` à partir de 1, `base_start` inclus et `base_end` exclu à
+  partir de 0). `404` si l’override est invisible, sans changement de base
+  ou sans texte comparable. `422 merge_preview_too_many_lines` si l’un des
+  textes dépasse 1 000 sauts de ligne. Cet aperçu ne crée aucune version.
 - GET /library-locks (`project_id` optionnel), POST /library-locks
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou

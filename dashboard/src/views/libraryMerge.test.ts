@@ -9,9 +9,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   bindLibraryMerge,
-  LIBRARY_MERGE_NO_API_NOTE,
   libraryMergeHtml,
-  libraryMergeSectionHtml,
   renderLibraryMerge,
   staticMergeProvider,
   type LibraryMergeData,
@@ -35,7 +33,7 @@ function fixture(): LibraryMergeData {
     inputs: { base, ours, theirs },
     result: {
       content,
-      conflicts: [{ startLine: 4, baseStart: 3, baseEnd: 4, base: conflictBase, ours: conflictOurs, theirs: conflictTheirs }],
+      conflicts: [{ start_line: 4, base_start: 3, base_end: 4, base: conflictBase, ours: conflictOurs, theirs: conflictTheirs }],
     },
   };
 }
@@ -58,7 +56,7 @@ describe("libraryMergeHtml (trois volets + aperçu)", () => {
     expect(html).toContain("Aperçu du résultat");
     expect(html).toContain("ligne deux (moi)");
     expect(html).toContain('id="library-merge-conflict-1"');
-    expect(html).toContain('href="#library-merge-conflict-1"');
+    expect(html).toContain('data-merge-conflict-link="1"');
     expect(html).toContain("Conflit 1 — ligne 4");
     expect(html).toContain("1 conflit(s)");
   });
@@ -78,7 +76,7 @@ describe("libraryMergeHtml (trois volets + aperçu)", () => {
     const data = fixture();
     const evil: LibraryMergeData = {
       inputs: { base: SCRIPT, ours: SCRIPT, theirs: SCRIPT },
-      result: { content: SCRIPT, conflicts: [{ startLine: 1, baseStart: 0, baseEnd: 1, base: SCRIPT, ours: SCRIPT, theirs: SCRIPT }] },
+      result: { content: SCRIPT, conflicts: [{ start_line: 1, base_start: 0, base_end: 1, base: SCRIPT, ours: SCRIPT, theirs: SCRIPT }] },
     };
     const html = libraryMergeHtml(evil);
     expect(html).toContain("&lt;script&gt;");
@@ -88,13 +86,7 @@ describe("libraryMergeHtml (trois volets + aperçu)", () => {
   });
 });
 
-describe("fournisseur injectable (aucune route API inventée)", () => {
-  it("documente l'absence de route de fusion", () => {
-    expect(LIBRARY_MERGE_NO_API_NOTE).toMatch(/aucune route api/i);
-    expect(libraryMergeSectionHtml(null)).toContain("Comparaison indisponible");
-    expect(libraryMergeSectionHtml(null)).toContain("data-library-merge=\"unavailable\"");
-  });
-
+describe("fournisseur de comparaison", () => {
   it("staticMergeProvider rejoue les données fournies", async () => {
     const data = fixture();
     const provider = staticMergeProvider(data);
@@ -192,9 +184,9 @@ describe("intégration page détail (additive)", () => {
     expect(html).not.toContain("Comparaison trois volets");
   });
 
-  it("base périmée sans données : repli honnête, jamais de volets inventés", () => {
-    const html = libraryDetailHtml(resource({ base_update_available: true, base_active_version: 4 }), versions, [], []);
-    expect(html).toContain("Comparaison indisponible");
+  it("réserve la comparaison pour un override actif dont la base a changé", () => {
+    const html = libraryDetailHtml(resource({ scope: "user", status: "active", base_update_available: true, base_active_version: 4 }), versions, [], []);
+    expect(html).toContain("data-library-merge-preview");
     expect(html).not.toContain("library-merge-panes");
   });
 

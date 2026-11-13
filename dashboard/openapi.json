@@ -5217,6 +5217,68 @@
     }
    }
   },
+  "/api/v1/library/{resource_id}/merge-preview": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Get Library Merge Preview",
+    "description": "Preview a three-way merge for the owner's active text override against its original and current common versions. This endpoint never writes.",
+    "operationId": "get_library_merge_preview_api_v1_library__resource_id__merge_preview_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryMergePreview"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid resource ID or merge_preview_too_many_lines."
+     }
+    }
+   }
+  },
   "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
    "get": {
     "tags": [
@@ -22830,6 +22892,108 @@
      "locked_version"
     ],
     "title": "LibraryLockCreate"
+   },
+   "LibraryMergeConflict": {
+    "properties": {
+     "base": {
+      "type": "string",
+      "title": "Base"
+     },
+     "ours": {
+      "type": "string",
+      "title": "Ours"
+     },
+     "theirs": {
+      "type": "string",
+      "title": "Theirs"
+     },
+     "start_line": {
+      "type": "integer",
+      "title": "Start Line"
+     },
+     "base_start": {
+      "type": "integer",
+      "title": "Base Start"
+     },
+     "base_end": {
+      "type": "integer",
+      "title": "Base End"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base",
+     "ours",
+     "theirs",
+     "start_line",
+     "base_start",
+     "base_end"
+    ],
+    "title": "LibraryMergeConflict"
+   },
+   "LibraryMergeInputs": {
+    "properties": {
+     "base": {
+      "type": "string",
+      "title": "Base"
+     },
+     "ours": {
+      "type": "string",
+      "title": "Ours"
+     },
+     "theirs": {
+      "type": "string",
+      "title": "Theirs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base",
+     "ours",
+     "theirs"
+    ],
+    "title": "LibraryMergeInputs"
+   },
+   "LibraryMergePreview": {
+    "properties": {
+     "inputs": {
+      "$ref": "#/components/schemas/LibraryMergeInputs"
+     },
+     "result": {
+      "$ref": "#/components/schemas/LibraryMergeResult"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "inputs",
+     "result"
+    ],
+    "title": "LibraryMergePreview"
+   },
+   "LibraryMergeResult": {
+    "properties": {
+     "content": {
+      "type": "string",
+      "title": "Content"
+     },
+     "conflicts": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryMergeConflict"
+      },
+      "type": "array",
+      "title": "Conflicts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "content",
+     "conflicts"
+    ],
+    "title": "LibraryMergeResult"
    },
    "LibraryProjectLock": {
     "properties": {

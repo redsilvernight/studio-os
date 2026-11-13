@@ -51,6 +51,7 @@ import {
   createLibraryResource,
   createLibraryVersion,
   deprecateLibraryResource,
+  getLibraryMergePreview,
   getLibraryResource,
   listLibraryLocks,
   listLibraryResources,
@@ -96,7 +97,7 @@ import {
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
-import { libraryMergeSectionHtml, type LibraryMergeData } from "./libraryMerge";
+import { libraryMergeSectionHtml, renderLibraryMerge, type LibraryMergeData } from "./libraryMerge";
 import { FALLBACK_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { getPlatform } from "../platform";
@@ -928,12 +929,11 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
 /* Détail : d'abord LECTURE (contenu prioritaire), technique repliée.  */
 /* ------------------------------------------------------------------ */
 
-/** Comparaison trois volets : données fournies → UI complète ; base
- * périmée sans données → repli honnête (aucune route API de fusion) ;
- * sinon rien (le détail reste calme). */
 function mergeSectionForDetail(resource: LibraryResource, merge: LibraryMergeData | null): string {
   if (merge !== null) return libraryMergeSectionHtml(merge);
-  if (resource.base_update_available === true) return libraryMergeSectionHtml(null);
+  if (resource.scope === "user" && resource.status === "active" && resource.base_update_available === true) {
+    return '<div data-library-merge-preview></div>';
+  }
   return "";
 }
 
@@ -1171,6 +1171,10 @@ export async function renderLibraryDetail(
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings, await isAdminIdentity(ctx.client)) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
+  const mergePreview = root.querySelector<HTMLElement>("[data-library-merge-preview]");
+  if (mergePreview !== null) {
+    void renderLibraryMerge(mergePreview, { load: () => getLibraryMergePreview(ctx.client, resource.id) });
+  }
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {
     const version = Number(button.dataset["dependencyPreview"]);
     const output = root.querySelector<HTMLElement>(`[data-dependency-output="${version}"]`);

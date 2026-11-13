@@ -1,10 +1,3 @@
-/**
- * P62a-ui-3panes — Comparaison trois volets : repli honnête dans le détail
- * (aucune route API de fusion) + volets et aperçu passés à axe au clavier.
- *
- * Les volets affichent des données fournies (ici une fixture miroir du
- * moteur Python `merge_texts`) : aucune route API n'est inventée.
- */
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import type { LibraryMergeData } from "../src/views/libraryMerge";
@@ -23,9 +16,9 @@ function mergeFixture(): LibraryMergeData {
         "ligne une\nligne deux (moi)\nligne trois (commun)\n<<<<<<< ours\ncommun (moi)\n=======\ncommun (eux)\n>>>>>>> theirs\n",
       conflicts: [
         {
-          startLine: 4,
-          baseStart: 3,
-          baseEnd: 4,
+          start_line: 4,
+          base_start: 3,
+          base_end: 4,
           base: "commun\n",
           ours: "commun (moi)\n",
           theirs: "commun (eux)\n",
@@ -35,7 +28,7 @@ function mergeFixture(): LibraryMergeData {
   };
 }
 
-async function bootDetail(page: Page): Promise<void> {
+async function bootDetail(page: Page, previewStatus = 200): Promise<void> {
   const resource = {
     id: RESOURCE_ID, kind: "rule", stable_key: "coding-standard", scope: "user",
     status: "active", active_version: 1, version: 2,
@@ -58,6 +51,9 @@ async function bootDetail(page: Page): Promise<void> {
     if (path.endsWith("/auth/me")) return json(200, { id: "user", email: "e2e@example.test", display_name: "Test", role: "admin", active: true });
     if (path === `/api/v1/library/${RESOURCE_ID}/versions`) return json(200, versions);
     if (path === `/api/v1/library/${RESOURCE_ID}`) return json(200, resource);
+    if (path === `/api/v1/library/${RESOURCE_ID}/merge-preview`) {
+      return json(previewStatus, previewStatus === 200 ? mergeFixture() : { detail: "library resource not found" });
+    }
     if (path === "/api/v1/library") return json(200, [resource]);
     if (path === "/api/v1/library-locks") return json(200, []);
     return json(200, []);
@@ -70,40 +66,29 @@ async function bootDetail(page: Page): Promise<void> {
   await page.evaluate((hash) => { location.hash = hash; }, `#/library/rules/${RESOURCE_ID}`);
 }
 
-test("détail override périmé : repli de fusion honnête, axe propre", async ({ page }) => {
-  await bootDetail(page);
-  await expect(page.getByRole("heading", { name: "Comparaison trois volets" })).toBeVisible();
-  await expect(page.locator('[data-library-merge="unavailable"]')).toContainText("Comparaison indisponible");
-  await expect(page.locator('[data-library-merge="unavailable"]')).toContainText("Aucune route API de fusion");
-  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).include("main").analyze();
-  expect(axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious")).toEqual([]);
+test("détail : affiche une erreur si l’aperçu est indisponible", async ({ page }) => {
+  await bootDetail(page, 404);
+  await expect(page.getByRole("alert").filter({ hasText: "Comparaison indisponible" })).toBeVisible();
 });
 
-test("trois volets fournis : Tab dans l'ordre, rôles/labels, axe sans critique/sérieuse", async ({ page }) => {
-  // Import dynamique après le global Vite : le builder partagé avec
-  // l'appli (même balisage testé que celui affiché en production).
-  (globalThis as Record<string, unknown>).__STUDIO_CLIENT_VERSION__ = "e2e-test";
-  const { libraryMergeHtml } = await import("../src/views/libraryMerge");
-  const html = libraryMergeHtml(mergeFixture());
-  await page.setContent(
-    `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Comparaison</title></head>` +
-    `<body><main>${html}</main></body></html>`,
-  );
-  // Tab : base → ma version → nouveau commun (régions focalisables nommées).
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  const labels: (string | null)[] = [];
-  for (let i = 0; i < 3; i++) {
-    await page.keyboard.press("Tab");
-    labels.push(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("aria-label") ?? null));
-  }
-  expect(labels[0]).toMatch(/^Base commune/);
-  expect(labels[1]).toMatch(/^Ma version/);
-  expect(labels[2]).toMatch(/^Nouveau commun/);
-  // Rôles et aperçu visibles, sans script exécutable.
-  await expect(page.getByRole("region", { name: /^Base commune/ })).toBeVisible();
+test("détail : récupère l’aperçu et permet de parcourir les trois volets au clavier", async ({ page }) => {
+  await bootDetail(page);
+  const base = page.getByRole("region", { name: /^Base commune/ });
+  const ours = page.getByRole("region", { name: /^Ma version/ });
+  const theirs = page.getByRole("region", { name: /^Nouveau commun/ });
+  await expect(base).toContainText("ligne deux");
+  await expect(ours).toContainText("ligne deux (moi)");
+  await expect(theirs).toContainText("ligne trois (commun)");
+  await base.focus();
+  await page.keyboard.press("Tab");
+  await expect(ours).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(theirs).toBeFocused();
   await expect(page.getByRole("region", { name: /^Aperçu du résultat/ })).toContainText("ligne deux (moi)");
   await expect(page.getByRole("heading", { name: "Conflit 1 — ligne 4" })).toBeVisible();
-  expect(await page.evaluate(() => "mergeExecuted" in window)).toBe(false);
+  await page.getByRole("button", { name: "Voir dans l'aperçu" }).click();
+  await expect(page.locator("#library-merge-conflict-1")).toBeFocused();
+  await expect(page).toHaveURL(new RegExp(`#/library/rules/${RESOURCE_ID}$`));
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).include("main").analyze();
   expect(axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious")).toEqual([]);
 });
