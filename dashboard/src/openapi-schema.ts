@@ -985,6 +985,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/{resource_id}/merge-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Library Merge Preview
+         * @description Preview a three-way merge for the owner's active text override against its original and current common versions. This endpoint never writes.
+         */
+        get: operations["get_library_merge_preview_api_v1_library__resource_id__merge_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
         parameters: {
             query?: never;
@@ -5502,6 +5522,42 @@ export interface components {
             resource_id: string;
             /** Locked Version */
             locked_version: number;
+        };
+        /** LibraryMergeConflict */
+        LibraryMergeConflict: {
+            /** Base */
+            base: string;
+            /** Ours */
+            ours: string;
+            /** Theirs */
+            theirs: string;
+            /** Start Line */
+            start_line: number;
+            /** Base Start */
+            base_start: number;
+            /** Base End */
+            base_end: number;
+        };
+        /** LibraryMergeInputs */
+        LibraryMergeInputs: {
+            /** Base */
+            base: string;
+            /** Ours */
+            ours: string;
+            /** Theirs */
+            theirs: string;
+        };
+        /** LibraryMergePreview */
+        LibraryMergePreview: {
+            inputs: components["schemas"]["LibraryMergeInputs"];
+            result: components["schemas"]["LibraryMergeResult"];
+        };
+        /** LibraryMergeResult */
+        LibraryMergeResult: {
+            /** Content */
+            content: string;
+            /** Conflicts */
+            conflicts: components["schemas"]["LibraryMergeConflict"][];
         };
         /**
          * LibraryProjectLock
@@ -14742,6 +14798,63 @@ export interface operations {
                      */
                     "application/json": unknown;
                 };
+            };
+        };
+    };
+    get_library_merge_preview_api_v1_library__resource_id__merge_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryMergePreview"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid resource ID or merge_preview_too_many_lines. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
