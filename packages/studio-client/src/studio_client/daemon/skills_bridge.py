@@ -14,7 +14,7 @@ import logging
 import os
 import threading
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -818,7 +818,9 @@ def split_local_override(text: str) -> tuple[str | None, str]:
     return description, "".join(lines).strip("\n")
 
 
-def _locally_modified_text(targets: tuple[SkillTargetPlan, ...]) -> str | None:
+def _locally_modified_text(
+    targets: Sequence[SkillTargetPlan | DefinitionTargetPlan],
+) -> str | None:
     """The user's own copy that the publication must capture (main file only)."""
     for target in targets:
         if target.state == "locally_modified" and target.current_text:

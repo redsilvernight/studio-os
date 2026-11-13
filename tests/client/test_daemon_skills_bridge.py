@@ -576,7 +576,7 @@ def test_publish_choice_requires_capability(tmp_path: Path, monkeypatch) -> None
     request = {
         "confirm": True,
         "resolutions": [
-            {"stable_key": "studio-git-flow", "choice": "publish", "preview_hash": "x" * 64}
+            {"stable_key": "studio-git-flow", "choice": "publish", "preview_hash": "a" * 64}
         ],
     }
     denied = service.handle_line(_line("skills.apply", request))
