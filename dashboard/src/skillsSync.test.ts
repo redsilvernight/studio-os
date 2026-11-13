@@ -181,6 +181,37 @@ describe("skills sync indicator", () => {
     expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"kind":"agent","stable_key":"reviewer","choice":"library","preview_hash":"' + "b".repeat(64) + '"}]}');
   });
 
+  it("offers publishing a locally modified file as the user's own override", async () => {
+    const calls: string[] = [];
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    expect([...choice.options].map((option) => option.value)).toContain("publish");
+    choice.value = "publish";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    const confirmation = document.querySelector(".skills-sync-confirmation")?.textContent ?? "";
+    expect(confirmation).toContain("version personnelle");
+    expect(confirmation).toContain("delegate");
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"stable_key":"delegate","choice":"publish","preview_hash":"' + "1".repeat(64) + '"}]}');
+  });
+
+  it("hides publishing when nothing was modified locally", async () => {
+    const calls: string[] = [];
+    const plan = previewResult();
+    plan.skills![0]!.targets = [{ harness: "agents", state: "outdated" }];
+    mountSkillsSync(platformWith(() => status({ state: "update_pending" }), calls, plan));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    expect([...choice.options].map((option) => option.value)).not.toContain("publish");
+  });
+
   it("keeps local choices without authorizing a global overwrite", async () => {
     const calls: string[] = [];
     mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
