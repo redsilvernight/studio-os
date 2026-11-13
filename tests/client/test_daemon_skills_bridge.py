@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,6 +18,15 @@ from studio_client.daemon.service import BridgeService, DaemonController
 from studio_client.errors import AuthenticationError, RateLimitError, StudioApiError
 from studio_client.skill_sync import apply_skill_sync, plan_skill_sync
 from studio_client.tokens import MemoryTokenStore
+from studio_contracts.library import (
+    LibraryKind,
+    LibraryResource,
+    LibraryScope,
+    LibraryStatus,
+    LibraryVersion,
+    LibraryVersionBatchItem,
+    LibraryVersionBatchResult,
+)
 from studio_contracts.local.bridge import BridgeRequest
 from studio_contracts.local.handshake import HandshakeRequest
 from studio_contracts.local.skills import (
@@ -556,6 +567,25 @@ def test_definition_resolutions_require_capability(tmp_path: Path, monkeypatch) 
     assert service.handle_line(_line("skills.apply", request))["kind"] == "response"
 
 
+def test_publish_choice_requires_capability(tmp_path: Path, monkeypatch) -> None:
+    home, _ = _modified_home(tmp_path)
+    _patch_fetch(monkeypatch, [_projection()])
+    service = BridgeService(_controller(tmp_path / "data", home))
+    base = ["daemon.control", "skills.read", "skills.apply", "skills.resolve"]
+    _negotiate(service, base)
+    request = {
+        "confirm": True,
+        "resolutions": [
+            {"stable_key": "studio-git-flow", "choice": "publish", "preview_hash": "a" * 64}
+        ],
+    }
+    denied = service.handle_line(_line("skills.apply", request))
+    assert denied["error"]["code"] == "capability_missing"
+    _negotiate(service, [*base, "skills.publish"])
+    answer = service.handle_line(_line("skills.apply", request))
+    assert answer.get("error", {}).get("code") != "capability_missing"
+
+
 def _modified_home(tmp_path: Path) -> tuple[Path, Path]:
     home = tmp_path / "home"
     home.mkdir()
@@ -583,6 +613,179 @@ def test_apply_overwrite_backs_up_and_resolves_conflicts(tmp_path: Path, monkeyp
     assert result.conflicts == [] and result.backups
     assert "local edit" not in target.read_text(encoding="utf-8")
     assert controller.skills_status().state.value == "updated"
+
+
+def _user_projection(text: str, version: int = 1) -> LibraryContextItem:
+    return LibraryContextItem(
+        library_kind="skill",
+        stable_key="studio-git-flow",
+        version=version,
+        version_origin="active",
+        scope="user",
+        title="Studio Git Flow",
+        text=text,
+        content_schema="studio.library.skill/v1",
+    )
+
+
+def test_publish_choice_publishes_the_local_edit_then_applies_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P51b criteria 1 and 3: one confirmation publishes the local file as the
+    caller's own active version, applies it, and leaves no conflict behind."""
+    home, target = _modified_home(tmp_path)
+    _patch_fetch(monkeypatch, [_projection()])
+    controller = _controller(tmp_path / "data", home)
+    token = controller.skills_preview().skills[0].preview_hash
+    published: list = []
+
+    async def fake_publish(config, token_store, drafts):
+        published.extend(drafts)
+        # The Library now resolves the caller's own `user` version.
+        _patch_fetch(monkeypatch, [_user_projection(drafts[0].text)])
+        return ()
+
+    monkeypatch.setattr(skills_bridge, "_publish_overrides", fake_publish)
+    result = controller.skills_apply(
+        SkillsApplyRequest(
+            confirm=True,
+            resolutions=[
+                SkillResolution(stable_key="studio-git-flow", choice="publish", preview_hash=token)
+            ],
+        )
+    )
+
+    assert [draft.kind for draft in published] == ["skill"]
+    assert published[0].text == "# Git flow\n\nSECRET-BODY-MARKER\n\nlocal edit"
+    assert result.conflicts == []
+    applied = target.read_text(encoding="utf-8")
+    assert "local edit" in applied and "scope=user" in applied
+    manifest = json.loads((home / ".studio-os" / "library-skills-manifest.json").read_text())
+    assert manifest["skills"][0]["scope"] == "user"
+    assert controller.skills_status().state.value == "updated"
+
+
+def test_publish_choice_leaves_no_conflict_on_the_next_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P51b criterion 3: the recorded sync base is the published version."""
+    home, _target = _modified_home(tmp_path)
+    _patch_fetch(monkeypatch, [_projection()])
+    controller = _controller(tmp_path / "data", home)
+    token = controller.skills_preview().skills[0].preview_hash
+
+    async def fake_publish(config, token_store, drafts):
+        _patch_fetch(monkeypatch, [_user_projection(drafts[0].text)])
+        return ()
+
+    monkeypatch.setattr(skills_bridge, "_publish_overrides", fake_publish)
+    controller.skills_apply(
+        SkillsApplyRequest(
+            confirm=True,
+            resolutions=[
+                SkillResolution(stable_key="studio-git-flow", choice="publish", preview_hash=token)
+            ],
+        )
+    )
+
+    checked = controller.skills_check()
+    assert checked.in_sync and checked.locally_modified == 0
+    assert not controller.skills_preview().skills[0].diff
+
+
+def test_publish_choice_creates_a_private_user_scope_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P51b criterion 2: the version is published in `user` scope, derived from
+    the common — no other user's Library listing can contain it."""
+    common = LibraryResource(
+        id=uuid4(),
+        kind=LibraryKind.SKILL,
+        stable_key="studio-git-flow",
+        scope=LibraryScope.STUDIO,
+        status=LibraryStatus.ACTIVE,
+        active_version=3,
+        version=9,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    base = LibraryVersion(
+        id=uuid4(),
+        resource_id=common.id,
+        version=3,
+        title="Studio Git Flow",
+        content={
+            "content_schema": "studio.library.skill/v1",
+            "text": "common body",
+            "files": [],
+        },
+        created_at=datetime.now(UTC),
+    )
+    created: list = []
+
+    class FakeApi:
+        async def list_library_resources(self, *, kind=None, scope=None, **kwargs):
+            return [common] if scope == "studio" else []
+
+        async def batch_library_versions(self, refs):
+            return LibraryVersionBatchResult(
+                items=[
+                    LibraryVersionBatchItem(
+                        resource_id=resource_id, version=version, status="ok", detail=base
+                    )
+                    for resource_id, version in refs
+                ]
+            )
+
+        async def create_library_resource(self, payload, *, idempotency_key):
+            created.append(payload)
+            return common
+
+        async def get_library_resource(self, resource_id):
+            return common
+
+        async def activate_library_version(self, resource_id, payload, *, idempotency_key):
+            return common
+
+    draft = skills_bridge.OverrideDraft(
+        kind="skill",
+        stable_key="studio-git-flow",
+        title="Studio Git Flow",
+        description=None,
+        text="my local body",
+        projection=_projection(),
+    )
+    asyncio.run(skills_bridge._publish_override(FakeApi(), draft))
+
+    assert len(created) == 1
+    assert created[0].scope is LibraryScope.USER
+    assert created[0].content["text"] == "my local body"
+    assert created[0].derived_from.resource_id == common.id
+    assert created[0].derived_from.version == 3
+    # No version was added to the common resource itself.
+    assert created[0].stable_key == common.stable_key
+
+
+def test_publish_choice_requires_a_locally_modified_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    _patch_fetch(monkeypatch, [_projection()])
+    apply_skill_sync(plan_skill_sync(home, [_projection()]))
+    controller = _controller(tmp_path / "data", home)
+    token = controller.skills_preview().skills[0].preview_hash
+    with pytest.raises(LocalFeatureError) as exc:
+        controller.skills_apply(
+            SkillsApplyRequest(
+                confirm=True,
+                resolutions=[
+                    SkillResolution(
+                        stable_key="studio-git-flow", choice="publish", preview_hash=token
+                    )
+                ],
+            )
+        )
+    assert exc.value.error.code.value == "invalid_request"
 
 
 def test_configure_disables_and_persists_the_setting(tmp_path: Path, monkeypatch) -> None:
