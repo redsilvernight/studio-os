@@ -46,7 +46,7 @@ let previewIssue = "";
 let operationNote = "";
 let confirming = false;
 let previewGeneration = 0;
-const choices = new Map<string, "local" | "library">();
+const choices = new Map<string, "local" | "library" | "publish">();
 
 type PreviewEntry = NonNullable<SkillsPreviewResult["skills"]>[number];
 type EntryKind = NonNullable<PreviewEntry["kind"]>;
@@ -104,7 +104,9 @@ function skillRowHtml(skill: PreviewEntry): string {
     `<select class="ds-input" data-skills-choice="${esc(id)}" aria-label="Version à utiliser pour ${kind} ${esc(key)}"${busy || !skill.preview_hash ? " disabled" : ""}>` +
     `<option value=""${selected === "" ? " selected" : ""}>Choisir une version…</option>` +
     `<option value="local"${selected === "local" ? " selected" : ""}${missing ? " disabled" : ""}>Garder ma version</option>` +
-    `<option value="library"${selected === "library" ? " selected" : ""}>Utiliser la Library</option></select>` +
+    `<option value="library"${selected === "library" ? " selected" : ""}>Utiliser la Library</option>` +
+    (local ? `<option value="publish"${selected === "publish" ? " selected" : ""}>Publier comme mon override</option>` : "") +
+    `</select>` +
     `<details class="skills-sync-comparison"><summary>Comparer les versions de ${esc(key)}</summary>` +
     `<div class="skills-sync-legend"><span>− Ma version locale</span><span>+ Version Library · v${skill.version}</span></div>` +
     `<pre class="skills-sync-diff"><code>${diffHtml(skill.diff || "Aucune différence.")}</code></pre></details></li>`;
@@ -144,7 +146,11 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
 export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolean): string {
   const pending = pendingSkills(preview);
   const count = choices.size;
-  const replacements = pending.filter((skill) => choices.get(entryId(skill)) === "library");
+  const replacements = pending.filter((skill) => {
+    const choice = choices.get(entryId(skill));
+    return choice === "library" || choice === "publish";
+  });
+  const published = pending.filter((skill) => choices.get(entryId(skill)) === "publish");
   const compatible = pending.every((skill) => Boolean(skill.preview_hash));
   const message = status === null || failed ? SYNC_STATE_MESSAGES.not_synced : SYNC_STATE_MESSAGES[status.state];
   const subtitle = pending.length ? `${pending.length} élément${pending.length > 1 ? "s" : ""} à vérifier avant la mise à jour` : message;
@@ -152,6 +158,10 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
     ? `<section class="skills-sync-confirmation" aria-labelledby="skills-sync-confirm-title"><h3 id="skills-sync-confirm-title">Vérifier les choix</h3>` +
       `<p>${replacements.length ? "Ces copies seront remplacées par la Library, après sauvegarde :" : "Vos versions locales seront conservées pour cette synchronisation."}</p>` +
       (replacements.length ? `<ul>${replacements.map((skill) => `<li><strong>${KIND_LABELS[entryKind(skill)]} ${esc(skill.stable_key)}</strong><code>${skill.targets.filter((target) => target.state !== "current").map((target) => esc(targetPath(skill, target.harness))).join("<br>")}</code></li>`).join("")}</ul>` : "") +
+      (published.length
+        ? `<p>Votre version locale de ${published.length > 1 ? "ces éléments devient" : "cet élément devient"} une version personnelle de la Library, visible de vous seul et active pour ce poste :</p>` +
+          `<ul>${published.map((skill) => `<li><strong>${KIND_LABELS[entryKind(skill)]} ${esc(skill.stable_key)}</strong></li>`).join("")}</ul>`
+        : "") +
       `<p class="skills-sync-help">Les copies modifiées sont sauvegardées dans ~/.studio-os/backups. Les éléments sans choix restent en attente.</p></section>` : "";
   return `<div class="skills-sync-content"><p class="skills-sync-subtitle">${esc(subtitle)}</p>` +
     (pending.some((skill) => skill.targets.some((target) => target.state === "locally_modified")) || status?.state === "conflicts"
@@ -277,7 +287,7 @@ function bindActions(platform: Platform): void {
   root.querySelectorAll<HTMLSelectElement>("[data-skills-choice]").forEach((select) => select.addEventListener("change", () => {
     const key = select.dataset["skillsChoice"];
     if (!key) return;
-    if (select.value === "local" || select.value === "library") choices.set(key, select.value);
+    if (select.value === "local" || select.value === "library" || select.value === "publish") choices.set(key, select.value);
     else choices.delete(key);
     const count = choices.size;
     const apply = root.querySelector<HTMLButtonElement>('[data-skills-action="apply"]');
@@ -313,7 +323,12 @@ function bindActions(platform: Platform): void {
         if (!outcome.ok) operationNote = harnessErrorMessage(outcome.error);
         else {
           const kept = selection.filter((item) => item.choice === "local").length;
-          operationNote = kept ? "Choix appliqués. Les versions locales conservées restent personnalisées et seront signalées aux prochaines vérifications." : "Choix appliqués. Les autres éléments restent en attente.";
+          const shared = selection.filter((item) => item.choice === "publish").length;
+          const notes = [
+            shared ? `${shared} version${shared > 1 ? "s" : ""} publiée${shared > 1 ? "s" : ""} dans votre Library personnelle.` : "",
+            kept ? "Les versions locales conservées restent personnalisées et seront signalées aux prochaines vérifications." : "Les autres éléments restent en attente.",
+          ].filter(Boolean);
+          operationNote = `Choix appliqués. ${notes.join(" ")}`;
           if (document.getElementById(DIALOG_ID)?.hidden) {
             dsNotify("Vos choix de synchronisation ont été appliqués.", "success");
           }

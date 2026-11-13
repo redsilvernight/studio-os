@@ -127,7 +127,12 @@ class SkillsPreviewResult(LocalContractModel):
 class SkillResolution(LocalContractModel):
     kind: SkillLibraryKind = SkillLibraryKind.SKILL
     stable_key: SkillStableKey
-    choice: Literal["local", "library"]
+    choice: Literal["local", "library", "publish"]
+    """`local` keeps every copy for this cycle, `library` replaces the copies
+    with the Library rendering (backed up first), `publish` publishes the
+    local content as the caller's personal (`user` scope) Library version and
+    then applies that version like `library`."""
+
     preview_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 
 
