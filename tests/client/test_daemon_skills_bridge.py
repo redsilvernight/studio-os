@@ -567,6 +567,25 @@ def test_definition_resolutions_require_capability(tmp_path: Path, monkeypatch) 
     assert service.handle_line(_line("skills.apply", request))["kind"] == "response"
 
 
+def test_publish_choice_requires_capability(tmp_path: Path, monkeypatch) -> None:
+    home, _ = _modified_home(tmp_path)
+    _patch_fetch(monkeypatch, [_projection()])
+    service = BridgeService(_controller(tmp_path / "data", home))
+    base = ["daemon.control", "skills.read", "skills.apply", "skills.resolve"]
+    _negotiate(service, base)
+    request = {
+        "confirm": True,
+        "resolutions": [
+            {"stable_key": "studio-git-flow", "choice": "publish", "preview_hash": "x" * 64}
+        ],
+    }
+    denied = service.handle_line(_line("skills.apply", request))
+    assert denied["error"]["code"] == "capability_missing"
+    _negotiate(service, [*base, "skills.publish"])
+    answer = service.handle_line(_line("skills.apply", request))
+    assert answer.get("error", {}).get("code") != "capability_missing"
+
+
 def _modified_home(tmp_path: Path) -> tuple[Path, Path]:
     home = tmp_path / "home"
     home.mkdir()
