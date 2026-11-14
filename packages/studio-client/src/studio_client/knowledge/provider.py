@@ -73,7 +73,6 @@ from studio_client.knowledge.memory import (
     DEFAULT_MAX_RESULTS,
     DEFAULT_READ_CHARS,
     MemoryNoteHit,
-    MemoryProposal,
     MemoryReadResult,
     MemorySearchResult,
 )
@@ -643,30 +642,6 @@ class KnowledgeMemoryProvider:
             title=document.document.title,
             content=document.markdown,
             truncated=document.truncated,
-        )
-
-    def propose(self, proposal: MemoryProposal) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the vault index is read-only; memory writes need the server approval loop",
-        )
-
-    def write_if_authorized(self, proposal: MemoryProposal) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the vault index is read-only; memory writes need the server approval loop",
-        )
-
-    def append_task_log(self, entry: dict[str, object]) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the vault index is read-only; memory writes need the server approval loop",
-        )
-
-    def create_decision_note(self, note: dict[str, object]) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the vault index is read-only; memory writes need the server approval loop",
         )
 
 

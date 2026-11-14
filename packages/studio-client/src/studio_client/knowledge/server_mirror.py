@@ -23,7 +23,6 @@ from studio_contracts.vault import (
 from studio_client.knowledge.errors import KnowledgeError
 from studio_client.knowledge.memory import (
     MemoryNoteHit,
-    MemoryProposal,
     MemoryReadResult,
     MemorySearchResult,
     make_excerpt,
@@ -31,7 +30,6 @@ from studio_client.knowledge.memory import (
 from studio_client.knowledge.scope import ScopePolicy
 
 MIRROR_SCHEMA_VERSION = 1
-MIRROR_FILENAME = "server-vault-mirror.sqlite3"
 DEFAULT_STALE_AFTER_SECONDS = 3600.0
 DEFAULT_TREE_LIMIT = 200
 
@@ -563,11 +561,8 @@ def _note_from_row(row: sqlite3.Row) -> VaultNote:
 
 
 class ServerMirrorMemoryProvider:
-    """`MemoryProvider`-shaped read adapter over the server mirror.
-
-    Offline only: `search`/`read` hit the SQLite cache, writes raise
-    `WRITE_UNSUPPORTED` like the other read-only adapters.
-    """
+    """`MemoryProvider`-shaped read adapter over the server mirror: offline,
+    `search`/`read` hit the SQLite cache."""
 
     def __init__(
         self,
@@ -629,30 +624,6 @@ class ServerMirrorMemoryProvider:
         content, truncated = make_excerpt(note.body, "", max_chars)
         return MemoryReadResult(
             path=summary.slug, title=summary.title, content=content, truncated=truncated
-        )
-
-    def propose(self, proposal: MemoryProposal) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the server mirror is read-only; writes go through the vault API",
-        )
-
-    def write_if_authorized(self, proposal: MemoryProposal) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the server mirror is read-only; writes go through the vault API",
-        )
-
-    def append_task_log(self, entry: dict[str, object]) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the server mirror is read-only; writes go through the vault API",
-        )
-
-    def create_decision_note(self, note: dict[str, object]) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "the server mirror is read-only; writes go through the vault API",
         )
 
 

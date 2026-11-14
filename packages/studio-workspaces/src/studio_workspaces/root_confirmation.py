@@ -102,10 +102,6 @@ class RootConfirmationService:
             if entry.roots_hash != roots_fingerprint(new):
                 raise ConfirmationMismatch("root confirmation id is bound to other roots")
 
-    def pending_count(self) -> int:
-        with self._lock:
-            return len(self._pending)
-
     @staticmethod
     def fresh_nonce() -> str:
         return secrets.token_urlsafe(8)
