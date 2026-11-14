@@ -549,7 +549,8 @@ Journal des changements cassants :
 
 ### Dette output schemas
 
-Les `outputSchema` des 29 outils historiques (auto-generes depuis
+Les `outputSchema` des 24 outils historiques restants (29 avant le retrait
+DEC-0186, auto-generes depuis
 `dict[str, Any]`, `additionalProperties: True`) ne decrivent pas
 suffisamment leurs outputs. Des output schemas explicites sont
 necessaires avant toute evolution breaking sure d'un tool reellement
