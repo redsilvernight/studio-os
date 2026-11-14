@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
-from studio_mcp.tools.claims import studio_claim_resource
+from studio_mcp.tools.claims import studio_claim_resources
 from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.sync import studio_sync
@@ -52,9 +52,9 @@ async def test_handoff_signal_reaches_agent_b_on_another_machine_once(
     assert "error_code" not in a
     session_a = a["session"]["id"]
 
-    claim = await studio_claim_resource(
+    claim = await studio_claim_resources(
         str(project.id),
-        "src/loop.py",
+        ["src/loop.py"],
         "file",
         600,
         auth_ctx,

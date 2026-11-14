@@ -63,17 +63,12 @@ READ_ONLY_TOOLS = {
 WRITE_TOOLS = {
     "studio_create_task",
     "studio_update_task",
-    "studio_claim_task",
-    "studio_release_task",
-    "studio_claim_resource",
     "studio_claim_resources",
     "studio_release_resource",
     "studio_add_decision",
     "studio_accept_decision",
     "studio_supersede_decision",
     "studio_vault_write",
-    "studio_start_session",
-    "studio_end_session",
     "studio_start_work",
     "studio_handoff",
     "studio_sync",
@@ -135,9 +130,9 @@ def test_read_tools_marked_read_only_and_writes_are_not(tools: list[Tool]) -> No
 
 def test_writer_role_and_forbidden_visible_where_they_gate(tools: list[Tool]) -> None:
     by_name = _by_name(tools)
-    for name in ("studio_create_task", "studio_claim_task", "studio_emit_event"):
+    for name in ("studio_create_task", "studio_start_work", "studio_emit_event"):
         assert "writer" in (by_name[name].description or "")
-    assert "forbidden" in (by_name["studio_release_task"].description or "")
+    assert "forbidden" in (by_name["studio_release_resource"].description or "")
     assert "forbidden" in (by_name["studio_get_transfer"].description or "")
 
 
@@ -145,14 +140,11 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
     by_name = _by_name(tools)
     for name in (
         "studio_create_task",
-        "studio_claim_task",
         "studio_start_work",
         "studio_handoff",
-        "studio_claim_resource",
         "studio_claim_resources",
         "studio_add_decision",
         "studio_vault_write",
-        "studio_start_session",
         "studio_register_agent",
         "studio_publish_definition",
         "studio_configure_runtime",
@@ -176,15 +168,8 @@ def test_version_conflict_and_ownership_discoverable(tools: list[Tool]) -> None:
     assert "version_conflict" in (by_name["studio_update_task"].description or "")
     assert "expected_version" in by_name["studio_update_task"].input_schema["properties"]
     assert "actor_not_owned" in (by_name["studio_log_ai_work"].description or "")
-    assert "already_claimed" in (by_name["studio_claim_task"].description or "")
-    for name in (
-        "studio_update_task",
-        "studio_claim_task",
-        "studio_release_task",
-        "studio_start_session",
-    ):
-        verbose = by_name[name].input_schema["properties"]["verbose"]
-        assert verbose["default"] is True
+    verbose = by_name["studio_update_task"].input_schema["properties"]["verbose"]
+    assert verbose["default"] is True
     for name in ("studio_start_work", "studio_handoff"):
         verbose = by_name[name].input_schema["properties"]["verbose"]
         assert verbose["default"] is False

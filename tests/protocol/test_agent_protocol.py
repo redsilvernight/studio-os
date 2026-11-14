@@ -55,8 +55,6 @@ SKILL_TOOLS = {
         "studio_prepare_context",
         "studio_get_ai_work",
         "studio_release_resource",
-        "studio_release_task",
-        "studio_end_session",
         "studio_start_work",
         "studio_sync",
     },

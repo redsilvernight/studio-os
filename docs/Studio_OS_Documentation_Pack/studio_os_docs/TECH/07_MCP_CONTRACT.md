@@ -20,10 +20,7 @@ studio_get_task
 studio_get_active_tasks
 studio_create_task
 studio_update_task
-studio_claim_task
-studio_release_task
 studio_get_resource_claims
-studio_claim_resource
 studio_claim_resources
 studio_release_resource
 studio_get_decisions
@@ -33,8 +30,6 @@ studio_supersede_decision
 studio_get_recent_changes
 studio_get_sessions
 studio_get_teammate_activity
-studio_start_session
-studio_end_session
 studio_start_work
 studio_sync
 studio_coordinate
@@ -200,15 +195,9 @@ argument hors contrat repond `{error_code: "invalid_argument",
 unknown_arguments: [...], valid_arguments: [...]}` sans executer l'outil.
 Un appel valide garde son comportement inchange.
 
-Les outils de workflow `studio_update_task`, `studio_claim_task`,
-`studio_release_task` et `studio_start_session` conservent leur reponse
-detaillee historique par defaut (`verbose=true`). Avec `verbose=false`, les
-trois outils Task renvoient uniquement `id`, `status`, `version` et
-`claimed_by_machine_id`; `studio_start_session` renvoie `id`, `task_id`,
-`agent_id` et `status`. Pour les outils rejouables, le mode historique garde
-l'empreinte d'idempotence anterieure ; le mode compact ajoute explicitement
-`verbose=false`, donc une meme cle utilisee avec les deux formes est rejetee
-comme payload different.
+L'outil de workflow `studio_update_task` conserve sa reponse detaillee
+historique par defaut (`verbose=true`). Avec `verbose=false`, il renvoie
+uniquement `id`, `status`, `version` et `claimed_by_machine_id`.
 
 `studio_start_work` et `studio_handoff` sont compacts par defaut
 (`verbose=false`) : `studio_handoff` renvoie un accuse minimal, `studio_start_work`
@@ -264,8 +253,8 @@ token (pas d'attaquant reseau).
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047 superseded par DEC-0191, P8/DEC-0072)
 
 Le serveur VPS enregistre la surface complete des outils listes dans
-`MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 54 entrees au
-2026-10-04) : outils historiques, AI Library P8, `studio_prepare_context`
+`MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 58 entrees au
+2026-11-14, apres le retrait DEC-0186) : outils historiques, AI Library P8, `studio_prepare_context`
 (DEC-0080), Roadmaps P4/P5 (DEC-0087), `studio_register_agent` (DEC-0101),
 `studio_transition_roadmap`, `studio_claim_resources`, `studio_handoff` (L3),
 `studio_sync` (C2) et `studio_coordinate` (C3). Le profil `session` (defaut)
@@ -395,8 +384,8 @@ pour l'appelant (appel one-shot).
 
 **idempotency_key (DEC-0027)** : un sous-ensemble d'outils createurs de
 ressource accepte desormais un parametre optionnel `idempotency_key` (str) —
-`studio_create_task`, `studio_add_decision`, `studio_claim_resource`,
-`studio_claim_resources`, `studio_start_session`. Reutilise le meme coeur atomique
+`studio_create_task`, `studio_add_decision`, `studio_claim_resources`.
+Reutilise le meme coeur atomique
 (`services/api/src/studio_api/services/idempotency.py::run_idempotent_dict`)
 que `Idempotency-Key` HTTP, sous un espace `endpoint` distinct
 (`"MCP <nom_outil>"`, jamais `"METHOD /path"`) — une meme valeur de cle
@@ -407,7 +396,7 @@ meme cle avec les memes arguments renvoie la ressource d'origine ; la meme
 cle avec des arguments differents echoue `idempotency_key_payload_mismatch`.
 
 **Claims par lot — `studio_claim_resources` (tache W3, additif/DEC-0048)** :
-variante « par lot » de `studio_claim_resource`, meme service
+pose de claims par lot, meme service
 (`claims.create_claim`, DEC-0005) et meme semantique warn-only (un claim ne
 bloque jamais Git ni une ecriture ; un chevauchement emet `resource.conflict`).
 Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
@@ -416,15 +405,13 @@ Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
 claims crees qui chevauche un claim actif. Idempotent sous
 `MCP studio_claim_resources` (DEC-0027) : une fois le premier appel abouti, un
 rejeu identique renvoie le lot d'origine au lieu de dupliquer. Les claims
-etant valides un par un (comme pour `studio_claim_resource`), un echec en
+etant valides un par un, un echec en
 milieu de lot peut laisser les claims deja valides en place ; la cle est
 alors liberee et un nouvel appel identique repart du lot complet. La
 liberation ciblee par `task_id` reste du ressort de la tache W1
 (`studio_handoff`), pas de cet outil.
 
-**Outils exemptes, et pourquoi** : `studio_claim_task` (deja protege par
-`already_claimed`, jamais une seconde ressource), `studio_release_task` /
-`studio_release_resource` / `studio_end_session` (liberation deja
+**Outils exemptes, et pourquoi** : `studio_release_resource` (liberation deja
 naturellement idempotente — un second appel est un no-op ou une erreur
 `not_found`, jamais une duplication), `studio_update_task` (concurrence
 optimiste via `expected_version`, deja protegee), `studio_log_ai_work`
@@ -507,12 +494,15 @@ mute jamais taches ni claims. `idempotency_key` optionnel (namespace
 integration GitHub et la reception du webhook restent HTTP-only (pas de
 secret partageable comme parametre d'outil).
 
-## Outils depreciés (DEC-0186)
+## Outils retires (DEC-0186)
 
-Cinq outils redondants restent appelables, sans changement de comportement,
-jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
+Historique : cinq outils redondants, depreciés le 2026-10-04 (description
+`DEPRECATED` et objet `deprecation` dans les reponses, fenetre jusqu'au
+`2026-11-04`), ont ete **retires le 2026-11-14** (changement cassant, skill
+`contract-change`). Ils ne sont plus enregistres, pour aucun profil.
+Remplacants :
 
-| Outil deprecie | Remplacant |
+| Outil retire | Remplacant |
 |---|---|
 | `studio_start_session` | `studio_start_work` |
 | `studio_end_session` | `studio_handoff` |
@@ -520,13 +510,11 @@ jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
 | `studio_release_task` | `studio_handoff` |
 | `studio_claim_resource` | `studio_claim_resources` (un seul chemin) |
 
-Signalement : la description de `tools/list` commence par `DEPRECATED, removal
-on or after 2026-11-04: use <remplacant> instead.` ; chaque reponse reussie
-porte un objet `deprecation` `{replaced_by, sunset}` ; les erreurs restent
-inchangees (`services/mcp/src/studio_mcp/deprecation.py`). Ces outils sont
-deja absents du profil `session` (DEC-0183). Le retrait, apres la date, est un
-changement cassant traite par le skill `contract-change` ; les routes HTTP
-equivalentes ne sont pas concernees.
+Les routes HTTP equivalentes (`POST /sessions`, `PATCH /sessions/{id}/end`,
+`POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`) ne sont
+pas concernees ; la liberation par un role privilegie d'un claim de tache
+laisse par une autre machine passe par `POST /tasks/{id}/release`. Les
+identifiants ephemeres de lancement n'autorisent plus ces noms.
 
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 
