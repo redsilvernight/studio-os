@@ -718,28 +718,6 @@ async def _release_claims_of_expired_launch(session: AsyncSession, launch: TaskL
     return len(claims)
 
 
-async def expire_overdue_launches(session: AsyncSession, principal: Principal) -> int:
-    """Sweep every overdue non-terminal launch. Returns the expired count."""
-    stmt = select(TaskLaunchModel).where(
-        TaskLaunchModel.expires_at <= datetime.now(UTC),
-        TaskLaunchModel.status.notin_([s.value for s in TERMINAL_STATUSES]),
-    )
-    result = await session.execute(stmt)
-    count = 0
-    extended = False
-    for launch in result.scalars().all():
-        ensure_project_access(principal, launch.project_id)
-        before = launch.expires_at
-        await expire_launch_if_overdue(session, principal, launch)
-        extended = extended or (
-            launch.expires_at != before and launch.status not in _TERMINAL_LAUNCH_STATUSES
-        )
-        count += 1
-    if extended:
-        await session.commit()
-    return count
-
-
 async def pull_pending(
     session: AsyncSession, principal: Principal, machine_id: uuid.UUID
 ) -> TaskLaunchPull:
