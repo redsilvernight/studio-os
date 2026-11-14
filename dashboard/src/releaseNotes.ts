@@ -14,8 +14,8 @@ import { RELEASE_NOTES } from "./releaseNotes.generated";
 import { esc } from "./ui";
 
 export const WHATS_NEW_STORAGE_KEY = "studio-os.whats-new.v1";
-export const WHATS_NEW_SCHEMA = 1;
-export const WHATS_NEW_HOST_ID = "whats-new-host";
+const WHATS_NEW_SCHEMA = 1;
+const WHATS_NEW_HOST_ID = "whats-new-host";
 export const WHATS_NEW_DIALOG_ID = "whats-new-dialog";
 
 export interface ReleaseNoteEntry {
@@ -150,7 +150,7 @@ export function renderNoteMarkdown(markdown: string): string {
   return html.join("");
 }
 
-export function whatsNewModalHtml(entries: ReleaseNoteEntry[], title = "Quoi de neuf"): string {
+function whatsNewModalHtml(entries: ReleaseNoteEntry[], title = "Quoi de neuf"): string {
   const body = entries
     .map(
       (entry) =>

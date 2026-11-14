@@ -110,7 +110,7 @@ const COMPAT = ["compatible", "version_drift", "protocol_mismatch", "unknown"];
 type Bag = Record<string, unknown>;
 const isBag = (v: unknown): v is Bag => typeof v === "object" && v !== null && !Array.isArray(v);
 
-export function isDiagnostics(v: unknown): v is DesktopDiagnostics {
+function isDiagnostics(v: unknown): v is DesktopDiagnostics {
   if (!isBag(v) || !isBag(v.sidecar) || !isBag(v.locations)) return false;
   const s = v.sidecar;
   const l = v.locations;
@@ -138,7 +138,7 @@ export function isDiagnostics(v: unknown): v is DesktopDiagnostics {
   );
 }
 
-export function toUpdateStatus(v: unknown): UpdateStatus | null {
+function toUpdateStatus(v: unknown): UpdateStatus | null {
   if (!isBag(v)) return null;
   if (v.state === "not_configured") return { state: "not_configured" };
   if (v.state === "up_to_date" && isString(v.current)) return { state: "up_to_date", current: v.current };

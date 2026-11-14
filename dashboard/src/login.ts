@@ -12,7 +12,7 @@ import { getPlatform } from "./platform";
 import { esc } from "./ui";
 import { originRefusalMessage } from "./originRefusal";
 
-export type LoginResult = { ok: true } | { ok: false; error: string };
+type LoginResult = { ok: true } | { ok: false; error: string };
 
 export interface LoginOptions {
   /** Why the user is here (e.g. the session expired). */

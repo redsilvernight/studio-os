@@ -6,7 +6,7 @@ const PLATFORM = "windows-x86_64";
 const REGISTRATION_MODES = new Set(["present", "closed", "open"]);
 const CLOSED_PROBE_EMAIL = "c4-preflight@studio-os.invalid";
 
-export class UsageError extends Error {}
+class UsageError extends Error {}
 
 export function parseArgs(argv) {
   const options = {
@@ -228,7 +228,7 @@ export async function runGate(options, fetchImpl = fetch, preflight = runDevPref
   return result;
 }
 
-export async function main(argv = process.argv.slice(2), io = console) {
+async function main(argv = process.argv.slice(2), io = console) {
   let options;
   try {
     options = parseArgs(argv);

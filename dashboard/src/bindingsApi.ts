@@ -17,7 +17,6 @@ export type RuntimeLevel = components["schemas"]["RuntimeLevel"];
 
 /** Stored levels only (`session` is ephemeral and rejected server-side). */
 export const STORED_RUNTIME_LEVELS = ["user", "project_override", "project_default", "studio_default"] as const;
-export type StoredRuntimeLevel = (typeof STORED_RUNTIME_LEVELS)[number];
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const result = await promise;

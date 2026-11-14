@@ -29,7 +29,7 @@ export const USAGE_PERIODS: ReadonlyArray<{ id: string; label: string; days: num
   { id: "all", label: "Tout l'historique", days: null },
 ];
 
-export const USAGE_GROUPINGS: ReadonlyArray<{ id: UsageGroupBy; label: string }> = [
+const USAGE_GROUPINGS: ReadonlyArray<{ id: UsageGroupBy; label: string }> = [
   { id: "task", label: "Par tâche" },
   { id: "configuration", label: "Par configuration" },
   { id: "day", label: "Par jour" },
@@ -132,7 +132,7 @@ export function costValueHtml(cost: CostTotal): string {
   return honestValueHtml(cost.status, raw, raw === null ? null : formatAmount(raw, cost.currency), cost, "cost");
 }
 
-export function durationValueHtml(duration: DurationTotal): string {
+function durationValueHtml(duration: DurationTotal): string {
   const raw = duration.known_sum ?? null;
   return honestValueHtml(duration.status, raw, raw === null ? null : formatSeconds(raw), duration, "duration");
 }
@@ -178,7 +178,7 @@ function sourcesText(aggregate: UsageAggregate): string {
 }
 
 /** Bloc total : durée, coût, jetons avec leur qualité, puis les sources. */
-export function usageTotalHtml(total: UsageAggregate): string {
+function usageTotalHtml(total: UsageAggregate): string {
   if (total.entries === 0) {
     return `<p class="ds-list-sub" data-usage-empty>Aucune mesure de consommation sur cette période.</p>`;
   }
@@ -217,7 +217,7 @@ function groupLabelHtml(groupBy: string, group: UsageAggregate): string {
 
 const GROUP_HEADER: Record<string, string> = { task: "Tâche", configuration: "Outil · fournisseur · modèle", day: "Jour (UTC)" };
 
-export function usageGroupsHtml(summary: UsageSummary): string {
+function usageGroupsHtml(summary: UsageSummary): string {
   const groups = summary.groups ?? [];
   if (summary.group_by === "none" || groups.length === 0) return "";
   const rows = groups
@@ -255,7 +255,7 @@ export function usageSummaryHtml(summary: UsageSummary): string {
   return `${usageTotalHtml(summary.total)}${usageGroupsHtml(summary)}${dsTechDetails(techRows(summary), "Détails techniques · période et identifiants")}`;
 }
 
-export function usageUnavailableHtml(error: unknown): string {
+function usageUnavailableHtml(error: unknown): string {
   const text =
     error instanceof ApiError && error.status === 403
       ? "Votre compte n'a pas accès à la consommation de ce projet."

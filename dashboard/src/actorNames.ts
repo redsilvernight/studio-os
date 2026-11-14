@@ -81,11 +81,11 @@ export function machineName(id: string | null | undefined): string | undefined {
   return id ? machineNames.get(id) : undefined;
 }
 
-export function agentName(id: string | null | undefined): string | undefined {
+function agentName(id: string | null | undefined): string | undefined {
   return id ? agentNames.get(id) : undefined;
 }
 
-export function projectName(id: string | null | undefined): string | undefined {
+function projectName(id: string | null | undefined): string | undefined {
   return id ? projectNames.get(id) : undefined;
 }
 

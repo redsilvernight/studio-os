@@ -6,7 +6,7 @@
  * the fragment, never sent to a server. The caller reads it once, then
  * replaces the URL with `scrubbedPath()` so it never stays in history.
  */
-export type AccountLinkKind = "verify" | "reset";
+type AccountLinkKind = "verify" | "reset";
 
 export interface AccountLink {
   kind: AccountLinkKind;

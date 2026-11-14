@@ -24,7 +24,7 @@ export type TransferStatusKey =
   | "expired"
   | "deleted";
 
-export type TransferTone = "neutral" | "info" | "success" | "warning" | "danger";
+type TransferTone = "neutral" | "info" | "success" | "warning" | "danger";
 
 export interface StatusLabel {
   key: TransferStatusKey;
@@ -191,7 +191,7 @@ export function transferErrorMessage(error: unknown): string {
 /* ------------------------------------------------------------------ */
 
 export type TransferStatusFilter = "all" | TransferStatusKey;
-export type TransferCategoryFilter = "all" | TransferCategory;
+type TransferCategoryFilter = "all" | TransferCategory;
 
 export interface TransfersFilterState {
   query: string;

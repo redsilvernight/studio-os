@@ -25,13 +25,13 @@ export type Transfer = components["schemas"]["Transfer"];
 export type TransferCreate = components["schemas"]["TransferCreate"];
 export type TransferCategory = components["schemas"]["TransferCategory"];
 export type TransferConsumption = components["schemas"]["TransferConsumption"];
-export type UploadInitiateResponse = components["schemas"]["UploadInitiateResponse"];
-export type UploadCompleteRequest = components["schemas"]["UploadCompleteRequest"];
+type UploadInitiateResponse = components["schemas"]["UploadInitiateResponse"];
+type UploadCompleteRequest = components["schemas"]["UploadCompleteRequest"];
 
 /** Server constants (`services/transfers.py`), mirrored for progress display. */
 export const MULTIPART_THRESHOLD_BYTES = 128 * 1024 * 1024;
-export const PART_SIZE_BYTES = 64 * 1024 * 1024;
-export const PART_CONCURRENCY = 4;
+const PART_SIZE_BYTES = 64 * 1024 * 1024;
+const PART_CONCURRENCY = 4;
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const result = await promise;
@@ -80,7 +80,7 @@ export function getConsumption(client: StudioClient, projectId?: string): Promis
   );
 }
 
-export function initiateUpload(
+function initiateUpload(
   client: StudioClient,
   transferId: string,
   contentMd5?: string,
@@ -93,7 +93,7 @@ export function initiateUpload(
   );
 }
 
-export function completeUpload(
+function completeUpload(
   client: StudioClient,
   transferId: string,
   body: UploadCompleteRequest,
