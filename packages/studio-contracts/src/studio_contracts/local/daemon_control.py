@@ -38,18 +38,6 @@ class DaemonRunState(StrEnum):
     INCOMPATIBLE = "incompatible"
 
 
-DAEMON_STATE_AS_COMPONENT: dict[DaemonRunState, ComponentState] = {
-    DaemonRunState.STOPPED: ComponentState.DISABLED,
-    DaemonRunState.STARTING: ComponentState.STARTING,
-    DaemonRunState.RUNNING: ComponentState.READY,
-    DaemonRunState.STOPPING: ComponentState.STOPPING,
-    DaemonRunState.RECOVERING: ComponentState.RECOVERING,
-    DaemonRunState.CRASHED: ComponentState.ERROR,
-    DaemonRunState.UNAVAILABLE: ComponentState.UNAVAILABLE,
-    DaemonRunState.INCOMPATIBLE: ComponentState.INCOMPATIBLE,
-}
-
-
 class DaemonOwnership(StrEnum):
     DESKTOP_STARTED = "desktop_started"
     EXTERNAL = "external"

@@ -144,7 +144,6 @@ _KNOWLEDGE_REASON_CODES: dict[str, LocalErrorCode] = {
     KnowledgeError.GRAPH_MISSING: LocalErrorCode.INVALID_REQUEST,
     KnowledgeError.GRAPH_INVALID: LocalErrorCode.INVALID_REQUEST,
     KnowledgeError.REFRESH_UNSUPPORTED: LocalErrorCode.NOT_SUPPORTED,
-    KnowledgeError.WRITE_UNSUPPORTED: LocalErrorCode.NOT_SUPPORTED,
     KnowledgeError.OUT_OF_SCOPE: LocalErrorCode.INVALID_REQUEST,
     KnowledgeError.NOT_FOUND: LocalErrorCode.INVALID_REQUEST,
     KnowledgeError.NOT_A_FILE: LocalErrorCode.INVALID_REQUEST,
