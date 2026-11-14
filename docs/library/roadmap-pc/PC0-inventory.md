@@ -112,6 +112,20 @@ Ces points ne sont pas du code mort au sens strict. Il faut trancher entre « c�
 | Docs citant des chemins disparus | 9 docs détaillés (ex. `TECH/09_OBSIDIAN_GRAPHIFY.md`, `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`), 39 docs hors `decisions/`, `archive/` et `audits/` | corrections de doc, pas suppressions | corriger, ou marquer comme historiques ? |
 | `testpaths` | `pyproject.toml:36` (`services/api/tests`) | le dossier n'existe pas | retirer l'entrée (sûr), en vérifiant qu'aucun outil ne s'appuie dessus |
 
+### Arbitrages rendus (DEC-0354, 2026-11-14)
+
+| Sujet | Choix |
+|---|---|
+| `expire_overdue_launches` | supprimer (l'expiration paresseuse `expire_launch_if_overdue` couvre lecture, retrait et claim) |
+| `preview_profile` | supprimer (doublon de `resolve_profile`, utilisé par `work_profile_pack`) |
+| Méthodes d'écriture de `MemoryProvider` | supprimer `propose`, `write_if_authorized`, `append_task_log`, `create_decision_note` et leurs implémentations ; `search` / `read` restent |
+| `wrong_action` | supprimer (cas déjà construit en ligne, `fixtures.py:1871`) |
+| `purge_expired` | brancher (commande `admin_cli` et/ou balayage périodique) |
+| `mark_downloaded` / `downloaded_at` | garder ; câblage par accusé de réception client, tâche Studio OS dédiée |
+| `docs/audits/studios-agent-workflow/` | supprimer en entier, avec ses liens entrants |
+
+Les autres sujets du tableau précédent restent à arbitrer avant leur étape.
+
 ## Proposition de découpage
 
 | Étape | Périmètre | Contenu | Vérification |
