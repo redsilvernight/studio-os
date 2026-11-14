@@ -7,7 +7,7 @@
  * surfaced verbatim by the views.
  */
 import { esc } from "../ui";
-import { LIBRARY_KINDS, type LibraryKind, type LibraryKindSlug } from "../libraryFormat";
+import { LIBRARY_KINDS, type LibraryKind } from "../libraryFormat";
 import { buildHookContent, hookFieldsHtml } from "./hookForms";
 
 export interface FormReader {
@@ -312,10 +312,6 @@ export function kindOptionsHtml(selected?: LibraryKind): string {
   return LIBRARY_KINDS.map(
     (meta) => `<option value="${esc(meta.kind)}"${meta.kind === selected ? " selected" : ""}>${esc(meta.plural)}</option>`,
   ).join("");
-}
-
-export function slugOptionsHtml(): { slug: LibraryKindSlug; plural: string }[] {
-  return LIBRARY_KINDS.map((meta) => ({ slug: meta.slug, plural: meta.plural }));
 }
 
 /** Reads `[data-row]` editors of one kind into plain records (DOM helper). */

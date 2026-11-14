@@ -3,20 +3,13 @@ import type { Platform } from "./types";
 import { webPlatform } from "./web";
 
 export type {
-  DataFolder,
   DesktopDiagnostics,
   DesktopInfo,
-  DiagnosticsExportResult,
   OutboxLegacyStatus,
-  PickerOptions,
   PickResult,
   Platform,
-  PlatformMode,
   ServerOriginRefusal,
   ServerOriginState,
-  SetServerOriginResult,
-  UpdateCheckResult,
-  UpdateErrorCode,
   UpdateStatus,
 } from "./types";
 

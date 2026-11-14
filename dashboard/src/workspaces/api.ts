@@ -2,7 +2,7 @@ import type { Platform } from "../platform";
 import type { LocalWorkspaceConfig, WorkspaceListResult, WorkspaceStatus } from "../platform/generated/local-contracts.generated";
 import { callWorkspace, type WorkspaceOutcome } from "../onboarding/workspaceApi";
 
-export { confirmRoots, saveWorkspaceConfig, validateWorkspace, workspaceErrorMessage } from "../onboarding/workspaceApi";
+export { confirmRoots, saveWorkspaceConfig, workspaceErrorMessage } from "../onboarding/workspaceApi";
 export type { WorkspaceOutcome } from "../onboarding/workspaceApi";
 
 export async function listWorkspaces(platform: Platform): Promise<WorkspaceOutcome<WorkspaceStatus[]>> {

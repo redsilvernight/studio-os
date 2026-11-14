@@ -106,13 +106,6 @@ export function capture(command, args, options = {}) {
 export const tauriCli = () => join(desktopDir, "node_modules", "@tauri-apps", "cli", "tauri.js");
 export const viteCli = () => join(dashboardDir, "node_modules", "vite", "bin", "vite.js");
 
-export function hostTriple() {
-  const r = capture("rustc", ["-vV"]);
-  const host = r.stdout.split(/\r?\n/).find((l) => l.startsWith("host:"));
-  if (!r.ok || !host) throw new Error("rustc not found: install Rust (see desktop/README.md)");
-  return host.slice(5).trim();
-}
-
 export function arg(name, fallback) {
   const i = process.argv.indexOf(name);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
