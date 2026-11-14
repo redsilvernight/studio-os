@@ -3,14 +3,27 @@ from __future__ import annotations
 import io
 import sys
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api import admin_cli
+from studio_api.db.models import ProjectModel, TaskLaunchModel, TaskModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import provisioning as provisioning_service
+from studio_contracts.execution_snapshot import (
+    ExecutionSnapshotPayload,
+    SnapshotAppliedParameters,
+    SnapshotCaptureStatus,
+    SnapshotResolution,
+    SnapshotResourceRef,
+    SnapshotResourceRole,
+    digest_of,
+)
+from studio_contracts.library import LibraryKind, LibraryScope, VersionOrigin
 
 
 class _SessionContext:
@@ -499,3 +512,91 @@ def test_main_machine_show_reads_token_from_stdin(
     admin_cli.main()
 
     assert calls == ["token-from-stdin"]
+
+
+async def _snapshot(
+    session: AsyncSession, project: ProjectModel, machine: MachineModel, *, recorded_at: datetime
+) -> uuid.UUID:
+    task = TaskModel(project_id=project.id, title="Snapshot task")
+    session.add(task)
+    await session.flush()
+    launch = TaskLaunchModel(
+        project_id=project.id,
+        task_id=task.id,
+        machine_id=machine.id,
+        requested_by_user_id=machine.owner_user_id,
+        harness_id="claude-code",
+        expires_at=recorded_at + timedelta(hours=1),
+    )
+    session.add(launch)
+    await session.flush()
+    payload = ExecutionSnapshotPayload(
+        capture_status=SnapshotCaptureStatus.OK,
+        resolution=SnapshotResolution(
+            agent_stable_key="builder",
+            resources=[
+                SnapshotResourceRef(
+                    role=SnapshotResourceRole.AGENT,
+                    resource_id=uuid.uuid4(),
+                    kind=LibraryKind.AGENT_DEFINITION,
+                    stable_key="builder",
+                    scope=LibraryScope.STUDIO,
+                    version=1,
+                    version_origin=VersionOrigin.ACTIVE,
+                    content_digest=digest_of({"prompt": "p"}),
+                )
+            ],
+        ),
+        applied=SnapshotAppliedParameters(harness_id="claude-code", git_sha="b" * 40),
+    )
+    snapshot = await snapshots_service.record_snapshot(
+        session, task_launch_id=launch.id, payload=payload, retention_days=1, now=recorded_at
+    )
+    return snapshot.id
+
+
+async def test_cli_purge_execution_snapshots_loops_until_none_left(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+) -> None:
+    _bind_session(monkeypatch, db_session)
+    purge = snapshots_service.purge_expired
+    batches: list[int] = []
+
+    async def one_at_a_time(session: AsyncSession) -> int:
+        batches.append(await purge(session, limit=1))
+        return batches[-1]
+
+    monkeypatch.setattr(snapshots_service, "purge_expired", one_at_a_time)
+    now = datetime.now(UTC)
+    expired = [
+        await _snapshot(db_session, project, machine[0], recorded_at=now - timedelta(days=3)),
+        await _snapshot(db_session, project, machine[0], recorded_at=now - timedelta(days=2)),
+    ]
+    kept = await _snapshot(db_session, project, machine[0], recorded_at=now)
+
+    await admin_cli._purge_execution_snapshots()
+
+    for snapshot_id in expired:
+        assert await snapshots_service.get_snapshot(db_session, snapshot_id) is None
+    assert await snapshots_service.get_snapshot(db_session, kept) is not None
+    assert batches[-1] == 0 and len(batches) >= len(expired) + 1
+    assert capsys.readouterr().out == f"{sum(batches)} execution snapshot(s) deleted\n"
+    assert await purge(db_session) == 0
+
+
+def test_main_dispatches_snapshots_purge_expired(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    async def fake_purge() -> None:
+        calls.append("purge")
+
+    monkeypatch.setattr(admin_cli, "_purge_execution_snapshots", fake_purge)
+    monkeypatch.setattr(sys, "argv", ["studio-admin", "snapshots", "purge-expired"])
+
+    admin_cli.main()
+
+    assert calls == ["purge"]
