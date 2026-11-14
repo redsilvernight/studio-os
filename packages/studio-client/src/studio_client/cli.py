@@ -1546,12 +1546,29 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         diff_skill_plan,
         fetch_skill_projections,
         plan_skill_sync,
+        revert_skill_override,
     )
 
     async def action(client: StudioApiClient) -> Any:
         return await fetch_skill_projections(client, None, limit=args.library_limit)
 
     try:
+        if args.skills_command == "revert":
+            result = _run(
+                config,
+                lambda client: revert_skill_override(
+                    client,
+                    Path(args.home),
+                    args.stable_key,
+                    include_opencode=not args.no_opencode,
+                    limit=args.library_limit,
+                ),
+            )
+            print(
+                f"reverted {args.stable_key} to the common version; "
+                f"wrote {len(result.written)} files; backups restorable with `library restore`"
+            )
+            return
         projections = _run(config, action)
         plan = plan_skill_sync(Path(args.home), projections, include_opencode=not args.no_opencode)
         if args.skills_command == "diff":
@@ -2137,6 +2154,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ("check", "Report missing or drifted local skill projections."),
         ("diff", "Show the changes needed to synchronize local skills."),
         ("sync", "Write local skill projections and their manifest."),
+        ("revert", "Abandon your override of one skill and return to the common version."),
     ):
         skills_command = skills_sub.add_parser(command, help=help_text)
         skills_command.add_argument(
@@ -2150,6 +2168,8 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Skip the OpenCode copy in ~/.config/opencode/skills.",
         )
+        if command == "revert":
+            skills_command.add_argument("stable_key", help="Skill whose override is dropped.")
         if command == "sync":
             skills_command.add_argument(
                 "--overwrite",

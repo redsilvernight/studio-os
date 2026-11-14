@@ -35,6 +35,7 @@ from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.library import (
     DependencyUpdates,
     LibraryActivate,
+    LibraryDeprecate,
     LibraryProjectLock,
     LibraryResource,
     LibraryResourceCreate,
@@ -796,6 +797,18 @@ class StudioApiClient:
             "POST",
             f"/api/v1/library/{resource_id}/activate",
             json=activate_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
+    async def deprecate_library_resource(
+        self, resource_id: UUID, deprecate_in: LibraryDeprecate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/deprecate",
+            json=deprecate_in.model_dump(mode="json"),
             extra_headers={"Idempotency-Key": idempotency_key},
             idempotent=True,
         )

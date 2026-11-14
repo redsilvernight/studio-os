@@ -18,6 +18,7 @@ from studio_client.skill_sync import (
     fetch_skill_projections,
     plan_skill_sync,
     render_skill,
+    revert_skill_override,
     split_opencode_section,
 )
 
@@ -31,6 +32,7 @@ class _Resource:
     kind: str = "skill"
     status: str = "active"
     active_version: int = 1
+    version: int = 1
 
 
 @dataclass
@@ -60,6 +62,14 @@ class _FakeApi:
     ) -> list[_Resource]:
         self.calls.append(("resources", limit))
         return [row for row in self.resources if kind is None or row.kind == kind][:limit]
+
+    async def deprecate_library_resource(
+        self, resource_id: UUID, deprecate_in: Any, *, idempotency_key: str
+    ) -> None:
+        self.calls.append(("deprecate", deprecate_in.expected_resource_version))
+        for row in self.resources:
+            if row.id == resource_id:
+                row.status = "deprecated"
 
     async def list_library_locks(self, *, project_id: UUID | None) -> list[Any]:
         self.calls.append(("locks", project_id))
@@ -615,3 +625,43 @@ def test_split_opencode_section_roundtrip() -> None:
     assert base == "body\n"
     assert addendum == _ADDENDUM
     assert split_opencode_section("body\n") == ("body\n", None)
+
+
+def _override_api() -> tuple[_FakeApi, _Resource]:
+    common = _Resource(uuid4(), "studio-git-flow", "studio")
+    mine = _Resource(uuid4(), "studio-git-flow", "user", version=4)
+    versions = [
+        _Version(common.id, 1, "Studio Git Flow", "common body"),
+        _Version(mine.id, 1, "Studio Git Flow", "my body"),
+    ]
+    return _FakeApi([common, mine], versions), mine
+
+
+@pytest.mark.asyncio
+async def test_revert_override_projects_common_and_is_restorable(tmp_path: Path) -> None:
+    from studio_client.projection_backups import restore_projection_backup
+
+    api, mine = _override_api()
+    apply_skill_sync(plan_skill_sync(tmp_path, await fetch_skill_projections(api, None)))
+    agents = _target(tmp_path, "agents")
+    assert "my body" in agents.read_text(encoding="utf-8")
+
+    await revert_skill_override(api, tmp_path, "studio-git-flow", include_opencode=False)
+
+    assert ("deprecate", 4) in api.calls
+    assert mine.status == "deprecated"
+    assert "common body" in agents.read_text(encoding="utf-8")
+    restore_projection_backup(tmp_path)
+    assert "my body" in agents.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_revert_override_refuses_without_override_or_common(tmp_path: Path) -> None:
+    api, mine = _override_api()
+    only_common = _FakeApi([r for r in api.resources if r is not mine], api.versions)
+    with pytest.raises(SkillSyncError, match="no active user override"):
+        await revert_skill_override(only_common, tmp_path, "studio-git-flow")
+    only_mine = _FakeApi([mine], api.versions)
+    with pytest.raises(SkillSyncError, match="no common version"):
+        await revert_skill_override(only_mine, tmp_path, "studio-git-flow")
+    assert not any(call[0] == "deprecate" for call in only_mine.calls + only_common.calls)
