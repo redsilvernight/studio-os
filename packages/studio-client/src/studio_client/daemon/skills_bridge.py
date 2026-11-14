@@ -25,6 +25,7 @@ from uuid import uuid4
 
 from studio_contracts.library import (
     LibraryActivate,
+    LibraryDeprecate,
     LibraryKind,
     LibraryResource,
     LibraryResourceCreate,
@@ -573,6 +574,57 @@ def apply_definition_sync(
         removed=tuple(removed),
         conflicts=tuple(target.path for target in conflicts) if not overwrite else (),
     )
+
+
+async def revert_override(
+    api: Any,
+    home: Path,
+    library_kind: str,
+    stable_key: str,
+    *,
+    include_opencode: bool = True,
+    limit: int = 500,
+) -> SkillSyncResult:
+    """Drop the caller's User override of one skill, rule or agent definition and
+    re-project the common version.
+
+    The override is deprecated, never deleted (it stays in the owner's history);
+    the local files are rewritten through the journaled sync, so
+    ``library restore`` brings the override text back."""
+
+    rows = await api.list_library_resources(kind=library_kind, limit=limit)
+    live = [r for r in rows if r.stable_key == stable_key and str(r.status) == "active"]
+    override = next((r for r in live if str(r.scope) == "user"), None)
+    if override is None:
+        raise SkillSyncError("no active user override for this item")
+    if all(str(r.scope) == "user" for r in live):
+        raise SkillSyncError("no common version to return to")
+    await api.deprecate_library_resource(
+        override.id,
+        LibraryDeprecate(expected_resource_version=override.version),
+        idempotency_key=f"revert-override-{override.id}-{override.version}",
+    )
+    projections = await fetch_library_projections(api, None, limit=limit)
+    journals: list[ProjectionBackup] = []
+    if library_kind == "skill":
+        skills = [i for i in projections if i.library_kind == "skill"]
+        result = apply_skill_sync(
+            plan_skill_sync(home, skills, include_opencode=include_opencode),
+            overwrite=True,
+            selected_keys={stable_key},
+            journal_sink=journals,
+        )
+    else:
+        definitions = [i for i in projections if i.library_kind in _DEFINITION_KINDS]
+        result = apply_definition_sync(
+            plan_definition_sync(home, definitions),
+            overwrite=True,
+            selected={(_manifest_kind(library_kind), stable_key)},
+            journal_sink=journals,
+        )
+    for journal in journals:
+        commit_projection_backup(journal)
+    return result
 
 
 def plan_library_sync(

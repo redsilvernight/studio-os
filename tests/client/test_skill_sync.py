@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 import pytest
 from studio_client import cli
 from studio_client.context.library import LibraryContextItem
+from studio_client.daemon.skills_bridge import revert_override
 from studio_client.skill_sync import (
     SkillSyncConflictError,
     SkillSyncError,
@@ -31,6 +32,7 @@ class _Resource:
     kind: str = "skill"
     status: str = "active"
     active_version: int = 1
+    version: int = 1
 
 
 @dataclass
@@ -40,11 +42,12 @@ class _Version:
     title: str
     text: str
     description: str | None = None
+    kind: str = "skill"
 
     @property
     def content(self) -> dict[str, str]:
         return {
-            "content_schema": "studio.library.skill/v1",
+            "content_schema": f"studio.library.{self.kind}/v1",
             "text": self.text,
         }
 
@@ -60,6 +63,14 @@ class _FakeApi:
     ) -> list[_Resource]:
         self.calls.append(("resources", limit))
         return [row for row in self.resources if kind is None or row.kind == kind][:limit]
+
+    async def deprecate_library_resource(
+        self, resource_id: UUID, deprecate_in: Any, *, idempotency_key: str
+    ) -> None:
+        self.calls.append(("deprecate", deprecate_in.expected_resource_version))
+        for row in self.resources:
+            if row.id == resource_id:
+                row.status = "deprecated"
 
     async def list_library_locks(self, *, project_id: UUID | None) -> list[Any]:
         self.calls.append(("locks", project_id))
@@ -615,3 +626,60 @@ def test_split_opencode_section_roundtrip() -> None:
     assert base == "body\n"
     assert addendum == _ADDENDUM
     assert split_opencode_section("body\n") == ("body\n", None)
+
+
+def _override_api(kind: str = "skill") -> tuple[_FakeApi, _Resource]:
+    common = _Resource(uuid4(), "studio-git-flow", "studio", kind=kind)
+    mine = _Resource(uuid4(), "studio-git-flow", "user", kind=kind, version=4)
+    versions = [
+        _Version(common.id, 1, "Studio Git Flow", "common body", kind=kind),
+        _Version(mine.id, 1, "Studio Git Flow", "my body", kind=kind),
+    ]
+    return _FakeApi([common, mine], versions), mine
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kind", "relative"),
+    [
+        ("skill", ".agents/skills/studio-git-flow/SKILL.md"),
+        ("rule", ".agents/rules/studio-git-flow.md"),
+    ],
+)
+async def test_revert_override_projects_common_and_is_restorable(
+    tmp_path: Path, kind: str, relative: str
+) -> None:
+    from studio_client.daemon.skills_bridge import (
+        apply_definition_sync,
+        fetch_library_projections,
+        plan_library_sync,
+    )
+    from studio_client.projection_backups import restore_projection_backup
+
+    api, mine = _override_api(kind)
+    projections = await fetch_library_projections(api, None)
+    skill_plan, definition_plan = plan_library_sync(tmp_path, projections)
+    apply_skill_sync(skill_plan)
+    apply_definition_sync(definition_plan)
+    target = tmp_path / relative
+    assert "my body" in target.read_text(encoding="utf-8")
+
+    await revert_override(api, tmp_path, kind, "studio-git-flow", include_opencode=False)
+
+    assert ("deprecate", 4) in api.calls
+    assert mine.status == "deprecated"
+    assert "common body" in target.read_text(encoding="utf-8")
+    restore_projection_backup(tmp_path)
+    assert "my body" in target.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_revert_override_refuses_without_override_or_common(tmp_path: Path) -> None:
+    api, mine = _override_api()
+    only_common = _FakeApi([r for r in api.resources if r is not mine], api.versions)
+    with pytest.raises(SkillSyncError, match="no active user override"):
+        await revert_override(only_common, tmp_path, "skill", "studio-git-flow")
+    only_mine = _FakeApi([mine], api.versions)
+    with pytest.raises(SkillSyncError, match="no common version"):
+        await revert_override(only_mine, tmp_path, "skill", "studio-git-flow")
+    assert not any(call[0] == "deprecate" for call in only_mine.calls + only_common.calls)
