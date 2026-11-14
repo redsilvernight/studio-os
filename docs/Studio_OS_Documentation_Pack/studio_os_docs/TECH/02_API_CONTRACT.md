@@ -345,7 +345,9 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
   comportement inchange ; present et perime, `409 {"detail": {"error_code":
   "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
-  (detenteur ou admin, `403 forbidden`) evalue avant la version.
+  (detenteur ou admin, `403 forbidden`) evalue avant la version. Seul moyen,
+  depuis le retrait MCP de `studio_release_task` (DEC-0186), pour un role
+  privilegie de liberer le claim de tache d'une autre machine.
 
 ### Sessions
 - POST /sessions

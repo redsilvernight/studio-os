@@ -512,8 +512,8 @@ Remplacants :
 
 Les routes HTTP equivalentes (`POST /sessions`, `PATCH /sessions/{id}/end`,
 `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`) ne sont
-pas concernees ; la liberation par un role privilegie d'un claim de tache
-laisse par une autre machine passe par `POST /tasks/{id}/release`. Les
+pas concernees. Liberation par un role privilegie du claim de tache d'une
+autre machine : `POST /tasks/{id}/release` (TECH/02), conservee. Les
 identifiants ephemeres de lancement n'autorisent plus ces noms.
 
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
@@ -540,6 +540,12 @@ reellement consomme, une rupture necessite une nouvelle surface nommee
 explicitement (par exemple suffixe `_v2`) avec coexistence bornee des
 qu'une coexistence est necessaire ; aucune duree generique de
 coexistence n'est fixee d'avance.
+
+Journal des changements cassants :
+
+| Date | Changement | Decision |
+|---|---|---|
+| 2026-11-14 | Retrait de `studio_start_session`, `studio_end_session`, `studio_claim_task`, `studio_release_task`, `studio_claim_resource` apres la fenetre de depreciation (SUNSET 2026-11-04) ; `MCP_ACCESS` 63 -> 58 outils, allowlist de lancement 21 -> 16 | DEC-0186 |
 
 ### Dette output schemas
 
