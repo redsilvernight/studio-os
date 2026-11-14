@@ -4,7 +4,7 @@
  * commun + aperçu du résultat. Le moteur Python n'est pas réexécuté :
  * les données sont fournies (fixtures miroir de `merge_texts`).
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -107,6 +107,36 @@ describe("fournisseur de comparaison", () => {
     await renderLibraryMerge(root, { label: "cassé", load: () => Promise.reject(new Error("coupé")) });
     expect(root.innerHTML).toContain("Comparaison indisponible");
     expect(root.innerHTML).toContain("coupé");
+  });
+
+  it("n'affiche « Revenir au commun » que si le fournisseur sait revenir", async () => {
+    const without = document.createElement("div");
+    await renderLibraryMerge(without, staticMergeProvider(fixture()));
+    expect(without.querySelector("[data-merge-revert]")).toBeNull();
+    const withRevert = document.createElement("div");
+    await renderLibraryMerge(withRevert, { ...staticMergeProvider(fixture()), revert: () => Promise.resolve() });
+    expect(withRevert.querySelector("[data-merge-revert]")?.textContent).toBe("Revenir au commun");
+  });
+
+  it("Revenir au commun : confirme, appelle revert, affiche l'erreur et rend la main", async () => {
+    const confirm = vi.spyOn(window, "confirm");
+    const revert = vi.fn().mockRejectedValueOnce(new Error("conflit de version")).mockResolvedValueOnce(undefined);
+    const root = document.createElement("div");
+    await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), revert });
+    const button = root.querySelector<HTMLButtonElement>("[data-merge-revert]")!;
+    confirm.mockReturnValueOnce(false);
+    button.click();
+    expect(revert).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    button.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(revert).toHaveBeenCalledTimes(1);
+    expect(root.querySelector("[data-merge-revert-msg]")?.textContent).toBe("conflit de version");
+    expect(button.disabled).toBe(false);
+    button.click();
+    expect(revert).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
   });
 });
 
