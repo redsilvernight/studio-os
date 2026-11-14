@@ -21,7 +21,7 @@ Coût Graphify de cet update: **non mesuré**. `cost.json` n’a pas enregistré
 
 - Sync/adapters check: 35 contrôles, 0 échec; seconde sync idempotente sans écriture.
 - Tests protocol: 33 réussis; tests synchroniseur/adaptateurs: 95 réussis hors sandbox, selon ledger Studio OS du 05/11.
-- Audit de novembre précédent: 73 tests ciblés réussis, 1 ignoré et 56 désélectionnés; leurs exclusions et limites sont consignées dans `docs/audits/studios-agent-workflow/FINAL-AUDIT.md`.
+- Audit de novembre précédent: 73 tests ciblés réussis, 1 ignoré et 56 désélectionnés (preuves supprimées, DEC-0354).
 - P1.6 et Claude First: verdicts de comportement natif demeurent `NOT_READY` / `CLAUDE_NOT_READY` selon les rapports correspondants.
 
 ## Non exécuté / restant
