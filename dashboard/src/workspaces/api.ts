@@ -10,7 +10,7 @@ export async function listWorkspaces(platform: Platform): Promise<WorkspaceOutco
   return result.ok ? { ok: true, value: result.value.items ?? [] } : result;
 }
 
-export function folderKey(path: string): string {
+function folderKey(path: string): string {
   return path.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
 }
 

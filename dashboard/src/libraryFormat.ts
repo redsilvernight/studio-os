@@ -231,7 +231,7 @@ export function contentText(content: Record<string, unknown> | null | undefined)
   return typeof value === "string" ? value : null;
 }
 
-export interface WorkflowIOSource {
+interface WorkflowIOSource {
   participantId: string | null;
   name: string;
 }
@@ -244,7 +244,7 @@ export interface WorkflowIODeclaration {
   source: WorkflowIOSource | null;
 }
 
-export interface WorkflowParticipant {
+interface WorkflowParticipant {
   participantId: string;
   description: string | null;
   agentStableKey: string;

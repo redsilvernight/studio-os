@@ -24,7 +24,7 @@ export async function probeProjectAccess(client: StudioClient): Promise<ProjectA
   }
 }
 
-export function awaitingAccessHtml(): string {
+function awaitingAccessHtml(): string {
   return `${dsPageHeader("En attente d'accès", "Votre compte est actif, mais aucun projet ne vous est encore attribué.")}
     <section class="ds-card awaiting-access" data-testid="awaiting-access">
       <p>Un administrateur de votre studio doit vous ajouter comme membre d'un projet. Vos projets apparaîtront ici dès que ce sera fait.</p>

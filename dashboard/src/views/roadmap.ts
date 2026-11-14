@@ -379,7 +379,7 @@ function diffHtml(diff: RoadmapDiff): string {
     .join("")}</ul>`;
 }
 
-export function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: Roadmap): string {
+function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: Roadmap): string {
   const { revision, diff } = proposal;
   const author = revision.provenance.actor_type === "agent"
     ? `Agent ${agentRef(revision.provenance.agent_id ?? revision.provenance.actor_id)}`

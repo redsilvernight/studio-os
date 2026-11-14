@@ -4,8 +4,8 @@
  */
 import type { AtlasCamera, ProjectedPoint, Vec3 } from "./types";
 
-export const FOV = Math.PI / 3.2;
-export const NEAR = 1;
+const FOV = Math.PI / 3.2;
+const NEAR = 1;
 export const MIN_DISTANCE = 8;
 export const MAX_DISTANCE = 4000;
 const PITCH_LIMIT = 1.45;
@@ -13,7 +13,7 @@ const PITCH_LIMIT = 1.45;
 const HOME_YAW = 0.1;
 const HOME_PITCH = 0.14;
 
-export function focalLength(height: number): number {
+function focalLength(height: number): number {
   return height / 2 / Math.tan(FOV / 2);
 }
 

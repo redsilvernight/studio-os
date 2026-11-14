@@ -42,7 +42,7 @@ export function statusBlock(status: SectionStatus, message = ""): string {
   return "";
 }
 
-export function section(title: string, meta: string, body: string): string {
+function section(title: string, meta: string, body: string): string {
   return `<section class="panel"><header><h2>${esc(title)}</h2><span class="meta">${meta}</span></header><div class="body">${body}</div></section>`;
 }
 

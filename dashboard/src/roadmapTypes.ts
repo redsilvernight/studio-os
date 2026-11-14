@@ -1,25 +1,25 @@
 export type RoadmapStatus = "draft" | "proposed" | "active" | "completed" | "archived";
 
-export type RoadmapMetadataValue = string | number | boolean | null;
+type RoadmapMetadataValue = string | number | boolean | null;
 export type RoadmapMetadata = Record<string, RoadmapMetadataValue>;
 
-export interface RoadmapProgress {
+interface RoadmapProgress {
   done: number;
   total: number;
   skipped: number;
   ratio: number;
 }
 
-export type RoadmapStepState =
+type RoadmapStepState =
   | "not_started"
   | "in_progress"
   | "blocked"
   | "done"
   | "skipped";
 
-export type RoadmapStepStateOverride = "done" | "skipped";
+type RoadmapStepStateOverride = "done" | "skipped";
 
-export interface RoadmapProvenance {
+interface RoadmapProvenance {
   origin: "manual" | "ai_proposal" | "import";
   actor_type: "user" | "agent";
   actor_id: string;
@@ -65,13 +65,13 @@ export interface RoadmapDocument {
   revision_no: number | null;
 }
 
-export interface RoadmapLinkedTask {
+interface RoadmapLinkedTask {
   task_id: string;
   hydration_key: string;
   origin?: string | null;
 }
 
-export interface RoadmapTaskProgress {
+interface RoadmapTaskProgress {
   completed: number;
   total: number;
 }
@@ -130,8 +130,8 @@ export type RoadmapReviewDecision = "approve" | "request_changes" | "reject";
 /** Lifecycle transitions outside the review flow; `reopen` requires a comment. */
 export type RoadmapLifecycleTransition = "activate" | "complete" | "reopen" | "archive";
 
-export type RoadmapRevisionKind = "proposal" | "snapshot" | "review";
-export type RoadmapRevisionStatus =
+type RoadmapRevisionKind = "proposal" | "snapshot" | "review";
+type RoadmapRevisionStatus =
   | "pending"
   | "approved"
   | "changes_requested"
@@ -153,7 +153,7 @@ export interface RoadmapRevision {
 }
 
 export type RoadmapDiffChange = "added" | "removed" | "changed";
-export type RoadmapDiffScope = "roadmap" | "phase" | "step" | "dependency" | "task_plan";
+type RoadmapDiffScope = "roadmap" | "phase" | "step" | "dependency" | "task_plan";
 
 export interface RoadmapDiffEntry {
   scope: RoadmapDiffScope;

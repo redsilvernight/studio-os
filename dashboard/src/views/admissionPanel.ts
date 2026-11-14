@@ -64,11 +64,11 @@ const REFUSAL_REASON_FR: Record<string, string> = {
   budget_refused: "le budget du projet refuse ce lancement",
 };
 
-export function exclusionReasonLabel(reason: AdmissionExclusionReason): string {
+function exclusionReasonLabel(reason: AdmissionExclusionReason): string {
   return EXCLUSION_REASON_FR[reason] ?? reason;
 }
 
-export function refusalReasonLabel(reason: string): string {
+function refusalReasonLabel(reason: string): string {
   return REFUSAL_REASON_FR[reason] ?? reason;
 }
 

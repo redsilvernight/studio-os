@@ -63,7 +63,7 @@ export type TaskLaunchReplayPreview = components["schemas"]["TaskLaunchReplayPre
 export type ReplayDifference = components["schemas"]["ReplayDifference"];
 export type ReplayLimitation = components["schemas"]["ReplayLimitation"];
 
-export const TASK_LAUNCH_PAGE_LIMIT = 100;
+const TASK_LAUNCH_PAGE_LIMIT = 100;
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const result = await promise;

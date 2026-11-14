@@ -7,7 +7,7 @@
  * unreachable it retries with a capped backoff, and any later answer moves it
  * back to `connected` without restarting the app.
  */
-export type ConnectionState = "unknown" | "connecting" | "connected" | "unreachable" | "auth_expired";
+type ConnectionState = "unknown" | "connecting" | "connected" | "unreachable" | "auth_expired";
 
 export interface ConnectionSnapshot {
   state: ConnectionState;

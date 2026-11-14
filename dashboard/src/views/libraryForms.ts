@@ -243,7 +243,7 @@ export interface WorkflowIoPayload {
   source?: { participant_id: string; name: string };
 }
 
-export function buildWorkflowInputs(rows: IoInput[]): BuildResult<WorkflowIoPayload[]> {
+function buildWorkflowInputs(rows: IoInput[]): BuildResult<WorkflowIoPayload[]> {
   const out: WorkflowIoPayload[] = [];
   for (const row of rows) {
     const name = row.name.trim();
