@@ -27,7 +27,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, Field, ValidationError, model_validator
+from pydantic import AfterValidator, Field, model_validator
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
@@ -431,14 +431,6 @@ def roadmap_document_errors(document: RoadmapDocument) -> list[dict[str, str]]:
     if find_dependency_cycle(edges) is not None:
         return [_error(RoadmapValidationReason.DEPENDENCY_CYCLE, "steps")]
     return []
-
-
-def parse_roadmap_document(raw: dict[str, object]) -> tuple[RoadmapDocument | None, list[str]]:
-    """Import helper: `(document, [])` or `(None, [json paths that failed])`."""
-    try:
-        return RoadmapDocument.model_validate(raw), []
-    except ValidationError as error:
-        return None, [".".join(str(part) for part in item["loc"]) for item in error.errors()]
 
 
 # --- derived state and progress (P0.4, DEC-0084 §4) ---------------------------

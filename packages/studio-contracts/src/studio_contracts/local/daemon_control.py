@@ -168,9 +168,6 @@ class DaemonStatus(LocalContractModel):
             raise ValueError("a crashed daemon reports its crash")
         return self
 
-    def as_component_state(self) -> ComponentState:
-        return DAEMON_STATE_AS_COMPONENT[self.state]
-
 
 class RuntimeServiceHealth(LocalContractModel):
     service: RuntimeServiceId
