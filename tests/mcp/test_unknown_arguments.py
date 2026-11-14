@@ -7,7 +7,7 @@ import pytest
 from mcp import Client
 from studio_mcp.access_registry import MCP_ACCESS
 from studio_mcp.server import mcp
-from studio_mcp.tools.sessions import studio_start_session
+from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.tasks import studio_create_task
 
 from tests.mcp.conftest import FakeContext
@@ -121,11 +121,11 @@ async def test_handoff_valid_call_still_succeeds(
     auth_ctx: FakeContext, project: Any, agent: Any
 ) -> None:
     task = await studio_create_task(str(project.id), "Strict ok", auth_ctx)
-    started = await studio_start_session(task["id"], auth_ctx)
+    started = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     manager = _manager()
     result = await manager.call_tool(
         "studio_handoff",
-        {"project_id": str(project.id), "session_id": started["id"]},
+        {"project_id": str(project.id), "session_id": started["session"]["id"]},
         auth_ctx,
     )
     assert "error_code" not in result

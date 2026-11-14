@@ -178,3 +178,32 @@ async def agent(db_session: AsyncSession, machine: tuple[MachineModel, str]) -> 
     await db_session.flush()
     await db_session.refresh(agent_model)
     return agent_model
+
+
+async def start_test_session(
+    task_id: str, ctx: Context, agent_id: str | None = None
+) -> dict[str, Any]:
+    """Open a work session through the same service and auth path as
+    `POST /sessions`, without claiming the task. The MCP tool that did this
+    (`studio_start_session`) was removed (DEC-0186); `studio_start_work` also
+    claims the task, which tests needing several sessions on one task or a
+    session without an agent cannot use."""
+    from studio_api.services import sessions as sessions_service
+    from studio_api.services.authz import Principal
+    from studio_contracts.sessions import WorkSessionCreate
+    from studio_mcp.errors import run_tool
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed_task = uuid.UUID(task_id)
+        parsed_agent = uuid.UUID(agent_id) if agent_id else None
+        await sessions_service.authorize_start(session, principal, parsed_task, parsed_agent)
+        work_session = await sessions_service.start_session(
+            session,
+            principal,
+            WorkSessionCreate(
+                task_id=parsed_task, machine_id=principal.machine.id, agent_id=parsed_agent
+            ),
+        )
+        return {"id": str(work_session.id), "task_id": task_id}
+
+    return await run_tool(ctx, _handler)

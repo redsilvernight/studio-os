@@ -11,7 +11,7 @@ from studio_api.services.ai_work import _derive_event_id
 from studio_api.services.authz import load_principal
 from studio_contracts.events import EventType
 from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
-from studio_mcp.tools.sessions import studio_start_session
+from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.tasks import studio_create_task
 
 from tests.mcp.conftest import FakeContext
@@ -233,7 +233,9 @@ async def test_log_ai_work_persists_and_returns_session_id(
     auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
 ) -> None:
     task = await studio_create_task(str(project.id), "Linked work", auth_ctx)
-    started = await studio_start_session(task["id"], auth_ctx, agent_id=str(agent.id))
+    started = (
+        await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
+    )["session"]
 
     created = await studio_log_ai_work(
         str(project.id),

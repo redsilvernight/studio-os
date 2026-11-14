@@ -14,12 +14,11 @@ from studio_api.services.authz import load_principal
 from studio_contracts.handoff import HandoffRequest
 from studio_mcp.tools.coordination import studio_coordinate
 from studio_mcp.tools.handoff import studio_handoff
-from studio_mcp.tools.sessions import studio_start_session
 from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.sync import studio_sync
 from studio_mcp.tools.tasks import studio_create_task, studio_get_task
 
-from tests.mcp.conftest import FakeContext
+from tests.mcp.conftest import FakeContext, start_test_session
 
 
 def dump(value: Any) -> dict[str, Any]:
@@ -43,7 +42,7 @@ async def test_compact_lost_handoff_response_recovers_content_in_successor(
 ) -> None:
     task = await studio_create_task(str(project.id), "recipient", auth_ctx)
     source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
-    source = await studio_start_session(source_task["id"], other_auth_ctx)
+    source = await start_test_session(source_task["id"], other_auth_ctx)
     first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     session_id = first["session"]["id"]
     count = 6 if mode == "budget" else 3
@@ -149,7 +148,7 @@ async def test_handoff_interruption_between_commits_preserves_signal(
 ) -> None:
     task = await studio_create_task(str(project.id), "interrupted recipient", auth_ctx)
     source_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
-    source = await studio_start_session(source_task["id"], other_auth_ctx)
+    source = await start_test_session(source_task["id"], other_auth_ctx)
     first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     session_id = first["session"]["id"]
     emitted = dump(
@@ -201,7 +200,7 @@ async def test_completed_task_recovers_via_stateless_sync(
     task = await studio_create_task(str(project.id), "completed recovery", auth_ctx)
     first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     sender_task = await studio_create_task(str(project.id), "sender", other_auth_ctx)
-    sender = await studio_start_session(sender_task["id"], other_auth_ctx)
+    sender = await start_test_session(sender_task["id"], other_auth_ctx)
     sent = dump(
         await studio_coordinate(
             sender["id"],

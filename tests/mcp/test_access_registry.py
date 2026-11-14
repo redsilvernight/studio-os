@@ -35,16 +35,15 @@ from studio_mcp.server import create_server
 from studio_mcp.tools.ai_library import studio_configure_runtime, studio_publish_definition
 from studio_mcp.tools.ai_work import studio_log_ai_work
 from studio_mcp.tools.builds import studio_request_producer_job
-from studio_mcp.tools.claims import studio_claim_resource
+from studio_mcp.tools.claims import studio_claim_resources
 from studio_mcp.tools.decisions import studio_add_decision
 from studio_mcp.tools.roadmaps import studio_propose_roadmap
-from studio_mcp.tools.sessions import studio_start_session
 from studio_mcp.tools.tasks import studio_create_task
 from studio_mcp.tools.transfers import studio_create_transfer_metadata
 from studio_mcp.tools.vault import studio_vault_write
 
 from tests.e2e.test_roadmaps_p10_e2e import _plan
-from tests.mcp.conftest import FakeContext
+from tests.mcp.conftest import FakeContext, start_test_session
 
 pytestmark = pytest.mark.isolation
 
@@ -82,19 +81,7 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_get_active_tasks": (Probe({"project_id": "{pid}"}),),
     "studio_create_task": (Probe({"project_id": "{pid}", "title": "x"}),),
     "studio_update_task": (Probe({"task_id": "{task}", "expected_version": 1, "title": "x"}),),
-    "studio_claim_task": (Probe({"task_id": "{task}"}),),
-    "studio_release_task": (Probe({"task_id": "{task}"}),),
     "studio_get_resource_claims": (Probe({"project_id": "{pid}"}),),
-    "studio_claim_resource": (
-        Probe(
-            {
-                "project_id": "{pid}",
-                "resource_path": "x.py",
-                "resource_type": "file",
-                "ttl_seconds": 60,
-            }
-        ),
-    ),
     "studio_claim_resources": (
         Probe(
             {
@@ -137,7 +124,6 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     ),
     "studio_get_sessions": (Probe({"task_id": "{task}"}),),
     "studio_get_teammate_activity": (Probe({"project_id": "{pid}"}),),
-    "studio_start_session": (Probe({"task_id": "{task}"}),),
     "studio_start_work": (Probe({"project_id": "{pid}", "agent_id": "{outsider_agent}"}),),
     "studio_handoff": (
         Probe({"project_id": "{pid}", "session_id": "{session}", "expected_version": 1}, "role"),
@@ -154,7 +140,6 @@ PROBES: dict[str, tuple[Probe, ...]] = {
             "role",
         ),
     ),
-    "studio_end_session": (Probe({"session_id": "{session}"}),),
     "studio_log_ai_work": (
         Probe({"project_id": "{pid}", "summary": "x", "agent_id": "{outsider_agent}"}),
         Probe(
@@ -365,8 +350,8 @@ async def _build_world(
     )
     db_session.add(launch)
     await db_session.flush()
-    session = _ok(await studio_start_session(task, member))["id"]
-    claim = _ok(await studio_claim_resource(pid, "a.py", "file", 600, member))["id"]
+    session = _ok(await start_test_session(task, member))["id"]
+    claim = _ok(await studio_claim_resources(pid, ["a.py"], "file", 600, member))["claims"][0]["id"]
     decision = _ok(await studio_add_decision("d", "d", member, project_id=pid))["id"]
     note = _ok(
         await studio_vault_write("project", f"note-{slug}", "n", "n", member, project_id=pid)
