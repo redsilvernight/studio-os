@@ -56,7 +56,6 @@ from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
-    TransferConsumption,
     TransferCreate,
     UploadCompleteRequest,
     UploadInitiateResponse,
@@ -569,15 +568,6 @@ class StudioApiClient:
         )
         return ProducerJob.model_validate(response.json())
 
-    async def list_producer_jobs(
-        self, *, project_id: UUID | None = None, limit: int = 100
-    ) -> list[ProducerJob]:
-        params: dict[str, Any] = {"limit": limit}
-        if project_id is not None:
-            params["project_id"] = str(project_id)
-        response = await self._request("GET", "/api/v1/producer-jobs", params=params)
-        return [ProducerJob.model_validate(item) for item in response.json()]
-
     async def get_timeline(
         self,
         project_id: UUID,
@@ -605,25 +595,9 @@ class StudioApiClient:
         )
         return Transfer.model_validate(response.json())
 
-    async def list_transfers(self, *, project_id: UUID | None = None) -> list[Transfer]:
-        params: dict[str, Any] = {}
-        if project_id is not None:
-            params["project_id"] = str(project_id)
-        response = await self._request("GET", "/api/v1/transfers", params=params)
-        return [Transfer.model_validate(item) for item in response.json()]
-
     async def get_transfer(self, transfer_id: UUID) -> Transfer:
         response = await self._request("GET", f"/api/v1/transfers/{transfer_id}")
         return Transfer.model_validate(response.json())
-
-    async def get_transfer_consumption(
-        self, *, project_id: UUID | None = None
-    ) -> TransferConsumption:
-        params: dict[str, Any] = {}
-        if project_id is not None:
-            params["project_id"] = str(project_id)
-        response = await self._request("GET", "/api/v1/transfers/consumption", params=params)
-        return TransferConsumption.model_validate(response.json())
 
     async def initiate_upload(
         self, transfer_id: UUID, *, content_md5: str | None = None

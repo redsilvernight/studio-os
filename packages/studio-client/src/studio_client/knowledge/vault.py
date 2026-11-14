@@ -22,10 +22,6 @@ projet, `global/` et `conventions/` la mémoire studio (DEC-0042), `templates/`
 est un échafaudage jamais exposé par défaut. Rien de propriétaire : ce sont des
 dossiers Markdown ordinaires, et un Vault existant n'est jamais réorganisé."""
 
-DEFAULT_EXPOSED_PREFIXES: tuple[str, ...] = ("projects/", "global/", "conventions/")
-"""Portée par défaut d'un Vault Studi'OS, alignée sur DEC-0042. Un Vault
-connecté mais non Studi'OS garde la portée fermée par défaut (`()`)."""
-
 INDEX_IGNORED_DIRECTORIES: frozenset[str] = frozenset(
     {
         VAULT_METADATA_DIR,
@@ -182,14 +178,6 @@ def vault_state(root: Path) -> VaultState:
     return VaultState.EMPTY
 
 
-def is_readable_directory(root: Path) -> bool:
-    try:
-        with os.scandir(root):
-            return True
-    except OSError:
-        return False
-
-
 def _ensure_directory(root: Path, relative: str) -> tuple[bool, str]:
     target = root / relative
     if target.exists():
@@ -249,10 +237,6 @@ def initialize_vault(
         created=tuple(sorted(created)),
         skipped=tuple(sorted(skipped)),
     )
-
-
-def read_markdown(absolute_path: Path) -> str:
-    return absolute_path.read_text(encoding="utf-8")
 
 
 def content_hash(text: str) -> str:

@@ -16,8 +16,6 @@ _INLINE_CODE = re.compile(r"`[^`]*`")
 _INLINE_TAG = re.compile(r"(?<![\w#/])#([A-Za-z][\w-]{0,63}(?:/[A-Za-z][\w-]{0,63})*)")
 _SLUG_STRIP = re.compile(r"[^a-z0-9]+")
 
-_BARE_FRAGMENT = re.compile(r"^L(\d{1,7})(?:-L(\d{1,7}))?$")
-
 
 class LinkKind(StrEnum):
     MARKDOWN = "markdown"
@@ -59,10 +57,6 @@ class ParsedMarkdown:
     headings: tuple[Heading, ...]
     links: tuple[RawLink, ...]
     tags: tuple[str, ...]
-
-    @property
-    def first_heading_line(self) -> int | None:
-        return self.headings[0].line if self.headings else None
 
 
 def slugify(text: str) -> str:
@@ -225,13 +219,3 @@ def _line_offset(text: str, body: str) -> int:
     if index < 0:
         return 0
     return text.count("\n", 0, index)
-
-
-def parse_line_fragment(fragment: str | None) -> int | None:
-    """A contract-shaped `L<line>` or `L<line>-L<line>` fragment, if any."""
-    if not fragment:
-        return None
-    match = _BARE_FRAGMENT.match(fragment)
-    if match is None:
-        return None
-    return int(match.group(1))

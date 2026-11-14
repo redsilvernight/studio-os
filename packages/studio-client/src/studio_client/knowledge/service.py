@@ -13,8 +13,6 @@ from studio_client.knowledge.obsidian import ObsidianProbe
 from studio_client.knowledge.provider import KnowledgeMemoryProvider, VaultKnowledgeProvider
 from studio_client.knowledge.scope import ScopePolicy
 
-INDEX_DIRECTORY_SUFFIX = "knowledge-index"
-
 
 @dataclass(frozen=True)
 class KnowledgeService:
