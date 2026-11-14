@@ -219,6 +219,28 @@ class LibraryVersion(ContractModel):
     created_at: datetime
 
 
+class LibraryMergeInputs(ContractModel):
+    base: str
+    ours: str
+    theirs: str
+
+
+class LibraryMergeConflict(LibraryMergeInputs):
+    start_line: int
+    base_start: int
+    base_end: int
+
+
+class LibraryMergeResult(ContractModel):
+    content: str
+    conflicts: list[LibraryMergeConflict]
+
+
+class LibraryMergePreview(ContractModel):
+    inputs: LibraryMergeInputs
+    result: LibraryMergeResult
+
+
 LIBRARY_VERSION_BATCH_MAX = 500
 
 

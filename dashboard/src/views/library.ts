@@ -51,6 +51,7 @@ import {
   createLibraryResource,
   createLibraryVersion,
   deprecateLibraryResource,
+  getLibraryMergePreview,
   getLibraryResource,
   listLibraryLocks,
   listLibraryResources,
@@ -96,6 +97,7 @@ import {
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
+import { libraryMergeSectionHtml, renderLibraryMerge, type LibraryMergeData } from "./libraryMerge";
 import { FALLBACK_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { getPlatform } from "../platform";
@@ -927,6 +929,14 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
 /* Détail : d'abord LECTURE (contenu prioritaire), technique repliée.  */
 /* ------------------------------------------------------------------ */
 
+function mergeSectionForDetail(resource: LibraryResource, merge: LibraryMergeData | null): string {
+  if (merge !== null) return libraryMergeSectionHtml(merge);
+  if (resource.scope === "user" && resource.status === "active" && resource.base_update_available === true) {
+    return '<div data-library-merge-preview></div>';
+  }
+  return "";
+}
+
 /** Deep link Inspector (agent-definitions uniquement) en langage utilisateur. */
 export function inspectorLinkHtml(resource: LibraryResource): string {
   if (resource.kind !== "agent_definition") return "";
@@ -1019,6 +1029,7 @@ export function libraryDetailHtml(
   locks: LibraryProjectLock[],
   siblings: LibraryResource[] = [],
   isAdmin = true,
+  merge: LibraryMergeData | null = null,
 ): string {
   const fr = kindFr(resource.kind);
   const lifecycleLocked = resource.scope === "studio" && !isAdmin;
@@ -1068,6 +1079,7 @@ export function libraryDetailHtml(
       : dsEmptyState("Aucune version activée", "Créez une version puis activez-la pour donner un contenu lisible à cette ressource.")) +
     `</div></section>` +
     `${inspectorLinkHtml(resource)}` +
+    `${mergeSectionForDetail(resource, merge)}` +
     (resource.kind === "hook" ? hookIncomingSectionHtml() : "") +
     `<section class="ds-panel" aria-label="Cycle de vie"><header><h2>Cycle de vie</h2></header><div class="body">` +
     (lifecycleLocked
@@ -1159,6 +1171,10 @@ export async function renderLibraryDetail(
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings, await isAdminIdentity(ctx.client)) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
+  const mergePreview = root.querySelector<HTMLElement>("[data-library-merge-preview]");
+  if (mergePreview !== null) {
+    void renderLibraryMerge(mergePreview, { load: () => getLibraryMergePreview(ctx.client, resource.id) });
+  }
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {
     const version = Number(button.dataset["dependencyPreview"]);
     const output = root.querySelector<HTMLElement>(`[data-dependency-output="${version}"]`);

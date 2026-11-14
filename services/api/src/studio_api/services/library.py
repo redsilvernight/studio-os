@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -10,6 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 from studio_contracts.auth import Role
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.library import (
@@ -19,6 +21,9 @@ from studio_contracts.library import (
     DependencyUpdates,
     LibraryKind,
     LibraryLockCreate,
+    LibraryMergeInputs,
+    LibraryMergePreview,
+    LibraryMergeResult,
     LibraryProjectLock,
     LibraryResolution,
     LibraryResourceCreate,
@@ -36,6 +41,7 @@ from studio_contracts.library import (
     hook_validation_errors,
     workflow_validation_errors,
 )
+from studio_contracts.library_merge import merge_texts
 
 from studio_api.db.models.library import (
     LibraryProjectLockModel,
@@ -278,6 +284,53 @@ async def get_version(
     `(resource_id, version)` (e.g. project context selection) and must not
     load every version of the resource."""
     return await _version_row(session, resource_id, version)
+
+
+async def preview_merge(
+    session: AsyncSession, principal: Principal, resource_id: UUID
+) -> LibraryMergePreview:
+    override = await find_readable_resource(session, principal, resource_id)
+    if (
+        override is None
+        or override.scope != LibraryScope.USER.value
+        or override.owner_user_id != principal.user.id
+        or override.status != LibraryStatus.ACTIVE.value
+    ):
+        raise _not_found()
+    ours = await get_version(session, override.id, override.active_version)
+    if ours is None or ours.derived_from_resource_id is None or ours.derived_from_version is None:
+        raise _not_found()
+    common = await find_readable_resource(session, principal, ours.derived_from_resource_id)
+    if (
+        common is None
+        or common.status != LibraryStatus.ACTIVE.value
+        or common.active_version == ours.derived_from_version
+    ):
+        raise _not_found()
+    base = await get_version(session, common.id, ours.derived_from_version)
+    theirs = await get_version(session, common.id, common.active_version)
+    if base is None or theirs is None:
+        raise _not_found()
+    base_text, our_text, their_text = (
+        version.content.get("text") for version in (base, ours, theirs)
+    )
+    if not (
+        isinstance(base_text, str) and isinstance(our_text, str) and isinstance(their_text, str)
+    ):
+        raise _not_found()
+    if any(
+        text.count("\n") + text.count("\r") - text.count("\r\n") > 1_000
+        for text in (base_text, our_text, their_text)
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "merge_preview_too_many_lines"},
+        )
+    result = await run_in_threadpool(merge_texts, base_text, our_text, their_text)
+    return LibraryMergePreview(
+        inputs=LibraryMergeInputs(base=base_text, ours=our_text, theirs=their_text),
+        result=LibraryMergeResult.model_validate(asdict(result)),
+    )
 
 
 def _invalid_binding(reason: str) -> HTTPException:

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, Response, status
 from studio_contracts.library import (
     DependencyUpdates,
     LibraryActivate,
     LibraryDeprecate,
     LibraryLockCreate,
+    LibraryMergePreview,
     LibraryProjectLock,
     LibraryResource,
     LibraryResourceCreate,
@@ -179,6 +180,25 @@ async def list_library_versions(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library resource not found")
     rows = await library_service.list_versions(session, resource.id)
     return [await library_service.version_detail(session, row) for row in rows]
+
+
+@router.get(
+    "/{resource_id}/merge-preview",
+    response_model=LibraryMergePreview,
+    description="Preview a three-way merge for the owner's active text override against "
+    "its original and current common versions. This endpoint never writes.",
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_404_NOT_FOUND,
+        422: {"description": "Invalid resource ID or merge_preview_too_many_lines."},
+    },
+)
+async def get_library_merge_preview(
+    resource_id: UUID, response: Response, session: DbSession, principal: CurrentPrincipal
+) -> LibraryMergePreview:
+    preview = await library_service.preview_merge(session, principal, resource_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return preview
 
 
 @router.get(

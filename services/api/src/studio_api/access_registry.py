@@ -141,6 +141,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/library/versions/batch-get"): _P,
     ("GET", "/api/v1/library/{resource_id}"): _P,
     ("GET", "/api/v1/library/{resource_id}/versions"): _P,
+    ("GET", "/api/v1/library/{resource_id}/merge-preview"): "own",
     ("GET", "/api/v1/library/{resource_id}/versions/{version}/dependency-updates"): _P,
     ("POST", "/api/v1/library/{resource_id}/versions"): _P,
     ("POST", "/api/v1/library/{resource_id}/activate"): _P,

@@ -14,15 +14,25 @@ import logging
 import os
 import threading
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal
+from uuid import uuid4
 
-from studio_contracts.library import LibraryDeprecate
+from studio_contracts.library import (
+    LibraryActivate,
+    LibraryDeprecate,
+    LibraryKind,
+    LibraryResource,
+    LibraryResourceCreate,
+    LibraryScope,
+    LibraryVersionCreate,
+    LibraryVersionRef,
+)
 from studio_contracts.local.common import ComponentId, LocalError, LocalErrorCode
 from studio_contracts.local.skills import (
     SkillCheckEntry,
@@ -806,6 +816,269 @@ def _selection_from_resolutions(
     return selected
 
 
+_PUBLISH_KINDS: dict[str, LibraryKind] = {
+    "skill": LibraryKind.SKILL,
+    "rule": LibraryKind.RULE,
+    "agent": LibraryKind.AGENT_DEFINITION,
+}
+"""Manifest kind (`agent`) to the Library kind it overrides
+(`agent_definition`). Publication only ever targets the three kinds the skill
+synchronization projects."""
+
+_PROVENANCE_PREFIX = "<!-- studio-os-library:"
+
+
+@dataclass(frozen=True)
+class OverrideDraft:
+    """One locally modified file to publish as the caller's personal version.
+
+    Carries the local content only: the common base is resolved over HTTP at
+    publication time, by the server that owns the precedence rules."""
+
+    kind: str
+    stable_key: str
+    title: str
+    description: str | None
+    text: str
+    projection: LibraryContextItem
+
+
+def split_local_override(text: str) -> tuple[str | None, str]:
+    """Inverse of the projection renderers: `(description, body)` of a file.
+
+    Drops the generated YAML frontmatter and the Studio OS provenance comment
+    so the published version stores the user's prose, never the projection
+    marker of the previous version."""
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    description: str | None = None
+    if normalized.startswith("---\n"):
+        end = normalized.find("\n---\n", 4)
+        if end != -1:
+            for line in normalized[4:end].splitlines():
+                name, separator, raw = line.partition(":")
+                if separator and name.strip() == "description":
+                    try:
+                        parsed = json.loads(raw.strip())
+                    except json.JSONDecodeError:
+                        parsed = raw.strip()
+                    if isinstance(parsed, str) and parsed.strip():
+                        description = " ".join(parsed.split())
+            normalized = normalized[end + 5 :]
+    lines = normalized.splitlines(keepends=True)
+    while lines and (not lines[0].strip() or lines[0].lstrip().startswith(_PROVENANCE_PREFIX)):
+        lines.pop(0)
+    return description, "".join(lines).strip("\n")
+
+
+def _locally_modified_text(
+    targets: Sequence[SkillTargetPlan | DefinitionTargetPlan],
+) -> str | None:
+    """The user's own copy that the publication must capture (main file only)."""
+    for target in targets:
+        if target.state == "locally_modified" and target.current_text:
+            return target.current_text
+    return None
+
+
+def _override_draft(
+    kind: str, projection: LibraryContextItem, local_text: str | None
+) -> OverrideDraft:
+    description, text = split_local_override(local_text or "")
+    if local_text is None or not text.strip():
+        raise _error(
+            LocalErrorCode.INVALID_REQUEST,
+            "Only a locally modified file with content can be published as an override.",
+            ComponentId.DAEMON,
+            retryable=False,
+        )
+    return OverrideDraft(
+        kind=kind,
+        stable_key=projection.stable_key,
+        title=projection.title,
+        description=description or projection.description,
+        text=text,
+        projection=projection,
+    )
+
+
+def override_drafts(
+    plan: SkillSyncPlan,
+    definitions: DefinitionSyncPlan,
+    resolutions: list[Any],
+) -> list[OverrideDraft]:
+    """One draft per `publish` resolution, in resolution order."""
+    wanted = {
+        (resolution.kind.value, resolution.stable_key)
+        for resolution in resolutions
+        if resolution.choice == "publish"
+    }
+    drafts: dict[tuple[str, str], OverrideDraft] = {}
+    for skill_entry in plan.entries:
+        identity = ("skill", skill_entry.projection.stable_key)
+        if identity in wanted:
+            drafts[identity] = _override_draft(
+                "skill",
+                skill_entry.projection,
+                _locally_modified_text(skill_entry.all_targets),
+            )
+    for definition_entry in definitions.entries:
+        kind = _manifest_kind(definition_entry.projection.library_kind)
+        identity = (kind, definition_entry.projection.stable_key)
+        if identity in wanted:
+            drafts[identity] = _override_draft(
+                kind,
+                definition_entry.projection,
+                _locally_modified_text(definition_entry.targets),
+            )
+    missing = [
+        (resolution.kind.value, resolution.stable_key)
+        for resolution in resolutions
+        if resolution.choice == "publish"
+        and (resolution.kind.value, resolution.stable_key) not in drafts
+    ]
+    if missing:
+        raise _error(
+            LocalErrorCode.INVALID_REQUEST,
+            "A published choice names an item this machine does not compare; compare again.",
+            ComponentId.DAEMON,
+            retryable=False,
+        )
+    return [
+        drafts[(resolution.kind.value, resolution.stable_key)]
+        for resolution in resolutions
+        if resolution.choice == "publish"
+    ]
+
+
+def _override_content(draft: OverrideDraft, base: dict[str, Any] | None) -> dict[str, Any]:
+    """The common version as a template, with the user's local prose in it.
+
+    Keeping the common `content_schema` preserves every other field the
+    schema allows (`applies_to`, skill files, agent instructions) while the
+    free prose becomes the caller's own."""
+    content: dict[str, Any] = (
+        dict(base) if base else {"content_schema": draft.projection.content_schema}
+    )
+    if draft.kind == "skill":
+        content.setdefault(
+            "files",
+            [
+                {
+                    "path": path,
+                    "text": text,
+                    "sha256": sha256(text.encode("utf-8")).hexdigest(),
+                }
+                for path, text in draft.projection.files
+            ],
+        )
+        if content["content_schema"].endswith("/v2") or "disable_model_invocation" in content:
+            content.setdefault(
+                "disable_model_invocation", draft.projection.disable_model_invocation
+            )
+        content["text"] = draft.text
+    elif draft.kind == "agent":
+        summary, _, rest = draft.text.partition("\n\n")
+        content["summary"] = summary.strip() or None
+        content["intended_use"] = rest.strip() or None
+        content.pop("text", None)
+    else:
+        content["text"] = draft.text
+    return content
+
+
+async def _find_library_resource(
+    client: StudioApiClient,
+    kind: LibraryKind,
+    stable_key: str,
+    scope: LibraryScope,
+) -> LibraryResource | None:
+    offset = 0
+    while True:
+        page = await client.list_library_resources(
+            kind=kind.value, scope=scope.value, limit=_SKILL_LIMIT, offset=offset
+        )
+        for resource in page:
+            if resource.stable_key == stable_key:
+                return resource
+        if len(page) < _SKILL_LIMIT:
+            return None
+        offset += _SKILL_LIMIT
+
+
+async def _base_version_content(
+    client: StudioApiClient, resource: LibraryResource | None
+) -> dict[str, Any] | None:
+    if resource is None or resource.active_version <= 0:
+        return None
+    result = await client.batch_library_versions([(resource.id, resource.active_version)])
+    detail = result.items[0].detail if result.items else None
+    return dict(detail.content) if detail is not None else None
+
+
+async def _publish_override(client: StudioApiClient, draft: OverrideDraft) -> None:
+    """Publish the local content as the caller's `user`-scope version, active.
+
+    Reuses the existing override publication surface (create resource with
+    `derived_from`, or a new version of the caller's own override, then
+    activation). The row stays private: the server only ever lists it for its
+    owner, so no other user sees or receives it."""
+    kind = _PUBLISH_KINDS[draft.kind]
+    common = await _find_library_resource(client, kind, draft.stable_key, LibraryScope.STUDIO)
+    content = _override_content(draft, await _base_version_content(client, common))
+    derived_from = (
+        LibraryVersionRef(resource_id=common.id, version=common.active_version)
+        if common is not None and common.active_version > 0
+        else None
+    )
+    mine = await _find_library_resource(client, kind, draft.stable_key, LibraryScope.USER)
+    if mine is None:
+        mine = await client.create_library_resource(
+            LibraryResourceCreate(
+                kind=kind,
+                stable_key=draft.stable_key,
+                scope=LibraryScope.USER,
+                title=draft.title,
+                description=draft.description,
+                content=content,
+                derived_from=derived_from,
+            ),
+            idempotency_key=str(uuid4()),
+        )
+        version = 1
+    else:
+        current = await client.get_library_resource(mine.id)
+        if current.active_version > 0 and await _base_version_content(client, current) == content:
+            return
+        created = await client.create_library_version(
+            current.id,
+            LibraryVersionCreate(
+                title=draft.title,
+                description=draft.description,
+                content=content,
+                derived_from=derived_from,
+            ),
+            idempotency_key=str(uuid4()),
+        )
+        version = created.version
+        mine = current
+    current = await client.get_library_resource(mine.id)
+    if current.active_version != version:
+        await client.activate_library_version(
+            current.id,
+            LibraryActivate(version=version, expected_resource_version=current.version),
+            idempotency_key=str(uuid4()),
+        )
+
+
+async def _publish_overrides(
+    config: ClientConfig, token_store: TokenStore, drafts: list[OverrideDraft]
+) -> tuple[LibraryContextItem, ...]:
+    async with StudioApiClient(config, token_store) as client:
+        for draft in drafts:
+            await _publish_override(client, draft)
+    return ()
+
+
 def _definition_preview_hash(entry: DefinitionPlanEntry) -> str:
     payload = {
         "kind": _manifest_kind(entry.projection.library_kind),
@@ -991,7 +1264,23 @@ def apply_skills(
                     ComponentId.DAEMON,
                     retryable=False,
                 )
-        library_choices = [r for r in request.resolutions if r.choice == "library"]
+        if any(resolution.choice == "publish" for resolution in request.resolutions):
+            # `publish` writes the local content as the caller's own version
+            # first, then the plan is re-read so the applied content and the
+            # recorded sync base are the version that now shadows the common.
+            drafts = override_drafts(plan, definitions, request.resolutions)
+            _run_fetch(
+                config,
+                token_store,
+                lambda c, t: _publish_overrides(c, t, drafts),
+            )
+            plan, definitions = _fetch_and_plan_library(
+                config,
+                token_store,
+                root,
+                _selection_from_resolutions(request.resolutions),
+            )
+        library_choices = [r for r in request.resolutions if r.choice in {"library", "publish"}]
         selected_keys = {r.stable_key for r in library_choices if r.kind is SkillLibraryKind.SKILL}
         selected_definitions = {
             (r.kind.value, r.stable_key)
