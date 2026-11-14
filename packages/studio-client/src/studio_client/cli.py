@@ -1546,7 +1546,6 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         diff_skill_plan,
         fetch_skill_projections,
         plan_skill_sync,
-        revert_skill_override,
     )
 
     async def action(client: StudioApiClient) -> Any:
@@ -1554,18 +1553,21 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
 
     try:
         if args.skills_command == "revert":
+            from studio_client.daemon.skills_bridge import revert_override
+
             result = _run(
                 config,
-                lambda client: revert_skill_override(
+                lambda client: revert_override(
                     client,
                     Path(args.home),
+                    args.kind,
                     args.stable_key,
                     include_opencode=not args.no_opencode,
                     limit=args.library_limit,
                 ),
             )
             print(
-                f"reverted {args.stable_key} to the common version; "
+                f"reverted {args.kind} {args.stable_key} to the common version; "
                 f"wrote {len(result.written)} files; backups restorable with `library restore`"
             )
             return
@@ -2169,7 +2171,10 @@ def _build_parser() -> argparse.ArgumentParser:
             help="Skip the OpenCode copy in ~/.config/opencode/skills.",
         )
         if command == "revert":
-            skills_command.add_argument("stable_key", help="Skill whose override is dropped.")
+            skills_command.add_argument(
+                "--kind", choices=("skill", "rule", "agent_definition"), default="skill"
+            )
+            skills_command.add_argument("stable_key", help="Item whose override is dropped.")
         if command == "sync":
             skills_command.add_argument(
                 "--overwrite",

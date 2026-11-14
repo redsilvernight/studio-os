@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
-from studio_contracts.library import LibraryDeprecate, skill_file_path_error
+from studio_contracts.library import skill_file_path_error
 
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
 from studio_client.drift import SyncState, carries_library_provenance, classify_state
@@ -177,37 +177,6 @@ async def fetch_skill_projections(
             key=lambda item: item.stable_key,
         )
     )
-
-
-async def revert_skill_override(
-    api: Any,
-    home: Path,
-    stable_key: str,
-    *,
-    include_opencode: bool = True,
-    limit: int = 500,
-) -> SkillSyncResult:
-    """Drop the caller's User override of one skill and re-project the common one.
-
-    The override is deprecated, never deleted (it stays in the owner's history);
-    the local files are rewritten through the journaled sync, so
-    ``library restore`` brings the override text back."""
-
-    rows = await api.list_library_resources(kind="skill", limit=limit)
-    live = [r for r in rows if r.stable_key == stable_key and str(r.status) == "active"]
-    override = next((r for r in live if str(r.scope) == "user"), None)
-    if override is None:
-        raise SkillSyncError("no active user override for this skill")
-    if all(str(r.scope) == "user" for r in live):
-        raise SkillSyncError("no common version to return to")
-    await api.deprecate_library_resource(
-        override.id,
-        LibraryDeprecate(expected_resource_version=override.version),
-        idempotency_key=f"revert-override-{override.id}-{override.version}",
-    )
-    projections = await fetch_skill_projections(api, None, limit=limit)
-    plan = plan_skill_sync(home, projections, include_opencode=include_opencode)
-    return apply_skill_sync(plan, overwrite=True, selected_keys={stable_key})
 
 
 def render_skill(projection: LibraryContextItem, *, allow_project: bool = False) -> str:
