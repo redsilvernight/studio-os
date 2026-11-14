@@ -147,3 +147,5 @@ Ordre conseillé : PC4 (sans risque, le plus gros volume) et PC1 en parallèle, 
 | [PC0-annexe-tests-docs-contracts.md](PC0-annexe-tests-docs-contracts.md) | `tests/`, `scripts/`, `examples/`, `contracts/`, `docs/`, configs, racine et `library/` |
 
 Chaque annexe commence par une section « Revalidation sur f099ef02 » qui liste les changements de classement et de ligne survenus depuis `6fa6fa78`.
+
+Le garde-fou qui empêche ce code mort de revenir (vulture et knip en CI, exceptions justifiées) est décrit dans [PC5-guard.md](PC5-guard.md).

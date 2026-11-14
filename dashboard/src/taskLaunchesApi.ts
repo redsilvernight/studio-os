@@ -31,9 +31,11 @@ export const LAUNCH_TTL_CHOICES: ReadonlyArray<{ seconds: number; label: string 
 ];
 export const DEFAULT_LAUNCH_TTL_SECONDS = 7200;
 export type TaskLaunchStatus = components["schemas"]["TaskLaunchStatus"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type TaskLaunchReasonCode = components["schemas"]["TaskLaunchReasonCode"];
 export type TaskLaunchProtocol = components["schemas"]["TaskLaunchProtocol"];
 export type TaskLaunchProtocolStatus = components["schemas"]["TaskLaunchProtocolStatus"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type TaskLaunchView = components["schemas"]["TaskLaunchView"];
 /**
  * Lancement tel que la liste projet le rend : `TaskLaunch` plus la preuve de
@@ -54,6 +56,7 @@ export type ExecutionSnapshotPayload = components["schemas"]["ExecutionSnapshotP
 export type SnapshotResolution = components["schemas"]["SnapshotResolution"];
 export type SnapshotAppliedParameters = components["schemas"]["SnapshotAppliedParameters"];
 export type SnapshotCaptureError = components["schemas"]["SnapshotCaptureError"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type SnapshotCaptureStatus = components["schemas"]["SnapshotCaptureStatus"];
 export type EligibleMachines = components["schemas"]["EligibleMachines"];
 export type MachineEligibility = components["schemas"]["MachineEligibility"];

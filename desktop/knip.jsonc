@@ -1,0 +1,20 @@
+// Contrôle de code mort de desktop/ (scripts .mjs, PC5), knip 6.45.1 épinglé dans
+// scripts/deadcode_check.py. Procédure et règles d'exception : docs/library/roadmap-pc/PC5-guard.md.
+// Le shell Rust (src-tauri/) et le sidecar Python sont hors du périmètre de knip.
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "entry": [
+    // Appelé par la CI : .github/workflows/desktop-channels.yml et desktop-validate.yml.
+    "scripts/annotate-results.mjs",
+    // Lanceurs E2E documentés (docs/DESKTOP_C2_NEW_USER_E2E.md), pilotés par desktop/e2e/*.py.
+    "scripts/a5-enroll-e2e.mjs",
+    "scripts/onboarding-walkthrough.mjs",
+    // PC0 à vérifier : scripts manuels P12 sans appelant ni doc active (PC0-annexe-dashboard-desktop.md).
+    "scripts/onboarding-relaunch.mjs",
+    "scripts/p12-root-transition.mjs"
+  ],
+  // Appelé par chemin (scripts/lib.mjs, tauriCli), jamais par import ni binaire.
+  "ignoreDependencies": ["@tauri-apps/cli"],
+  // Outils système Windows et uv (Python), pas des paquets npm.
+  "ignoreBinaries": ["tasklist", "reg", "netstat", "cmdkey", "uv"]
+}

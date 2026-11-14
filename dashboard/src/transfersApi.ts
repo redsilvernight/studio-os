@@ -28,7 +28,10 @@ export type TransferConsumption = components["schemas"]["TransferConsumption"];
 type UploadInitiateResponse = components["schemas"]["UploadInitiateResponse"];
 type UploadCompleteRequest = components["schemas"]["UploadCompleteRequest"];
 
-/** Server constants (`services/transfers.py`), mirrored for progress display. */
+/**
+ * Server constants (`services/transfers.py`), mirrored for progress display.
+ * @public PC0 à vérifier : miroir de la constante serveur (DEC-0033), sans lecture.
+ */
 export const MULTIPART_THRESHOLD_BYTES = 128 * 1024 * 1024;
 const PART_SIZE_BYTES = 64 * 1024 * 1024;
 const PART_CONCURRENCY = 4;
