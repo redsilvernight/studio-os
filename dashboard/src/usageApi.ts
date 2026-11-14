@@ -13,16 +13,22 @@ import type { components } from "./openapi-schema";
 export type UsageSummary = components["schemas"]["UsageSummary"];
 export type UsageAggregate = components["schemas"]["UsageAggregate"];
 export type UsageGroupBy = components["schemas"]["UsageGroupBy"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type UsageTotalStatus = components["schemas"]["UsageTotalStatus"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type UsageTokenTotal = components["schemas"]["UsageTokenTotal"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type UsageCostTotal = components["schemas"]["UsageCostTotal"];
 
 /* Historique des configurations (P06-history-option, DEC-0221). */
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ConfigurationRateKey = components["schemas"]["ConfigurationRateKey"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ConfigurationKey = components["schemas"]["ConfigurationKey"];
 /** `value` est une fraction 0..1, `null` quand le dénominateur vaut 0. */
 export type ConfigurationRate = components["schemas"]["ConfigurationRate"];
 export type ConfigurationHistoryGroup = components["schemas"]["ConfigurationHistoryGroup"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ConfigurationHistoryUnattributed = components["schemas"]["ConfigurationHistoryUnattributed"];
 export type ConfigurationHistory = components["schemas"]["ConfigurationHistory"];
 

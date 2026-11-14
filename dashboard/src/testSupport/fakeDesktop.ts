@@ -3,7 +3,9 @@ import type { DaemonRunState, OutboxLegacyStatus, PeerInfo } from "../platform/g
 import type { BridgeCommand } from "../platform/contracts";
 import type { DesktopDiagnostics, Platform, ServerOriginState } from "../platform";
 
-/** A Desktop `PeerInfo` shaped like the Rust one (health optional, never required). */
+/**
+ * A Desktop `PeerInfo` shaped like the Rust one (health optional, never required).
+ * @public PC0 à vérifier : fixture de test, utilisée dans ce fichier ; seul `export` est superflu. */
 export const PEER = {
   role: "desktop",
   protocol_id: "studio.local",
@@ -56,6 +58,7 @@ export const INFO = {
   peer: PEER,
   sidecar: { state: "not_started" as const },
 };
+/** @public PC0 à vérifier : fixture de test, utilisée dans ce fichier ; seul `export` est superflu. */
 export const DIAGNOSTICS: DesktopDiagnostics = {
   desktop_version: "0.1.0",
   protocol: "studio.local/v1",

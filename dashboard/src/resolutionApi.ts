@@ -12,13 +12,20 @@ import type { components } from "./openapi-schema";
 import type { LibraryKind, RuntimeLevel } from "./libraryFormat";
 
 export type AgentResolutionRequest = components["schemas"]["AgentResolutionRequest"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type SessionRuntimeOverride = components["schemas"]["SessionRuntimeOverride"];
 export type ResolvedAgentDefinition = components["schemas"]["ResolvedAgentDefinition"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ResolvedAgent = components["schemas"]["ResolvedAgent"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ResolvedRule = components["schemas"]["ResolvedRule"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ResolvedSkill = components["schemas"]["ResolvedSkill"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ResolvedModelProfile = components["schemas"]["ResolvedModelProfile"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ResolvedRuntime = components["schemas"]["ResolvedRuntime"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type PreservedReference = components["schemas"]["PreservedReference"];
 
 /** Pure read — safe to retry, no `Idempotency-Key` (DEC-0071 §5). */
