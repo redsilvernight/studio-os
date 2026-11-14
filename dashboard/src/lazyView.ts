@@ -31,7 +31,7 @@ export async function lazyView<T>(importer: () => Promise<T>): Promise<T> {
 
 export const VIEW_LOAD_RETRY_ID = "view-load-retry";
 
-export function viewLoadErrorHtml(): string {
+function viewLoadErrorHtml(): string {
   return (
     dsPageHeader("Page indisponible", "Le contenu de cette page n'a pas pu être téléchargé.") +
     dsStateHtml("error", {

@@ -78,12 +78,6 @@ class CollectorRegistry:
                 self._by_harness[harness_id] = collector
         self._fallback = UnmeteredCollector()
 
-    def certified(self, harness_id: str) -> bool:
-        return harness_id in self._by_harness
-
-    def for_harness(self, harness_id: str) -> UsageCollector:
-        return self._by_harness.get(harness_id, self._fallback)
-
     def collect(self, run: RunObservation) -> CollectedUsage:
         collector = self._by_harness.get(run.harness_id)
         if collector is None:

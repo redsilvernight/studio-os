@@ -13,10 +13,6 @@ export function setClientFamily(next: ClientFamily): void {
   family = next;
 }
 
-export function getClientFamily(): ClientFamily {
-  return family;
-}
-
 /** The additive negotiation headers sent on every `/api/v1` call. */
 export function clientNegotiationHeaders(): Record<string, string> {
   return { "X-Studio-Client": family, "X-Studio-Client-Version": CLIENT_VERSION };

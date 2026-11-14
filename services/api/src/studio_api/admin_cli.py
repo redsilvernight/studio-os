@@ -26,6 +26,7 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
 from studio_api.services import agents as agents_service
+from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
@@ -208,6 +209,17 @@ async def _expire_transfers() -> None:
         for transfer in expired:
             print(f"transfer expired and deleted: {transfer.id} ({transfer.transfer_code})")
         print(f"{len(expired)} transfer(s) deleted")
+
+
+async def _purge_execution_snapshots() -> None:
+    """Retention of execution snapshots: same scheduling model as
+    `_expire_transfers`, batches committed one by one until none is left."""
+    total = 0
+    async with get_session_factory()() as session:
+        while deleted := await snapshots_service.purge_expired(session):
+            await session.commit()
+            total += deleted
+    print(f"{total} execution snapshot(s) deleted")
 
 
 async def _abort_stale_multipart_uploads(older_than_days: int, dry_run: bool) -> None:
@@ -549,6 +561,12 @@ def main() -> None:
     )
     abort_stale.add_argument("--dry-run", action="store_true")
 
+    snapshots_parser = sub.add_parser("snapshots", help="Manage execution snapshots")
+    snapshots_sub = snapshots_parser.add_subparsers(dest="snapshots_command", required=True)
+    snapshots_sub.add_parser(
+        "purge-expired", help="Delete execution snapshots past their retention"
+    )
+
     builds_parser = sub.add_parser("builds", help="Manage builds")
     builds_sub = builds_parser.add_subparsers(dest="builds_command", required=True)
     builds_sub.add_parser(
@@ -648,6 +666,8 @@ def main() -> None:
             asyncio.run(_expire_transfers())
         elif args.command == "transfers" and args.transfer_command == "abort-stale-multipart":
             asyncio.run(_abort_stale_multipart_uploads(args.older_than_days, args.dry_run))
+        elif args.command == "snapshots" and args.snapshots_command == "purge-expired":
+            asyncio.run(_purge_execution_snapshots())
         elif args.command == "builds" and args.builds_command == "reconcile":
             asyncio.run(_reconcile_builds())
         elif args.command == "merge-machines":

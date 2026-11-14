@@ -31,7 +31,7 @@ export interface MembersContext {
   selfId?: string | null;
 }
 
-export const CONFIRM_REVOKE_MEMBER =
+const CONFIRM_REVOKE_MEMBER =
   "Retirer ce membre ? Il perd immédiatement l'accès au projet et ses flux temps réel se ferment.";
 
 function memberLabel(m: ProjectMember): string {

@@ -148,7 +148,7 @@ function navModeToggleHtml(mode: NavMode): string {
   );
 }
 
-export type ConnectionLevel = "ok" | "info" | "warn" | "error";
+type ConnectionLevel = "ok" | "info" | "warn" | "error";
 
 export interface ConnectionView {
   level: ConnectionLevel;
@@ -177,7 +177,7 @@ function connectionActionHtml(action: ConnectionAction, href: string | undefined
 }
 
 /** État de connexion côté navigateur : seul le jeton est connu. */
-export function webConnection(authed: boolean): ConnectionView {
+function webConnection(authed: boolean): ConnectionView {
   return authed ? { level: "ok", label: "Connecté" } : { level: "info", label: "Non connecté" };
 }
 

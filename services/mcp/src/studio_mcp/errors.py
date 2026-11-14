@@ -17,7 +17,6 @@ from studio_api.services.launch_credentials import ensure_tool_allowed
 from studio_mcp.argument_errors import validation_error as validation_error
 from studio_mcp.auth import McpAuthError, authenticate
 
-ToolHandler = Callable[[AsyncSession, Principal], Awaitable[Any]]
 logger = logging.getLogger(__name__)
 
 

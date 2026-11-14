@@ -247,19 +247,19 @@ function dayHtml(day: TimelineDay): string {
 }
 
 /** Vue calendrier : mois affiché (YYYY-MM) et jour sélectionné (YYYY-MM-DD). */
-export interface CalendarView {
+interface CalendarView {
   month: string;
   selected: string;
 }
 
 /** Vue par défaut : le jour le plus récent qui porte des événements. */
-export function defaultCalendarView(timeline: Timeline): CalendarView {
+function defaultCalendarView(timeline: Timeline): CalendarView {
   const dates = timeline.days.filter((day) => day.events.length > 0).map((day) => day.date).sort();
   const latest = dates[dates.length - 1] ?? new Date().toISOString().slice(0, 10);
   return { month: latest.slice(0, 7), selected: latest };
 }
 
-export function shiftMonth(month: string, delta: number): string {
+function shiftMonth(month: string, delta: number): string {
   const [year = 1970, mon = 1] = month.split("-").map(Number);
   const d = new Date(Date.UTC(year, mon - 1 + delta, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -328,7 +328,7 @@ export function activityLoadingHtml(): string {
   return dsSkeleton(4);
 }
 
-export async function fetchTimeline(
+async function fetchTimeline(
   client: StudioClient,
   projectId: string,
   limit: number,
@@ -342,13 +342,13 @@ export async function fetchTimeline(
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-export async function fetchActivityDates(client: StudioClient, projectId: string): Promise<string[]> {
+async function fetchActivityDates(client: StudioClient, projectId: string): Promise<string[]> {
   const result = await client.GET("/api/v1/timeline/dates", { params: { query: { project_id: projectId } } });
   if (result.response.ok && result.data !== undefined) return [...result.data].sort().reverse();
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-export async function fetchDaySessions(client: StudioClient, projectId: string, day: string, offset = 0): Promise<WorkSession[]> {
+async function fetchDaySessions(client: StudioClient, projectId: string, day: string, offset = 0): Promise<WorkSession[]> {
   const result = await client.GET("/api/v1/sessions", {
     params: { query: { project_id: projectId, ...utcDayWindow(day), limit: TIMELINE_LIMIT_DEFAULT, offset } },
   });

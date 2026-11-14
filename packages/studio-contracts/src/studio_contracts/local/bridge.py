@@ -550,9 +550,6 @@ class BridgeRequest(_Envelope):
             raise ValueError(f"{self.command.value} requires action {expected_action.value}")
         return self
 
-    def typed_payload(self) -> LocalContractModel:
-        return BRIDGE_COMMANDS[self.command].request.model_validate(self.payload)
-
 
 class BridgeResponse(_Envelope):
     kind: Literal["response"] = "response"
@@ -567,9 +564,6 @@ class BridgeResponse(_Envelope):
             raise ValueError(f"response payload exceeds {spec.max_response_bytes} bytes")
         spec.response.model_validate(self.payload)
         return self
-
-    def typed_payload(self) -> LocalContractModel:
-        return BRIDGE_COMMANDS[self.command].response.model_validate(self.payload)
 
 
 class BridgeErrorMessage(_Envelope):

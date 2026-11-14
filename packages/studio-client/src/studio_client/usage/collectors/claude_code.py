@@ -34,7 +34,6 @@ from studio_client.usage.collectors.base import (
 
 COLLECTOR_ID = "studio-claude-code"
 COLLECTOR_VERSION = "1.0.0"
-CERTIFIED_HARNESS_SERIES = "2.1"
 
 _PROVIDER_ALIASES = {"firstParty": "anthropic"}
 

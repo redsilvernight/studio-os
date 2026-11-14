@@ -161,9 +161,6 @@ class RecordingProvider:
         self._marker_id_factory = marker_id_factory
         self._candidate_id_factory = candidate_id_factory
 
-    def active_recording(self) -> Recording | None:
-        return self._store.load()
-
     async def start_recording(
         self,
         project_id: UUID,

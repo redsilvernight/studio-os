@@ -33,8 +33,6 @@ SyncState = Literal["current", "missing", "outdated", "locally_modified"]
 
 DivergenceState = Literal["divergent"]
 
-DriftKind = Literal["skill", "rule", "agent", "workflow", "block"]
-
 _MANIFEST_SCHEMA_V1 = 1
 MANIFEST_SCHEMA_VERSION = 2
 
@@ -44,7 +42,6 @@ def hash_text(text: str) -> str:
 
 
 _PROVENANCE_PREFIX = "<!-- studio-os-library:"
-LIBRARY_PROVENANCE_PREFIX = _PROVENANCE_PREFIX
 
 
 def carries_library_provenance(text: str) -> bool:

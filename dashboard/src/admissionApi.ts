@@ -23,7 +23,7 @@ export type AdmissionBatchItem = components["schemas"]["AdmissionBatchItem"];
 export type AdmissionBatchRequest = components["schemas"]["AdmissionBatchRequest"];
 export type AdmissionBatchResult = components["schemas"]["AdmissionBatchResult"];
 
-export type AdmissionRefusalReason = "duplicate_item" | "not_launchable" | "machine_not_eligible" | "budget_refused";
+type AdmissionRefusalReason = "duplicate_item" | "not_launchable" | "machine_not_eligible" | "budget_refused";
 
 export interface AdmissionRefusal {
   task_id: string;

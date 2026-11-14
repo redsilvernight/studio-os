@@ -93,7 +93,7 @@ function panelHtml(subtitle: string, body: string): string {
 /** Filtre d'état : par défaut seules les réservations encore actives sont listées. */
 export type ClaimFilter = "active" | "past" | "all";
 
-export const CLAIMS_PAGE_SIZE = 10;
+const CLAIMS_PAGE_SIZE = 10;
 
 const FILTER_LABEL: Record<ClaimFilter, string> = {
   active: "Actives",

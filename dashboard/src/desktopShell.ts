@@ -12,7 +12,7 @@ import { setApiObserver } from "./apiEvents";
 import { setClientFamily } from "./clientIdentity";
 import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { joinUrl } from "./config";
-import { createConnectionMonitor, type ConnectionMonitor, type ConnectionSnapshot } from "./connection";
+import { createConnectionMonitor, type ConnectionMonitor } from "./connection";
 import type { DesktopInfo, Platform, ServerOriginState } from "./platform";
 import { setServerOriginOverride } from "./runtimeConfig";
 import { paintConnection } from "./shell";
@@ -299,10 +299,6 @@ export function paintShellStatus(root: ParentNode = document): void {
     if (target.hooks) target.hooks.authExpired();
     else void target.monitor.check();
   });
-}
-
-export function serverSnapshot(target: DesktopShell | null = shell): ConnectionSnapshot | null {
-  return target ? target.monitor.snapshot() : null;
 }
 
 /** Test seam: forget the module state. */

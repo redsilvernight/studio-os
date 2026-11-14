@@ -3,9 +3,9 @@
  * Tauri: a web build and a Desktop build differ only by which adapter answers.
  */
 import type { BridgeCommand, BridgeAnswer } from "./contracts";
-import type { DaemonStatus, IdentityView, OutboxLegacyStatus, PeerInfo } from "./generated/local-contracts.generated";
+import type { OutboxLegacyStatus, PeerInfo } from "./generated/local-contracts.generated";
 
-export type PlatformMode = "web" | "desktop";
+type PlatformMode = "web" | "desktop";
 
 /** What the Rust shell reports about itself (`desktop_info`). */
 export interface DesktopInfo {
@@ -71,7 +71,7 @@ export type PickResult =
   | { status: "error"; code: string };
 
 /** Data-format marker state of the daemon data directory. */
-export type DataFormatState =
+type DataFormatState =
   | { state: "unstamped" }
   | { state: "supported"; format: number }
   | { state: "too_new"; format: number; supported: number }
@@ -167,4 +167,4 @@ null on the web, where no session outlives the page. */
   outboxLegacyStatus(): Promise<OutboxLegacyStatus | null>;
 }
 
-export type { DaemonStatus, IdentityView, OutboxLegacyStatus };
+export type { OutboxLegacyStatus };

@@ -2,7 +2,7 @@
 import { isLibraryKindSlug, type LibraryKindSlug } from "./libraryFormat";
 import type { ProjectTab } from "./views/projectDetail";
 
-export type ProjectConfigTab = "resources" | "locks" | "overrides";
+type ProjectConfigTab = "resources" | "locks" | "overrides";
 
 export type Route =
   | { name: "dashboard" }

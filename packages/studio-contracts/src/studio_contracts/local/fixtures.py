@@ -1739,9 +1739,6 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
     def unconfirmed(data: dict[str, Any]) -> None:
         data["confirmed"] = False
 
-    def wrong_action(data: dict[str, Any]) -> None:
-        data["payload"]["action"] = "start"
-
     def forbidden_command(data: dict[str, Any]) -> None:
         data["command"] = "shell.exec"
 
