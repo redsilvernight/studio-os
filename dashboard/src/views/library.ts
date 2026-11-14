@@ -1173,7 +1173,14 @@ export async function renderLibraryDetail(
   bindDetail(root, ctx, meta.slug, resource);
   const mergePreview = root.querySelector<HTMLElement>("[data-library-merge-preview]");
   if (mergePreview !== null) {
-    void renderLibraryMerge(mergePreview, { load: () => getLibraryMergePreview(ctx.client, resource.id) });
+    void renderLibraryMerge(mergePreview, {
+      load: () => getLibraryMergePreview(ctx.client, resource.id),
+      revert: () =>
+        deprecateLibraryResource(ctx.client, resource.id, { expected_resource_version: resource.version }, newIdempotencyKey()).then(() => {
+          dsNotify("Retour au commun : override déprécié.", "warning");
+          return renderLibraryDetail(root, ctx, meta.slug, resource.id);
+        }),
+    });
   }
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-dependency-preview]")) {
     const version = Number(button.dataset["dependencyPreview"]);

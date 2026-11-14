@@ -24,6 +24,8 @@ type LibraryMergeResult = LibraryMergeData["result"];
 export interface LibraryMergeProvider {
   readonly label?: string;
   load(): Promise<LibraryMergeData>;
+  /** Abandonne l'override pour revenir à la version commune (ressource dépréciée, historique conservé). */
+  revert?(): Promise<void>;
 }
 
 /** Fournisseur en mémoire : tests, démos, conteneurs sans backend. */
@@ -107,13 +109,20 @@ export function libraryMergeHtml(data: LibraryMergeData): string {
 }
 
 /** Section complète : repliée, intégrable à la page détail. */
-export function libraryMergeSectionHtml(merge: LibraryMergeData): string {
+export function libraryMergeSectionHtml(merge: LibraryMergeData, canRevert = false): string {
   const head =
     `<section class="ds-panel library-merge" aria-labelledby="library-merge-title">` +
     `<header><h2 id="library-merge-title">Comparaison trois volets</h2></header><div class="body">` +
     `<p class="ds-list-sub">Base commune (origine), ma version (override), nouveau commun — puis aperçu du résultat. ` +
     `Astuce clavier : Tab pour entrer dans un volet, flèches ← → pour passer d'un volet à l'autre.</p>`;
-  return `${head}${libraryMergeHtml(merge)}</div></section>`;
+  const revert = canRevert
+    ? `<div class="library-merge-revert" data-merge-revert-zone><h3>Revenir au commun</h3>` +
+      `<p class="ds-list-sub">Abandonne mon override : le fichier local reprend la version commune active. ` +
+      `L'override reste dans l'historique et la sauvegarde locale se restaure avec <code>library restore</code>.</p>` +
+      `<button type="button" class="ds-btn ds-btn--danger ds-btn--sm" data-merge-revert>Revenir au commun</button>` +
+      `<p role="alert" data-merge-revert-msg></p></div>`
+    : "";
+  return `${head}${libraryMergeHtml(merge)}${revert}</div></section>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -121,7 +130,19 @@ export function libraryMergeSectionHtml(merge: LibraryMergeData): string {
 /* ------------------------------------------------------------------ */
 
 /** Flèches ← → ↑ ↓, Début, Fin : déplace le focus entre les trois volets. */
-export function bindLibraryMerge(root: Document | HTMLElement): void {
+export function bindLibraryMerge(root: Document | HTMLElement, revert?: () => Promise<void>): void {
+  const revertButton = root.querySelector<HTMLButtonElement>("[data-merge-revert]");
+  if (revertButton !== null && revert !== undefined) {
+    revertButton.addEventListener("click", () => {
+      if (!window.confirm("Revenir au commun ? Mon override sera déprécié ; l'historique est conservé.")) return;
+      const msg = root.querySelector<HTMLElement>("[data-merge-revert-msg]");
+      revertButton.disabled = true;
+      revert().catch((error: unknown) => {
+        if (msg !== null) msg.textContent = describeError(error);
+        revertButton.disabled = false;
+      });
+    });
+  }
   const scope = root.querySelector("[data-merge-panes]");
   if (scope === null) return;
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-merge-conflict-link]")) {
@@ -162,6 +183,6 @@ export async function renderLibraryMerge(root: HTMLElement, provider: LibraryMer
       `</div></section>`;
     return;
   }
-  root.innerHTML = libraryMergeSectionHtml(data);
-  bindLibraryMerge(root);
+  root.innerHTML = libraryMergeSectionHtml(data, provider.revert !== undefined);
+  bindLibraryMerge(root, provider.revert?.bind(provider));
 }
