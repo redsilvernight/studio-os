@@ -21,7 +21,6 @@ MAX_METADATA_VALUE_CHARS = 256
 MAX_ERROR_MESSAGE_CHARS = 500
 MAX_PAGE_LIMIT = 500
 MAX_SEARCH_RESULTS = 100
-MAX_READ_BYTES = 262_144
 
 
 class LocalContractModel(ContractModel):
@@ -45,17 +44,6 @@ CapabilityName = Annotated[
 CorrelationId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.:-]{1,64}$")]
 Sha256Hex = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 UtcDatetime = AwareDatetime
-
-_SEMVER_RE = re.compile(_SEMVER_PATTERN)
-
-
-def semver_tuple(version: str) -> tuple[int, int, int]:
-    """Major/minor/patch of a valid SemVer string (pre-release ordering is not
-    part of any compatibility decision)."""
-    match = _SEMVER_RE.match(version)
-    if match is None:
-        raise ValueError(f"not a SemVer version: {version!r}")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 _SECRET_VALUE_PATTERNS = (
@@ -190,8 +178,6 @@ def _check_local_path(value: str) -> str:
         raise ValueError("local path must be canonical (no '.' or '..' segment)")
     return value
 
-
-LocalPath = Annotated[str, AfterValidator(_check_local_path)]
 
 _DRIVE_ROOT = re.compile(r"^[A-Za-z]:[\\/]*$")
 
@@ -340,18 +326,6 @@ class ComponentState(StrEnum):
     STOPPING = "stopping"
     RECOVERING = "recovering"
     ERROR = "error"
-
-
-SERVING_STATES = frozenset({ComponentState.READY, ComponentState.STALE})
-FAILURE_STATES = frozenset(
-    {
-        ComponentState.NOT_INSTALLED,
-        ComponentState.UNAVAILABLE,
-        ComponentState.PERMISSION_DENIED,
-        ComponentState.INCOMPATIBLE,
-        ComponentState.ERROR,
-    }
-)
 
 
 class ComponentId(StrEnum):
