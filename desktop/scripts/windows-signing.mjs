@@ -122,7 +122,7 @@ export function collectSignTargets(dirs) {
 }
 
 /** Locate signtool.exe (PATH, then the newest Windows 10 SDK). */
-export function findSigntool() {
+function findSigntool() {
   if (process.platform !== "win32") return null;
   const onPath = capture("where", ["signtool.exe"]);
   if (onPath.ok) return onPath.stdout.split(/\r?\n/).filter(Boolean)[0];
@@ -140,14 +140,14 @@ export function findSigntool() {
 }
 
 /** `signtool verify /pa` on one file: chain-trusted Authenticode signature. */
-export function verifyFile(file, signtool = findSigntool()) {
+function verifyFile(file, signtool = findSigntool()) {
   if (!signtool) return { file, ok: false, detail: "signtool.exe not found (Windows SDK required)" };
   const r = spawnSync(signtool, ["verify", "/pa", "/v", file], { encoding: "utf8" });
   const detail = `${r.stdout ?? ""}\n${r.stderr ?? ""}`.trim().split(/\r?\n/).slice(-3).join(" | ").slice(0, 300);
   return { file, ok: r.status === 0, detail };
 }
 
-export function verifySignatures(files) {
+function verifySignatures(files) {
   const signtool = findSigntool();
   return files.map((f) => verifyFile(f, signtool));
 }

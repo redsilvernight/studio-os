@@ -71,7 +71,7 @@ export function toolEnv(extra = {}) {
 }
 
 /** Run a command to completion, streaming its output. Resolves with the exit code. */
-export function run(command, args, options = {}) {
+function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {
       stdio: "inherit",
