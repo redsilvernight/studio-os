@@ -37,7 +37,8 @@ async def studio_handoff(
 ) -> dict[str, Any]:
     """Close a work session in one call (L3 handoff). `project_id` and
     `session_id` (UUID strings) are required. `task_status` (e.g.
-    "completed", "blocked") optionally updates the task, with
+    "completed", "blocked", "abandoned" — the latter needs a summary giving
+    the reason, never completion evidence) optionally updates the task, with
     `expected_version` for optimistic concurrency (required only then).
     `agent_id` + `summary` optionally logs an AI work entry linked
     to the session. `agent_id` must belong to the caller's machine.

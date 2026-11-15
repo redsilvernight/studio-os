@@ -3318,7 +3318,7 @@ export interface components {
          * @description Deterministic, listed in this declaration order.
          * @enum {string}
          */
-        AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
+        AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "task_abandoned" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
         /**
          * Agent
          * @description Provenance identity owned by a user, or by one machine for legacy rows.
@@ -9177,7 +9177,7 @@ export interface components {
          *     clears the holder without changing the status.
          * @enum {string}
          */
-        TaskStatus: "created" | "in_progress" | "blocked" | "completed";
+        TaskStatus: "created" | "in_progress" | "blocked" | "completed" | "abandoned";
         /** TaskUpdate */
         TaskUpdate: {
             /** Title */

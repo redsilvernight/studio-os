@@ -36,6 +36,7 @@ class AdmissionExclusionReason(StrEnum):
     TASK_DATA_MISSING = "task_data_missing"
     TASK_COMPLETED = "task_completed"
     TASK_BLOCKED = "task_blocked"
+    TASK_ABANDONED = "task_abandoned"
     REVIEW_PENDING = "review_pending"
     LAUNCH_ACTIVE = "launch_active"
     TASK_CLAIMED_ELSEWHERE = "task_claimed_elsewhere"

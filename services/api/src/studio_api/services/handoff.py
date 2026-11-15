@@ -96,6 +96,13 @@ async def handoff(
     ):
         raise HTTPException(409, detail={"error_code": "already_claimed"})
     summary = request.summary
+    if (
+        request.task_status is not None
+        and request.task_status.status == TaskStatus.ABANDONED
+        and not (request.summary or "").strip()
+    ):
+        # Abandoning needs no delivery evidence, but always its reason.
+        raise HTTPException(422, detail={"error_code": "abandon_reason_required"})
     if request.completion is not None:
         if request.agent_id is None or request.summary is None:
             raise HTTPException(422, detail={"error_code": "completion_log_required"})

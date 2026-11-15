@@ -175,7 +175,18 @@ async def update_task(
     if task_in.description is not None:
         task.description = task_in.description
     if task_in.status is not None:
+        if task_in.status.value == "abandoned" and previous_status == "completed":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "invalid_transition",
+                    "message": "a completed task cannot be abandoned",
+                },
+            )
         task.status = task_in.status.value
+        if task.status == "abandoned":
+            task.claimed_by_machine_id = None
+            task.claimed_by_agent_id = None
     task.version += 1
     event_type = EventType.TASK_UPDATED
     if task.status != previous_status:

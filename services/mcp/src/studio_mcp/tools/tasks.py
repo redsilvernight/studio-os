@@ -181,6 +181,8 @@ async def studio_update_task(
     """Update a task's title/description/status. `expected_version` must match
     the task's current `version` (optimistic concurrency) — a mismatch returns
     `version_conflict` with the real server version, never a silent overwrite.
+    `status="abandoned"` closes the task without delivery (refused from
+    `completed` with `invalid_transition`) and clears its claim.
     Pass `verbose=false` for the compact workflow response."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:

@@ -50,6 +50,7 @@ const EXCLUSION_REASON_FR: Record<AdmissionExclusionReason, string> = {
   task_data_missing: "des données de tâche manquent",
   task_completed: "la tâche est déjà terminée",
   task_blocked: "la tâche est bloquée",
+  task_abandoned: "la tâche est abandonnée",
   review_pending: "une relecture est en attente",
   launch_active: "un lancement est déjà actif",
   task_claimed_elsewhere: "la tâche est réservée ailleurs",
