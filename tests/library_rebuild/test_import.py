@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import library_import as li
 import pytest
 from studio_client.errors import ForbiddenError, NotFoundError, StudioApiError
@@ -61,6 +63,7 @@ async def test_catalogue_matches_manifest(world: World, rebuilt: object, layer: 
             assert row.owner_user_id == world.owner.user_id
         version = (await actor.client.list_library_versions(row.id))[0]
         assert version.title == item.title
+        assert version.description == item.description
         assert version.content == item.content
         assert len(version.dependencies) == len(item.pins)
 
@@ -160,3 +163,29 @@ def test_only_allowed_personal_hooks_in_packages() -> None:
         "session-start",
         "stop-check",
     }
+
+
+async def test_rule_description_kept_and_rendered() -> None:
+    from studio_client.context.library import LibraryContextItem
+    from studio_client.daemon.skills_bridge import render_definition
+
+    rules = [i for i in li.load_plan("core").items if i.kind == "rule"]
+    described = [i for i in rules if i.description]
+    assert described, "core rules must carry their frontmatter description"
+    item = described[0]
+    assert item.title == item.stable_key
+    rendered = render_definition(
+        LibraryContextItem(
+            library_kind="rule",
+            stable_key=item.stable_key,
+            version=1,
+            version_origin="active",
+            scope="studio",
+            title=item.title,
+            description=item.description,
+            text=str(item.content["text"]),
+            content_schema=str(item.content["content_schema"]),
+        )
+    )
+    expected = json.dumps(" ".join(item.description.split()), ensure_ascii=False)
+    assert rendered.splitlines()[2] == f"description: {expected}"
