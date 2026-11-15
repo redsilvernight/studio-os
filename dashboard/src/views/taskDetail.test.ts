@@ -11,13 +11,17 @@ import { describe, expect, it } from "vitest";
 import { resetActorNames, setActorNames } from "../actorNames";
 import type { CoordinationItem } from "../coordination";
 import {
+  abandonSuccessNotice,
   aiWorkStatusLabel,
   aiWorkStatusTone,
+  canAbandonTask,
   canReleaseTask,
   launchSectionHtml,
   nextActionText,
   releaseTaskConfirmText,
   sessionStateLabel,
+  taskAbandonDialogHtml,
+  taskAbandonRefusedNotice,
   taskConflictNotice,
   taskDetailErrorHtml,
   taskDetailHtml,
@@ -291,6 +295,58 @@ describe("prise en charge (claim/release machine)", () => {
     const [hero] = html.split("</section>");
     expect(hero).not.toContain("ds-btn--primary");
     expect(hero).toContain('id="task-head-edit"');
+  });
+});
+
+describe("abandon (created/in_progress/blocked → abandoned)", () => {
+  const withStatus = (status: string) =>
+    ({ ...(baseTask as unknown as Record<string, unknown>), status }) as never;
+
+  it("bouton proposé sauf terminée/abandonnée, jamais en lecture seule active", () => {
+    for (const status of ["created", "in_progress", "blocked"]) {
+      expect(canAbandonTask(withStatus(status), true)).toBe(true);
+    }
+    expect(canAbandonTask(withStatus("completed"), true)).toBe(false);
+    expect(canAbandonTask(withStatus("abandoned"), true)).toBe(false);
+    expect(canAbandonTask(baseTask, false)).toBe(false);
+  });
+
+  it("section + dialogue : bouton, motif obligatoire, contrat DS, sans handler inline", () => {
+    const html = taskDetailHtml(data());
+    expect(html).toContain('id="task-abandon-open"');
+    expect(html).toContain("Abandonner…");
+    expect(html).toContain('id="task-abandon-dialog"');
+    expect(html).not.toMatch(/\son[a-z]+\s*=/i);
+    const dialog = taskAbandonDialogHtml(baseTask as never);
+    expect(dialog).toContain('role="dialog"');
+    expect(dialog).toContain('aria-modal="true"');
+    expect(dialog).toContain('id="task-abandon-form"');
+    expect(dialog).toContain('name="reason"');
+    expect(dialog).toContain("required");
+    expect(dialog).toContain("data-ds-close");
+    expect(dialog).toContain('role="alert"');
+  });
+
+  it("ni section ni dialogue pour une tâche terminée ou déjà abandonnée", () => {
+    for (const status of ["completed", "abandoned"]) {
+      const html = taskDetailHtml(data({ task: withStatus(status) }));
+      expect(html).not.toContain('id="task-abandon-open"');
+      expect(html).not.toContain('id="task-abandon-dialog"');
+    }
+  });
+
+  it("formulaire de modification : option Abandonnée disponible", () => {
+    expect(taskEditFormHtml(baseTask, true)).toContain('<option value="abandoned">Abandonnée</option>');
+  });
+
+  it("notices : motif rappelé en confirmation, refus 409 expliqué sans jargon", () => {
+    expect(abandonSuccessNotice("Doublon avec T-042")).toBe("Tâche abandonnée. Motif : Doublon avec T-042");
+    expect(taskAbandonRefusedNotice()).toContain("terminée");
+    expect(taskAbandonRefusedNotice()).not.toMatch(/invalid_transition|409/);
+  });
+
+  it("prochaine action d'une tâche abandonnée : aucun travail attendu", () => {
+    expect(nextActionText(withStatus("abandoned"), 0)).toContain("abandonnée");
   });
 });
 

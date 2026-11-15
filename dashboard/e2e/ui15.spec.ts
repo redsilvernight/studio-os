@@ -875,7 +875,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     expectClean(watch);
   });
 
-  test("kanban à 375 : 4 colonnes, scroll local, clavier préservé", async ({ page }) => {
+  test("kanban à 375 : 5 colonnes (abandon comprise), scroll local, clavier préservé", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, "#/tasks", true);
@@ -883,10 +883,10 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
     await expect(board).toBeVisible({ timeout: 10_000 });
-    // Les 4 statuts restent présents, aucun masqué.
-    await expect(board.locator(".task-col")).toHaveCount(4);
+    // Les 5 statuts restent présents, aucun masqué.
+    await expect(board.locator(".task-col")).toHaveCount(5);
     const titles = board.locator(".task-col-title");
-    for (const name of ["À faire", "En cours", "Bloqué", "Terminé"]) {
+    for (const name of ["À faire", "En cours", "Bloqué", "Terminé", "Abandonnée"]) {
       await expect(titles.getByText(name, { exact: false }).first()).toBeVisible();
     }
     // Scroll horizontal LOCAL, pas global.

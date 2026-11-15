@@ -1,16 +1,18 @@
 /**
- * Task-status presentation mapping (DASH-1).
+ * Task-status presentation mapping (DASH-1 ; abandon : DEC-0359).
  *
  * Canonical backend statuses (contracts/tasks.py): created | in_progress |
- * blocked | completed. `blocked` is NEVER merged into `in_progress` in the
- * model — the display below only labels columns.
+ * blocked | completed | abandoned. `blocked` is NEVER merged into
+ * `in_progress` in the model — the display below only labels columns.
+ * `abandoned` closes a task without delivery (neutral tone, its own
+ * ABANDONED column — never merged into DONE).
  */
 
 import { agentLabel, machineLabel } from "./actorNames";
 
-export type TaskStatus = "created" | "in_progress" | "blocked" | "completed";
+export type TaskStatus = "created" | "in_progress" | "blocked" | "completed" | "abandoned";
 
-export type TaskColumn = "TODO" | "IN PROGRESS" | "BLOCKED" | "DONE";
+export type TaskColumn = "TODO" | "IN PROGRESS" | "BLOCKED" | "DONE" | "ABANDONED";
 
 export function statusColumn(status: string): TaskColumn | "UNKNOWN" {
   switch (status) {
@@ -22,6 +24,8 @@ export function statusColumn(status: string): TaskColumn | "UNKNOWN" {
       return "BLOCKED";
     case "completed":
       return "DONE";
+    case "abandoned":
+      return "ABANDONED";
     default:
       return "UNKNOWN";
   }
@@ -38,22 +42,25 @@ export function columnToStatus(column: TaskColumn): TaskStatus {
       return "blocked";
     case "DONE":
       return "completed";
+    case "ABANDONED":
+      return "abandoned";
   }
 }
 
-export const TASK_COLUMNS: TaskColumn[] = ["TODO", "IN PROGRESS", "BLOCKED", "DONE"];
+export const TASK_COLUMNS: TaskColumn[] = ["TODO", "IN PROGRESS", "BLOCKED", "DONE", "ABANDONED"];
 
 /**
  * UI-5 — Libellés français d'affichage (les clés backend `created` /
- * `in_progress` / `blocked` / `completed` restent inchangées, seuls les
- * libellés visibles sont traduits). Source unique partagée par la page
- * Tâches, le détail et le Workspace projet.
+ * `in_progress` / `blocked` / `completed` / `abandoned` restent inchangées,
+ * seuls les libellés visibles sont traduits). Source unique partagée par la
+ * page Tâches, le détail et le Workspace projet.
  */
 export const TASK_STATUS_LABEL_FR: Record<TaskStatus, string> = {
   created: "À faire",
   in_progress: "En cours",
   blocked: "Bloqué",
   completed: "Terminé",
+  abandoned: "Abandonnée",
 };
 
 export type TaskStatusTone = "neutral" | "info" | "warning" | "success";
@@ -67,6 +74,8 @@ export function taskStatusTone(status: string): TaskStatusTone {
       return "warning";
     case "completed":
       return "success";
+    case "abandoned":
+      return "neutral";
     default:
       return "neutral";
   }

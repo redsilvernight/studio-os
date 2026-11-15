@@ -80,6 +80,7 @@ const TASK_STATUS_LABEL: Record<string, string> = {
   in_progress: taskStatusLabel("in_progress"),
   blocked: taskStatusLabel("blocked"),
   completed: taskStatusLabel("completed"),
+  abandoned: taskStatusLabel("abandoned"),
 };
 
 export const OVERVIEW_PREVIEW_LIMIT = 5;
