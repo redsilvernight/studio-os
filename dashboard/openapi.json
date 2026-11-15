@@ -7822,6 +7822,312 @@
     }
    }
   },
+  "/api/v1/usage/price-lists": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "List Price Lists",
+    "description": "List the global price lists, plus the project's own when project_id is given, newest effective_from first.",
+    "operationId": "list_price_lists_api_v1_usage_price_lists_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/UsagePriceList"
+         },
+         "title": "Response List Price Lists Api V1 Usage Price Lists Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Create Price List",
+    "description": "Publish an immutable, dated price list (per million tokens). A global list (project_id null) is admin-only; a project list needs an admin or a developer with write access. Agents and launch credentials never publish. Supports Idempotency-Key.",
+    "operationId": "create_price_list_api_v1_usage_price_lists_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsagePriceListCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsagePriceList"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "price_list_not_found"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "price_list_id already exists (price_list_conflict). Lists are immutable: publish a correction under a new id. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "price_list_conflict"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/price-lists/effective": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Effective Price List",
+    "description": "The price list in force at `at` (default now): the project's own latest list with effective_from <= at, otherwise the global one. Daemons price local usage with it and record its price_list_id in PricingRef.",
+    "operationId": "effective_price_list_api_v1_usage_price_lists_effective_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "at",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "At"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsagePriceList"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "price_list_not_found"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/usage/subscriptions": {
    "get": {
     "tags": [
@@ -33162,6 +33468,232 @@
     ],
     "title": "UsageLedgerEntryCreate",
     "description": "Ingestion payload. Ingestion is deduplicated on `(machine_id,\nsource_event_id)`: a replayed or delayed collector event returns the entry\nalready recorded instead of appending a second row. A late correction of an\nalready recorded fact targets that entry with `UsageLedgerCorrection`, never\na fresh `source_event_id`."
+   },
+   "UsageModelRate-Input": {
+    "properties": {
+     "input": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Input"
+     },
+     "output": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Output"
+     },
+     "cache_read": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Cache Read"
+     },
+     "cache_write": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Cache Write"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "input",
+     "output",
+     "cache_read",
+     "cache_write"
+    ],
+    "title": "UsageModelRate",
+    "description": "Price per million tokens, in the list currency, per billing bucket."
+   },
+   "UsageModelRate-Output": {
+    "properties": {
+     "input": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Input"
+     },
+     "output": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Output"
+     },
+     "cache_read": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Cache Read"
+     },
+     "cache_write": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Cache Write"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "input",
+     "output",
+     "cache_read",
+     "cache_write"
+    ],
+    "title": "UsageModelRate",
+    "description": "Price per million tokens, in the list currency, per billing bucket."
+   },
+   "UsagePriceList": {
+    "properties": {
+     "price_list_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$",
+      "title": "Price List Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "effective_from": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Effective From"
+     },
+     "models": {
+      "patternProperties": {
+       "^[a-z0-9][a-z0-9.+_:@/\\[\\]-]*$": {
+        "$ref": "#/components/schemas/UsageModelRate-Output"
+       }
+      },
+      "propertyNames": {
+       "maxLength": 128,
+       "minLength": 1
+      },
+      "type": "object",
+      "maxProperties": 500,
+      "minProperties": 1,
+      "title": "Models"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "price_list_id",
+     "currency",
+     "effective_from",
+     "models",
+     "id",
+     "created_at"
+    ],
+    "title": "UsagePriceList"
+   },
+   "UsagePriceListCreate": {
+    "properties": {
+     "price_list_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$",
+      "title": "Price List Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "effective_from": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Effective From"
+     },
+     "models": {
+      "patternProperties": {
+       "^[a-z0-9][a-z0-9.+_:@/\\[\\]-]*$": {
+        "$ref": "#/components/schemas/UsageModelRate-Input"
+       }
+      },
+      "propertyNames": {
+       "maxLength": 128,
+       "minLength": 1
+      },
+      "type": "object",
+      "maxProperties": 500,
+      "minProperties": 1,
+      "title": "Models"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "price_list_id",
+     "currency",
+     "effective_from",
+     "models"
+    ],
+    "title": "UsagePriceListCreate"
    },
    "UsageProvenance": {
     "properties": {

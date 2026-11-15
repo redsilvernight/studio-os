@@ -50,13 +50,14 @@ workspace enregistré, rien n'est envoyé (compté `unattributed`).
   sortie + réflexion) ; Codex fournit un `input_tokens` inclusif, le lecteur
   soustrait les sous-ensembles cache avant de compter.
 - Le coût est une **estimation USD équivalent API** (DEC-0361 ; couverture `estimated`, base `api_equivalent`, jamais présentée comme
-  un montant exact ni comme la facture d'un abonnement) calculée sur une grille datée (`public-usd-2026-11`) :
+  un montant exact ni comme la facture d'un abonnement) calculée sur une grille datée (liste centrale en vigueur pour le projet, `GET /api/v1/usage/price-lists/effective`, mise en cache sous `<data_root>/pricing-cache/` ; hors ligne ou sans liste publiée : cache, puis `pricing.json`, puis grille embarquée `public-usd-2026-11b`) :
   entrée / sortie / cache lu / cache écrit, prix au million de jetons. Un modèle
   inconnu de la grille reste « inconnu » — aucun prix par défaut n'est inventé.
 - Grille surchargeable sans code : `<data_root>/pricing.json`
   (`{"price_list_id": "...", "effective_from": "...", "currency": "USD", "models": {"préfixe": {
   "input": 0, "output": 0, "cache_read": 0, "cache_write": 0}}}`) — un préfixe
-  personnalisé l'emporte sur la grille fournie.
+  personnalisé l'emporte sur la grille fournie. Repli local seulement : une liste
+  centrale publiée pour le projet s'applique telle quelle et ignore ce fichier (DEC-0362).
 - Un bucket qui grossit pendant une session encore ouverte est renvoyé comme
   **correction** du fait déjà enregistré (`expected_version`), jamais comme seconde
   entrée. Les clés d'idempotence sont stables : un rejeu ne duplique rien.

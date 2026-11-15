@@ -13,33 +13,41 @@ Known limits: buckets are daily sums, so per-request tiers (Haiku 5.5 above
 100k prompt tokens, long-context and Fast-mode premiums) use the base rate, and
 Batch discounts never apply to interactive sessions.
 
-The bundled grid is a default an operator can supersede without touching code:
-`<data_root>/pricing.json` (`models` shaped like `ModelRate.to_state()`, optional
-`currency`, default USD) replaces a model family wholesale, and the effective
-price list id is echoed in the entry.
+The reference grid is central (DEC-0362): `CentralPriceTables` fetches the
+list in force for each followed project from `GET /usage/price-lists/effective`,
+caches it under `<data_root>/pricing-cache/` and uses it wholesale, so every
+machine prices the same session alike. Offline or before any list is
+published, it falls back to the cache, then to the local default: the bundled
+grid, optionally superseded by `<data_root>/pricing.json` (`models` shaped like
+`ModelRate.to_state()`, optional `currency`, default USD) family by family. The
+effective price list id is echoed in the entry either way.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
-from studio_contracts.usage import PricingRef
+from pydantic import ValidationError
+from studio_contracts.usage import PricingRef, UsagePriceList
 
+from studio_client.errors import StudioApiError
 from studio_client.usage.local.base import BilledTokens
 
 logger = logging.getLogger(__name__)
 
-BUNDLED_PRICE_LIST_ID = "public-usd-2026-11"
+BUNDLED_PRICE_LIST_ID = "public-usd-2026-11b"
 BUNDLED_CURRENCY = "USD"
-BUNDLED_EFFECTIVE_FROM = datetime(2026, 11, 3, tzinfo=UTC)
+BUNDLED_EFFECTIVE_FROM = datetime(2026, 11, 15, tzinfo=UTC)
 
 _MILLION = Decimal(1_000_000)
 _ID_BOUNDARIES = frozenset("-@[:/")
@@ -134,6 +142,19 @@ _BUNDLED: tuple[tuple[str, ModelRate], ...] = (
     ("gpt-4o", _rate("2.5", "10", "1.25", "2.5")),
     ("o3-pro", _rate("20", "80", "20", "20")),
     ("o3", _rate("2", "8", "0.5", "2")),
+    # OpenCode providers. shortcut: public list prices as reported by price
+    # aggregators on 2026-11-15, peak tier, cache read at the published cached
+    # rate or 10% of input when none is listed; a central list supersedes them.
+    ("gemini-4-argon", _rate("2", "10", "0.1", "2")),
+    ("gemini-3.8-flash", _rate("0.75", "3.75", "0.075", "0.75")),
+    ("deepseek-v4.1-flash", _rate("0.3", "1.2", "0.03", "0.3")),
+    ("deepseek-v4-pro", _rate("1.32", "3.96", "0.132", "1.32")),
+    ("kimi-k3", _rate("3", "15", "0.3", "3")),
+    ("qwen3.8-max", _rate("2", "6", "0.25", "2")),
+    ("glm-5.3-flashx", _rate("0.37", "1.25", "0.037", "0.37")),
+    ("glm-5.3-flash", _rate("0.15", "0.5", "0.015", "0.15")),
+    ("glm-5.3", _rate("1.4", "4.4", "0.26", "1.4")),
+    ("minimax-m3", _rate("0.3", "1.2", "0.03", "0.3")),
 )
 
 
@@ -240,3 +261,105 @@ def table_from_document(value: object) -> PriceTable | None:
         rates=ordered,
         currency=currency,
     )
+
+
+def table_from_price_list(price_list: UsagePriceList) -> PriceTable:
+    """A central list is used as published: never completed with bundled
+    rates, whose version depends on the client build (DEC-0362)."""
+    rates = sorted(
+        (
+            (
+                prefix,
+                ModelRate(
+                    input=rate.input,
+                    output=rate.output,
+                    cache_read=rate.cache_read,
+                    cache_write=rate.cache_write,
+                ),
+            )
+            for prefix, rate in price_list.models.items()
+        ),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+    return PriceTable(
+        price_list_id=price_list.price_list_id,
+        effective_from=price_list.effective_from,
+        rates=tuple(rates),
+        currency=price_list.currency,
+    )
+
+
+PriceListFetcher = Callable[[UUID], Awaitable[UsagePriceList | None]]
+
+
+class CentralPriceTables:
+    """Per-project price tables from the API, cached on disk (DEC-0362).
+
+    `refresh` asks the API at most once per `ttl` per project; `None` from the
+    fetcher (no list in force) drops the cache, an API error keeps it.
+    `table_for` never touches the network: memory, then disk cache, then the
+    local default. shortcut: the list is the one in force at refresh time,
+    not at the entry's period; good enough while lists change monthly."""
+
+    def __init__(
+        self,
+        fetch: PriceListFetcher,
+        cache_dir: Path,
+        default: PriceTable,
+        *,
+        ttl: timedelta = timedelta(hours=1),
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
+        self._fetch = fetch
+        self._cache_dir = cache_dir
+        self._default = default
+        self._ttl = ttl
+        self._clock = clock or (lambda: datetime.now(UTC))
+        self._tables: dict[UUID, PriceTable | None] = {}
+        self._fetched_at: dict[UUID, datetime] = {}
+
+    def _cache_path(self, project_id: UUID) -> Path:
+        return self._cache_dir / f"{project_id}.json"
+
+    async def refresh(self, project_ids: Iterable[UUID]) -> None:
+        now = self._clock()
+        for project_id in dict.fromkeys(project_ids):
+            fetched = self._fetched_at.get(project_id)
+            if fetched is not None and now - fetched < self._ttl:
+                continue
+            try:
+                price_list = await self._fetch(project_id)
+            except StudioApiError as exc:
+                logger.info("price list unavailable for %s (%s); keeping cache", project_id, exc)
+                continue
+            self._fetched_at[project_id] = now
+            path = self._cache_path(project_id)
+            if price_list is None:
+                self._tables[project_id] = None
+                path.unlink(missing_ok=True)
+                continue
+            self._tables[project_id] = table_from_price_list(price_list)
+            try:
+                self._cache_dir.mkdir(parents=True, exist_ok=True)
+                temporary = path.with_suffix(".tmp")
+                temporary.write_text(price_list.model_dump_json(), encoding="utf-8")
+                os.replace(temporary, path)
+            except OSError:
+                logger.warning("price list cache not writable: %s", path)
+
+    def table_for(self, project_id: UUID) -> PriceTable:
+        if project_id not in self._tables:
+            self._tables[project_id] = self._load_cache(project_id)
+        return self._tables[project_id] or self._default
+
+    def _load_cache(self, project_id: UUID) -> PriceTable | None:
+        path = self._cache_path(project_id)
+        if not path.is_file():
+            return None
+        try:
+            price_list = UsagePriceList.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError):
+            logger.warning("price list cache unreadable: %s", path)
+            return None
+        return table_from_price_list(price_list)

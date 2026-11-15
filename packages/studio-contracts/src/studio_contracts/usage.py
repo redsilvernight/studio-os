@@ -11,7 +11,7 @@ cache count the collector already folded into `tokens_in` is never counted twice
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -522,6 +522,57 @@ class UsageSubscriptionUpdate(UsageSubscriptionFields):
 class UsageSubscription(UsageSubscriptionFields, VersionedModel):
     id: UUID
     project_id: UUID
+
+
+# --- Central price lists (DEC-0362) ------------------------------------------
+
+USAGE_PRICE_LIST_MAX_MODELS = 500
+
+ModelPrefix = Annotated[
+    str,
+    StringConstraints(
+        min_length=1, max_length=USAGE_MODEL_MAX, pattern=r"^[a-z0-9][a-z0-9.+_:@/\[\]-]*$"
+    ),
+]
+PerMillionPrice = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=6)]
+
+
+class UsageModelRate(ContractModel):
+    """Price per million tokens, in the list currency, per billing bucket."""
+
+    input: PerMillionPrice
+    output: PerMillionPrice
+    cache_read: PerMillionPrice
+    cache_write: PerMillionPrice
+
+
+class UsagePriceListFields(ContractModel):
+    """A dated, immutable price grid used to estimate API-equivalent costs.
+    `models` maps a lowercase model-id prefix to its rates; a prefix matches a
+    model id only up to an identifier boundary (`-@[:/`), longest prefix
+    first. `price_list_id` is unique server-wide and is what `PricingRef`
+    records; a correction is a new list, never an edit. `project_id` `None`
+    is the global list."""
+
+    price_list_id: UsageTag
+    project_id: UUID | None = None
+    currency: CurrencyCode
+    effective_from: AwareDatetime
+    models: dict[ModelPrefix, UsageModelRate] = Field(
+        min_length=1, max_length=USAGE_PRICE_LIST_MAX_MODELS
+    )
+
+
+class UsagePriceListCreate(UsagePriceListFields, IdempotentCreate):
+    pass
+
+
+class UsagePriceList(UsagePriceListFields):
+    id: UUID
+    created_at: datetime
+
+    def pricing_ref(self) -> PricingRef:
+        return PricingRef(price_list_id=self.price_list_id, effective_from=self.effective_from)
 
 
 # --- Configuration history (P06-history-option, DEC-0221) -------------------

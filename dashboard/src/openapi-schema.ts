@@ -1433,6 +1433,50 @@ export interface paths {
         patch: operations["update_ai_work_api_v1_ai_work__work_id__patch"];
         trace?: never;
     };
+    "/api/v1/usage/price-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Price Lists
+         * @description List the global price lists, plus the project's own when project_id is given, newest effective_from first.
+         */
+        get: operations["list_price_lists_api_v1_usage_price_lists_get"];
+        put?: never;
+        /**
+         * Create Price List
+         * @description Publish an immutable, dated price list (per million tokens). A global list (project_id null) is admin-only; a project list needs an admin or a developer with write access. Agents and launch credentials never publish. Supports Idempotency-Key.
+         */
+        post: operations["create_price_list_api_v1_usage_price_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/price-lists/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Effective Price List
+         * @description The price list in force at `at` (default now): the project's own latest list with effective_from <= at, otherwise the global one. Daemons price local usage with it and record its price_list_id in PricingRef.
+         */
+        get: operations["effective_price_list_api_v1_usage_price_lists_effective_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/subscriptions": {
         parameters: {
             query?: never;
@@ -9850,6 +9894,80 @@ export interface components {
             pricing?: components["schemas"]["PricingRef"] | null;
         };
         /**
+         * UsageModelRate
+         * @description Price per million tokens, in the list currency, per billing bucket.
+         */
+        "UsageModelRate-Input": {
+            /** Input */
+            input: number | string;
+            /** Output */
+            output: number | string;
+            /** Cache Read */
+            cache_read: number | string;
+            /** Cache Write */
+            cache_write: number | string;
+        };
+        /**
+         * UsageModelRate
+         * @description Price per million tokens, in the list currency, per billing bucket.
+         */
+        "UsageModelRate-Output": {
+            /** Input */
+            input: string;
+            /** Output */
+            output: string;
+            /** Cache Read */
+            cache_read: string;
+            /** Cache Write */
+            cache_write: string;
+        };
+        /** UsagePriceList */
+        UsagePriceList: {
+            /** Price List Id */
+            price_list_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Models */
+            models: {
+                [key: string]: components["schemas"]["UsageModelRate-Output"];
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** UsagePriceListCreate */
+        UsagePriceListCreate: {
+            /** Price List Id */
+            price_list_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Models */
+            models: {
+                [key: string]: components["schemas"]["UsageModelRate-Input"];
+            };
+        };
+        /**
          * UsageProvenance
          * @description Who produced the measure. `collector`/`collector_version` name the tool
          *     that emitted the entry, `harness`/`harness_version` the agent runtime it ran:
@@ -17167,6 +17285,249 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "invalid_status_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_price_lists_api_v1_usage_price_lists_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsagePriceList"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_price_list_api_v1_usage_price_lists_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsagePriceListCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsagePriceList"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "price_list_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description price_list_id already exists (price_list_conflict). Lists are immutable: publish a correction under a new id. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "price_list_conflict"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    effective_price_list_api_v1_usage_price_lists_effective_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                at?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsagePriceList"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "price_list_not_found"
                      *       }
                      *     }
                      */

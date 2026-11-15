@@ -812,6 +812,18 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `expected_version`, DELETE prend `expected_version` en query (`204`) ;
   version perimee -> `409 version_conflict` + `server_version`. Ecriture du
   projet requise, refusee aux credentials ephemeres (`403`).
+- GET/POST /usage/price-lists, GET /usage/price-lists/effective (DEC-0362,
+  additif) — `UsagePriceList` : `price_list_id` (unique, immuable), `project_id`
+  (null = grille globale), `currency`, `effective_from`, `models` (1 a 500
+  prefixes de modele -> prix au million `input`/`output`/`cache_read`/
+  `cache_write`). GET liste les grilles globales et celles du projet ;
+  `/effective?project_id&at` rend la grille en vigueur a `at` (defaut
+  maintenant) : celle du projet prime sur la globale, `404 price_list_not_found`
+  si aucune. POST `201` (Idempotency-Key) ; id deja pris -> `409
+  price_list_conflict`. Publication globale reservee aux admins, grille projet
+  aux admins/developpeurs avec ecriture du projet ; credentials ephemeres `403`.
+  Le daemon s'en sert pour `PricingRef` (cache local, repli sur la grille
+  embarquee).
 - GET /usage/configuration-history (P06-history-option, additif, DEC-0221) —
   `ConfigurationHistory`, `200`. `project_id` requis ; `since`, `until`
   (filtre `created_at` du TaskLaunch dans `[since, until)` ; defauts

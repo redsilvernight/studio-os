@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -14,8 +15,9 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -168,3 +170,25 @@ class UsageSubscriptionModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     providers: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list)
     starts_on: Mapped[date] = mapped_column(Date)
     ends_on: Mapped[date | None] = mapped_column(Date, default=None)
+
+
+class UsagePriceListModel(UUIDPKMixin, Base):
+    """An immutable, dated price grid served to every daemon (DEC-0362).
+    `project_id` NULL is the global grid. `price_list_id` is unique
+    server-wide: it is the reference a priced ledger entry keeps."""
+
+    __tablename__ = "usage_price_lists"
+    __table_args__ = (
+        UniqueConstraint("price_list_id", name="uq_usage_price_lists_price_list_id"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_usage_price_list_currency"),
+        Index("ix_usage_price_lists_scope", "project_id", "effective_from"),
+    )
+
+    price_list_id: Mapped[str] = mapped_column(String(64))
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id"), default=None
+    )
+    currency: Mapped[str] = mapped_column(String(3))
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    models: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -298,7 +298,7 @@ def _scanner(store: OutboxStore, root: Path) -> LocalUsageScanner:
         machine_id=MACHINE,
         readers=(ClaudeCodeLocalReader(root=root),),
         workspace_roots=lambda: (),
-        price_table=BUNDLED_PRICE_TABLE,
+        price_table=lambda _project: BUNDLED_PRICE_TABLE,
         lookback=timedelta(days=3650),
         clock=lambda: datetime(2026, 10, 30, tzinfo=UTC),
     )
@@ -336,7 +336,7 @@ async def test_scanner_enqueues_one_entry_per_bucket_then_a_correction(tmp_path:
     assert payload["cost"]["currency"] == "USD"
     assert payload["cost"]["basis"] == "api_equivalent"
     assert payload["cost"]["value"] == "0.001335"
-    assert payload["pricing"]["price_list_id"] == "public-usd-2026-11"
+    assert payload["pricing"]["price_list_id"] == "public-usd-2026-11b"
     assert payload["provenance"]["harness"] == "claude-code"
     assert payload["provenance"]["model"] == "claude-sonnet-4-5"
 
@@ -394,7 +394,7 @@ async def test_scanner_falls_back_to_the_workspace_project_without_claim(tmp_pat
         machine_id=MACHINE,
         readers=(reader,),
         workspace_roots=lambda: (WorkspaceRoot(path=tmp_path / "repo", project_id=PROJECT),),
-        price_table=BUNDLED_PRICE_TABLE,
+        price_table=lambda _project: BUNDLED_PRICE_TABLE,
         lookback=timedelta(days=3650),
         clock=lambda: datetime(2026, 10, 30, tzinfo=UTC),
     )
