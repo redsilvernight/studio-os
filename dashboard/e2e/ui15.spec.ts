@@ -519,6 +519,38 @@ async function centerClick(target: import("@playwright/test").Locator): Promise<
   await target.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await target.click();
 }
+/**
+ * Fermeture du tiroir par le scrim (action documentée : `main.ts` écoute son
+ * clic). Le centre du scrim est recouvert par le panneau — 300 px de large à
+ * 375 — donc Playwright refuse un clic sur ce point (« intercepts pointer
+ * events »). On vise le milieu de la bande découverte à droite du tiroir,
+ * après avoir attendu que celui-ci soit immobile (fin de la transition, ou
+ * transition supprimée sous `prefers-reduced-motion`).
+ */
+async function clickScrim(page: Page): Promise<void> {
+  const scrim = page.locator("#app-scrim");
+  const drawer = page.locator("#app-sidebar.open");
+  await expect(scrim).toBeVisible();
+  await expect(drawer).toBeVisible();
+  // Ouvert, le tiroir est collé au bord gauche de la fenêtre : tant que x < 0,
+  // il glisse encore et sa largeur finale n'est pas atteinte.
+  await expect
+    .poll(async () => (await drawer.boundingBox())?.x ?? Number.NEGATIVE_INFINITY)
+    .toBeGreaterThanOrEqual(-0.5);
+  const drawerBox = await drawer.boundingBox();
+  const scrimBox = await scrim.boundingBox();
+  if (drawerBox === null || scrimBox === null) throw new Error("scrim ou tiroir sans géométrie");
+  const uncoveredLeft = drawerBox.x + drawerBox.width - scrimBox.x;
+  const uncoveredWidth = scrimBox.width - uncoveredLeft;
+  if (uncoveredWidth < 16) throw new Error(`bande de scrim découverte trop étroite (${uncoveredWidth} px)`);
+  await scrim.click({
+    position: {
+      x: Math.round(uncoveredLeft + uncoveredWidth / 2),
+      y: Math.round(scrimBox.height / 2),
+    },
+  });
+}
+
 /** Dépassement horizontal GLOBAL (0 toléré au-delà d'1 px technique). */
 async function globalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth));
@@ -729,6 +761,9 @@ test.describe("UI-15 shell et navigation mobile", () => {
 
   test("menu mobile : ouvrir, Échap, scrim, retour focus", async ({ page }) => {
     const watch = watchErrors(page);
+    // Mouvement réduit : le tiroir n'a plus de transition, le scrim est stable
+    // dès son apparition (invariant d'accessibilité respecté, durée ~0).
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, "#/tasks", false);
     const open = page.locator("#nav-open");
@@ -748,7 +783,7 @@ test.describe("UI-15 shell et navigation mobile", () => {
     // Réouvrir puis fermer via le scrim.
     await open.click();
     await expect(page.locator("#app-sidebar.open")).toBeVisible();
-    await page.locator("#app-scrim").click();
+    await clickScrim(page);
     await expect(page.locator("#app-sidebar.open")).toHaveCount(0);
     // Naviguer ferme le menu (stress cycle 1).
     await open.click();
