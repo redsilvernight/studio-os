@@ -62,11 +62,13 @@ from studio_contracts.transfers import (
     UploadPartsRefreshRequest,
     UploadPartsRefreshResponse,
 )
+from studio_contracts.usage import UsagePriceList
 from studio_contracts.version import VersionInfo
 from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_client.config import ClientConfig
 from studio_client.errors import (
+    NotFoundError,
     RateLimitError,
     StudioApiError,
     TransportError,
@@ -507,6 +509,19 @@ class StudioApiClient:
             params["project_id"] = str(project_id)
         response = await self._request("GET", "/api/v1/decisions", params=params)
         return [Decision.model_validate(item) for item in response.json()]
+
+    async def get_effective_price_list(self, project_id: UUID) -> UsagePriceList | None:
+        """Price list in force for the project (DEC-0362); None when none is
+        published yet, so the caller keeps its local default."""
+        try:
+            response = await self._request(
+                "GET",
+                "/api/v1/usage/price-lists/effective",
+                params={"project_id": str(project_id)},
+            )
+        except NotFoundError:
+            return None
+        return UsagePriceList.model_validate(response.json())
 
     async def list_events(
         self,

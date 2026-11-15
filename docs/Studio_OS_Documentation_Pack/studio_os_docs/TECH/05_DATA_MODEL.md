@@ -419,6 +419,14 @@ NULL = en cours, `>= starts_on`), `created_at`/`updated_at`/`version`. Index
 `project_id`. Aucune part n'est stockee : la repartition est calculee a la
 lecture par GET /usage/summary.
 
+## UsagePriceList (DEC-0362, migration Alembic `0042`, table `usage_price_lists`)
+
+Grille de prix d'usage versionnee et immuable : `id`, `price_list_id` (unique),
+`project_id` (FK Project, NULL = globale), `currency` (ISO 4217),
+`effective_from` (timestamptz), `models` (JSONB : prefixe -> tarifs au million),
+`created_at`. Index `(project_id, effective_from)`. Une nouvelle grille remplace
+la precedente par sa date d'effet, jamais par mise a jour.
+
 ## ExecutionSnapshot (Mission Control P04, DEC-0199, migration Alembic `0032`, table `execution_snapshots`)
 
 Contrat `studio_contracts.execution_snapshot` ; detail dans

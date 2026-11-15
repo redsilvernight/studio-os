@@ -50,6 +50,7 @@ from studio_api.routers import (
     timeline,
     transfers,
     usage,
+    usage_price_lists,
     usage_subscriptions,
     users,
     vault,
@@ -291,6 +292,7 @@ def create_app() -> FastAPI:
     app.include_router(bootstrap_plan.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
+    app.include_router(usage_price_lists.router)
     app.include_router(usage_subscriptions.router)
     app.include_router(usage.router)
     app.include_router(budgets.router)

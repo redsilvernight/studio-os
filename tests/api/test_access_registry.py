@@ -387,6 +387,24 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("DELETE", "/api/v1/usage/subscriptions/{subscription_id}"): (
         Probe("/api/v1/usage/subscriptions/{subscription}?expected_version=1"),
     ),
+    ("GET", "/api/v1/usage/price-lists"): (Probe("/api/v1/usage/price-lists?project_id={pid}"),),
+    ("GET", "/api/v1/usage/price-lists/effective"): (
+        Probe("/api/v1/usage/price-lists/effective?project_id={pid}"),
+    ),
+    ("POST", "/api/v1/usage/price-lists"): (
+        Probe(
+            "/api/v1/usage/price-lists",
+            {
+                "project_id": "{pid}",
+                "price_list_id": "outsider-grid",
+                "currency": "USD",
+                "effective_from": "2026-10-01T00:00:00Z",
+                "models": {
+                    "m": {"input": "1", "output": "1", "cache_read": "0", "cache_write": "0"}
+                },
+            },
+        ),
+    ),
     ("POST", "/api/v1/usage"): (
         Probe(
             "/api/v1/usage",
