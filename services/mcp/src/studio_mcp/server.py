@@ -210,7 +210,7 @@ def create_server() -> MCPServer:
             "batch: every created claim, plus the subset that overlaps another active claim (each "
             "overlap still emits a resource.conflict event). The paths are given as paths, a list "
             "of at most 50 strings — a singular path argument is not accepted, pass a one-element "
-            "paths list instead. resource_type accepts exactly \"file\" or \"folder\"; any other "
+            'paths list instead. resource_type accepts exactly "file" or "folder"; any other '
             "value fails with invalid_argument. All paths share the same "
             "resource_type, ttl_seconds and optional task_id. A claim made without task_id while "
             "the caller has an open session is attached to that session's task, so the handoff "

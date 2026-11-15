@@ -169,9 +169,7 @@ async def create_claim(
     authorize_create(principal, claim_in.project_id)
     task_id = claim_in.task_id
     if task_id is None:
-        task_id = await _open_session_task_id(
-            session, claim_in.project_id, machine_id, agent_id
-        )
+        task_id = await _open_session_task_id(session, claim_in.project_id, machine_id, agent_id)
     now = datetime.now(UTC)
     claim = ResourceClaimModel(
         project_id=claim_in.project_id,
