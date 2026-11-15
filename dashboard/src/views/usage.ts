@@ -159,7 +159,7 @@ export function costValueHtml(cost: CostTotal): string {
   return `${amountValueHtml(cost, "cost")}${basesHtml(cost.bases)}`;
 }
 
-export function shareValueHtml(share: ShareTotal): string {
+function shareValueHtml(share: ShareTotal): string {
   const provisional = share.provisional
     ? ` <span class="ds-list-sub" data-usage-provisional>(mois en cours, provisoire)</span>`
     : "";
