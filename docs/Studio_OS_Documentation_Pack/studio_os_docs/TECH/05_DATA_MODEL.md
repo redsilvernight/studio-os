@@ -189,7 +189,8 @@ jamais modifie. Ne remplace ni la membership projet ni l'opt-in local de la mach
 ## Task
 `id`, `readable_id` (nullable, unique — ID lisible optionnel a cote de l'UUID
 per `TECH/02_API_CONTRACT.md`), `project_id` (FK Project), `title`,
-`description` (nullable), `status` (`created|in_progress|blocked|completed`,
+`description` (nullable), `status` (`created|in_progress|blocked|completed|abandoned`, `abandoned` =
+close sans livraison, additif DEC-0359,
 miroir des event types `task.*`), `claimed_by_machine_id` (FK Machine,
 nullable), `claimed_by_agent_id` (FK Agent, nullable), + champs communs
 mutables.

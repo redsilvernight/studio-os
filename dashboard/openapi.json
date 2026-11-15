@@ -18132,6 +18132,7 @@
      "task_data_missing",
      "task_completed",
      "task_blocked",
+     "task_abandoned",
      "review_pending",
      "launch_active",
      "task_claimed_elsewhere",
@@ -31294,7 +31295,8 @@
      "created",
      "in_progress",
      "blocked",
-     "completed"
+     "completed",
+     "abandoned"
     ],
     "title": "TaskStatus",
     "description": "Task lifecycle. Claiming a task moves it to `in_progress`; releasing\nclears the holder without changing the status."

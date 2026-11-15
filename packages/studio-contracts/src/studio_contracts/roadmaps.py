@@ -127,6 +127,7 @@ class TaskStatusValue(StrEnum):
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
     COMPLETED = "completed"
+    ABANDONED = "abandoned"
 
 
 class RevisionKind(StrEnum):
@@ -439,7 +440,10 @@ def derive_step_state(
 ) -> StepState:
     """The single derivation of a step's state. Override wins; otherwise from
     linked Task statuses: all `completed` -> done, any `blocked` -> blocked,
-    any `in_progress` -> in_progress, else not_started (also when no Task)."""
+    any `in_progress` -> in_progress, else not_started (also when no Task).
+    `abandoned` Tasks are ignored: they never block nor complete a step, so a
+    step whose Tasks are all abandoned stays not_started (skip it explicitly)."""
+    task_statuses = [s for s in task_statuses if s is not TaskStatusValue.ABANDONED]
     if override is StepStateOverride.SKIPPED:
         return StepState.SKIPPED
     if override is StepStateOverride.DONE:

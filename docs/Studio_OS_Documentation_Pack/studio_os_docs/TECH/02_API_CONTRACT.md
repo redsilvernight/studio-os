@@ -329,7 +329,11 @@ public de bootstrap, pas de secret d'environnement dedie.
   `project_id`, `limit`, `offset` ; tri et visibilite inchanges.
 - POST /tasks
 - GET /tasks/{id}
-- PATCH /tasks/{id}
+- PATCH /tasks/{id} — `status=abandoned` (additif) : clot une tache sans
+  livraison depuis `created|in_progress|blocked` et libere son claim ; depuis
+  `completed` -> `409 invalid_transition`. Reouverture explicite vers
+  `created` autorisee. Une tache `abandoned` n'est ni active (`/projects/{id}/state`)
+  ni candidate ; une etape de roadmap l'ignore dans sa derivation.
 - POST /tasks/{id}/claim — claim idempotent (L2, additif/clarification,
   DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
   meme machine avec le meme agent, est un no-op (aucun bump de `version`,
@@ -510,6 +514,10 @@ Si `integration_required=true`, `integrated=true` et `target_branch` non vide
 CI de validation sont requis. Aucune branche cible n'est choisie par défaut.
 Une opération exige `effect_verified=true`. `deployed` est un état séparé,
 jamais déduit de la clôture.
+
+Avec `task_status.status=abandoned`, un `summary` vide produit
+`422 abandon_reason_required` avant toute mutation ; aucune preuve de
+completion n'est exigee.
 
 Avant toute mutation du handoff, une preuve sans `agent_id` et `summary`
 produit `422 completion_log_required`. Avec `task_status.status=completed`,
