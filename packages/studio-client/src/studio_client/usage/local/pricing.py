@@ -1,20 +1,29 @@
-"""Dated EUR price list used to estimate the cost of a local session.
+"""Dated public API price list (USD, DEC-0361) used to estimate the
+API-equivalent cost of a local session.
 
 No harness runtime hands over a billed amount for interactive desktop sessions,
 so the cost is derived from token counters and a dated, versioned grid — never
 from a guess dressed as a fact: the entry carries `estimated` coverage and the
 `PricingRef` of the grid it used. An unknown model keeps its cost `unknown`
-instead of inheriting a default price.
+instead of inheriting a default price. Only models listed on the providers'
+public pricing pages are bundled; a family prefix matches a model id only up to
+an identifier boundary, so `gpt-5` never prices `gpt-5.7-*`.
+
+Known limits: buckets are daily sums, so per-request tiers (Haiku 5.5 above
+100k prompt tokens, long-context and Fast-mode premiums) use the base rate, and
+Batch discounts never apply to interactive sessions.
 
 The bundled grid is a default an operator can supersede without touching code:
-`<data_root>/pricing.json` (same shape as `_BUNDLED.window` values) replaces a
-model family wholesale, and the effective price list id is echoed in the entry.
+`<data_root>/pricing.json` (`models` shaped like `ModelRate.to_state()`, optional
+`currency`, default USD) replaces a model family wholesale, and the effective
+price list id is echoed in the entry.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -28,15 +37,18 @@ from studio_client.usage.local.base import BilledTokens
 
 logger = logging.getLogger(__name__)
 
-BUNDLED_PRICE_LIST_ID = "public-eur-2026-11"
+BUNDLED_PRICE_LIST_ID = "public-usd-2026-11"
+BUNDLED_CURRENCY = "USD"
 BUNDLED_EFFECTIVE_FROM = datetime(2026, 11, 3, tzinfo=UTC)
 
 _MILLION = Decimal(1_000_000)
+_ID_BOUNDARIES = frozenset("-@[:/")
+_CURRENCY = re.compile(r"[A-Z]{3}")
 
 
 @dataclass(frozen=True)
 class ModelRate:
-    """EUR per million tokens, per billing bucket."""
+    """Price per million tokens in the table currency, per billing bucket."""
 
     input: Decimal
     output: Decimal
@@ -112,9 +124,7 @@ _BUNDLED: tuple[tuple[str, ModelRate], ...] = (
     ("gpt-5.4", _rate("2.5", "15", "0.25", "2.5")),
     ("gpt-5.3-codex", _rate("1.75", "14", "0.175", "1.75")),
     ("gpt-5.2", _rate("1.75", "14", "0.175", "1.75")),
-    ("gpt-5.1-codex", _rate("1.25", "10", "0.125", "1.25")),
     ("gpt-5.1", _rate("1.25", "10", "0.125", "1.25")),
-    ("gpt-5-codex", _rate("1.25", "10", "0.125", "1.25")),
     ("gpt-5-mini", _rate("0.25", "2", "0.025", "0.25")),
     ("gpt-5-nano", _rate("0.05", "0.4", "0.005", "0.05")),
     ("gpt-5", _rate("1.25", "10", "0.125", "1.25")),
@@ -122,7 +132,6 @@ _BUNDLED: tuple[tuple[str, ModelRate], ...] = (
     ("gpt-4.1", _rate("2", "8", "0.5", "2")),
     ("gpt-4o-mini", _rate("0.15", "0.6", "0.075", "0.15")),
     ("gpt-4o", _rate("2.5", "10", "1.25", "2.5")),
-    ("o4-mini", _rate("1.1", "4.4", "0.275", "1.1")),
     ("o3-pro", _rate("20", "80", "20", "20")),
     ("o3", _rate("2", "8", "0.5", "2")),
 )
@@ -133,13 +142,16 @@ class PriceTable:
     price_list_id: str
     effective_from: datetime
     rates: tuple[tuple[str, ModelRate], ...]
+    currency: str = BUNDLED_CURRENCY
 
     def rate_for(self, model: str | None) -> ModelRate | None:
         if not model:
             return None
         normalized = model.strip().lower()
         for prefix, rate in self.rates:
-            if normalized.startswith(prefix):
+            if normalized.startswith(prefix) and (
+                len(normalized) == len(prefix) or normalized[len(prefix)] in _ID_BOUNDARIES
+            ):
                 return rate
         return None
 
@@ -168,8 +180,10 @@ BUNDLED_PRICE_TABLE = PriceTable(
 
 def load_price_table(overrides: Path | None = None) -> PriceTable:
     """The bundled grid, optionally superseded family by family by a local
-    `pricing.json` (`{"price_list_id", "effective_from", "models": {prefix:
-    {"input","output","cache_read","cache_write"}}}`)."""
+    `pricing.json` (`{"price_list_id", "effective_from", "currency", "models":
+    {prefix: {"input","output","cache_read","cache_write"}}}`). A grid in
+    another currency than the bundled one replaces it whole: bundled USD rates
+    are never mixed into it."""
     if overrides is None or not overrides.is_file():
         return BUNDLED_PRICE_TABLE
     try:
@@ -201,9 +215,16 @@ def table_from_document(value: object) -> PriceTable | None:
             continue
     if not parsed:
         return None
+    currency = value.get("currency", BUNDLED_CURRENCY)
+    if not isinstance(currency, str) or not _CURRENCY.fullmatch(currency):
+        return None
     ordered = (
         *sorted(parsed.items(), key=lambda item: len(item[0]), reverse=True),
-        *((prefix, rate) for prefix, rate in _BUNDLED if prefix not in parsed),
+        *(
+            (prefix, rate)
+            for prefix, rate in _BUNDLED
+            if prefix not in parsed and currency == BUNDLED_CURRENCY
+        ),
     )
     price_list_id = value.get("price_list_id")
     price_list_id = price_list_id if isinstance(price_list_id, str) and price_list_id else "custom"
@@ -217,4 +238,5 @@ def table_from_document(value: object) -> PriceTable | None:
         price_list_id=price_list_id,
         effective_from=effective_from,
         rates=ordered,
+        currency=currency,
     )

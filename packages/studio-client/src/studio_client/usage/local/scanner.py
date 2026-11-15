@@ -29,6 +29,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from studio_contracts.usage import (
     CacheTokenScope,
+    CostBasis,
     CostMeasurement,
     DurationMeasurement,
     MeasurementCoverage,
@@ -257,7 +258,8 @@ class LocalUsageScanner:
                 CostMeasurement(
                     value=cost_value,
                     coverage=MeasurementCoverage.ESTIMATED,
-                    currency="EUR",
+                    currency=self._price_table.currency,
+                    basis=CostBasis.API_EQUIVALENT,
                 )
                 if cost_value is not None
                 else CostMeasurement()

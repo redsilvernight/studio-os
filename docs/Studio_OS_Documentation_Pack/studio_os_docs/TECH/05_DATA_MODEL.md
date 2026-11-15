@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry.
+Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry, UsageSubscription.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -405,6 +405,19 @@ lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnel
   machine, liens, collecteur fixes).
 - `created_at`/`updated_at`/`version`. Index `(project_id, period_start)`,
   `session_id`, `task_launch_id`.
+- Base du cout (DEC-0361, migration `0041`) : `cost_basis` ∈
+  `measured_billed|api_equivalent`, NULL ⇔ cout NULL ; un payload sans base
+  est lu `api_equivalent`. La migration a reetiquete USD les estimations
+  locales d'une grille `public-eur-*` (prix publics USD, montants inchanges).
+
+## UsageSubscription (DEC-0361, migration Alembic `0041`, table `usage_subscriptions`)
+
+Forfait paye par un projet : `id`, `project_id` (FK Project), `label`,
+`monthly_price` (Numeric 12,2), `currency` (ISO 4217), `harnesses` et
+`providers` (tableaux, au moins un non vide), `starts_on`, `ends_on` (inclus,
+NULL = en cours, `>= starts_on`), `created_at`/`updated_at`/`version`. Index
+`project_id`. Aucune part n'est stockee : la repartition est calculee a la
+lecture par GET /usage/summary.
 
 ## ExecutionSnapshot (Mission Control P04, DEC-0199, migration Alembic `0032`, table `execution_snapshots`)
 

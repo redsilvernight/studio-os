@@ -117,13 +117,30 @@ class DurationMeasurement(Measurement[NonNegativeDecimal]):
     unit: Literal[MeasurementUnit.SECONDS] = MeasurementUnit.SECONDS
 
 
+class CostBasis(StrEnum):
+    """What a cost amount stands for, so an API-equivalent figure is
+    never shown as a bill. `measured_billed`: the amount actually invoiced for
+    the run (pay-as-you-go API key). `api_equivalent`: what the tokens would
+    cost at public API list prices — the runtime's own reported figure or a
+    local estimate; not what a subscription user pays.
+    `subscription_share`: a declared subscription's monthly price spread over
+    the month's entries; computed at read time, never stored on an entry."""
+
+    MEASURED_BILLED = "measured_billed"
+    API_EQUIVALENT = "api_equivalent"
+    SUBSCRIPTION_SHARE = "subscription_share"
+
+
 class CostMeasurement(Measurement[NonNegativeDecimal]):
     """Monetary cost. The currency travels with the value: a cost without a
     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
-    and an unpriced one are not the same fact."""
+    and an unpriced one are not the same fact. A known cost carries its
+    `basis`; a payload without one (older collector) is read as
+    `api_equivalent`, the only basis any collector produced before it."""
 
     unit: Literal[MeasurementUnit.CURRENCY] = MeasurementUnit.CURRENCY
     currency: CurrencyCode | None = None
+    basis: CostBasis | None = None
 
     @model_validator(mode="after")
     def _value_needs_a_currency(self) -> Self:
@@ -131,6 +148,13 @@ class CostMeasurement(Measurement[NonNegativeDecimal]):
             raise ValueError("a cost carries its currency")
         if self.currency is not None and self.value is None:
             raise ValueError("a currency without a value is not a cost")
+        if self.basis is CostBasis.SUBSCRIPTION_SHARE:
+            raise ValueError("a subscription share is computed at read time, never recorded")
+        if self.value is None:
+            if self.basis is not None:
+                raise ValueError("a basis without a value is not a cost")
+        elif self.basis is None:
+            self.basis = CostBasis.API_EQUIVALENT
         return self
 
 
@@ -360,12 +384,36 @@ class UsageCostTotal(UsageCoverageCounts):
     """Cost summed per currency. `known_sum`/`currency` are set only when every
     known cost shares one currency; with several currencies `status` is
     `mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum
-    apart. An unknown cost is never counted as zero."""
+    apart. An unknown cost is never counted as zero. `bases` lists the cost
+    bases of the known amounts (sorted): a client labels the sum with them and
+    never presents an `api_equivalent` total as a bill."""
 
     status: UsageTotalStatus
     known_sum: NonNegativeDecimal | None = None
     currency: CurrencyCode | None = None
     by_currency: list[UsageCurrencyAmount] = Field(default_factory=list)
+    bases: list[CostBasis] = Field(default_factory=list)
+
+
+class UsageSubscriptionShare(UsageCoverageCounts):
+    """Part of the declared subscriptions attributed to an aggregate,
+    computed at read time and never stored. For each subscription and each UTC
+    month it is active, the monthly price is spread over the covered entries of
+    that month — every machine, every task — pro rata of their API-equivalent
+    cost; an aggregate gets the shares of its own entries. `estimated_entries`
+    counts covered entries that received a share, `unknown_entries` covered
+    entries that could not (no cost, or a month whose covered costs are in
+    several currencies or sum to zero), once per covering subscription.
+    Limits: a lightly used subscription yields a high cost per task;
+    `provisional` is true when a share comes from the current, unfinished
+    month, whose split still moves."""
+
+    basis: Literal[CostBasis.SUBSCRIPTION_SHARE] = CostBasis.SUBSCRIPTION_SHARE
+    status: UsageTotalStatus
+    known_sum: NonNegativeDecimal | None = None
+    currency: CurrencyCode | None = None
+    by_currency: list[UsageCurrencyAmount] = Field(default_factory=list)
+    provisional: bool = False
 
 
 class UsageSourceCount(ContractModel):
@@ -404,6 +452,8 @@ class UsageAggregate(ContractModel):
     cost: UsageCostTotal
     duration: UsageDurationTotal
     sources: list[UsageSourceCount] = Field(default_factory=list)
+    subscription_share: UsageSubscriptionShare | None = None
+    """`None` when the project declares no subscription at all."""
 
 
 class UsageSummary(ContractModel):
@@ -422,6 +472,56 @@ class UsageSummary(ContractModel):
     total: UsageAggregate
     groups: list[UsageAggregate] = Field(default_factory=list)
     truncated: bool = False
+
+
+# --- Subscriptions (DEC-0361) ------------------------------------------------
+
+USAGE_SUBSCRIPTION_LABEL_MAX = 120
+USAGE_SUBSCRIPTION_MAX_COVERAGE = 20
+MonthlyPrice = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
+
+
+class UsageSubscriptionFields(ContractModel):
+    """A flat-rate plan the project pays (a monthly AI plan). It covers
+    the ledger entries whose harness is in `harnesses` (when not empty) and
+    whose provider is in `providers` (when not empty); at least one list is
+    set. Active every UTC month that intersects `[starts_on, ends_on]`
+    (`ends_on` inclusive, `None` = still running), at its full monthly price."""
+
+    label: Annotated[str, StringConstraints(min_length=1, max_length=USAGE_SUBSCRIPTION_LABEL_MAX)]
+    monthly_price: MonthlyPrice
+    currency: CurrencyCode
+    harnesses: list[HarnessId] = Field(
+        default_factory=list, max_length=USAGE_SUBSCRIPTION_MAX_COVERAGE
+    )
+    providers: list[UsageTag] = Field(
+        default_factory=list, max_length=USAGE_SUBSCRIPTION_MAX_COVERAGE
+    )
+    starts_on: date
+    ends_on: date | None = None
+
+    @model_validator(mode="after")
+    def _covers_something(self) -> Self:
+        if not self.harnesses and not self.providers:
+            raise ValueError("a subscription covers at least one harness or provider")
+        if self.ends_on is not None and self.ends_on < self.starts_on:
+            raise ValueError("ends_on precedes starts_on")
+        return self
+
+
+class UsageSubscriptionCreate(UsageSubscriptionFields, IdempotentCreate):
+    project_id: UUID
+
+
+class UsageSubscriptionUpdate(UsageSubscriptionFields):
+    """Whole replacement of a subscription's terms, refused on a stale version."""
+
+    expected_version: int = Field(ge=1)
+
+
+class UsageSubscription(UsageSubscriptionFields, VersionedModel):
+    id: UUID
+    project_id: UUID
 
 
 # --- Configuration history (P06-history-option, DEC-0221) -------------------

@@ -223,8 +223,10 @@ describe("renderProjectUsageInto", () => {
     if (period === null) throw new Error("period select missing");
     period.value = "all";
     period.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-    const query = (get.mock.calls[1]?.[1] as { params: { query: Record<string, string> } }).params.query;
+    const summaryCalls = () => get.mock.calls.filter((call) => call[0] === "/api/v1/usage/summary");
+    expect(get.mock.calls.map((call) => call[0])).toContain("/api/v1/usage/subscriptions");
+    await vi.waitFor(() => expect(summaryCalls()).toHaveLength(2));
+    const query = (summaryCalls()[1]?.[1] as { params: { query: Record<string, string> } }).params.query;
     expect(query.since).toBeUndefined();
   });
 
@@ -243,5 +245,39 @@ describe("renderProjectUsageInto", () => {
     await renderProjectUsageInto(root, { client, projectId: PROJECT, authed: false });
     expect(root.innerHTML).toBe("");
     expect(client.GET).not.toHaveBeenCalled();
+  });
+});
+
+describe("base du coût et part d'abonnement", () => {
+  it("étiquette un équivalent API sans jamais le présenter comme une facture", () => {
+    const cost = { ...aggregate().cost, bases: ["api_equivalent" as const] };
+    const html = costValueHtml(cost);
+    expect(html).toContain('data-usage-basis="api_equivalent"');
+    expect(visibleText(html)).toContain("équivalent API, pas la facture");
+  });
+
+  it("affiche la part d'abonnement du serveur, provisoire pour le mois en cours", () => {
+    const share = {
+      basis: "subscription_share" as const,
+      status: "estimated" as const,
+      known_sum: "75",
+      currency: "EUR",
+      by_currency: [{ currency: "EUR", known_sum: "75", entries: 2 }],
+      provisional: true,
+      ...coverage(0, 2, 0),
+    };
+    const total = aggregate({ subscription_share: share });
+    const html = usageSummaryHtml(
+      summary({ total, groups: [{ ...total, key: { task_id: TASK, task_title: "Afficher le coût" } }] }),
+    );
+    const text = visibleText(html);
+    expect(text).toContain("Part d'abonnement");
+    expect(text).toContain("≈ 75 EUR (estimé)");
+    expect(html).toContain("data-usage-provisional");
+    expect(html.match(/data-usage-metric="subscription_share"/g)).toHaveLength(2);
+  });
+
+  it("n'ajoute aucune colonne d'abonnement quand le projet n'en déclare pas", () => {
+    expect(usageSummaryHtml(summary())).not.toContain("Part d'abonnement");
   });
 });

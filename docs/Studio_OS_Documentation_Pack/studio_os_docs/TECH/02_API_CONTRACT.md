@@ -789,6 +789,29 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
   `total` couvre tout le perimetre. `until < since` -> `422
   invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
+  Base du cout (DEC-0361, additif) : a l'ingestion (POST /usage et
+  /usage/corrections), `cost.basis` ∈ `measured_billed|api_equivalent` ; absent
+  avec une valeur -> `api_equivalent` ; present sans valeur ou egal a
+  `subscription_share` -> `422`. Une estimation `EUR` sur une grille
+  `public-eur-*` (prix publics USD mal etiquetes) est stockee en `USD`.
+  Deploiement : serveur avant daemons (un ancien serveur refuse le champ
+  `basis` envoye par un daemon a jour). En lecture, `cost.bases` liste les bases des couts
+  connus (`measured_billed`, `api_equivalent`) ; un client ne presente jamais
+  un `api_equivalent` comme une facture. `subscription_share` (null si le
+  projet ne declare aucun abonnement) : pour chaque abonnement et chaque mois
+  UTC actif, le prix mensuel complet est reparti au prorata du cout des
+  entrees couvertes du mois (tout le projet, toutes machines) ; un agregat
+  recoit la part de ses entrees. Mois non repartissable (cout inconnu,
+  plusieurs devises, somme nulle) -> entrees `unknown_entries` ;
+  `provisional` = mois en cours. Calcule a la lecture, jamais stocke.
+- GET/POST /usage/subscriptions, PUT/DELETE /usage/subscriptions/{id}
+  (DEC-0361, additif) — `UsageSubscription` : `label`, `monthly_price`,
+  `currency`, `harnesses` et/ou `providers` couverts (au moins un), `starts_on`,
+  `ends_on` (inclus, null = en cours). GET filtre par `project_id` (lecture du
+  projet) ; POST `201` (Idempotency-Key) ; PUT remplace les termes avec
+  `expected_version`, DELETE prend `expected_version` en query (`204`) ;
+  version perimee -> `409 version_conflict` + `server_version`. Ecriture du
+  projet requise, refusee aux credentials ephemeres (`403`).
 - GET /usage/configuration-history (P06-history-option, additif, DEC-0221) —
   `ConfigurationHistory`, `200`. `project_id` requis ; `since`, `until`
   (filtre `created_at` du TaskLaunch dans `[since, until)` ; defauts

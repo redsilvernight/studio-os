@@ -7,6 +7,10 @@
  *   → « ≈ … (estimé) », `partial` → « au moins … » + entrées inconnues,
  *   `unknown` → « inconnu », `mixed_currency` → pas de total, détail par
  *   devise. Un statut inconnu du client n'est jamais présenté comme exact.
+ * - Base du coût (DEC-0361) : chaque coût porte son étiquette (`bases`) ;
+ *   un équivalent API n'est jamais présenté comme une facture. La part
+ *   d'abonnement, calculée par le serveur, s'affiche à part, marquée
+ *   provisoire pour le mois en cours.
  * - Aucun prompt (le ledger n'en porte pas) ; aucun UUID visible hors
  *   dsTechDetails replié.
  */
@@ -16,8 +20,11 @@ import { dsBadge, dsSectionHeader, dsSkeleton, dsTechDetails, type DsTechRow, ty
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchUsageSummary, type UsageAggregate, type UsageGroupBy, type UsageSummary } from "../usageApi";
 import "./usage.css";
+import { renderUsageSubscriptionsInto } from "./usageSubscriptions";
 
 type CostTotal = UsageAggregate["cost"];
+type ShareTotal = NonNullable<UsageAggregate["subscription_share"]>;
+type AmountTotal = Pick<CostTotal, "status" | "known_sum" | "currency" | "by_currency" | "measured_entries" | "estimated_entries" | "unknown_entries">;
 type DurationTotal = UsageAggregate["duration"];
 type TokenTotal = UsageAggregate["total_tokens"];
 type Coverage = Pick<CostTotal, "measured_entries" | "estimated_entries" | "unknown_entries">;
@@ -84,6 +91,22 @@ function formatTokens(value: number): string {
   return value.toLocaleString("fr-FR");
 }
 
+const BASIS_LABEL: Record<string, string> = {
+  measured_billed: "facturé",
+  api_equivalent: "équivalent API, pas la facture",
+  subscription_share: "part d'abonnement",
+};
+
+function basisLabel(basis: string): string {
+  return Object.prototype.hasOwnProperty.call(BASIS_LABEL, basis) ? (BASIS_LABEL[basis] as string) : `base inconnue (${basis})`;
+}
+
+function basesHtml(bases: ReadonlyArray<string> | undefined): string {
+  if (bases === undefined || bases.length === 0) return "";
+  const label = bases.map(basisLabel).join(" + ");
+  return ` <span class="ds-list-sub" data-usage-basis="${esc(bases.join(" "))}">(${esc(label)})</span>`;
+}
+
 function formatAmount(raw: string, currency: string | null | undefined): string {
   return `${raw.replace(".", ",")} ${currency ?? "(devise inconnue)"}`;
 }
@@ -117,7 +140,7 @@ function honestText(status: string, known: string | null, coverage: Coverage): s
   }
 }
 
-export function costValueHtml(cost: CostTotal): string {
+function amountValueHtml(cost: AmountTotal, kind: string): string {
   if (cost.status === "mixed_currency") {
     const parts = (cost.by_currency ?? [])
       .map(
@@ -126,10 +149,21 @@ export function costValueHtml(cost: CostTotal): string {
           `${esc(formatAmount(amount.known_sum, amount.currency))} (${esc(plural(amount.entries, "entrée", "entrées"))})</li>`,
       )
       .join("");
-    return `${honestValueHtml(cost.status, null, null, cost, "cost")}${parts === "" ? "" : `<ul class="usage-currencies">${parts}</ul>`}`;
+    return `${honestValueHtml(cost.status, null, null, cost, kind)}${parts === "" ? "" : `<ul class="usage-currencies">${parts}</ul>`}`;
   }
   const raw = cost.known_sum ?? null;
-  return honestValueHtml(cost.status, raw, raw === null ? null : formatAmount(raw, cost.currency), cost, "cost");
+  return honestValueHtml(cost.status, raw, raw === null ? null : formatAmount(raw, cost.currency), cost, kind);
+}
+
+export function costValueHtml(cost: CostTotal): string {
+  return `${amountValueHtml(cost, "cost")}${basesHtml(cost.bases)}`;
+}
+
+function shareValueHtml(share: ShareTotal): string {
+  const provisional = share.provisional
+    ? ` <span class="ds-list-sub" data-usage-provisional>(mois en cours, provisoire)</span>`
+    : "";
+  return `${amountValueHtml(share, "subscription_share")}${provisional}`;
 }
 
 function durationValueHtml(duration: DurationTotal): string {
@@ -150,7 +184,7 @@ export function usageTotalText(total: UsageAggregate): string {
   const tokensKnown = tokens.known_sum ?? null;
   return [
     `durée ${honestText(duration.status, durationKnown === null ? null : formatSeconds(durationKnown), duration)}`,
-    `coût ${honestText(cost.status, costKnown === null ? null : formatAmount(costKnown, cost.currency), cost)}`,
+    `coût ${honestText(cost.status, costKnown === null ? null : formatAmount(costKnown, cost.currency), cost)}${(cost.bases ?? []).length === 0 ? "" : ` (${(cost.bases ?? []).map(basisLabel).join(" + ")})`}`,
     `jetons ${honestText(tokens.status, tokensKnown === null ? null : formatTokens(tokensKnown), tokens)}`,
   ].join(" · ");
 }
@@ -192,6 +226,9 @@ function usageTotalHtml(total: UsageAggregate): string {
     `<thead><tr><th scope="col">Mesure</th><th scope="col">Valeur</th><th scope="col">Qualité</th><th scope="col">Couverture</th></tr></thead><tbody>` +
     metricRowHtml("Durée", total.duration.status, durationValueHtml(total.duration), total.duration) +
     metricRowHtml("Coût", total.cost.status, costValueHtml(total.cost), total.cost) +
+    (total.subscription_share
+      ? metricRowHtml("Part d'abonnement", total.subscription_share.status, shareValueHtml(total.subscription_share), total.subscription_share)
+      : "") +
     metricRowHtml("Jetons", total.total_tokens.status, tokensValueHtml(total.total_tokens), total.total_tokens) +
     `</tbody></table></div>` +
     `<p class="ds-list-sub" data-usage-sources>Sources : ${esc(sourcesText(total))}</p></div>`
@@ -220,11 +257,13 @@ const GROUP_HEADER: Record<string, string> = { task: "Tâche", configuration: "O
 function usageGroupsHtml(summary: UsageSummary): string {
   const groups = summary.groups ?? [];
   if (summary.group_by === "none" || groups.length === 0) return "";
+  const withShare = summary.total.subscription_share !== null && summary.total.subscription_share !== undefined;
   const rows = groups
     .map(
       (group) =>
         `<tr data-usage-group><th scope="row">${groupLabelHtml(summary.group_by, group)}</th>` +
         `<td>${group.entries}</td><td>${durationValueHtml(group.duration)}</td><td>${costValueHtml(group.cost)}</td>` +
+        (withShare ? `<td>${group.subscription_share ? shareValueHtml(group.subscription_share) : "—"}</td>` : "") +
         `<td>${tokensValueHtml(group.total_tokens)}</td></tr>`,
     )
     .join("");
@@ -233,7 +272,7 @@ function usageGroupsHtml(summary: UsageSummary): string {
     : "";
   return (
     `<div class="ds-table-wrap"><table class="ds-table usage-table" data-usage-groups><caption>Détail ${esc((USAGE_GROUPINGS.find((g) => g.id === summary.group_by)?.label ?? "").toLowerCase())}</caption>` +
-    `<thead><tr><th scope="col">${esc(GROUP_HEADER[summary.group_by] ?? "Groupe")}</th><th scope="col">Mesures</th><th scope="col">Durée</th><th scope="col">Coût</th><th scope="col">Jetons</th></tr></thead>` +
+    `<thead><tr><th scope="col">${esc(GROUP_HEADER[summary.group_by] ?? "Groupe")}</th><th scope="col">Mesures</th><th scope="col">Durée</th><th scope="col">Coût</th>${withShare ? `<th scope="col">Part d'abonnement</th>` : ""}<th scope="col">Jetons</th></tr></thead>` +
     `<tbody>${rows}</tbody></table></div>${truncated}`
   );
 }
@@ -301,7 +340,7 @@ function controlsHtml(periodId: string, groupBy: UsageGroupBy): string {
 }
 
 function projectSectionHtml(controls: string, body: string): string {
-  return `<section data-usage aria-label="Consommation">${dsSectionHeader("Consommation")}${controls}<div data-usage-body aria-live="polite">${body}</div></section>`;
+  return `<section data-usage aria-label="Consommation">${dsSectionHeader("Consommation")}${controls}<div data-usage-body aria-live="polite">${body}</div><div data-usage-subscriptions></div></section>`;
 }
 
 /** Section de la vue d'ensemble projet : période et regroupement au choix. */
@@ -345,5 +384,11 @@ export async function renderProjectUsageInto(root: HTMLElement, ctx: UsageViewCo
     groupBy = (event.currentTarget as HTMLSelectElement).value as UsageGroupBy;
     void load();
   });
-  await load();
+  const subscriptionsSlot = root.querySelector<HTMLElement>("[data-usage-subscriptions]");
+  await Promise.all([
+    load(),
+    subscriptionsSlot === null
+      ? Promise.resolve()
+      : renderUsageSubscriptionsInto(subscriptionsSlot, { client: ctx.client, projectId: ctx.projectId, onChange: () => void load(), now }),
+  ]);
 }

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -73,6 +75,11 @@ class UsageLedgerEntryModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
             " AND cost_currency IS NOT NULL AND cost_currency ~ '^[A-Z]{3}$')",
             name="ck_usage_ledger_cost",
         ),
+        CheckConstraint(
+            "(cost IS NULL AND cost_basis IS NULL)"
+            " OR (cost IS NOT NULL AND cost_basis IN ('measured_billed', 'api_equivalent'))",
+            name="ck_usage_ledger_cost_basis",
+        ),
         CheckConstraint("period_end >= period_start", name="ck_usage_ledger_period"),
         CheckConstraint(
             "(price_list_id IS NULL) = (price_effective_from IS NULL)"
@@ -124,6 +131,7 @@ class UsageLedgerEntryModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), default=None)
     cost_coverage: Mapped[str] = mapped_column(String(16), default="unknown")
     cost_currency: Mapped[str | None] = mapped_column(String(3), default=None)
+    cost_basis: Mapped[str | None] = mapped_column(String(32), default=None)
 
     duration_seconds: Mapped[Decimal | None] = mapped_column(Numeric(14, 3), default=None)
     duration_coverage: Mapped[str] = mapped_column(String(16), default="unknown")
@@ -132,3 +140,31 @@ class UsageLedgerEntryModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     price_effective_from: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
+
+
+class UsageSubscriptionModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+    """A flat-rate plan a project pays (DEC-0361). Its monthly price is spread
+    over the covered ledger entries at read time; no share is ever stored."""
+
+    __tablename__ = "usage_subscriptions"
+    __table_args__ = (
+        CheckConstraint("monthly_price >= 0", name="ck_usage_subscription_price"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_usage_subscription_currency"),
+        CheckConstraint(
+            "cardinality(harnesses) > 0 OR cardinality(providers) > 0",
+            name="ck_usage_subscription_coverage",
+        ),
+        CheckConstraint(
+            "ends_on IS NULL OR ends_on >= starts_on", name="ck_usage_subscription_period"
+        ),
+        Index("ix_usage_subscriptions_project", "project_id"),
+    )
+
+    project_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("projects.id"))
+    label: Mapped[str] = mapped_column(String(120))
+    monthly_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(3))
+    harnesses: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list)
+    providers: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list)
+    starts_on: Mapped[date] = mapped_column(Date)
+    ends_on: Mapped[date | None] = mapped_column(Date, default=None)

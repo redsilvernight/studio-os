@@ -19,9 +19,9 @@ par la file outbox existante — le serveur et le dashboard n'ont pas changé.
 
 | Harnais | Source lue | Jetons | Coût |
 |---|---|---|---|
-| Claude Code | `~/.claude/projects/*/*.jsonl` (`usage` par message assistant) | mesurés | estimé (grille EUR) |
-| Codex | `~/.codex/sessions/AAAA/MM/JJ/*.jsonl` (`token_usage_record`) | mesurés | estimé (grille EUR) |
-| OpenCode | `~/.local/share/opencode/opencode.db` (`message` assistant) | mesurés | estimé (grille EUR) |
+| Claude Code | `~/.claude/projects/*/*.jsonl` (`usage` par message assistant) | mesurés | estimé (grille USD, équivalent API) |
+| Codex | `~/.codex/sessions/AAAA/MM/JJ/*.jsonl` (`token_usage_record`) | mesurés | estimé (grille USD, équivalent API) |
+| OpenCode | `~/.local/share/opencode/opencode.db` (`message` assistant) | mesurés | estimé (grille USD, équivalent API) |
 
 Aucun contenu de conversation ni identifiant d'authentification n'est copié : seuls
 compteurs, horodatages, modèle et répertoire de travail de la session sont lus.
@@ -49,12 +49,12 @@ workspace enregistré, rien n'est envoyé (compté `unattributed`).
   (`tokens_in` hors cache, `tokens_cached` = lectures de cache, `tokens_out` =
   sortie + réflexion) ; Codex fournit un `input_tokens` inclusif, le lecteur
   soustrait les sous-ensembles cache avant de compter.
-- Le coût est une **estimation EUR** (couverture `estimated`, jamais présentée comme
-  un montant exact) calculée sur une grille datée (`public-eur-2026-11`) :
+- Le coût est une **estimation USD équivalent API** (DEC-0361 ; couverture `estimated`, base `api_equivalent`, jamais présentée comme
+  un montant exact ni comme la facture d'un abonnement) calculée sur une grille datée (`public-usd-2026-11`) :
   entrée / sortie / cache lu / cache écrit, prix au million de jetons. Un modèle
   inconnu de la grille reste « inconnu » — aucun prix par défaut n'est inventé.
 - Grille surchargeable sans code : `<data_root>/pricing.json`
-  (`{"price_list_id": "...", "effective_from": "...", "models": {"préfixe": {
+  (`{"price_list_id": "...", "effective_from": "...", "currency": "USD", "models": {"préfixe": {
   "input": 0, "output": 0, "cache_read": 0, "cache_write": 0}}}`) — un préfixe
   personnalisé l'emporte sur la grille fournie.
 - Un bucket qui grossit pendant une session encore ouverte est renvoyé comme

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -16,6 +16,7 @@ import pytest
 from pydantic import ValidationError
 from studio_contracts.usage import (
     CacheTokenScope,
+    CostBasis,
     CostMeasurement,
     DurationMeasurement,
     MeasurementCoverage,
@@ -25,6 +26,7 @@ from studio_contracts.usage import (
     UsageLedgerEntryCreate,
     UsageMetrics,
     UsageProvenance,
+    UsageSubscriptionCreate,
 )
 
 START = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
@@ -279,3 +281,46 @@ def test_correction_cannot_move_the_entry() -> None:
 def test_schema_descriptions_carry_no_decision_number() -> None:
     for model in (UsageLedgerEntryCreate, UsageLedgerEntry, UsageLedgerCorrection, UsageProvenance):
         assert not re.search(r"DEC-\d", json.dumps(model.model_json_schema())), model.__name__
+
+
+def test_known_cost_carries_a_basis_defaulting_to_api_equivalent() -> None:
+    legacy = CostMeasurement.model_validate(
+        {"value": "1", "coverage": "measured", "currency": "USD"}
+    )
+    assert legacy.basis is CostBasis.API_EQUIVALENT
+    billed = CostMeasurement.model_validate(
+        {"value": "1", "coverage": "measured", "currency": "USD", "basis": "measured_billed"}
+    )
+    assert billed.basis is CostBasis.MEASURED_BILLED
+    assert CostMeasurement().basis is None
+    with pytest.raises(ValidationError, match="basis without a value"):
+        CostMeasurement.model_validate({"coverage": "unknown", "basis": "api_equivalent"})
+    with pytest.raises(ValidationError, match="computed at read time"):
+        CostMeasurement.model_validate(
+            {
+                "value": "1",
+                "coverage": "estimated",
+                "currency": "USD",
+                "basis": "subscription_share",
+            }
+        )
+
+
+def test_subscription_covers_something_over_an_ordered_period() -> None:
+    base: dict[str, Any] = {
+        "project_id": str(uuid4()),
+        "label": "Claude Max",
+        "monthly_price": "180.00",
+        "currency": "EUR",
+        "harnesses": ["claude-code"],
+        "starts_on": "2026-10-01",
+    }
+    subscription = UsageSubscriptionCreate.model_validate(base)
+    assert subscription.monthly_price == Decimal("180.00")
+    assert subscription.starts_on == date(2026, 10, 1)
+    with pytest.raises(ValidationError, match="at least one harness or provider"):
+        UsageSubscriptionCreate.model_validate({**base, "harnesses": []})
+    with pytest.raises(ValidationError, match="ends_on precedes starts_on"):
+        UsageSubscriptionCreate.model_validate({**base, "ends_on": "2026-09-30"})
+    with pytest.raises(ValidationError):
+        UsageSubscriptionCreate.model_validate({**base, "currency": "eur"})
