@@ -43,7 +43,7 @@ if (-not $project -and (Get-Command studio-client -ErrorAction SilentlyContinue)
 # Harness markers. Credentials and Studio-scoped variables never identify a
 # harness: Studio OS exports user-wide OPENCODE_STUDIO_OS_TOKEN /
 # OPENCODE_STUDIO_OS_DEV_TOKEN, present in every session (Claude Code included),
-# so a plain `OPENCODE*` match mislabelled the harness (DEC-0099).
+# so a plain `OPENCODE*` match mislabelled the harness.
 $markers = {
     param($prefix)
     Get-ChildItem env: | Where-Object {
