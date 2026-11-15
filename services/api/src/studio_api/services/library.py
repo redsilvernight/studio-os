@@ -374,7 +374,16 @@ async def apply_merge(
     common. Nothing is written while a merge conflict is unresolved; the
     previous override version stays in history and can be reactivated."""
     sources = await _merge_sources(session, principal, resource_id)
-    override, common = sources.override, sources.common
+    common = sources.common
+    authorize_mutation(principal, sources.override)
+    override = (
+        await session.execute(
+            select(LibraryResourceModel)
+            .where(LibraryResourceModel.id == sources.override.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
     if override.version != data.expected_resource_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -405,21 +414,53 @@ async def apply_merge(
             )
         text = result.content
     ours = await version_detail(session, sources.ours)
-    created = await create_resource_version(
+    max_version = (
+        await session.execute(
+            select(func.max(LibraryResourceVersionModel.version)).where(
+                LibraryResourceVersionModel.resource_id == override.id
+            )
+        )
+    ).scalar_one()
+    next_version = int(max_version or 0) + 1
+    try:
+        await _create_version_row(
+            session,
+            principal,
+            override,
+            next_version,
+            ours.title,
+            ours.description,
+            {**ours.content, "text": text},
+            ours.dependencies,
+            LibraryVersionRef(resource_id=common.id, version=common.active_version),
+        )
+    except HTTPException:
+        await session.rollback()
+        raise
+    override.active_version = next_version
+    override.status = LibraryStatus.ACTIVE.value
+    override.version += 1
+    await session.commit()
+    await session.refresh(override)
+    await _emit_library_event(
         session,
         principal,
+        EventType.LIBRARY_VERSION_CREATED,
         override,
-        LibraryVersionCreate(
-            title=ours.title,
-            description=ours.description,
-            content={**ours.content, "text": text},
-            dependencies=list(ours.dependencies),
-            derived_from=LibraryVersionRef(resource_id=common.id, version=common.active_version),
-        ),
+        f"v{next_version}",
+        {"version": next_version},
     )
-    return await activate_resource_version(
-        session, principal, override, created.version, override.version
+    await _emit_library_event(
+        session,
+        principal,
+        EventType.LIBRARY_VERSION_ACTIVATED,
+        override,
+        f"v{next_version}",
+        {"version": next_version},
+        occurrence=override.version,
     )
+    await annotate_base_updates(session, [override])
+    return override
 
 
 def _invalid_binding(reason: str) -> HTTPException:

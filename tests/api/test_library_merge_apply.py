@@ -146,6 +146,16 @@ async def test_conflicting_merge_writes_nothing_until_resolved(
     )
     assert marked.status_code == 422
     assert marked.json()["detail"]["error_code"] == "unresolved_merge_conflict"
+    invalid = await _apply(
+        client,
+        admin_auth_headers,
+        override,
+        choice="merge",
+        base_active_version=base,
+        content="",
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["detail"]["error_code"] == "invalid_content"
     assert len(await _versions(client, admin_auth_headers, override)) == 1
     unchanged = (
         await client.get(f"/api/v1/library/{override['id']}", headers=admin_auth_headers)
