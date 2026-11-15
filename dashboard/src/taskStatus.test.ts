@@ -15,6 +15,7 @@ describe("statusColumn", () => {
     expect(statusColumn("in_progress")).toBe("IN PROGRESS");
     expect(statusColumn("blocked")).toBe("BLOCKED");
     expect(statusColumn("completed")).toBe("DONE");
+    expect(statusColumn("abandoned")).toBe("ABANDONED");
   });
 
   it("marks unknown statuses instead of inventing a column", () => {
@@ -22,8 +23,8 @@ describe("statusColumn", () => {
     expect(statusColumn("")).toBe("UNKNOWN");
   });
 
-  it("exposes the four display columns", () => {
-    expect(TASK_COLUMNS).toEqual(["TODO", "IN PROGRESS", "BLOCKED", "DONE"]);
+  it("exposes the five display columns", () => {
+    expect(TASK_COLUMNS).toEqual(["TODO", "IN PROGRESS", "BLOCKED", "DONE", "ABANDONED"]);
   });
 });
 
@@ -38,17 +39,19 @@ describe("columnToStatus", () => {
 });
 
 describe("UI-5 libellés français (clés backend inchangées)", () => {
-  it("traduit les quatre statuts sans toucher aux clés", () => {
+  it("traduit les cinq statuts sans toucher aux clés", () => {
     expect(TASK_STATUS_LABEL_FR).toEqual({
       created: "À faire",
       in_progress: "En cours",
       blocked: "Bloqué",
       completed: "Terminé",
+      abandoned: "Abandonnée",
     });
     expect(taskStatusLabel("created")).toBe("À faire");
     expect(taskStatusLabel("in_progress")).toBe("En cours");
     expect(taskStatusLabel("blocked")).toBe("Bloqué");
     expect(taskStatusLabel("completed")).toBe("Terminé");
+    expect(taskStatusLabel("abandoned")).toBe("Abandonnée");
   });
 
   it("ne montre jamais les clés techniques brutes (TODO, IN PROGRESS…)", () => {
@@ -66,6 +69,7 @@ describe("UI-5 libellés français (clés backend inchangées)", () => {
     expect(taskStatusTone("in_progress")).toBe("info");
     expect(taskStatusTone("blocked")).toBe("warning");
     expect(taskStatusTone("completed")).toBe("success");
+    expect(taskStatusTone("abandoned")).toBe("neutral");
     expect(taskStatusTone("archived")).toBe("neutral");
   });
 });
