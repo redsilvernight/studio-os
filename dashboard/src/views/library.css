@@ -471,6 +471,27 @@
   max-height: 24vh;
 }
 
+.library-merge-choice {
+  margin: var(--ds-space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.library-merge-result {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--ds-space-1);
+}
+
+.library-merge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
 @media (max-width: 640px) {
   .library-toolbar {
     display: grid;
