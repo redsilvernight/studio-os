@@ -1433,6 +1433,54 @@ export interface paths {
         patch: operations["update_ai_work_api_v1_ai_work__work_id__patch"];
         trace?: never;
     };
+    "/api/v1/usage/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subscriptions
+         * @description List the subscriptions declared for a project, by start date.
+         */
+        get: operations["list_subscriptions_api_v1_usage_subscriptions_get"];
+        put?: never;
+        /**
+         * Create Subscription
+         * @description Declare a flat-rate subscription (monthly price, currency, covered harnesses and/or providers, period). Its price is spread over the covered usage at read time in /usage/summary (subscription_share); nothing is stored per entry. Launch-scoped credentials cannot manage subscriptions. Supports Idempotency-Key.
+         */
+        post: operations["create_subscription_api_v1_usage_subscriptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/subscriptions/{subscription_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Subscription
+         * @description Replace a subscription's terms. A stale expected_version fails with version_conflict and server_version.
+         */
+        put: operations["update_subscription_api_v1_usage_subscriptions__subscription_id__put"];
+        post?: never;
+        /**
+         * Delete Subscription
+         * @description Delete a subscription; summaries stop allocating it. A stale expected_version fails with version_conflict and server_version.
+         */
+        delete: operations["delete_subscription_api_v1_usage_subscriptions__subscription_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage": {
         parameters: {
             query?: never;
@@ -4431,10 +4479,24 @@ export interface components {
             from_session_id?: string | null;
         };
         /**
+         * CostBasis
+         * @description What a cost amount stands for, so an API-equivalent figure is
+         *     never shown as a bill. `measured_billed`: the amount actually invoiced for
+         *     the run (pay-as-you-go API key). `api_equivalent`: what the tokens would
+         *     cost at public API list prices — the runtime's own reported figure or a
+         *     local estimate; not what a subscription user pays.
+         *     `subscription_share`: a declared subscription's monthly price spread over
+         *     the month's entries; computed at read time, never stored on an entry.
+         * @enum {string}
+         */
+        CostBasis: "measured_billed" | "api_equivalent" | "subscription_share";
+        /**
          * CostMeasurement
          * @description Monetary cost. The currency travels with the value: a cost without a
          *     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
-         *     and an unpriced one are not the same fact.
+         *     and an unpriced one are not the same fact. A known cost carries its
+         *     `basis`; a payload without one (older collector) is read as
+         *     `api_equivalent`, the only basis any collector produced before it.
          */
         "CostMeasurement-Input": {
             /** Value */
@@ -4449,12 +4511,15 @@ export interface components {
             unit: "currency";
             /** Currency */
             currency?: string | null;
+            basis?: components["schemas"]["CostBasis"] | null;
         };
         /**
          * CostMeasurement
          * @description Monetary cost. The currency travels with the value: a cost without a
          *     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
-         *     and an unpriced one are not the same fact.
+         *     and an unpriced one are not the same fact. A known cost carries its
+         *     `basis`; a payload without one (older collector) is read as
+         *     `api_equivalent`, the only basis any collector produced before it.
          */
         "CostMeasurement-Output": {
             /** Value */
@@ -4469,6 +4534,7 @@ export interface components {
             unit: "currency";
             /** Currency */
             currency?: string | null;
+            basis?: components["schemas"]["CostBasis"] | null;
         };
         /**
          * Decision
@@ -9533,13 +9599,16 @@ export interface components {
             duration: components["schemas"]["UsageDurationTotal"];
             /** Sources */
             sources?: components["schemas"]["UsageSourceCount"][];
+            subscription_share?: components["schemas"]["UsageSubscriptionShare"] | null;
         };
         /**
          * UsageCostTotal
          * @description Cost summed per currency. `known_sum`/`currency` are set only when every
          *     known cost shares one currency; with several currencies `status` is
          *     `mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum
-         *     apart. An unknown cost is never counted as zero.
+         *     apart. An unknown cost is never counted as zero. `bases` lists the cost
+         *     bases of the known amounts (sorted): a client labels the sum with them and
+         *     never presents an `api_equivalent` total as a bill.
          */
         UsageCostTotal: {
             /**
@@ -9564,6 +9633,8 @@ export interface components {
             currency?: string | null;
             /** By Currency */
             by_currency?: components["schemas"]["UsageCurrencyAmount"][];
+            /** Bases */
+            bases?: components["schemas"]["CostBasis"][];
         };
         /** UsageCurrencyAmount */
         UsageCurrencyAmount: {
@@ -9809,6 +9880,147 @@ export interface components {
             collector: string;
             /** Entries */
             entries: number;
+        };
+        /** UsageSubscription */
+        UsageSubscription: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** Label */
+            label: string;
+            /** Monthly Price */
+            monthly_price: string;
+            /** Currency */
+            currency: string;
+            /** Harnesses */
+            harnesses?: string[];
+            /** Providers */
+            providers?: string[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
+        /** UsageSubscriptionCreate */
+        UsageSubscriptionCreate: {
+            /** Label */
+            label: string;
+            /** Monthly Price */
+            monthly_price: number | string;
+            /** Currency */
+            currency: string;
+            /** Harnesses */
+            harnesses?: string[];
+            /** Providers */
+            providers?: string[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
+        /**
+         * UsageSubscriptionShare
+         * @description Part of the declared subscriptions attributed to an aggregate,
+         *     computed at read time and never stored. For each subscription and each UTC
+         *     month it is active, the monthly price is spread over the covered entries of
+         *     that month — every machine, every task — pro rata of their API-equivalent
+         *     cost; an aggregate gets the shares of its own entries. `estimated_entries`
+         *     counts covered entries that received a share, `unknown_entries` covered
+         *     entries that could not (no cost, or a month whose covered costs are in
+         *     several currencies or sum to zero), once per covering subscription.
+         *     Limits: a lightly used subscription yields a high cost per task;
+         *     `provisional` is true when a share comes from the current, unfinished
+         *     month, whose split still moves.
+         */
+        UsageSubscriptionShare: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            /**
+             * Basis
+             * @default subscription_share
+             * @constant
+             */
+            basis: "subscription_share";
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** By Currency */
+            by_currency?: components["schemas"]["UsageCurrencyAmount"][];
+            /**
+             * Provisional
+             * @default false
+             */
+            provisional: boolean;
+        };
+        /**
+         * UsageSubscriptionUpdate
+         * @description Whole replacement of a subscription's terms, refused on a stale version.
+         */
+        UsageSubscriptionUpdate: {
+            /** Label */
+            label: string;
+            /** Monthly Price */
+            monthly_price: number | string;
+            /** Currency */
+            currency: string;
+            /** Harnesses */
+            harnesses?: string[];
+            /** Providers */
+            providers?: string[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Expected Version */
+            expected_version: number;
         };
         /**
          * UsageSummary
@@ -16955,6 +17167,359 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "invalid_status_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_subscriptions_api_v1_usage_subscriptions_get: {
+        parameters: {
+            query: {
+                project_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSubscription"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_subscription_api_v1_usage_subscriptions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsageSubscriptionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSubscription"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_subscription_api_v1_usage_subscriptions__subscription_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsageSubscriptionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSubscription"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_subscription_api_v1_usage_subscriptions__subscription_id__delete: {
+        parameters: {
+            query: {
+                expected_version: number;
+            };
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
                      *       }
                      *     }
                      */

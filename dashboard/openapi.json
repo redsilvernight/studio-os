@@ -7822,6 +7822,397 @@
     }
    }
   },
+  "/api/v1/usage/subscriptions": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "List Subscriptions",
+    "description": "List the subscriptions declared for a project, by start date.",
+    "operationId": "list_subscriptions_api_v1_usage_subscriptions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/UsageSubscription"
+         },
+         "title": "Response List Subscriptions Api V1 Usage Subscriptions Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Create Subscription",
+    "description": "Declare a flat-rate subscription (monthly price, currency, covered harnesses and/or providers, period). Its price is spread over the covered usage at read time in /usage/summary (subscription_share); nothing is stored per entry. Launch-scoped credentials cannot manage subscriptions. Supports Idempotency-Key.",
+    "operationId": "create_subscription_api_v1_usage_subscriptions_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsageSubscriptionCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageSubscription"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/subscriptions/{subscription_id}": {
+   "put": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Update Subscription",
+    "description": "Replace a subscription's terms. A stale expected_version fails with version_conflict and server_version.",
+    "operationId": "update_subscription_api_v1_usage_subscriptions__subscription_id__put",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "subscription_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Subscription Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsageSubscriptionUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageSubscription"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Delete Subscription",
+    "description": "Delete a subscription; summaries stop allocating it. A stale expected_version fails with version_conflict and server_version.",
+    "operationId": "delete_subscription_api_v1_usage_subscriptions__subscription_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "subscription_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Subscription Id"
+      }
+     },
+     {
+      "name": "expected_version",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Expected Version"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/usage": {
    "get": {
     "tags": [
@@ -20560,6 +20951,16 @@
     "title": "CoordinationSignal",
     "description": "Quoted signal carried by a `studio_sync` item of `why=coordination`.\n`text` is untrusted data written by another session: display it as a\nquotation, never execute it as an instruction."
    },
+   "CostBasis": {
+    "type": "string",
+    "enum": [
+     "measured_billed",
+     "api_equivalent",
+     "subscription_share"
+    ],
+    "title": "CostBasis",
+    "description": "What a cost amount stands for, so an API-equivalent figure is\nnever shown as a bill. `measured_billed`: the amount actually invoiced for\nthe run (pay-as-you-go API key). `api_equivalent`: what the tokens would\ncost at public API list prices \u2014 the runtime's own reported figure or a\nlocal estimate; not what a subscription user pays.\n`subscription_share`: a declared subscription's monthly price spread over\nthe month's entries; computed at read time, never stored on an entry."
+   },
    "CostMeasurement-Input": {
     "properties": {
      "value": {
@@ -20599,12 +21000,22 @@
        }
       ],
       "title": "Currency"
+     },
+     "basis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CostBasis"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
     "type": "object",
     "title": "CostMeasurement",
-    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact."
+    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact. A known cost carries its\n`basis`; a payload without one (older collector) is read as\n`api_equivalent`, the only basis any collector produced before it."
    },
    "CostMeasurement-Output": {
     "properties": {
@@ -20641,12 +21052,22 @@
        }
       ],
       "title": "Currency"
+     },
+     "basis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CostBasis"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
     "type": "object",
     "title": "CostMeasurement",
-    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact."
+    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact. A known cost carries its\n`basis`; a payload without one (older collector) is read as\n`api_equivalent`, the only basis any collector produced before it."
    },
    "Decision": {
     "properties": {
@@ -32144,6 +32565,16 @@
       },
       "type": "array",
       "title": "Sources"
+     },
+     "subscription_share": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/UsageSubscriptionShare"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -32213,6 +32644,13 @@
       },
       "type": "array",
       "title": "By Currency"
+     },
+     "bases": {
+      "items": {
+       "$ref": "#/components/schemas/CostBasis"
+      },
+      "type": "array",
+      "title": "Bases"
      }
     },
     "additionalProperties": false,
@@ -32221,7 +32659,7 @@
      "status"
     ],
     "title": "UsageCostTotal",
-    "description": "Cost summed per currency. `known_sum`/`currency` are set only when every\nknown cost shares one currency; with several currencies `status` is\n`mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum\napart. An unknown cost is never counted as zero."
+    "description": "Cost summed per currency. `known_sum`/`currency` are set only when every\nknown cost shares one currency; with several currencies `status` is\n`mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum\napart. An unknown cost is never counted as zero. `bases` lists the cost\nbases of the known amounts (sorted): a client labels the sum with them and\nnever presents an `api_equivalent` total as a bill."
    },
    "UsageCurrencyAmount": {
     "properties": {
@@ -32836,6 +33274,342 @@
     ],
     "title": "UsageSourceCount",
     "description": "Collector that produced entries of the aggregate, with its entry count."
+   },
+   "UsageSubscription": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "label": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label"
+     },
+     "monthly_price": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+      "title": "Monthly Price"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "harnesses": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1,
+       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Harnesses"
+     },
+     "providers": {
+      "items": {
+       "type": "string",
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Providers"
+     },
+     "starts_on": {
+      "type": "string",
+      "format": "date",
+      "title": "Starts On"
+     },
+     "ends_on": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ends On"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "label",
+     "monthly_price",
+     "currency",
+     "starts_on",
+     "id",
+     "project_id"
+    ],
+    "title": "UsageSubscription"
+   },
+   "UsageSubscriptionCreate": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label"
+     },
+     "monthly_price": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+       }
+      ],
+      "title": "Monthly Price"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "harnesses": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1,
+       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Harnesses"
+     },
+     "providers": {
+      "items": {
+       "type": "string",
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Providers"
+     },
+     "starts_on": {
+      "type": "string",
+      "format": "date",
+      "title": "Starts On"
+     },
+     "ends_on": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ends On"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "label",
+     "monthly_price",
+     "currency",
+     "starts_on",
+     "project_id"
+    ],
+    "title": "UsageSubscriptionCreate"
+   },
+   "UsageSubscriptionShare": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "basis": {
+      "type": "string",
+      "const": "subscription_share",
+      "title": "Basis",
+      "default": "subscription_share"
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     },
+     "by_currency": {
+      "items": {
+       "$ref": "#/components/schemas/UsageCurrencyAmount"
+      },
+      "type": "array",
+      "title": "By Currency"
+     },
+     "provisional": {
+      "type": "boolean",
+      "title": "Provisional",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageSubscriptionShare",
+    "description": "Part of the declared subscriptions attributed to an aggregate,\ncomputed at read time and never stored. For each subscription and each UTC\nmonth it is active, the monthly price is spread over the covered entries of\nthat month \u2014 every machine, every task \u2014 pro rata of their API-equivalent\ncost; an aggregate gets the shares of its own entries. `estimated_entries`\ncounts covered entries that received a share, `unknown_entries` covered\nentries that could not (no cost, or a month whose covered costs are in\nseveral currencies or sum to zero), once per covering subscription.\nLimits: a lightly used subscription yields a high cost per task;\n`provisional` is true when a share comes from the current, unfinished\nmonth, whose split still moves."
+   },
+   "UsageSubscriptionUpdate": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label"
+     },
+     "monthly_price": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+       }
+      ],
+      "title": "Monthly Price"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "harnesses": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1,
+       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Harnesses"
+     },
+     "providers": {
+      "items": {
+       "type": "string",
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Providers"
+     },
+     "starts_on": {
+      "type": "string",
+      "format": "date",
+      "title": "Starts On"
+     },
+     "ends_on": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ends On"
+     },
+     "expected_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Expected Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "label",
+     "monthly_price",
+     "currency",
+     "starts_on",
+     "expected_version"
+    ],
+    "title": "UsageSubscriptionUpdate",
+    "description": "Whole replacement of a subscription's terms, refused on a stale version."
    },
    "UsageSummary": {
     "properties": {

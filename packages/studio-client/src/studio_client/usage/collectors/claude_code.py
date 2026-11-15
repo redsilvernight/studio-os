@@ -17,6 +17,7 @@ from typing import Any
 
 from studio_contracts.usage import (
     CacheTokenScope,
+    CostBasis,
     CostMeasurement,
     MeasurementCoverage,
     TokenMeasurement,
@@ -166,7 +167,10 @@ class ClaudeCodeCollector:
                 diagnostics.append(CollectorDiagnostic.INVALID_COUNTER)
             else:
                 cost = CostMeasurement(
-                    value=amount, coverage=MeasurementCoverage.MEASURED, currency="USD"
+                    value=amount,
+                    coverage=MeasurementCoverage.MEASURED,
+                    currency="USD",
+                    basis=CostBasis.API_EQUIVALENT,
                 )
 
         if document.get("is_error") is True:

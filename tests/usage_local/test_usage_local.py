@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -256,6 +257,32 @@ def test_price_table_override_document_supersedes_a_family(tmp_path: Path) -> No
     assert load_price_table(tmp_path / "absent.json") is BUNDLED_PRICE_TABLE
 
 
+def test_price_prefix_matches_only_up_to_an_identifier_boundary() -> None:
+    tokens = BilledTokens(input=1_000_000, output=1_000_000)
+    assert BUNDLED_PRICE_TABLE.currency == "USD"
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-5", tokens) == Decimal("11.25")
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-5-2025-08-07", tokens) == Decimal("11.25")
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-5.1-codex", tokens) == Decimal("11.25")
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-5.7-sol", tokens) is None
+    assert BUNDLED_PRICE_TABLE.estimate("gpt-5x", tokens) is None
+    assert BUNDLED_PRICE_TABLE.estimate("claude-opus-5-5[1m]", tokens) == 24
+    assert BUNDLED_PRICE_TABLE.estimate("o4-mini", tokens) is None
+
+
+def test_price_table_in_another_currency_never_borrows_bundled_rates() -> None:
+    document = {
+        "currency": "EUR",
+        "models": {"claude-sonnet": {"input": 1, "output": 2, "cache_read": 0, "cache_write": 0}},
+    }
+    table = table_from_document(document)
+    assert isinstance(table, PriceTable)
+    assert table.currency == "EUR"
+    tokens = BilledTokens(input=1_000_000, output=1_000_000)
+    assert table.estimate("claude-sonnet-4-5", tokens) == 3
+    assert table.estimate("gpt-6.1-sol", tokens) is None
+    assert table_from_document({**document, "currency": "euro"}) is None
+
+
 def test_project_for_path_prefers_the_longest_root(tmp_path: Path) -> None:
     outer = WorkspaceRoot(path=tmp_path, project_id=PROJECT)
     inner = WorkspaceRoot(path=tmp_path / "repo", project_id=TASK)
@@ -306,9 +333,10 @@ async def test_scanner_enqueues_one_entry_per_bucket_then_a_correction(tmp_path:
     assert payload["tokens_cached"]["value"] == 200
     assert payload["tokens_out"]["value"] == 60
     assert payload["cost"]["coverage"] == "estimated"
-    assert payload["cost"]["currency"] == "EUR"
+    assert payload["cost"]["currency"] == "USD"
+    assert payload["cost"]["basis"] == "api_equivalent"
     assert payload["cost"]["value"] == "0.001335"
-    assert payload["pricing"]["price_list_id"] == "public-eur-2026-11"
+    assert payload["pricing"]["price_list_id"] == "public-usd-2026-11"
     assert payload["provenance"]["harness"] == "claude-code"
     assert payload["provenance"]["model"] == "claude-sonnet-4-5"
 

@@ -409,7 +409,7 @@ _.dashboard_minimum_version  # studio_api/settings.py
 _.desktop_latest_version  # studio_api/settings.py
 _.daemon_latest_version  # studio_api/settings.py
 _.dashboard_latest_version  # studio_api/settings.py
-
+_.subscription_share  # studio_contracts/usage.py
 
 # --- Membres d'Enum ------------------------------------------------------------------------------
 
@@ -418,6 +418,7 @@ _.dashboard_latest_version  # studio_api/settings.py
 _.LIFETIME  # studio_contracts/budgets.py
 _.IGNORE  # studio_contracts/budgets.py
 _.RELEASE  # studio_contracts/budgets.py
+_.MEASURED_BILLED  # studio_contracts/usage.py
 _.FOLDER  # studio_contracts/claims.py
 _.PROJECT_CREATED  # studio_contracts/events.py
 _.DECISION_CREATED  # studio_contracts/events.py
