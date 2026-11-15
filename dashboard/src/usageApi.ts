@@ -9,6 +9,7 @@
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
 import type { components } from "./openapi-schema";
+import { newUuid } from "./ui";
 
 export type UsageSummary = components["schemas"]["UsageSummary"];
 export type UsageAggregate = components["schemas"]["UsageAggregate"];
@@ -99,4 +100,56 @@ export async function fetchUsageSummary(client: StudioClient, query: UsageSummar
     return result.data;
   }
   throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+/* Abonnements déclarés par projet (DEC-0361). */
+export type UsageSubscription = components["schemas"]["UsageSubscription"];
+export type UsageSubscriptionTerms = Omit<components["schemas"]["UsageSubscriptionUpdate"], "expected_version">;
+
+async function unwrapOk<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
+  const result = await promise;
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+/** GET /api/v1/usage/subscriptions?project_id */
+export function listUsageSubscriptions(client: StudioClient, projectId: string): Promise<UsageSubscription[]> {
+  return unwrapOk(client.GET("/api/v1/usage/subscriptions", { params: { query: { project_id: projectId } } }));
+}
+
+/** POST /api/v1/usage/subscriptions — une clé d'idempotence par tentative logique. */
+export function createUsageSubscription(
+  client: StudioClient,
+  projectId: string,
+  terms: UsageSubscriptionTerms,
+  idempotencyKey: string = newUuid(),
+): Promise<UsageSubscription> {
+  return unwrapOk(
+    client.POST("/api/v1/usage/subscriptions", {
+      params: { header: { "Idempotency-Key": idempotencyKey } },
+      body: { ...terms, project_id: projectId },
+    }),
+  );
+}
+
+/** PUT /api/v1/usage/subscriptions/{id} — `409 version_conflict` si la version a bougé. */
+export function updateUsageSubscription(
+  client: StudioClient,
+  subscription: UsageSubscription,
+  terms: UsageSubscriptionTerms,
+): Promise<UsageSubscription> {
+  return unwrapOk(
+    client.PUT("/api/v1/usage/subscriptions/{subscription_id}", {
+      params: { path: { subscription_id: subscription.id } },
+      body: { ...terms, expected_version: subscription.version },
+    }),
+  );
+}
+
+/** DELETE /api/v1/usage/subscriptions/{id}?expected_version → 204. */
+export async function deleteUsageSubscription(client: StudioClient, subscription: UsageSubscription): Promise<void> {
+  const result = await client.DELETE("/api/v1/usage/subscriptions/{subscription_id}", {
+    params: { path: { subscription_id: subscription.id }, query: { expected_version: subscription.version } },
+  });
+  if (!result.response.ok) throw new ApiError(parseErrorBody(result.response.status, result.error));
 }

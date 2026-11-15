@@ -20,6 +20,7 @@ import { dsBadge, dsSectionHeader, dsSkeleton, dsTechDetails, type DsTechRow, ty
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchUsageSummary, type UsageAggregate, type UsageGroupBy, type UsageSummary } from "../usageApi";
 import "./usage.css";
+import { renderUsageSubscriptionsInto } from "./usageSubscriptions";
 
 type CostTotal = UsageAggregate["cost"];
 type ShareTotal = NonNullable<UsageAggregate["subscription_share"]>;
@@ -339,7 +340,7 @@ function controlsHtml(periodId: string, groupBy: UsageGroupBy): string {
 }
 
 function projectSectionHtml(controls: string, body: string): string {
-  return `<section data-usage aria-label="Consommation">${dsSectionHeader("Consommation")}${controls}<div data-usage-body aria-live="polite">${body}</div></section>`;
+  return `<section data-usage aria-label="Consommation">${dsSectionHeader("Consommation")}${controls}<div data-usage-body aria-live="polite">${body}</div><div data-usage-subscriptions></div></section>`;
 }
 
 /** Section de la vue d'ensemble projet : période et regroupement au choix. */
@@ -383,5 +384,11 @@ export async function renderProjectUsageInto(root: HTMLElement, ctx: UsageViewCo
     groupBy = (event.currentTarget as HTMLSelectElement).value as UsageGroupBy;
     void load();
   });
-  await load();
+  const subscriptionsSlot = root.querySelector<HTMLElement>("[data-usage-subscriptions]");
+  await Promise.all([
+    load(),
+    subscriptionsSlot === null
+      ? Promise.resolve()
+      : renderUsageSubscriptionsInto(subscriptionsSlot, { client: ctx.client, projectId: ctx.projectId, onChange: () => void load(), now }),
+  ]);
 }

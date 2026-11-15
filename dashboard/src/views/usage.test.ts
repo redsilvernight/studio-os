@@ -223,8 +223,10 @@ describe("renderProjectUsageInto", () => {
     if (period === null) throw new Error("period select missing");
     period.value = "all";
     period.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-    const query = (get.mock.calls[1]?.[1] as { params: { query: Record<string, string> } }).params.query;
+    const summaryCalls = () => get.mock.calls.filter((call) => call[0] === "/api/v1/usage/summary");
+    expect(get.mock.calls.map((call) => call[0])).toContain("/api/v1/usage/subscriptions");
+    await vi.waitFor(() => expect(summaryCalls()).toHaveLength(2));
+    const query = (summaryCalls()[1]?.[1] as { params: { query: Record<string, string> } }).params.query;
     expect(query.since).toBeUndefined();
   });
 
