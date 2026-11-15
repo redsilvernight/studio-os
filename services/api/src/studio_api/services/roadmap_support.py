@@ -324,6 +324,7 @@ class RoadmapTree:
     deps: dict[uuid.UUID, list[uuid.UUID]] = field(default_factory=dict)
     links: dict[uuid.UUID, list[RoadmapStepTaskLinkModel]] = field(default_factory=dict)
     task_status: dict[uuid.UUID, TaskStatusValue] = field(default_factory=dict)
+    task_holder: dict[uuid.UUID, uuid.UUID | None] = field(default_factory=dict)
 
     def steps_of(self, phase_id: uuid.UUID) -> list[RoadmapStepModel]:
         return [step for step in self.steps if step.phase_id == phase_id]
@@ -351,11 +352,27 @@ class RoadmapTree:
     def _state(self, step: RoadmapStepModel) -> StepState:
         override = StepStateOverride(step.state_override) if step.state_override else None
         statuses = [
-            self.task_status[link.task_id]
+            effective_task_status(
+                self.task_status[link.task_id], self.task_holder.get(link.task_id)
+            )
             for link in self.links.get(step.id, [])
             if link.task_id in self.task_status
         ]
         return derive_step_state(override, statuses)
+
+
+def effective_task_status(status: TaskStatusValue, holder: uuid.UUID | None) -> TaskStatusValue:
+    """The status a linked Task contributes to its step's derived state.
+
+    A Task keeps `in_progress` once its claim is released (releasing clears the
+    holder without rewriting the status), so deriving from the raw status alone
+    left a step `in_progress` with nobody working on it and no session — a
+    claim-history artifact, not current work. Derivation reads the current row
+    only (`status` + `claimed_by_machine_id`): an `in_progress` Task with no
+    holder is back to `created`. A live claim always keeps `in_progress`."""
+    if status is TaskStatusValue.IN_PROGRESS and holder is None:
+        return TaskStatusValue.CREATED
+    return status
 
 
 def _link_order(
@@ -441,12 +458,15 @@ async def load_tree(session: AsyncSession, roadmap: RoadmapModel) -> RoadmapTree
             tree.links.get(step.id, []).sort(key=_link_order(step))
         task_ids = {link.task_id for link in link_rows}
         if task_ids:
-            for task_id, task_status in (
+            for task_id, task_status, holder in (
                 await session.execute(
-                    select(TaskModel.id, TaskModel.status).where(TaskModel.id.in_(task_ids))
+                    select(TaskModel.id, TaskModel.status, TaskModel.claimed_by_machine_id).where(
+                        TaskModel.id.in_(task_ids)
+                    )
                 )
             ).all():
                 tree.task_status[task_id] = TaskStatusValue(task_status)
+                tree.task_holder[task_id] = holder
     return tree
 
 
