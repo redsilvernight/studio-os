@@ -43,6 +43,7 @@ class PublishItem:
     title: str
     content: dict[str, object]
     pins: tuple[tuple[PublishKind, str], ...] = ()
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +108,7 @@ async def _publish_one(
                 scope=scope,
                 project_id=project_id,
                 title=item.title,
+                description=item.description,
                 content=item.content,
                 dependencies=pins,
             ),
@@ -131,7 +133,12 @@ async def _publish_one(
         return PublishResult(item.kind, item.stable_key, "new_version", next_version, False)
     created = await client.create_library_version(
         resource.id,
-        LibraryVersionCreate(title=item.title, content=item.content, dependencies=pins),
+        LibraryVersionCreate(
+            title=item.title,
+            description=item.description,
+            content=item.content,
+            dependencies=pins,
+        ),
         idempotency_key=str(uuid4()),
     )
     return await _maybe_activate(client, item, resource, created.version, "new_version", activate)
@@ -140,6 +147,7 @@ async def _publish_one(
 def _is_same(latest: LibraryVersion, item: PublishItem, pins: list[DependencyPin]) -> bool:
     return (
         latest.title == item.title
+        and (item.description is None or latest.description == item.description)
         and latest.content == item.content
         and _same_pins(latest.dependencies, pins)
     )
