@@ -28,7 +28,7 @@ function mergeFixture(): LibraryMergeData {
   };
 }
 
-async function bootDetail(page: Page, previewStatus = 200): Promise<void> {
+async function bootDetail(page: Page, previewStatus = 200, applied: unknown[] = []): Promise<void> {
   const resource = {
     id: RESOURCE_ID, kind: "rule", stable_key: "coding-standard", scope: "user",
     status: "active", active_version: 1, version: 2,
@@ -53,6 +53,10 @@ async function bootDetail(page: Page, previewStatus = 200): Promise<void> {
     if (path === `/api/v1/library/${RESOURCE_ID}`) return json(200, resource);
     if (path === `/api/v1/library/${RESOURCE_ID}/merge-preview`) {
       return json(previewStatus, previewStatus === 200 ? mergeFixture() : { detail: "library resource not found" });
+    }
+    if (path === `/api/v1/library/${RESOURCE_ID}/merge-apply`) {
+      applied.push(request.postDataJSON());
+      return json(200, { ...resource, active_version: 2, version: 3, base_update_available: false, base_active_version: null });
     }
     if (path === "/api/v1/library") return json(200, [resource]);
     if (path === "/api/v1/library-locks") return json(200, []);
@@ -91,4 +95,31 @@ test("détail : récupère l’aperçu et permet de parcourir les trois volets a
   await expect(page).toHaveURL(new RegExp(`#/library/rules/${RESOURCE_ID}$`));
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).include("main").analyze();
   expect(axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious")).toEqual([]);
+});
+
+test("détail : choisit un bloc, débloque la publication et publie en une confirmation", async ({ page }) => {
+  const applied: unknown[] = [];
+  await bootDetail(page, 200, applied);
+  const publish = page.getByRole("button", { name: "Publier le résultat" });
+  await expect(page.getByText("1 conflit(s) restant(s)", { exact: true })).toBeVisible();
+  await expect(publish).toBeDisabled();
+  await page.getByRole("radio", { name: "Accepter le nouveau commun" }).check();
+  await expect(page.getByText("0 conflit(s) restant(s)", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Résultat de la fusion (modifiable)")).toHaveValue(
+    "ligne une\nligne deux (moi)\nligne trois (commun)\ncommun (eux)\n",
+  );
+  await expect(publish).toBeEnabled();
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).include("main").analyze();
+  expect(axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious")).toEqual([]);
+  let dialogs = 0;
+  page.on("dialog", (dialog) => { dialogs += 1; void dialog.accept(); });
+  await publish.click();
+  await expect.poll(() => applied.length).toBe(1);
+  expect(dialogs).toBe(1);
+  expect(applied[0]).toEqual({
+    choice: "merge",
+    content: "ligne une\nligne deux (moi)\nligne trois (commun)\ncommun (eux)\n",
+    expected_resource_version: 2,
+    base_active_version: 4,
+  });
 });

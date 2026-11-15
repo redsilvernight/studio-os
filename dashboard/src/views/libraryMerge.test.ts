@@ -10,7 +10,9 @@ import { join } from "node:path";
 import {
   bindLibraryMerge,
   libraryMergeHtml,
+  remainingConflicts,
   renderLibraryMerge,
+  resolveMergeContent,
   staticMergeProvider,
   type LibraryMergeData,
 } from "./libraryMerge";
@@ -109,33 +111,129 @@ describe("fournisseur de comparaison", () => {
     expect(root.innerHTML).toContain("coupé");
   });
 
-  it("n'affiche « Revenir au commun » que si le fournisseur sait revenir", async () => {
+  it("n'affiche les choix de fusion que si le fournisseur sait appliquer", async () => {
     const without = document.createElement("div");
     await renderLibraryMerge(without, staticMergeProvider(fixture()));
     expect(without.querySelector("[data-merge-revert]")).toBeNull();
-    const withRevert = document.createElement("div");
-    await renderLibraryMerge(withRevert, { ...staticMergeProvider(fixture()), revert: () => Promise.resolve() });
-    expect(withRevert.querySelector("[data-merge-revert]")?.textContent).toBe("Revenir au commun");
+    expect(without.querySelector("[data-merge-hunk]")).toBeNull();
+    const withApply = document.createElement("div");
+    await renderLibraryMerge(withApply, { ...staticMergeProvider(fixture()), apply: () => Promise.resolve() });
+    expect(withApply.querySelector("[data-merge-revert]")?.textContent).toBe("Revenir au commun");
+    expect(withApply.querySelector("[data-merge-keep]")?.textContent).toBe("Garder mon override");
   });
 
-  it("Revenir au commun : confirme, appelle revert, affiche l'erreur et rend la main", async () => {
+  it("Revenir au commun : confirme, applique, affiche l'erreur et rend la main", async () => {
     const confirm = vi.spyOn(window, "confirm");
-    const revert = vi.fn().mockRejectedValueOnce(new Error("conflit de version")).mockResolvedValueOnce(undefined);
+    const apply = vi.fn().mockRejectedValueOnce(new Error("conflit de version")).mockResolvedValueOnce(undefined);
     const root = document.createElement("div");
-    await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), revert });
+    await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), apply });
     const button = root.querySelector<HTMLButtonElement>("[data-merge-revert]")!;
     confirm.mockReturnValueOnce(false);
     button.click();
-    expect(revert).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
     confirm.mockReturnValue(true);
     button.click();
     await Promise.resolve();
     await Promise.resolve();
-    expect(revert).toHaveBeenCalledTimes(1);
-    expect(root.querySelector("[data-merge-revert-msg]")?.textContent).toBe("conflit de version");
+    expect(apply).toHaveBeenCalledWith({ choice: "revert_to_common" });
+    expect(root.querySelector("[data-merge-msg]")?.textContent).toBe("conflit de version");
     expect(button.disabled).toBe(false);
-    button.click();
-    expect(revert).toHaveBeenCalledTimes(2);
+    root.querySelector<HTMLButtonElement>("[data-merge-keep]")!.click();
+    expect(apply).toHaveBeenLastCalledWith({ choice: "keep_override" });
+    confirm.mockRestore();
+  });
+});
+
+describe("P62b — acceptation par bloc", () => {
+  const twoConflicts = (): LibraryMergeData["result"] => ({
+    content: "a\n<<<<<<< ours\nmoi 1\n=======\neux 1\n>>>>>>> theirs\nb\n<<<<<<< ours\nmoi 2\n=======\neux 2\n>>>>>>> theirs\n",
+    conflicts: [
+      { start_line: 2, base_start: 1, base_end: 2, base: "x1\n", ours: "moi 1\n", theirs: "eux 1\n" },
+      { start_line: 8, base_start: 3, base_end: 4, base: "x2\n", ours: "moi 2\n", theirs: "eux 2\n" },
+    ],
+  });
+
+  it("resolveMergeContent remplace chaque bloc choisi et garde les autres", () => {
+    const result = twoConflicts();
+    expect(resolveMergeContent(result, ["theirs", "ours"])).toBe("a\neux 1\nb\nmoi 2\n");
+    expect(resolveMergeContent(result, ["both", "base"])).toBe("a\nmoi 1\neux 1\nb\nx2\n");
+    const partial = resolveMergeContent(result, [null, "theirs"]);
+    expect(partial).toBe("a\n<<<<<<< ours\nmoi 1\n=======\neux 1\n>>>>>>> theirs\nb\neux 2\n");
+    expect(remainingConflicts(partial)).toBe(1);
+  });
+
+  it("préserve l'absence de saut de ligne final et les fragments vides", () => {
+    const result = {
+      content: "<<<<<<< ours\nmine\n=======\n>>>>>>> theirs\n",
+      conflicts: [{ start_line: 1, base_start: 0, base_end: 1, base: "base", ours: "mine", theirs: "" }],
+    };
+    expect(resolveMergeContent(result, ["ours"])).toBe("mine");
+    expect(resolveMergeContent(result, ["theirs"])).toBe("");
+    expect(resolveMergeContent(result, ["base"])).toBe("base");
+  });
+
+  it("compteur de conflits restants et publication bloquée tant qu'un conflit reste", async () => {
+    const apply = vi.fn().mockResolvedValue(undefined);
+    const root = document.createElement("div");
+    await renderLibraryMerge(root, { load: () => Promise.resolve({ inputs: fixture().inputs, result: twoConflicts() }), apply });
+    const publish = root.querySelector<HTMLButtonElement>("[data-merge-publish]")!;
+    const remaining = root.querySelector("[data-merge-remaining]")!;
+    expect(remaining.textContent).toBe("2 conflit(s) restant(s)");
+    expect(publish.disabled).toBe(true);
+    const pick = (index: number, value: string): void => {
+      const radio = root.querySelector<HTMLInputElement>(`[data-merge-hunk="${index}"][value="${value}"]`)!;
+      radio.checked = true;
+      radio.dispatchEvent(new Event("change"));
+    };
+    pick(0, "theirs");
+    expect(remaining.textContent).toBe("1 conflit(s) restant(s)");
+    expect(publish.disabled).toBe(true);
+    publish.click();
+    expect(apply).not.toHaveBeenCalled();
+    pick(1, "ours");
+    expect(remaining.textContent).toBe("0 conflit(s) restant(s)");
+    expect(publish.disabled).toBe(false);
+    expect(root.querySelector<HTMLTextAreaElement>("[data-merge-result]")!.value).toBe("a\neux 1\nb\nmoi 2\n");
+  });
+});
+
+describe("P62c — résultat éditable et publication", () => {
+  it("l'édition revalide : marqueurs isolés ou texte vide bloquent la publication", async () => {
+    const root = document.createElement("div");
+    await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), apply: () => Promise.resolve() });
+    const editor = root.querySelector<HTMLTextAreaElement>("[data-merge-result]")!;
+    const publish = root.querySelector<HTMLButtonElement>("[data-merge-publish]")!;
+    const validation = root.querySelector("[data-merge-validation]")!;
+    const edit = (text: string): void => {
+      editor.value = text;
+      editor.dispatchEvent(new Event("input"));
+    };
+    edit("texte\n=======\n");
+    expect(publish.disabled).toBe(true);
+    expect(validation.textContent).toContain("marqueurs");
+    edit("   ");
+    expect(validation.textContent).toBe("Le résultat est vide.");
+    edit("ligne une\nmon choix final\n");
+    expect(publish.disabled).toBe(false);
+    expect(validation.textContent).toBe("Prêt à publier.");
+  });
+
+  it("publie le texte édité après une seule confirmation et affiche le refus serveur", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const apply = vi.fn().mockRejectedValueOnce(new Error("invalid_content")).mockResolvedValueOnce(undefined);
+    const root = document.createElement("div");
+    await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), apply });
+    const editor = root.querySelector<HTMLTextAreaElement>("[data-merge-result]")!;
+    editor.value = "résolu à la main\n";
+    editor.dispatchEvent(new Event("input"));
+    const publish = root.querySelector<HTMLButtonElement>("[data-merge-publish]")!;
+    publish.click();
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledWith({ choice: "merge", content: "résolu à la main\n" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(root.querySelector("[data-merge-msg]")?.textContent).toBe("invalid_content");
+    expect(publish.disabled).toBe(false);
     confirm.mockRestore();
   });
 });

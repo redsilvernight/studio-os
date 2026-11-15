@@ -8,6 +8,7 @@ from studio_contracts.library import (
     LibraryActivate,
     LibraryDeprecate,
     LibraryLockCreate,
+    LibraryMergeApply,
     LibraryMergePreview,
     LibraryProjectLock,
     LibraryResource,
@@ -199,6 +200,52 @@ async def get_library_merge_preview(
     preview = await library_service.preview_merge(session, principal, resource_id)
     response.headers["Cache-Control"] = "private, no-store"
     return preview
+
+
+@router.post(
+    "/{resource_id}/merge-apply",
+    response_model=LibraryResource,
+    description=(
+        "Apply one choice to the owner's active text override whose common base moved: "
+        "`keep_override` (new version, same text, rebased on the current common), `merge` "
+        "(new version with the clean three-way merge or the caller-resolved `content`) or "
+        "`revert_to_common` (deprecates the override). A conflicting merge without resolved "
+        "`content` answers 409 `merge_conflict` and writes nothing. The previous version stays "
+        "in history and can be reactivated. Accepts `Idempotency-Key`."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_404_NOT_FOUND,
+        **merge_conflict(RESP_409_VERSION_CONFLICT, RESP_409_IDEMPOTENCY),
+        422: {
+            "description": "Invalid body, unresolved_merge_conflict, invalid_content or "
+            "merge_preview_too_many_lines."
+        },
+    },
+)
+async def apply_library_merge(
+    resource_id: UUID,
+    apply_in: LibraryMergeApply,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
+) -> LibraryResource:
+    async def _apply() -> LibraryResource:
+        updated = await library_service.apply_merge(session, principal, resource_id, apply_in)
+        return LibraryResource.model_validate(updated)
+
+    return await idempotency_service.run_idempotent(
+        session,
+        request,
+        idempotency_key,
+        f"POST /library/{resource_id}/merge-apply",
+        LibraryResource,
+        _apply,
+        status.HTTP_200_OK,
+    )
 
 
 @router.get(

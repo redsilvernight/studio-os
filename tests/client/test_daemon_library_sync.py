@@ -12,7 +12,7 @@ import pytest
 from studio_client.config import ClientConfig
 from studio_client.context.library import LibraryContextItem
 from studio_client.daemon import skills_bridge
-from studio_client.projection_backups import list_projection_backups
+from studio_client.projection_backups import list_projection_backups, restore_projection_backup
 from studio_client.skill_sync import SkillSyncConflictError
 from studio_client.tokens import MemoryTokenStore
 
@@ -153,6 +153,31 @@ def test_auto_sync_includes_user_skills_and_excludes_project_skills(
             home / f".{harness}" / "skills" / "personal" / "SKILL.md"
         ).read_text(encoding="utf-8")
         assert not (home / f".{harness}" / "skills" / "project-only").exists()
+
+
+def test_applied_merge_choices_are_journaled_and_restorable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    data_root = tmp_path / "data"
+    path = home / ".claude" / "rules" / "shared.md"
+    _patch_fetch(monkeypatch, [_projection("shared", "rule", "My override", scope="user")])
+    _run(home, data_root)
+    _patch_fetch(
+        monkeypatch, [_projection("shared", "rule", "Merged text", scope="user", version=2)]
+    )
+    _run(home, data_root)
+    merged = path.read_text(encoding="utf-8")
+    assert "Merged text" in merged
+    _patch_fetch(monkeypatch, [_projection("shared", "rule", "Common text", version=3)])
+    _run(home, data_root)
+    assert "Common text" in path.read_text(encoding="utf-8")
+
+    restore_projection_backup(home)
+    assert path.read_text(encoding="utf-8") == merged
+    restore_projection_backup(home)
+    assert "My override" in path.read_text(encoding="utf-8")
 
 
 def test_local_conflict_skips_only_its_target_and_stays_visible(

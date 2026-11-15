@@ -47,6 +47,7 @@ import {
 } from "../libraryFormat";
 import {
   activateLibraryVersion,
+  applyLibraryMerge,
   createLibraryLock,
   createLibraryResource,
   createLibraryVersion,
@@ -1172,12 +1173,23 @@ export async function renderLibraryDetail(
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
   const mergePreview = root.querySelector<HTMLElement>("[data-library-merge-preview]");
-  if (mergePreview !== null) {
+  const baseVersion = resource.base_active_version;
+  if (mergePreview !== null && baseVersion != null) {
+    const notices = {
+      merge: "Résultat publié : nouvelle version de mon override.",
+      keep_override: "Override conservé et rattaché au nouveau commun.",
+      revert_to_common: "Retour au commun : override déprécié.",
+    } as const;
     void renderLibraryMerge(mergePreview, {
       load: () => getLibraryMergePreview(ctx.client, resource.id),
-      revert: () =>
-        deprecateLibraryResource(ctx.client, resource.id, { expected_resource_version: resource.version }, newIdempotencyKey()).then(() => {
-          dsNotify("Retour au commun : override déprécié.", "warning");
+      apply: (input) =>
+        applyLibraryMerge(
+          ctx.client,
+          resource.id,
+          { ...input, expected_resource_version: resource.version, base_active_version: baseVersion },
+          newIdempotencyKey(),
+        ).then(() => {
+          dsNotify(notices[input.choice], input.choice === "revert_to_common" ? "warning" : "success");
           return renderLibraryDetail(root, ctx, meta.slug, resource.id);
         }),
     });
