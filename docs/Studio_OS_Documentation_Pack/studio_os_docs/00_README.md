@@ -28,6 +28,7 @@ rapport de chantier ne prouve pas la validation de la révision actuelle.
 - [Gate de production publique et incidents](../../DESKTOP_C4_PRODUCTION_GATE.md).
 - [Clés Desktop : rotation et révocation](../../DESKTOP_B4_KEY_RUNBOOK.md).
 - [Préflight du dépôt](../../DEV_PREFLIGHT.md).
+- [Library canonique : guide d'usage](../../library/USAGE.md).
 - [Restauration des projections IA](../../LIBRARY_PROJECTION_RESTORE.md).
 
 ## Développer et intégrer
@@ -41,7 +42,7 @@ rapport de chantier ne prouve pas la validation de la révision actuelle.
 
 ## Travailler avec un agent
 
-Le protocole courant est [la règle canonique](../../../.agents/rules/studio-protocol.md) :
+Le protocole courant est [la règle canonique](../../../.studio/studio-protocol.md) :
 `studio_start_work` avant l'exploration, contexte borné, puis `studio_handoff`.
 Les définitions canoniques vivent dans `.agents/` ; les projections des harness
 sont générées. Charger seulement les ressources utiles à l'objectif.
