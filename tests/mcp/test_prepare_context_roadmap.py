@@ -790,7 +790,9 @@ async def test_the_roadmaps_chantier_tells_an_agent_what_to_do_now(
     await _done(db_session, principal, roadmap.id, "p1", "p2", "p3", "p4", "p5", "p7", "p9")
     p6 = await _task(db_session, principal, project, "[Roadmaps P6] Context integration")
     await roadmaps.link_task_by_step_key(db_session, principal, roadmap.id, "p6", p6.id)
+    # Work in progress holds a claim (ab7ac2b9: in_progress without holder is not started).
     p6.status = "in_progress"
+    p6.claimed_by_machine_id = principal.machine.id
     await db_session.commit()
 
     payload = await _prepare(
