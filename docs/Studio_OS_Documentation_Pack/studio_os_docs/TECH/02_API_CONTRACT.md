@@ -986,6 +986,18 @@ les evenements sont inchanges.
   partir de 0). `404` si l’override est invisible, sans changement de base
   ou sans texte comparable. `422 merge_preview_too_many_lines` si l’un des
   textes dépasse 1 000 sauts de ligne. Cet aperçu ne crée aucune version.
+- POST /library/{id}/merge-apply — même périmètre que l’aperçu. Corps :
+  `choice` (`keep_override` | `merge` | `revert_to_common`),
+  `expected_resource_version`, `base_active_version` (version commune
+  prévisualisée) et `content` (texte résolu, accepté seulement avec `merge`).
+  `keep_override` et `merge` créent puis activent une version dérivée de la
+  version commune active ; `revert_to_common` déprécie l’override. `merge`
+  sans `content` exige une fusion sans conflit, sinon
+  `409 merge_conflict` (`conflicts` = nombre) et rien n’est écrit ; un
+  `content` contenant encore des marqueurs → `422 unresolved_merge_conflict`.
+  `409 base_moved` si le commun a changé depuis l’aperçu, `409
+  version_conflict` si l’override a changé. La version précédente reste
+  réactivable par POST /library/{id}/activate. Accepte `Idempotency-Key`.
 - GET /library-locks (`project_id` optionnel), POST /library-locks
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou

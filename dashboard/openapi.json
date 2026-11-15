@@ -5279,6 +5279,109 @@
     }
    }
   },
+  "/api/v1/library/{resource_id}/merge-apply": {
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Apply Library Merge",
+    "description": "Apply one choice to the owner's active text override whose common base moved: `keep_override` (new version, same text, rebased on the current common), `merge` (new version with the clean three-way merge or the caller-resolved `content`) or `revert_to_common` (deprecates the override). A conflicting merge without resolved `content` answers 409 `merge_conflict` and writes nothing. The previous version stays in history and can be reactivated. Accepts `Idempotency-Key`.",
+    "operationId": "apply_library_merge_api_v1_library__resource_id__merge_apply_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryMergeApply"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryResource"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid body, unresolved_merge_conflict, invalid_content or merge_preview_too_many_lines."
+     }
+    }
+   }
+  },
   "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
    "get": {
     "tags": [
@@ -22892,6 +22995,51 @@
      "locked_version"
     ],
     "title": "LibraryLockCreate"
+   },
+   "LibraryMergeApply": {
+    "properties": {
+     "choice": {
+      "$ref": "#/components/schemas/LibraryMergeChoice"
+     },
+     "expected_resource_version": {
+      "type": "integer",
+      "title": "Expected Resource Version"
+     },
+     "base_active_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Base Active Version"
+     },
+     "content": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Content"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "choice",
+     "expected_resource_version",
+     "base_active_version"
+    ],
+    "title": "LibraryMergeApply",
+    "description": "Applies one choice to an override whose common base moved.\n`base_active_version` is the common version the caller previewed (409\n`base_moved` if it changed); `content` is the caller-resolved text, only\nwith `merge`."
+   },
+   "LibraryMergeChoice": {
+    "type": "string",
+    "enum": [
+     "keep_override",
+     "merge",
+     "revert_to_common"
+    ],
+    "title": "LibraryMergeChoice"
    },
    "LibraryMergeConflict": {
     "properties": {

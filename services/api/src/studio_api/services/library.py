@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -21,6 +21,8 @@ from studio_contracts.library import (
     DependencyUpdates,
     LibraryKind,
     LibraryLockCreate,
+    LibraryMergeApply,
+    LibraryMergeChoice,
     LibraryMergeInputs,
     LibraryMergePreview,
     LibraryMergeResult,
@@ -41,7 +43,13 @@ from studio_contracts.library import (
     hook_validation_errors,
     workflow_validation_errors,
 )
-from studio_contracts.library_merge import merge_texts
+from studio_contracts.library_merge import (
+    CONFLICT_END,
+    CONFLICT_SEPARATOR,
+    CONFLICT_START,
+    MergeResult,
+    merge_texts,
+)
 
 from studio_api.db.models.library import (
     LibraryProjectLockModel,
@@ -286,9 +294,19 @@ async def get_version(
     return await _version_row(session, resource_id, version)
 
 
-async def preview_merge(
+@dataclass(frozen=True)
+class _MergeSources:
+    override: LibraryResourceModel
+    ours: LibraryResourceVersionModel
+    common: LibraryResourceModel
+    base_text: str
+    our_text: str
+    their_text: str
+
+
+async def _merge_sources(
     session: AsyncSession, principal: Principal, resource_id: UUID
-) -> LibraryMergePreview:
+) -> _MergeSources:
     override = await find_readable_resource(session, principal, resource_id)
     if (
         override is None
@@ -318,18 +336,89 @@ async def preview_merge(
         isinstance(base_text, str) and isinstance(our_text, str) and isinstance(their_text, str)
     ):
         raise _not_found()
-    if any(
-        text.count("\n") + text.count("\r") - text.count("\r\n") > 1_000
-        for text in (base_text, our_text, their_text)
-    ):
+    return _MergeSources(override, ours, common, base_text, our_text, their_text)
+
+
+async def _merge(sources: _MergeSources) -> MergeResult:
+    texts = (sources.base_text, sources.our_text, sources.their_text)
+    if any(text.count("\n") + text.count("\r") - text.count("\r\n") > 1_000 for text in texts):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error_code": "merge_preview_too_many_lines"},
         )
-    result = await run_in_threadpool(merge_texts, base_text, our_text, their_text)
+    return await run_in_threadpool(merge_texts, *texts)
+
+
+async def preview_merge(
+    session: AsyncSession, principal: Principal, resource_id: UUID
+) -> LibraryMergePreview:
+    sources = await _merge_sources(session, principal, resource_id)
+    result = await _merge(sources)
     return LibraryMergePreview(
-        inputs=LibraryMergeInputs(base=base_text, ours=our_text, theirs=their_text),
+        inputs=LibraryMergeInputs(
+            base=sources.base_text, ours=sources.our_text, theirs=sources.their_text
+        ),
         result=LibraryMergeResult.model_validate(asdict(result)),
+    )
+
+
+def _has_conflict_marker(text: str) -> bool:
+    markers = (CONFLICT_START, CONFLICT_SEPARATOR, CONFLICT_END)
+    return any(line.startswith(markers) for line in text.splitlines())
+
+
+async def apply_merge(
+    session: AsyncSession, principal: Principal, resource_id: UUID, data: LibraryMergeApply
+) -> LibraryResourceModel:
+    """Keep the override, merge it with the moved common, or revert to the
+    common. Nothing is written while a merge conflict is unresolved; the
+    previous override version stays in history and can be reactivated."""
+    sources = await _merge_sources(session, principal, resource_id)
+    override, common = sources.override, sources.common
+    if override.version != data.expected_resource_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "version_conflict", "server_version": override.version},
+        )
+    if common.active_version != data.base_active_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "base_moved", "base_active_version": common.active_version},
+        )
+    if data.choice == LibraryMergeChoice.REVERT_TO_COMMON:
+        return await deprecate_resource(session, principal, override, override.version)
+    if data.choice == LibraryMergeChoice.KEEP_OVERRIDE:
+        text = sources.our_text
+    elif data.content is not None:
+        if _has_conflict_marker(data.content):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "unresolved_merge_conflict"},
+            )
+        text = data.content
+    else:
+        result = await _merge(sources)
+        if result.conflicts:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={"error_code": "merge_conflict", "conflicts": len(result.conflicts)},
+            )
+        text = result.content
+    ours = await version_detail(session, sources.ours)
+    created = await create_resource_version(
+        session,
+        principal,
+        override,
+        LibraryVersionCreate(
+            title=ours.title,
+            description=ours.description,
+            content={**ours.content, "text": text},
+            dependencies=list(ours.dependencies),
+            derived_from=LibraryVersionRef(resource_id=common.id, version=common.active_version),
+        ),
+    )
+    return await activate_resource_version(
+        session, principal, override, created.version, override.version
     )
 
 

@@ -1005,6 +1005,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/{resource_id}/merge-apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Library Merge
+         * @description Apply one choice to the owner's active text override whose common base moved: `keep_override` (new version, same text, rebased on the current common), `merge` (new version with the clean three-way merge or the caller-resolved `content`) or `revert_to_common` (deprecates the override). A conflicting merge without resolved `content` answers 409 `merge_conflict` and writes nothing. The previous version stays in history and can be reactivated. Accepts `Idempotency-Key`.
+         */
+        post: operations["apply_library_merge_api_v1_library__resource_id__merge_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library/{resource_id}/versions/{version}/dependency-updates": {
         parameters: {
             query?: never;
@@ -5523,6 +5543,27 @@ export interface components {
             /** Locked Version */
             locked_version: number;
         };
+        /**
+         * LibraryMergeApply
+         * @description Applies one choice to an override whose common base moved.
+         *     `base_active_version` is the common version the caller previewed (409
+         *     `base_moved` if it changed); `content` is the caller-resolved text, only
+         *     with `merge`.
+         */
+        LibraryMergeApply: {
+            choice: components["schemas"]["LibraryMergeChoice"];
+            /** Expected Resource Version */
+            expected_resource_version: number;
+            /** Base Active Version */
+            base_active_version: number;
+            /** Content */
+            content?: string | null;
+        };
+        /**
+         * LibraryMergeChoice
+         * @enum {string}
+         */
+        LibraryMergeChoice: "keep_override" | "merge" | "revert_to_common";
         /** LibraryMergeConflict */
         LibraryMergeConflict: {
             /** Base */
@@ -14850,6 +14891,87 @@ export interface operations {
                 };
             };
             /** @description Invalid resource ID or merge_preview_too_many_lines. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    apply_library_merge_api_v1_library__resource_id__merge_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                resource_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryMergeApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryResource"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid body, unresolved_merge_conflict, invalid_content or merge_preview_too_many_lines. */
             422: {
                 headers: {
                     [name: string]: unknown;
