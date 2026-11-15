@@ -289,18 +289,18 @@
    "files": [
     {
      "path": "library/studio/hooks/session-start.md",
-     "sha256": "aae0410f165b8a2b7d0d741b2ef6dae89ac465d765a6d76a8d78212fb60eb25a"
+     "sha256": "f32332336d25681b4c288032305627eb45a58d44608a01b89de04d7970f6e8c7"
     },
     {
      "path": "library/studio/hooks/session-start.ps1",
-     "sha256": "84ba3becd9a98a533c3ed19a73bb8bf2cc8fc866dc61d72d9f2f5fc70d218131"
+     "sha256": "688effe258de74d0272952929c8830260fd2962f18f9cfb379c000fb3b886c09"
     }
    ],
    "kind": "hook",
    "owner": "studio",
    "requires_consent": true,
    "scope": "studio",
-   "sha256": "a33e812c2ccadc15d427ba16e520c3ec37656cddb5f6e5cd29d819a4abd22e36",
+   "sha256": "1e5177260138c377a4ec6a011972edfd5e3f946e6f351f76662b7559fd1cf948",
    "source": "library/studio/hooks/session-start",
    "stable_key": "session-start",
    "status": "ready",
