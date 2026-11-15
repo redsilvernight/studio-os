@@ -61,8 +61,12 @@ async def studio_claim_resources(
     machine in one call, warn-only — a claim warns via a `resource.conflict` event
     when an active claim overlaps it, it never blocks a Git operation or a
     file write. Returns one compact batch: every created claim plus the subset
-    that overlaps another active claim. All paths share the same
-    `resource_type`, `ttl_seconds` and optional `task_id`. Pass a
+    that overlaps another active claim. `paths` is a list of at most 50 strings
+    (a singular `path` argument is not accepted); `resource_type` is exactly
+    "file" or "folder". All paths share the same
+    `resource_type`, `ttl_seconds` and optional `task_id`. A claim made without
+    `task_id` while the caller has an open session is attached to that
+    session's task, so the handoff ending it releases the claim. Pass a
     caller-generated `idempotency_key` when this call might be retried —
     once the first call completed, replaying the same key with the same
     arguments returns the original batch instead of creating duplicates (and
