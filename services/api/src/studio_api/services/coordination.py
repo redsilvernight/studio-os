@@ -99,12 +99,12 @@ async def emit(
     target = await tasks_service.read_task(session, principal, body.task_id)
     if target is None or target.project_id != project_id:
         raise _invalid("target task must exist in the emitting session's project")
-    if target.status == TaskStatus.COMPLETED:
+    if target.status in (TaskStatus.COMPLETED, TaskStatus.ABANDONED):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={
                 "error_code": "task_closed",
-                "message": "target task is completed",
+                "message": f"target task is {target.status}",
             },
         )
 

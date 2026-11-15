@@ -38,7 +38,7 @@ describe("pagination des tâches actives", () => {
     click(root, '.tasks-scope-tabs [data-scope="all"]');
     await vi.waitFor(() => expect(root.querySelectorAll(".task-row")).toHaveLength(105));
     expect(requests.every((query) => query.status.includes("completed") === false)).toBe(true);
-    expect(requests.slice(-2).map((query) => query.status)).toEqual([["in_progress", "blocked"], ["created"]]);
+    expect(requests.slice(-2).map((query) => query.status)).toEqual([["in_progress", "blocked", "abandoned"], ["created"]]);
     click(root, '[data-view="board"]');
     expect(root.querySelector('[data-column="IN PROGRESS"]')?.textContent).toContain("100+");
     expect(root.querySelector('[data-column="DONE"]')?.textContent).toContain("Chargées à la demande");

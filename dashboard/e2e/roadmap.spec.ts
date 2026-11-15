@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { globalOverflow, go, login, newCaptured } from "./support/ui16-stub";
 
@@ -324,7 +324,39 @@ test.describe("Roadmap workspace", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Exporter le plan (JSON)" }).click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe("studio-roadmap.json");
+    expect(download.suggestedFilename()).toBe("roadmap-plan-importe.json");
+    const saved = await download.path();
+    expect(saved).not.toBeNull();
+    const payload = JSON.parse(await readFile(saved as string, "utf8")) as { format: string; title: string; phases: unknown[] };
+    expect(payload.format).toBe("studio.roadmap/v1");
+    expect(payload.title).toBe("Plan importé");
+    expect(payload.phases).toEqual([]);
+  });
+
+  test("export JSON du grand plan : toutes les phases et étapes", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.large);
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Exporter le plan (JSON)" }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("roadmap-grand-plan.json");
+    const saved = await download.path();
+    expect(saved).not.toBeNull();
+    const payload = JSON.parse(await readFile(saved as string, "utf8")) as { format: string; phases: Array<{ steps: unknown[] }> };
+    expect(payload.format).toBe("studio.roadmap/v1");
+    expect(payload.phases).toHaveLength(11);
+    expect(payload.phases.flatMap((phase) => phase.steps)).toHaveLength(11);
+  });
+
+  test("impression : la feuille papier contient toutes les phases, sans chrome applicatif", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.large);
+    await page.emulateMedia({ media: "print" });
+    await expect(page.locator(".roadmap-print-document")).toBeVisible();
+    await expect(page.locator(".roadmap-print-phase")).toHaveCount(11);
+    await expect(page.locator(".roadmap-print-step")).toHaveCount(11);
+    await expect(page.locator(".workspace-nav")).toBeHidden();
+    await expect(page.locator(".workspace-head")).toBeHidden();
+    const pdf = await page.pdf({ format: "A4", printBackground: true });
+    expect(pdf.byteLength).toBeGreaterThan(1000);
   });
 
   test("mobile 375 : grande roadmap sans débordement global", async ({ page }) => {

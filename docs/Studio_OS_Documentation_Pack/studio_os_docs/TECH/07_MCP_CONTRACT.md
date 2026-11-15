@@ -87,6 +87,9 @@ Version API 4 : les claims d'un autre agent sont preserves ; les claims sans
 agent suivent le detenteur de la tache. Une tache reprise par un autre agent
 du poste refuse l'ancien handoff (`already_claimed`). `agent_id` fourni doit
 correspondre a la session (`session_agent_mismatch` sinon).
+`task_status=abandoned` (additif) clot la tache sans livraison : `summary`
+obligatoire (`abandon_reason_required`), aucune preuve exigee, refus depuis
+`completed` (`invalid_transition`). Meme statut via `studio_update_task`.
 Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 revision API contractuelle 5 (P0 livraison, 2026-11-04),
 `idempotency_key` optionnel. Autorisation avant le court-circuit

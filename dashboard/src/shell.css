@@ -546,6 +546,14 @@ a.app-connection:hover .app-connection-label {
   }
 }
 
+/* Mouvement réduit demandé par le système : le tiroir s'ouvre et se ferme
+   sans glissement (il reste utilisable, sans animation). */
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar {
+    transition: none;
+  }
+}
+
 /* Palette « Aller à… » : fenêtre centrée en haut, au-dessus du tiroir. */
 .app-palette-overlay {
   z-index: calc(var(--ds-z-drawer) + 10);
