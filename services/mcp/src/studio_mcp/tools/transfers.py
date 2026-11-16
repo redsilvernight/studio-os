@@ -151,9 +151,7 @@ async def studio_request_transfer_download(transfer_id: str, ctx: Context) -> di
     return await run_tool(ctx, _handler)
 
 
-async def studio_acknowledge_transfer_download(
-    transfer_id: str, ctx: Context
-) -> dict[str, Any]:
+async def studio_acknowledge_transfer_download(transfer_id: str, ctx: Context) -> dict[str, Any]:
     """Record receipt of a transfer after its bytes were downloaded through
     the presigned download URL — never the file bytes through this tool. Any
     reader of the transfer with a writer role may acknowledge it (sender,
@@ -171,9 +169,7 @@ async def studio_acknowledge_transfer_download(
         )
         return {
             **_compact_transfer(transfer),
-            "downloaded_at": transfer.downloaded_at.isoformat()
-            if transfer.downloaded_at
-            else None,
+            "downloaded_at": transfer.downloaded_at.isoformat() if transfer.downloaded_at else None,
             "already_acknowledged": already_acknowledged,
         }
 

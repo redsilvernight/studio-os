@@ -52,10 +52,13 @@ async def test_0043_upgrade_and_downgrade_round_trip(monkeypatch: pytest.MonkeyP
             # The CHECK only lets project-less rows be library.*. It is added
             # NOT VALID then validated (no long lock on a populated table):
             # enforced, not left NOT VALID.
-            assert await conn.fetchval(
-                "select convalidated from pg_constraint "
-                "where conname = 'ck_events_project_scope'"
-            ) is True
+            assert (
+                await conn.fetchval(
+                    "select convalidated from pg_constraint "
+                    "where conname = 'ck_events_project_scope'"
+                )
+                is True
+            )
             probe_id, probe_actor = uuid.uuid4(), uuid.uuid4()
             await conn.execute(
                 "insert into events (id, event_type, project_id, actor_type, actor_id,"

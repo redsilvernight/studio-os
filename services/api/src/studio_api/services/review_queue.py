@@ -91,6 +91,8 @@ async def get_review_queue(
         limit=500,
     )
     for event in conflict_events:
+        if event.project_id is None:  # only library.* events may be project-less
+            continue
         resource_path = str(event.payload.get("resource_path", ""))
         items.append(
             ReviewQueueConflictItem(
@@ -145,6 +147,8 @@ async def get_review_queue(
     for event in opened_events:
         pr_number = event.payload.get("pr_number")
         if not isinstance(pr_number, int) or pr_number in merged_prs:
+            continue
+        if event.project_id is None:  # only library.* events may be project-less
             continue
         items.append(
             ReviewQueuePRItem(

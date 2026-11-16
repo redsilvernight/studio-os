@@ -36,9 +36,7 @@ async def test_acknowledge_marks_downloaded_and_replay_preserves_timestamp(
     assert first.json()["status"] == "downloaded"
     assert first.json()["downloaded_at"] is not None
 
-    replay = await client.post(
-        f"/api/v1/transfers/{transfer_id}/downloaded", headers=auth_headers
-    )
+    replay = await client.post(f"/api/v1/transfers/{transfer_id}/downloaded", headers=auth_headers)
     assert replay.status_code == 200, replay.text
     assert replay.json()["status"] == "downloaded"
     assert replay.json()["downloaded_at"] == first.json()["downloaded_at"]
@@ -71,9 +69,7 @@ async def test_uninvolved_third_party_and_readonly_get_403(
     )
     transfer_id = await _create_transfer(client, auth_headers, str(recipient.id))
     for headers in (other_auth_headers, readonly_auth_headers):
-        response = await client.post(
-            f"/api/v1/transfers/{transfer_id}/downloaded", headers=headers
-        )
+        response = await client.post(f"/api/v1/transfers/{transfer_id}/downloaded", headers=headers)
         assert response.status_code == 403, response.text
 
 

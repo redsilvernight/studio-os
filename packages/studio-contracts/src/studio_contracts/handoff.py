@@ -64,7 +64,7 @@ class HandoffResult(ContractModel):
     `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
     `handoff_cursor_seq` that the next session inherits, and the emitted
     `coordination_event_id` when a `coordination` signal was requested.
-    `warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`
+    `warnings` carries non-blocking hints (`decision_review_missing`
     when a v1 evidence closes without a decision review) — never a gate."""
 
     task_id: UUID

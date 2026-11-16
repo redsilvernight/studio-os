@@ -24,8 +24,8 @@ CompletionFormat = Literal["studio.completion/v1", "studio.completion/v2"]
 
 
 class DecisionReview(ContractModel):
-    """Structured review of the project decisions at handoff (DEC-0363,
-    additive): which decisions this work produced (`new`), reused
+    """Structured review of the project decisions at handoff
+    (additive): which decisions this work produced (`new`), reused
     (`existing`), or why none was needed (`none`). `decision_ids` names
     internal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves
     each one and rejects unknown, foreign or invisible ids with

@@ -31,7 +31,10 @@ def upgrade() -> None:
         "ALTER TABLE events ADD CONSTRAINT ck_events_project_scope "
         "CHECK ((project_id IS NOT NULL) OR (event_type LIKE 'library.%')) NOT VALID"
     )
-    op.execute("ALTER TABLE events VALIDATE CONSTRAINT ck_events_project_scope")
+    # VALIDATE in its own transaction: it only takes SHARE UPDATE EXCLUSIVE,
+    # so writes continue while the populated table is scanned.
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TABLE events VALIDATE CONSTRAINT ck_events_project_scope")
 
 
 def downgrade() -> None:

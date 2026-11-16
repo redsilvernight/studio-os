@@ -216,9 +216,7 @@ async def list_events_after(
     non-null UUID, so the default stays a pure per-project channel. Without
     a `project_id`, only the project-less events — readable by any
     authenticated principal."""
-    stmt = (
-        select(EventModel).order_by(EventModel.seq.asc()).limit(limit)
-    )
+    stmt = select(EventModel).order_by(EventModel.seq.asc()).limit(limit)
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
         if include_global:
