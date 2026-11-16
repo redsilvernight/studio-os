@@ -743,7 +743,7 @@ export interface paths {
         put?: never;
         /**
          * Handoff
-         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
+         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. A v1 completion evidence without a decision review closes with a non-blocking `decision_review_missing` warning; v2 requires the review (`409 completion_incomplete` otherwise). Referenced decision ids must exist in the project (`422 decision_reference_invalid`). Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
          */
         post: operations["handoff_api_v1_handoff_post"];
         delete?: never;
@@ -4191,9 +4191,9 @@ export interface components {
             /**
              * Format
              * @default studio.completion/v1
-             * @constant
+             * @enum {string}
              */
-            format: "studio.completion/v1";
+            format: "studio.completion/v1" | "studio.completion/v2";
             /**
              * Kind
              * @enum {string}
@@ -4242,6 +4242,7 @@ export interface components {
              * @default false
              */
             deployed: boolean;
+            decisions?: components["schemas"]["DecisionReview"] | null;
         };
         /**
          * ConfigurationHistory
@@ -4636,6 +4637,29 @@ export interface components {
         };
         DecisionItem: {
             [key: string]: unknown;
+        };
+        /**
+         * DecisionReview
+         * @description Structured review of the project decisions at handoff (DEC-0363,
+         *     additive): which decisions this work produced (`new`), reused
+         *     (`existing`), or why none was needed (`none`). `decision_ids` names
+         *     internal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves
+         *     each one and rejects unknown, foreign or invisible ids with
+         *     `422 decision_reference_invalid`. A `proposed` decision is a valid
+         *     reference and is never auto-accepted by the handoff. `reason` is
+         *     required (non-empty) when `outcome` is `none` — enforced for v2 by
+         *     `check_completion` (`decision_reason_missing`).
+         */
+        DecisionReview: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "new" | "existing" | "none";
+            /** Decision Ids */
+            decision_ids?: string[];
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * DecisionStatus
@@ -5164,6 +5188,8 @@ export interface components {
          *     `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
          *     `handoff_cursor_seq` that the next session inherits, and the emitted
          *     `coordination_event_id` when a `coordination` signal was requested.
+         *     `warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`
+         *     when a v1 evidence closes without a decision review) — never a gate.
          */
         HandoffResult: {
             /**
@@ -5188,6 +5214,8 @@ export interface components {
             handoff_cursor_seq?: number | null;
             /** Coordination Event Id */
             coordination_event_id?: string | null;
+            /** Warnings */
+            warnings?: string[];
         };
         /**
          * HarnessReport

@@ -63,7 +63,9 @@ class HandoffResult(ContractModel):
     releases, no duplicate AI work entry, no second session end. C4 adds:
     `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
     `handoff_cursor_seq` that the next session inherits, and the emitted
-    `coordination_event_id` when a `coordination` signal was requested."""
+    `coordination_event_id` when a `coordination` signal was requested.
+    `warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`
+    when a v1 evidence closes without a decision review) — never a gate."""
 
     task_id: UUID
     task_status: TaskStatus
@@ -74,3 +76,4 @@ class HandoffResult(ContractModel):
     sync: SyncResult | None = None
     handoff_cursor_seq: int | None = None
     coordination_event_id: UUID | None = None
+    warnings: list[str] = Field(default_factory=list, max_length=30)
