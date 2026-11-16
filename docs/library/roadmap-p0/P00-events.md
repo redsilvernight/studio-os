@@ -6,7 +6,7 @@ Lecture seule, chemins relatifs à la racine du worktree. Les numéros de ligne 
 
 - `EventEnvelope.project_id` et `EventCreate.project_id` sont nullables (`packages/studio-contracts/src/studio_contracts/events.py`), `None` réservé aux `library.*` de scope Studio (validators pydantic + CHECK `ck_events_project_scope`, migration Alembic réversible `0043`). `EVENT_SCHEMA_VERSION = 2` (`packages/studio-contracts/src/studio_contracts/__init__.py`).
 - `_emit_library_event` (`services/api/src/studio_api/services/library.py`) émet UN seul événement `project_id=None` (`schema_version: 2`) pour le scope Studio — plus de fan-out par projet ; le verrou porte son projet dans le `payload`. Scope User : toujours muet.
-- `POST /events` public exige toujours un projet (`422 project_required` si null) ; `GET /events` (filtré ou non) et `GET /events/stream` (`project` désormais optionnel) exposent les événements sans projet à tout principal authentifié, sans jamais fuir les lignes d'un autre projet (filtre projet ⇒ ce projet + sans-projet ; sans filtre ⇒ projets accessibles + sans-projet, y compris à membership vide ; SSE sans `project` ⇒ sans-projet seul).
+- `POST /events` public exige toujours un projet (`422 project_required` si null) ; `GET /events` (filtré ou non) et `GET /events/stream` (`project` désormais optionnel) exposent les événements sans projet à tout principal authentifié, sans jamais fuir les lignes d'un autre projet (filtre projet ⇒ ce projet seul par défaut, sans-projet en plus avec `include_global=true` ; sans filtre ⇒ projets accessibles + sans-projet, y compris à membership vide ; SSE sans `project` ⇒ sans-projet seul).
 - `TECH/03_EVENT_CONTRACT.md` (contrat v2, Note P1 réécrite) et `TECH/05_DATA_MODEL.md` (§ Event, traçabilité) mis à jour dans le même lot.
 
 ## 1. Émission côté API et payload
@@ -79,7 +79,7 @@ Lecture seule, chemins relatifs à la racine du worktree. Les numéros de ligne 
 1. Aucun consommateur de `library.version.activated` dans le daemon : ni polling `list_events`, ni client SSE Python. Le SSE n'existe que dans le dashboard TypeScript.
 2. Pas de boucle de resynchronisation : la synchro auto s'exécute au démarrage ou à l'activation du réglage, jamais ensuite (`runtime.py:549`).
 3. Pas de curseur persistant côté daemon (dernier `seq` ou timestamp vu pour `library.*`). Je n'ai pas cherché de table `sync_state` dédiée : **non vérifié**.
-4. Les ressources Studio et User n'émettaient aucun événement (`library.py:345`). Corrigé pour Studio (P20) : un événement par projet non archivé, donc le watcher par projet suivi les voit. **Contrat v2 : un événement unique sans projet — un `GET /events?project=` ou un flux SSE par projet le voit toujours (projet + sans-projet), et le sans-projet est aussi lisible sans filtre ni membership.** User reste muet : une ressource privée n'a pas à déclencher de synchro.
+4. Les ressources Studio et User n'émettaient aucun événement (`library.py:345`). Corrigé pour Studio (P20) : un événement par projet non archivé, donc le watcher par projet suivi les voit. **Contrat v2 : un événement unique sans projet — un `GET /events?project=` ou un flux SSE par projet le voit avec l'opt-in `include_global=true`, et le sans-projet est aussi lisible sans filtre ni membership.** User reste muet : une ressource privée n'a pas à déclencher de synchro.
 5. Pas de flux global cross-projet : un client suivant plusieurs projets a besoin d'un flux par projet, ou du flux sans `project` pour les seuls événements Studio (`events.py:147`).
 6. Le payload ne porte ni hash ni liste de harnais ; le daemon devra refaire un `fetch_library_projections` complet (`skills_bridge.py:257`, :663) pour planifier. Il n'existe pas de fetch ciblé par ressource, **non vérifié**.
 7. Déduplication possible des réactivations (voir § 1, **non vérifié**).
@@ -100,7 +100,7 @@ Implémentation minimale proposée :
 1. Watcher `LibraryEventWatcher(PollingWatcher)` : `poll_once` appelle `list_events(project_id=…, since=curseur)` pour les projets suivis ; si au moins un événement `library.version.activated` ou `library.resource.deprecated` est vu, il relance la synchro auto.
 2. Rendre le runner rejouable : aujourd'hui `_started` bloque tout second lancement (`skills_bridge.py:1195-1197`). Ajouter une méthode de relance en gardant un seul thread actif à la fois (coalescer les événements pendant une synchro).
 3. Persister le curseur (timestamp serveur de l'événement) dans le répertoire de données du daemon. Après un redémarrage, la synchro au démarrage (`runtime.py:549`) couvre le trou ; le curseur sert au reste.
-4. Ressources Studio : l'API émet **un événement unique sans projet** (contrat v2, `project_id` null) — un polling `GET /events?project=` par projet suivi le voit toujours (projet + sans-projet). User : aucun événement.
+4. Ressources Studio : l'API émet **un événement unique sans projet** (contrat v2, `project_id` null) — un polling `GET /events?project=` par projet suivi le voit avec l'opt-in `include_global=true` (défaut : canal projet pur, `project_id` toujours non nul pour les clients déployés). User : aucun événement.
 5. Doute sur l'`event_id` déterministe tranché et corrigé (§ 1).
 6. Garder le comportement `CONFLICTS` (pas d'écrasement local, `skills_bridge.py:1245-1253`).
 

@@ -125,11 +125,15 @@ async def studio_get_recent_changes(
     since: str | None = None,
     limit: int = 20,
     fields: list[str] | None = None,
+    include_global: bool = False,
 ) -> dict[str, Any]:
     """List recent events, optionally filtered by project_id/task_id (UUID
     strings) and `since` (ISO-8601 timestamp). `limit` (1..200, default 20)
     bounds the response; select response `fields` to keep it small
-    (`event_id` is always included)."""
+    (`event_id` is always included). With a `project_id`, only that
+    project's events are returned by default; pass `include_global=True` to
+    also include the project-less Studio `library.*` events (contract v2).
+    Without a `project_id`, only the project-less events are returned."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         if not 1 <= limit <= _MAX_EVENT_LIMIT:
@@ -172,6 +176,7 @@ async def studio_get_recent_changes(
             task_id=parsed_task_id,
             since=parsed_since,
             limit=limit,
+            include_global=include_global,
         )
         return {
             "events": [

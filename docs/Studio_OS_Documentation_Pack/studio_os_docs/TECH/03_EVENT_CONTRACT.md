@@ -27,18 +27,19 @@ event `library.*` de scope Studio (garanti par le CHECK
 `ck_events_project_scope` : sans projet ⇒ type `library.*`) — un evenement
 Studio unique, sans projet, visible par tout principal authentifie, meme
 sans membership, sans jamais exposer les lignes d'un autre projet. Avec un
-filtre `project`, le projet demande *plus* les events sans projet sont
-retournes (un watcher par projet voit les activations Studio) ; sans
-filtre, les projets accessibles plus les events sans projet ; le flux SSE
-sans `project` ne porte que les events sans projet. Emettre un event
-(`POST /events`) exige toujours l'acces au projet, controle avant la
-deduplication `event_id` — le chemin public refuse un `project_id` null
-(`422 project_required`), seuls les emetteurs serveur internes posent des
-events sans projet. Le retrait d'une membership produit un signal
-strictement interne au serveur (fermeture des flux SSE concernes) ; ce
-n'est **pas** un type d'event et il n'est jamais persiste dans le journal.
-Regles : `TECH/02_API_CONTRACT.md` section Realtime et
-`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation.
+filtre `project`, seuls les events du projet sont retournes par defaut —
+les deployes parsent `project_id` comme un UUID non nul — et les events
+sans projet ne s'y ajoutent qu'en opt-in (`include_global=true`, sur
+`GET /events` comme sur le stream) ; sans filtre, les projets accessibles
+plus les events sans projet ; le flux SSE sans `project` ne porte que les
+events sans projet. Emettre un event (`POST /events`) exige toujours
+l'acces au projet, controle avant la deduplication `event_id` — le chemin
+public refuse un `project_id` null (`422 project_required`), seuls les
+emetteurs serveur internes posent des events sans projet. Le retrait d'une
+membership produit un signal strictement interne au serveur (fermeture des
+flux SSE concernes) ; ce n'est **pas** un type d'event et il n'est jamais
+persiste dans le journal. Regles : `TECH/02_API_CONTRACT.md` section
+Realtime et `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation.
 
 ## Types
 project.created
@@ -107,7 +108,9 @@ ressource de scope projet emet vers son projet (`project_id` renseigne) ;
 une ressource Studio, partagee par tous les projets, emet **un evenement
 unique sans projet** (`project_id` null, `schema_version: 2`, `event_id`
 derive de `(resource, type, ref, occurrence)` sans suffixe projet) — plus
-de fan-out d'un evenement par projet non archive. Les verrous portent le
+de fan-out d'un evenement par projet non archive ; un watcher par projet
+le voit via l'opt-in `include_global=true` (`GET /events` et SSE). Les
+verrous portent le
 projet verrouille dans le `payload` (`project_id`, pas dans l'enveloppe).
 Le scope User reste prive et n'emet rien, audite par les lignes de version
 (`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent.

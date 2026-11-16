@@ -269,12 +269,14 @@ Voir `TECH/03_EVENT_CONTRACT.md` — l'enveloppe y est deja completement figée
 d'idempotence pour `POST /events` (DEC-0006) — distinct du header
 `Idempotency-Key` utilise par les autres endpoints de creation.
 
-Contrat v2 (`EVENT_SCHEMA_VERSION = 2`, migration Alembic `0043`,
-reversible) : `events.project_id` est nullable et `project_id` l'est dans
-`EventEnvelope`/`EventCreate`, mais uniquement pour les events `library.*`
-de scope Studio — un evenement Studio unique, sans projet, visible par tout
-principal authentifie (garanti par le CHECK `ck_events_project_scope` :
-sans projet ⇒ type `library.*`). Le chemin public (`POST /events`)
+Contrat v2 (`EVENT_SCHEMA_VERSION = 2`, migration Alembic `0043` reversible,
+CHECK `ck_events_project_scope` pose `NOT VALID` puis valide — pas de verrou
+long sur table peuplee) : `events.project_id` est nullable et `project_id`
+l'est dans `EventEnvelope`/`EventCreate`, mais uniquement pour les events
+`library.*` de scope Studio — un evenement Studio unique, sans projet,
+visible par tout principal authentifie (lecture : sans filtre, projets
+accessibles + sans-projet ; avec filtre projet, opt-in
+`include_global=true`). Le chemin public (`POST /events`)
 exige toujours un projet (`422 project_required` si null).
 
 ## Transfer

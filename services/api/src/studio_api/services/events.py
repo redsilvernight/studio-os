@@ -203,27 +203,33 @@ async def list_events_after(
     project_id: UUID | str | None,
     after_seq: int | None,
     limit: int = 500,
+    include_global: bool = False,
 ) -> list[EventModel]:
     """Realtime catch-up (DEC-0018): `seq` is a strictly monotonic identity
     column, unlike `server_timestamp` which can collide under concurrent
     writes — safe to use as a no-loss/no-duplicate resume cursor.
 
-    With a `project_id`, the backlog carries that project's events *plus*
-    every project-less Studio `library.*` event (contract v2: one global
-    event instead of a per-project fan-out, so a per-project watcher still
-    sees Studio activations). Without one, only the project-less events —
-    readable by any authenticated principal."""
+    With a `project_id`, the backlog carries that project's events; the
+    project-less Studio `library.*` events (contract v2: one global event
+    instead of a per-project fan-out) join in only with
+    `include_global=True` — deployed readers parse `project_id` as a
+    non-null UUID, so the default stays a pure per-project channel. Without
+    a `project_id`, only the project-less events — readable by any
+    authenticated principal."""
     stmt = (
         select(EventModel).order_by(EventModel.seq.asc()).limit(limit)
     )
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
-        stmt = stmt.where(
-            or_(
-                EventModel.project_id == project_id,
-                EventModel.project_id.is_(None),
+        if include_global:
+            stmt = stmt.where(
+                or_(
+                    EventModel.project_id == project_id,
+                    EventModel.project_id.is_(None),
+                )
             )
-        )
+        else:
+            stmt = stmt.where(EventModel.project_id == project_id)
     else:
         stmt = stmt.where(EventModel.project_id.is_(None))
     if after_seq is not None:
@@ -242,6 +248,7 @@ async def list_events(
     event_type: EventType | None = None,
     until: datetime | None = None,
     offset: int = 0,
+    include_global: bool = False,
 ) -> list[EventModel]:
     stmt = (
         select(EventModel)
@@ -251,12 +258,15 @@ async def list_events(
     )
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
-        stmt = stmt.where(
-            or_(
-                EventModel.project_id == project_id,
-                EventModel.project_id.is_(None),
+        if include_global:
+            stmt = stmt.where(
+                or_(
+                    EventModel.project_id == project_id,
+                    EventModel.project_id.is_(None),
+                )
             )
-        )
+        else:
+            stmt = stmt.where(EventModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, EventModel.project_id)) is not None:
         # `project_visibility_clause` already keeps project-less rows for a
         # principal with at least one membership; contract v2 goes one step

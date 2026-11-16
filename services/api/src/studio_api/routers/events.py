@@ -81,13 +81,14 @@ async def post_event(
         "project-less Studio `library.*` event (contract v2: a single "
         "Studio-wide event with `project_id` null, visible to every "
         "authenticated principal, never leaking another project's rows). "
-        "With a `project` filter, that project's events *and* the "
-        "project-less Studio events are returned (a `project`, or a "
-        "`task_id` of a project, the caller cannot access answers "
-        "`403 forbidden`). This is the polling and catch-up channel: "
-        "after a disconnect, poll with `since` to retrieve missed "
-        "history, then optionally resume live delivery on "
-        "`GET /events/stream`."
+        "With a `project` filter, only that project's events are returned "
+        "by default — deployed readers parse `project_id` as a non-null "
+        "UUID — and the project-less Studio events join in only with "
+        "`include_global=true` (a `project`, or a `task_id` of a project, "
+        "the caller cannot access answers `403 forbidden`). This is the "
+        "polling and catch-up channel: after a disconnect, poll with "
+        "`since` to retrieve missed history, then optionally resume live "
+        "delivery on `GET /events/stream`."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
@@ -98,6 +99,12 @@ async def get_events(
     task: UUID | None = Query(default=None),
     since: datetime | None = Query(default=None),
     limit: int = Query(default=100, le=500),
+    include_global: bool = Query(
+        default=False,
+        description="With a `project` filter, also return the project-less "
+        "Studio `library.*` events (contract v2). Off by default so "
+        "deployed readers keep parsing `project_id` as a non-null UUID.",
+    ),
 ) -> list[EventEnvelope]:
     events = await events_service.list_events(
         session,
@@ -106,6 +113,7 @@ async def get_events(
         task_id=task,
         since=since,
         limit=limit,
+        include_global=include_global,
     )
     return [EventEnvelope.model_validate(e) for e in events]
 
@@ -118,7 +126,9 @@ async def get_events(
         "`project` is optional: without it, the stream carries only the "
         "project-less Studio `library.*` events (contract v2, visible to "
         "every authenticated principal); with it, that project's events "
-        "*plus* the project-less Studio events — there is still no global "
+        "(plus the project-less Studio events only with "
+        "`include_global=true`, off by default so deployed readers keep "
+        "parsing `project_id` as a non-null UUID) — there is still no global "
         "cross-project stream, a subscriber never sees another project's "
         "rows. Resuming after a cutover loses nothing: pass the last seen "
         "`seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` "
@@ -160,7 +170,15 @@ async def stream_events(
         default=None,
         description="Project to subscribe to (UUID). Without it, the stream "
         "carries only the project-less Studio `library.*` events; with it, "
-        "that project's events plus the project-less Studio events.",
+        "that project's events (plus the project-less Studio events only "
+        "with `include_global=true`).",
+    ),
+    include_global: bool = Query(
+        default=False,
+        description="With a `project` subscription, also deliver the "
+        "project-less Studio `library.*` events (contract v2). Off by "
+        "default so deployed readers keep parsing `project_id` as a "
+        "non-null UUID.",
     ),
     since_seq: int | None = Query(
         default=None,
@@ -192,7 +210,11 @@ async def stream_events(
             last_seq = cursor
             if cursor is not None:
                 backlog = await events_service.list_events_after(
-                    session, principal, project_id=project, after_seq=cursor
+                    session,
+                    principal,
+                    project_id=project,
+                    after_seq=cursor,
+                    include_global=include_global,
                 )
                 for row in backlog:
                     last_seq = row.seq
@@ -214,9 +236,9 @@ async def stream_events(
                     return
                 if isinstance(event, event_stream.AccessRevoked):
                     # A project-less stream carries no project's rows: a lost
-                    # membership never closes it. A project stream also
-                    # carries the project-less Studio events, so it still
-                    # closes when its own project is lost.
+                    # membership never closes it. A project stream still
+                    # closes when its own project is lost (whether or not it
+                    # also carries the project-less Studio events).
                     if (
                         project is not None
                         and event.user_id == user_id
@@ -255,7 +277,10 @@ async def stream_events(
                 if project is None:
                     if event.project_id is not None:
                         continue
-                elif event.project_id is not None and event.project_id != project:
+                elif event.project_id is None:
+                    if not include_global:
+                        continue
+                elif event.project_id != project:
                     continue
                 if last_seq is not None and event.seq <= last_seq:
                     continue

@@ -283,14 +283,27 @@ async def test_studio_scope_activation_emits_a_single_projectless_event(
     assert activated.status_code == 200
 
     for target in (project, other):
-        events = (
+        defaulted = (
             await client.get(
                 "/api/v1/events", headers=admin_auth_headers, params={"project": str(target.id)}
             )
         ).json()
+        assert [
+            e
+            for e in defaulted
+            if e["event_type"] == "library.version.activated"
+            and e["payload"].get("resource_id") == created["id"]
+        ] == []
+        opted_in = (
+            await client.get(
+                "/api/v1/events",
+                headers=admin_auth_headers,
+                params={"project": str(target.id), "include_global": "true"},
+            )
+        ).json()
         studio_activations = [
             e
-            for e in events
+            for e in opted_in
             if e["event_type"] == "library.version.activated"
             and e["payload"]["resource_id"] == created["id"]
         ]
@@ -413,6 +426,30 @@ async def test_projectless_studio_events_visible_without_project_access(
         assert all(e["project_id"] != str(project.id) for e in visible)
     lonely_visible = (await client.get("/api/v1/events", headers=lonely_headers)).json()
     assert all(e["project_id"] is None for e in lonely_visible)
+
+    # Opt-in: a member's project filter excludes the project-less events by
+    # default (deployed readers keep parsing `project_id` as non-null) and
+    # includes them with `include_global=true`.
+    member_headers = _headers(machine)
+    member_default = (
+        await client.get(
+            "/api/v1/events", headers=member_headers, params={"project": str(project.id)}
+        )
+    ).json()
+    assert all(e["project_id"] is not None for e in member_default)
+    member_global = (
+        await client.get(
+            "/api/v1/events",
+            headers=member_headers,
+            params={"project": str(project.id), "include_global": "true"},
+        )
+    ).json()
+    assert any(
+        e["event_type"] == "library.version.activated"
+        and e["payload"].get("resource_id") == created["id"]
+        and e["project_id"] is None
+        for e in member_global
+    )
 
 
 async def test_user_scope_mutation_emits_no_event(

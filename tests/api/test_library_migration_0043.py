@@ -49,20 +49,35 @@ async def test_0043_upgrade_and_downgrade_round_trip(monkeypatch: pytest.MonkeyP
         try:
             assert await conn.fetchval(NULLABLE) == "YES"
             assert await conn.fetchval(CHECKS) == 1
-            # The CHECK only lets project-less rows be library.*.
+            # The CHECK only lets project-less rows be library.*. It is added
+            # NOT VALID then validated (no long lock on a populated table):
+            # enforced, not left NOT VALID.
+            assert await conn.fetchval(
+                "select convalidated from pg_constraint "
+                "where conname = 'ck_events_project_scope'"
+            ) is True
+            probe_id, probe_actor = uuid.uuid4(), uuid.uuid4()
             await conn.execute(
                 "insert into events (id, event_type, project_id, actor_type, actor_id,"
                 " client_timestamp, server_timestamp, payload, schema_version)"
-                " values (gen_random_uuid(), 'library.version.activated', NULL,"
-                " 'user', gen_random_uuid(), now(), now(), '{}', 2)"
+                " values ($1, 'library.version.activated', NULL,"
+                " 'user', $2, now(), now(), '{}'::jsonb, 2)",
+                probe_id,
+                probe_actor,
             )
-            with pytest.raises(Exception, match="ck_events_project_scope"):
+            try:
                 await conn.execute(
                     "insert into events (id, event_type, project_id, actor_type, actor_id,"
                     " client_timestamp, server_timestamp, payload, schema_version)"
-                    " values (gen_random_uuid(), 'task.created', NULL,"
-                    " 'user', gen_random_uuid(), now(), now(), '{}', 1)"
+                    " values ($1, 'task.created', NULL,"
+                    " 'user', $2, now(), now(), '{}'::jsonb, 1)",
+                    uuid.uuid4(),
+                    uuid.uuid4(),
                 )
+            except Exception as exc:
+                assert "ck_events_project_scope" in str(exc), str(exc)
+            else:
+                raise AssertionError("project-less non-library event was not rejected")
             # The downgrade restores NOT NULL: no project-less row may remain.
             await conn.execute("delete from events where project_id is null")
         finally:
