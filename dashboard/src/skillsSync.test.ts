@@ -2,7 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BridgeAnswer } from "./platform/contracts";
 import type { SkillsSyncStatus, SkillsPreviewResult } from "./skillsApi";
-import { mountSkillsSync, resetSkillsSyncForTests, skillsDetailHtml, skillsIndicatorHtml } from "./skillsSync";
+import {
+  mountSkillsSync,
+  notificationKey,
+  resetSkillsSyncForTests,
+  skillsDetailHtml,
+  skillsIndicatorHtml,
+} from "./skillsSync";
 import { fakeDesktop } from "./testSupport/fakeDesktop";
 import { webPlatform } from "./platform/web";
 
@@ -51,6 +57,22 @@ beforeEach(() => {
 afterEach(() => {
   resetSkillsSyncForTests();
   vi.useRealTimers();
+});
+
+describe("skills sync notification key", () => {
+  it("ignores last_check so unchanged conflicts are not announced at every launch", () => {
+    const first = status({ state: "conflicts", conflicts: ["b", "a"], last_check: "2026-11-15T22:19:55Z" });
+    const relaunch = status({ state: "conflicts", conflicts: ["a", "b"], last_check: "2026-11-16T05:16:43Z" });
+    expect(notificationKey(relaunch)).toBe(notificationKey(first));
+  });
+
+  it("changes when the reported items or a new sync change", () => {
+    const base = status({ state: "conflicts", conflicts: ["a"] });
+    expect(notificationKey(status({ state: "conflicts", conflicts: ["a", "c"] }))).not.toBe(notificationKey(base));
+    const synced = status({ state: "updated", updated: ["x"], last_successful_sync: "2026-11-16T05:00:00Z" });
+    const again = status({ state: "updated", updated: ["x"], last_successful_sync: "2026-11-16T09:00:00Z" });
+    expect(notificationKey(again)).not.toBe(notificationKey(synced));
+  });
 });
 
 describe("skills sync indicator", () => {
