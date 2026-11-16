@@ -138,9 +138,6 @@ _.has_conflicts  # studio_contracts/library_merge.py
 # protocole studio.local
 _.LOCAL_CONTRACT_VERSION  # studio_contracts/local/common.py
 
-# downloaded_at — PC0 sûr, gardé par DEC-0354 : écrit par mark_downloaded, câblage à venir.
-_.downloaded_at  # studio_api/services/transfers.py (+1)
-
 # ClientUpgradeRequired — PC0 à vérifier : modèle jamais référencé (ni services, ni
 # dashboard/openapi.json) ; probable corps de réponse 426 construit ailleurs à la main
 _.ClientUpgradeRequired  # studio_contracts/version.py
@@ -190,10 +187,6 @@ _.server_pid  # studio_api/services/event_listener.py
 # get_snapshot — PC0 à vérifier : utilisé seulement par tests (test_execution_snapshots) ;
 # documenté docs/mission-control/snapshot-contract.md:91
 _.get_snapshot  # studio_api/services/execution_snapshots.py
-
-# mark_downloaded — PC0 sûr, gardé par DEC-0354 : câblage par accusé de réception client (tâche
-# dédiée).
-_.mark_downloaded  # studio_api/services/transfers.py
 
 # create_local_server_from_config — PC0 à vérifier : utilisé seulement par tests
 # (tests/mcp/test_local_knowledge*.py)

@@ -200,6 +200,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/transfers/{transfer_id}/upload/refresh-parts"): _P,
     ("POST", "/api/v1/transfers/{transfer_id}/upload/complete"): _P,
     ("POST", "/api/v1/transfers/{transfer_id}/download-url"): _P,
+    ("POST", "/api/v1/transfers/{transfer_id}/downloaded"): _P,
     ("GET", "/api/v1/projects/{project_id}/roadmaps"): _P,
     ("POST", "/api/v1/roadmaps"): _P,
     ("POST", "/api/v1/roadmaps/import"): _P,

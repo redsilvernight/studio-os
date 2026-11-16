@@ -79,6 +79,7 @@ WRITE_TOOLS = {
     "studio_log_ai_work",
     "studio_emit_event",
     "studio_create_transfer_metadata",
+    "studio_acknowledge_transfer_download",
     "studio_delete_transfer",
     "studio_request_producer_job",
     "studio_publish_definition",
