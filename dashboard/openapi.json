@@ -1180,6 +1180,63 @@
     }
    }
   },
+  "/api/v1/projects/resolve-repository": {
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Resolve Repository",
+    "description": "Resolve the project linked to the remotes of a local Git repository (1 to 10 remotes, any URL form). Only projects the caller is a member of are considered: an unknown repository and one the caller has no access to both answer `200 {status: not_found}`, identical in status and body. Remotes matching two projects: `409 ambiguous`. No valid remote: `422 invalid_repository_url`.",
+    "operationId": "resolve_repository_api_v1_projects_resolve_repository_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResolveRepositoryRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResolveRepositoryResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/projects/{project_id}/repositories": {
    "post": {
     "tags": [
@@ -1296,7 +1353,7 @@
      "projects"
     ],
     "summary": "Unlink Project Repository",
-    "description": "Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. Idempotent `204`; unlinking a remote that is not linked answers 404. Unknown project: 404.",
+    "description": "Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The path value is re-normalized, so equivalent spellings match. `204` once removed; a remote that is not linked to the project answers `404`. Unknown project: 404.",
     "operationId": "unlink_project_repository_api_v1_projects__project_id__repositories__normalized_url__delete",
     "security": [
      {
@@ -26166,6 +26223,81 @@
      "new_password"
     ],
     "title": "ResetPasswordRequest"
+   },
+   "ResolveRepositoryRequest": {
+    "properties": {
+     "remotes": {
+      "items": {
+       "type": "string",
+       "maxLength": 512,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Remotes"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "remotes"
+    ],
+    "title": "ResolveRepositoryRequest",
+    "description": "Remotes of a local Git repository (any URL form, 1 to 10, each at most\n512 characters); the server normalizes them."
+   },
+   "ResolveRepositoryResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "resolved",
+       "not_found"
+      ],
+      "title": "Status"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "slug": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slug"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "ResolveRepositoryResponse",
+    "description": "`resolved` carries the project the caller is a member of; `not_found`\nis the single answer for an unknown repository and for one the caller\nhas no access to (no existence oracle)."
    },
    "ResolvedAgent": {
     "properties": {

@@ -352,6 +352,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/resolve-repository": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Repository
+         * @description Resolve the project linked to the remotes of a local Git repository (1 to 10 remotes, any URL form). Only projects the caller is a member of are considered: an unknown repository and one the caller has no access to both answer `200 {status: not_found}`, identical in status and body. Remotes matching two projects: `409 ambiguous`. No valid remote: `422 invalid_repository_url`.
+         */
+        post: operations["resolve_repository_api_v1_projects_resolve_repository_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/repositories": {
         parameters: {
             query?: never;
@@ -384,7 +404,7 @@ export interface paths {
         post?: never;
         /**
          * Unlink Project Repository
-         * @description Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. Idempotent `204`; unlinking a remote that is not linked answers 404. Unknown project: 404.
+         * @description Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The path value is re-normalized, so equivalent spellings match. `204` once removed; a remote that is not linked to the project answers `404`. Unknown project: 404.
          */
         delete: operations["unlink_project_repository_api_v1_projects__project_id__repositories__normalized_url__delete"];
         options?: never;
@@ -6935,6 +6955,34 @@ export interface components {
              */
             new_password: string;
         };
+        /**
+         * ResolveRepositoryRequest
+         * @description Remotes of a local Git repository (any URL form, 1 to 10, each at most
+         *     512 characters); the server normalizes them.
+         */
+        ResolveRepositoryRequest: {
+            /** Remotes */
+            remotes: string[];
+        };
+        /**
+         * ResolveRepositoryResponse
+         * @description `resolved` carries the project the caller is a member of; `not_found`
+         *     is the single answer for an unknown repository and for one the caller
+         *     has no access to (no existence oracle).
+         */
+        ResolveRepositoryResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "resolved" | "not_found";
+            /** Project Id */
+            project_id?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Name */
+            name?: string | null;
+        };
         /** ResolvedAgent */
         ResolvedAgent: {
             /**
@@ -11597,6 +11645,53 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_repository_api_v1_projects_resolve_repository_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveRepositoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveRepositoryResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
                      *     }
                      */
                     "application/json": unknown;

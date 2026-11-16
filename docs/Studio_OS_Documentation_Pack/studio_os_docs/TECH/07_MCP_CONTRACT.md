@@ -879,7 +879,8 @@ dans le profil `session` (avec `studio_get_decisions` / `studio_add_decision`).
 
 ## Resolution workspace locale (additif, DEC-0364/DEC-0366)
 
-`studio_resolve_workspace` — outil **local**, lecture seule, expose par le
+`studio_resolve_workspace` — **non implemente** (livre par P2-mcp-local ;
+contrat cible) — outil **local**, lecture seule, expose par le
 serveur MCP local `studio-os-local` (stdio, sans DB ni `Principal`
 serveur) : il lit les remotes git du workspace courant, les normalise
 (`TECH/05_DATA_MODEL.md`) et appelle `POST /projects/resolve-repository`.

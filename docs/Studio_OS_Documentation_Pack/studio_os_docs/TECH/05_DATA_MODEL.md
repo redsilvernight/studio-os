@@ -181,7 +181,7 @@ seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 ## ProjectRepository (additif — migration Alembic reversible)
 Table `project_repositories` : `id`, `project_id` (FK Project,
 `ON DELETE CASCADE`), `normalized_url` (texte, cle normalisee du depot),
-`created_at`, `created_by_user_id` (FK User, nullable,
+`created_at`, `created_by` (FK User, nullable,
 `ON DELETE SET NULL`). Cle primaire `id` ; contrainte unique globale sur
 `normalized_url` (un depot n'est lie qu'a un seul projet, serveur-wide) ;
 index `(project_id)`. Pas de `version` : un lien est ajoute ou retire,

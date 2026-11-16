@@ -218,20 +218,26 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
 `ProjectRead` expose `repositories: list[str]` (cles normalisees du
 projet, `[]` par defaut ; un client N-1 l'ignore).
 - POST /projects/{project_id}/repositories (roles `admin|developer`) —
-  body `{url: str}` : lie le depot au projet. Reponse `201`. URL invalide
-  -> `422` ; depot deja lie a ce projet ->
-  `409 {"detail": {"error_code": "repository_already_linked"}}`.
+  body `{url: str}` : normalise puis lie le depot au projet (profondeur
+  `host/owner/repo` exactement). `201` a la creation, `200` idempotent si
+  le meme depot est deja lie a ce projet. URL invalide ->
+  `422 {"detail": {"error_code": "invalid_repository_url"}}` ; depot lie a
+  un autre projet ->
+  `409 {"detail": {"error_code": "repository_already_linked", "url"}}` ;
+  projet inexistant -> `404`.
 - DELETE /projects/{project_id}/repositories/{normalized_url}
-  (roles `admin|developer`) — retire le lien (idempotent, `204`).
-  `normalized_url` est la cle normalisee (`TECH/05_DATA_MODEL.md`).
+  (roles `admin|developer`) — `204` une fois le lien retire ; `404` si le
+  depot n'est pas lie au projet ou si le projet n'existe pas. La valeur du
+  chemin est re-normalisee (graphies equivalentes acceptees).
 - POST /projects/resolve-repository — body `{remotes: [str]}` (1 a 10
-  URLs, sinon `422`) : pour chaque remote normalise, cherche les projets
-  lies accessibles a l'appelant. Un seul projet trouve ->
-  `200 {project_id, slug, name}` ; aucun ->
-  `200 {status: "not_found"}`, **corps et statut strictement identiques**
-  au cas d'un depot connu mais sans acces (jamais d'oracle : un
-  non-membre ne distingue pas « inconnu » de « sans acces »). Des remotes
-  designant deux projets distincts ->
+  URLs de 512 caracteres max, sinon `422`) : normalise chaque remote
+  (les invalides sont ignores ; aucun valide ->
+  `422 invalid_repository_url`), puis cherche les projets non archives
+  dont l'appelant est **membre** (l'admin non membre n'est pas special).
+  Un seul projet -> `200 {status: "resolved", project_id, slug, name}` ;
+  aucun -> `200 {status: "not_found"}`, **corps et statut strictement
+  identiques** au cas d'un depot connu mais sans acces (jamais d'oracle).
+  Des remotes designant deux projets distincts ->
   `409 {"detail": {"error_code": "ambiguous"}}`.
 - Acces : projet inaccessible ou inexistant -> `403 resource=project`
   (DEC-0103) ; `readonly` -> `403 forbidden` sur les ecritures.

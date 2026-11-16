@@ -7,10 +7,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
-from studio_contracts.projects import ProjectRead
+from studio_contracts.projects import ProjectRead, ResolveRepositoryResponse
 from studio_contracts.repositories import normalize_remote_url
 
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.project_repository import ProjectRepositoryModel
 from studio_api.services.authz import (
     Principal,
@@ -153,3 +154,47 @@ async def unlink_repository(
     removed = result.scalar_one_or_none() is not None
     await session.commit()
     return removed
+
+
+async def resolve_repository(
+    session: AsyncSession, principal: Principal, remotes: list[str]
+) -> ResolveRepositoryResponse:
+    """Project linked to one of `remotes` among those the caller is a member
+    of (admin included: resolution follows membership, not the admin scope).
+    Unknown repository and repository of a project the caller is not a member
+    of answer the same `not_found`. Invalid remotes are skipped when another
+    is valid, else 422."""
+    normalized: list[str] = []
+    for remote in remotes:
+        try:
+            normalized.append(normalize_remote_url(remote))
+        except ValueError:
+            continue
+    if not normalized:
+        raise _invalid_url(", ".join(remotes), "no valid remote")
+    result = await session.execute(
+        select(ProjectModel)
+        .join(ProjectRepositoryModel, ProjectRepositoryModel.project_id == ProjectModel.id)
+        .join(ProjectMembershipModel, ProjectMembershipModel.project_id == ProjectModel.id)
+        .where(
+            ProjectRepositoryModel.normalized_url.in_(normalized),
+            ProjectMembershipModel.user_id == principal.user.id,
+            ProjectModel.archived.is_(False),
+        )
+        .distinct()
+    )
+    projects = list(result.scalars().all())
+    if not projects:
+        return ResolveRepositoryResponse(status="not_found")
+    if len(projects) > 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "ambiguous",
+                "message": "remotes match several projects",
+            },
+        )
+    project = projects[0]
+    return ResolveRepositoryResponse(
+        status="resolved", project_id=project.id, slug=project.slug, name=project.name
+    )

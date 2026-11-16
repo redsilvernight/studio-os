@@ -15,6 +15,8 @@ from studio_contracts.projects import (
     ProjectRead,
     ProjectRepository,
     ProjectRepositoryCreate,
+    ResolveRepositoryRequest,
+    ResolveRepositoryResponse,
 )
 from studio_contracts.tasks import Task
 
@@ -216,6 +218,25 @@ async def revoke_project_member(
 
 
 @router.post(
+    "/resolve-repository",
+    response_model=ResolveRepositoryResponse,
+    description=(
+        "Resolve the project linked to the remotes of a local Git repository "
+        "(1 to 10 remotes, any URL form). Only projects the caller is a "
+        "member of are considered: an unknown repository and one the caller "
+        "has no access to both answer `200 {status: not_found}`, identical "
+        "in status and body. Remotes matching two projects: `409 ambiguous`. "
+        "No valid remote: `422 invalid_repository_url`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED},
+)
+async def resolve_repository(
+    body: ResolveRepositoryRequest, session: DbSession, principal: CurrentPrincipal
+) -> ResolveRepositoryResponse:
+    return await project_repositories_service.resolve_repository(session, principal, body.remotes)
+
+
+@router.post(
     "/{project_id}/repositories",
     response_model=ProjectRepository,
     status_code=status.HTTP_201_CREATED,
@@ -287,8 +308,9 @@ async def link_project_repository(
     description=(
         "Unlink a remote repository from a project. Role `admin` or "
         "`developer` with project access; any other role gets `403 "
-        "forbidden`. Idempotent `204`; unlinking a remote that is not "
-        "linked answers 404. Unknown project: 404."
+        "forbidden`. The path value is re-normalized, so equivalent spellings "
+        "match. `204` once removed; a remote that is not linked to the "
+        "project answers `404`. Unknown project: 404."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )

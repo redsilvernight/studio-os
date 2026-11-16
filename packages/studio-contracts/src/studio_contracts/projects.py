@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, StringConstraints
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
@@ -58,3 +59,24 @@ class ProjectMember(ContractModel):
     created_at: datetime
     user_display_name: str | None = None
     user_email: str | None = None
+
+
+class ResolveRepositoryRequest(ContractModel):
+    """Remotes of a local Git repository (any URL form, 1 to 10, each at most
+    512 characters); the server normalizes them."""
+
+    remotes: Annotated[
+        list[Annotated[str, StringConstraints(min_length=1, max_length=512)]],
+        Field(min_length=1, max_length=10),
+    ]
+
+
+class ResolveRepositoryResponse(ContractModel):
+    """`resolved` carries the project the caller is a member of; `not_found`
+    is the single answer for an unknown repository and for one the caller
+    has no access to (no existence oracle)."""
+
+    status: Literal["resolved", "not_found"]
+    project_id: UUID | None = None
+    slug: str | None = None
+    name: str | None = None
