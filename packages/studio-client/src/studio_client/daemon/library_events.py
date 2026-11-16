@@ -89,9 +89,7 @@ class LibraryEventWatcher(PollingWatcher):
             since, seen = cursor
             events = await self._client.list_events(since=since, limit=EVENTS_PAGE_LIMIT)
             fresh = [
-                event
-                for event in events
-                if event.event_id not in seen and event.project_id is None
+                event for event in events if event.event_id not in seen and event.project_id is None
             ]
             if fresh:
                 triggered = triggered or any(
