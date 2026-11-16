@@ -28,7 +28,7 @@ KEEPALIVE = _Keepalive()
 @dataclass(frozen=True)
 class StreamEvent:
     seq: int
-    project_id: UUID
+    project_id: UUID | None
     envelope: EventEnvelope
 
 

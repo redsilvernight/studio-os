@@ -572,6 +572,15 @@ RESP_409_TRANSFER_STATE: ErrorResponses = {
     )
 }
 
+RESP_409_TRANSFER_DELETED: ErrorResponses = {
+    409: _json_response(
+        "The transfer is deleted (`transfer_deleted`): a download "
+        "acknowledgement never resurrects a deleted transfer. Re-read the "
+        "transfer if another client may have removed it.",
+        {"detail": {"error_code": "transfer_deleted"}},
+    )
+}
+
 RESP_413_TRANSFER_TOO_LARGE: ErrorResponses = {
     413: _json_response(
         "Transfer size exceeds the per-transfer maximum. Split the file "

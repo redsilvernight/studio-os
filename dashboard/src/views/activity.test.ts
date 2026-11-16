@@ -19,6 +19,7 @@ import {
   newestTimelineFirst,
   renderActivityInto,
   utcDayWindow,
+  withoutStudioActivation,
 } from "./activity";
 import type { StudioClient } from "../api";
 
@@ -497,6 +498,42 @@ describe("collapseAiWork", () => {
   it("reste neutre sur une timeline sans ai_work", () => {
     const source = timeline({ date: "2026-09-12", events: [event({ event_type: "task.created" })] });
     expect(collapseAiWork(source)).toEqual(source);
+  });
+});
+
+describe("withoutStudioActivation", () => {
+  const activated = (scope: unknown, id: string) =>
+    event({ event_id: id, event_type: "library.version.activated", payload: { scope } });
+
+  it("retire l'activation Studio dupliquée par projet, garde le reste", () => {
+    const source = timeline({
+      date: "2026-09-12",
+      events: [
+        activated("studio", "studio-dup"),
+        activated("project", "project-act"),
+        event({ event_id: "t1", event_type: "task.created" }),
+      ],
+    });
+    const before = JSON.parse(JSON.stringify(source));
+    const filtered = withoutStudioActivation(source);
+    expect(filtered.days[0]?.events.map((item) => item.event_id)).toEqual(["project-act", "t1"]);
+    expect(JSON.parse(JSON.stringify(source))).toEqual(before);
+  });
+
+  it("un jour vidé par le filtre disparaît de la timeline affichée", () => {
+    const html = timelineHtml({
+      timeline: timeline({ date: "2026-09-12", events: [activated("studio", "only")] }),
+      limit: TIMELINE_LIMIT_DEFAULT,
+    });
+    expect(html).toContain("Aucune activité");
+  });
+
+  it("sans scope Studio, l'activation projet reste libellée", () => {
+    const html = timelineHtml({
+      timeline: timeline({ date: "2026-09-12", events: [activated("project", "p-act")] }),
+      limit: TIMELINE_LIMIT_DEFAULT,
+    });
+    expect(html).toContain("Version de bibliothèque activée");
   });
 });
 

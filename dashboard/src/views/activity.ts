@@ -156,6 +156,27 @@ export function countTimelineEvents(timeline: Timeline): number {
 const AI_WORK_PREFIX = "ai_work.";
 const AI_WORK_ID_KEY = "ai_work_id";
 
+const STUDIO_LIBRARY_ACTIVATION = "library.version.activated";
+const STUDIO_SCOPE = "studio";
+
+/**
+ * Une activation de portée Studio est un événement global unique (contrat
+ * v2, `project_id` nul), pas une activité du projet : les copies par projet
+ * (anciennes ventilations, `payload.scope === "studio"`) sont exclues de la
+ * timeline projet pour ne pas répéter la même activation dans chaque
+ * projet. Fonction pure : l'entrée n'est jamais modifiée. Les activations
+ * de portée projet restent affichées.
+ */
+export function withoutStudioActivation(timeline: Timeline): Timeline {
+  const days = timeline.days.flatMap((day) => {
+    const events = day.events.filter(
+      (event) => event.event_type !== STUDIO_LIBRARY_ACTIVATION || event.payload["scope"] !== STUDIO_SCOPE,
+    );
+    return events.length === 0 ? [] : [{ ...day, events }];
+  });
+  return { ...timeline, days };
+}
+
 /** Identifiant de regroupement d'un événement `ai_work.*`, "" sinon (jamais regroupé). */
 function aiWorkGroupId(event: TimelineEvent): string {
   if (!event.event_type.startsWith(AI_WORK_PREFIX)) return "";
@@ -302,7 +323,7 @@ export interface TimelineViewData {
 }
 
 export function timelineHtml(data: TimelineViewData): string {
-  const timeline = newestTimelineFirst(collapseAiWork(data.timeline));
+  const timeline = newestTimelineFirst(withoutStudioActivation(collapseAiWork(data.timeline)));
   const dates = data.dates ?? timeline.days.filter((day) => day.events.length > 0).map((day) => day.date);
   if (dates.length === 0) {
     return dsEmptyState(

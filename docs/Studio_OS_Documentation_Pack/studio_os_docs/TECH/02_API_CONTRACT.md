@@ -529,6 +529,26 @@ déclarée, pas la réalité d'un Git ou d'une commande sur un poste distant.
 Le rejeu idempotent inclut la preuve lorsqu'elle est fournie ; les empreintes
 des anciens appels sans preuve sont conservées.
 
+Revue des décisions (DEC-0363, additif) : `CompletionEvidence` porte un champ
+optionnel `decisions: {outcome: new|existing|none, decision_ids: <=20 UUID ou
+DEC-NNNN, reason?}`. `outcome=new` cite les décisions créées par le travail,
+`existing` celles réutilisées, `none` exige une `reason` concrète non vide
+(aucune détection sémantique). Le format `studio.completion/v2` rend la revue
+obligatoire : `check_completion` signale `decision_review_missing`,
+`decision_reason_missing` (none sans raison) ou `decision_ids_missing`
+(new/existing sans ids) et bloque `completed` en `409 completion_incomplete`.
+En v1 l'absence de revue reste non bloquante et revient en avertissement
+`decision_review_missing` dans `HandoffResult.warnings` (appels historiques
+inchangés). Le serveur valide chaque id — existence, même projet, visibilité —
+sinon `422 decision_reference_invalid` unique (aucune révélation hors
+périmètre) ; une DEC `proposed` est une référence valide et n'est jamais
+auto-acceptée. La revue est persistée dans le JSON `COMPLETION_EVIDENCE`
+existant (aucune migration SQL) et réaffichée en avertissement à la clôture
+d'une étape de roadmap (`state_override=done` : tâches liées sans revue
+listées, sans second gate ni accrochage au stop-check). MCP `studio_handoff`
+expose le champ via `CompletionEvidence` et relaie les avertissements ;
+`studio_update_roadmap_step` ajoute `decision_review_warnings` à la clôture.
+
 ### Sync (C2, additif, DEC-0157)
 - GET /sync — point de resynchronisation unique : « Qu'est-ce qui a changé depuis mon dernier sync et qui concerne mon travail ? », en réponse compacte et bornée. Lecture seule sur les ressources métier ; écrit un curseur de session (distinct de `prepare_context`, qui reste en lecture seule, DEC-0080). Outil MCP `studio_sync` (même contrat, DEC-0046/DEC-0048 : pas de version dans le payload).
   - Query params : `session_id` (UUID, optionnel — sinon `agent_id` + `task_id` requis), `ack` (curseur `seq` acquitté, optionnel — absent = début de session), `files` (liste de chemins déclarés, optionnel — filtre les claims recoupant ces fichiers), `limit` (défaut 50, max 200), `max_chars` (défaut 12000, max 50000 — budget de caractères partagé avec `prepare_context`).
@@ -1652,6 +1672,16 @@ cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun 
 - POST /transfers/{id}/download-url — `403 forbidden` (DEC-0036) si
   l'appelant n'a aucun des 4 acces de la regle Transfer sur ce transfert
   precis (voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
+- POST /transfers/{id}/downloaded — accuse de reception emis par le client
+  apres un telechargement reussi via l'URL presignee (les octets ne transitent
+  jamais par l'API) ; c'est cet appel qui renseigne `downloaded_at` et fait
+  passer le statut a `downloaded`. Reserve a un lecteur autorise du transfert
+  en role d'ecriture (expediteur, destinataire, diffusion, admin — `readonly`
+  refuse par `403 forbidden`) ; inconnu -> `404`, supprime ->
+  `409 {"detail": {"error_code": "transfer_deleted"}}` (un accuse ne ressuscite
+  jamais un transfert supprime). Idempotent : un rejeu renvoie le transfert
+  inchange avec le `downloaded_at` d'origine. Aucune precondition d'etat
+  (hormis `deleted`) : l'accuse est recevable des `created`.
 - DELETE /transfers/{id}
   - Suppression explicite par l'expediteur ou un administrateur disposant de l'acces
     projet en ecriture ; destinataire seul et role `readonly` refusés (`403 forbidden`).

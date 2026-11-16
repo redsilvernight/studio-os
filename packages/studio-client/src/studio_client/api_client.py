@@ -530,6 +530,7 @@ class StudioApiClient:
         task_id: UUID | None = None,
         since: datetime | None = None,
         limit: int = 100,
+        include_global: bool = False,
     ) -> list[EventEnvelope]:
         params: dict[str, Any] = {"limit": limit}
         if project_id is not None:
@@ -538,6 +539,8 @@ class StudioApiClient:
             params["task"] = str(task_id)
         if since is not None:
             params["since"] = since.isoformat()
+        if include_global:
+            params["include_global"] = "true"
         response = await self._request("GET", "/api/v1/events", params=params)
         return [EventEnvelope.model_validate(item) for item in response.json()]
 
@@ -675,6 +678,20 @@ class StudioApiClient:
     async def get_download_url(self, transfer_id: UUID) -> DownloadUrlResponse:
         response = await self._request("POST", f"/api/v1/transfers/{transfer_id}/download-url")
         return DownloadUrlResponse.model_validate(response.json())
+
+    async def acknowledge_download(self, transfer_id: UUID) -> Transfer:
+        """Record receipt of a transfer after its bytes were downloaded and
+        hash-verified (`POST /api/v1/transfers/{id}/downloaded`). Inherently
+        idempotent server-side: replaying an acknowledged transfer returns it
+        unchanged with its original `downloaded_at` — marked retryable so a
+        transient failure can be retried, and queued in the outbox by
+        `TransferClient` when the network itself is down."""
+        response = await self._request(
+            "POST",
+            f"/api/v1/transfers/{transfer_id}/downloaded",
+            idempotent=True,
+        )
+        return Transfer.model_validate(response.json())
 
     async def delete_transfer(self, transfer_id: UUID) -> None:
         await self._request("DELETE", f"/api/v1/transfers/{transfer_id}")

@@ -218,13 +218,21 @@ def _backfilled_memberships(request: pytest.FixtureRequest) -> Iterator[None]:
                     "INSERT INTO project_memberships (project_id, user_id) "
                     "SELECT p.id, u.id FROM projects p, users u "
                     "WHERE p.id = :pid AND u.display_name NOT LIKE :outsider "
+                    # Deterministic insertion order: concurrent backfillers
+                    # (parallel runners sharing one database) acquire
+                    # speculative-insertion locks in the same order instead of
+                    # deadlocking on opposite orders.
+                    "ORDER BY p.id, u.id "
                     "ON CONFLICT DO NOTHING"
                 )
                 params = {"pid": obj.id, "outsider": f"{OUTSIDER_PREFIX}%"}
             elif isinstance(obj, UserModel) and not obj.display_name.startswith(OUTSIDER_PREFIX):
                 statement = text(
                     "INSERT INTO project_memberships (project_id, user_id) "
-                    "SELECT p.id, :uid FROM projects p ON CONFLICT DO NOTHING"
+                    "SELECT p.id, :uid FROM projects p "
+                    # Same lock-ordering rationale as above.
+                    "ORDER BY p.id "
+                    "ON CONFLICT DO NOTHING"
                 )
                 params = {"uid": obj.id}
             else:

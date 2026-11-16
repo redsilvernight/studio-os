@@ -3695,7 +3695,7 @@
      "handoff"
     ],
     "summary": "Handoff",
-    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
+    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. A v1 completion evidence without a decision review closes with a non-blocking `decision_review_missing` warning; v2 requires the review (`409 completion_incomplete` otherwise). Referenced decision ids must exist in the project (`422 decision_reference_invalid`). Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
     "operationId": "handoff_api_v1_handoff_post",
     "security": [
      {
@@ -10926,7 +10926,7 @@
      "events"
     ],
     "summary": "Post Event",
-    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
+    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). A project is always required here (`project_id` null answers `422 project_required` \u2014 project-less `library.*` events are emitted by the server only, contract v2). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
     "operationId": "post_event_api_v1_events_post",
     "security": [
      {
@@ -11008,7 +11008,7 @@
      "events"
     ],
     "summary": "Get Events",
-    "description": "Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
+    "description": "Read recent events, optionally filtered by project and task and `since` timestamp. Without a `project` filter, the listing is restricted to the caller's accessible projects \u2014 plus every project-less Studio `library.*` event (contract v2: a single Studio-wide event with `project_id` null, visible to every authenticated principal, never leaking another project's rows). With a `project` filter, only that project's events are returned by default \u2014 deployed readers parse `project_id` as a non-null UUID \u2014 and the project-less Studio events join in only with `include_global=true` (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
     "operationId": "get_events_api_v1_events_get",
     "security": [
      {
@@ -11077,6 +11077,18 @@
        "default": 100,
        "title": "Limit"
       }
+     },
+     {
+      "name": "include_global",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID.",
+       "default": false,
+       "title": "Include Global"
+      },
+      "description": "With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID."
      }
     ],
     "responses": {
@@ -11137,7 +11149,7 @@
      "events"
     ],
     "summary": "Stream Events",
-    "description": "Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required \u2014 there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
+    "description": "Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) \u2014 there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
     "operationId": "stream_events_api_v1_events_stream_get",
     "security": [
      {
@@ -11148,14 +11160,33 @@
      {
       "name": "project",
       "in": "query",
-      "required": true,
+      "required": false,
       "schema": {
-       "type": "string",
-       "format": "uuid",
-       "description": "Project to subscribe to (UUID). No global stream exists.",
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`).",
        "title": "Project"
       },
-      "description": "Project to subscribe to (UUID). No global stream exists."
+      "description": "Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`)."
+     },
+     {
+      "name": "include_global",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID.",
+       "default": false,
+       "title": "Include Global"
+      },
+      "description": "With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID."
      },
      {
       "name": "since_seq",
@@ -12069,6 +12100,101 @@
        "application/json": {
         "example": {
          "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}/downloaded": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Acknowledge Download",
+    "description": "Record receipt of a transfer after the client downloaded its bytes through the presigned URL (bytes never pass through this API). Any reader of the transfer with a writer role may acknowledge it \u2014 sender, recipient, broadcast readers, or a privileged role; a writer-less role gets 403. Unknown ids fail with 404. Idempotent: replaying an acknowledged transfer returns it unchanged with its original downloaded_at. A deleted transfer fails with 409 transfer_deleted instead of being resurrected.",
+    "operationId": "acknowledge_download_api_v1_transfers__transfer_id__downloaded_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Transfer"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The transfer is deleted (`transfer_deleted`): a download acknowledgement never resurrects a deleted transfer. Re-read the transfer if another client may have removed it.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "transfer_deleted"
+         }
         }
        }
       }
@@ -19604,8 +19730,7 @@
      "limit": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19615,12 +19740,10 @@
      },
      "consumed": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Consumed"
      },
      "held": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Held"
      },
      "unknown_entries": {
@@ -19700,8 +19823,7 @@
      "cost_limit": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19738,8 +19860,7 @@
      "reservation_cost": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19891,8 +20012,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19934,8 +20054,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -20014,8 +20133,7 @@
      "reserved_cost": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -20577,7 +20695,10 @@
     "properties": {
      "format": {
       "type": "string",
-      "const": "studio.completion/v1",
+      "enum": [
+       "studio.completion/v1",
+       "studio.completion/v2"
+      ],
       "title": "Format",
       "default": "studio.completion/v1"
      },
@@ -20667,6 +20788,16 @@
       "type": "boolean",
       "title": "Deployed",
       "default": false
+     },
+     "decisions": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DecisionReview"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -21276,8 +21407,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21328,8 +21458,7 @@
      "value": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21508,6 +21637,48 @@
    "DecisionItem": {
     "additionalProperties": true,
     "type": "object"
+   },
+   "DecisionReview": {
+    "properties": {
+     "outcome": {
+      "type": "string",
+      "enum": [
+       "new",
+       "existing",
+       "none"
+      ],
+      "title": "Outcome"
+     },
+     "decision_ids": {
+      "items": {
+       "type": "string",
+       "maxLength": 100,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Decision Ids"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "outcome"
+    ],
+    "title": "DecisionReview",
+    "description": "Structured review of the project decisions at handoff (DEC-0363,\nadditive): which decisions this work produced (`new`), reused\n(`existing`), or why none was needed (`none`). `decision_ids` names\ninternal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves\neach one and rejects unknown, foreign or invisible ids with\n`422 decision_reference_invalid`. A `proposed` decision is a valid\nreference and is never auto-accepted by the handoff. `reason` is\nrequired (non-empty) when `outcome` is `none` \u2014 enforced for v2 by\n`check_completion` (`decision_reason_missing`)."
    },
    "DecisionStatus": {
     "type": "string",
@@ -21809,8 +21980,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21839,8 +22009,7 @@
      "value": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21935,8 +22104,15 @@
       "$ref": "#/components/schemas/EventType"
      },
      "project_id": {
-      "type": "string",
-      "format": "uuid",
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Project Id"
      },
      "task_id": {
@@ -22005,7 +22181,7 @@
      "client_timestamp"
     ],
     "title": "EventCreate",
-    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate."
+    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate.\n\nContract v2: `project_id` is nullable in the type so server-internal\nissuers (`_emit_library_event` for Studio scope) can share this model,\nbut the public creation path (`POST /events`, `studio_emit_event`)\nalways requires a project \u2014 a `None` there answers `422`."
    },
    "EventEnvelope": {
     "properties": {
@@ -22018,8 +22194,15 @@
       "$ref": "#/components/schemas/EventType"
      },
      "project_id": {
-      "type": "string",
-      "format": "uuid",
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Project Id"
      },
      "task_id": {
@@ -22094,7 +22277,7 @@
      "server_timestamp"
     ],
     "title": "EventEnvelope",
-    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected."
+    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected.\n\nContract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,\nbut only for `library.*` events of Studio scope \u2014 a single Studio-wide\nevent with no project, visible to every authenticated principal.\nAll other event types always carry a non-null `project_id`."
    },
    "EventType": {
     "type": "string",
@@ -22724,6 +22907,14 @@
        }
       ],
       "title": "Coordination Event Id"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 30,
+      "title": "Warnings"
      }
     },
     "additionalProperties": false,
@@ -22736,7 +22927,7 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested.\n`warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`\nwhen a v1 evidence closes without a decision review) \u2014 never a gate."
    },
    "HarnessReport": {
     "properties": {
@@ -32923,8 +33114,7 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -32976,7 +33166,6 @@
      },
      "known_sum": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Known Sum"
      },
      "entries": {
@@ -33020,8 +33209,7 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -33478,8 +33666,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Input"
@@ -33491,8 +33678,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Output"
@@ -33504,8 +33690,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Cache Read"
@@ -33517,8 +33702,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Cache Write"
@@ -33539,22 +33723,18 @@
     "properties": {
      "input": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Input"
      },
      "output": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Output"
      },
      "cache_read": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Cache Read"
      },
      "cache_write": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Cache Write"
      }
     },
@@ -33831,7 +34011,6 @@
      },
      "monthly_price": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
       "title": "Monthly Price"
      },
      "currency": {
@@ -33919,8 +34098,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+        "type": "string"
        }
       ],
       "title": "Monthly Price"
@@ -34018,8 +34196,7 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -34075,8 +34252,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+        "type": "string"
        }
       ],
       "title": "Monthly Price"

@@ -743,7 +743,7 @@ export interface paths {
         put?: never;
         /**
          * Handoff
-         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
+         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. A v1 completion evidence without a decision review closes with a non-blocking `decision_review_missing` warning; v2 requires the review (`409 completion_incomplete` otherwise). Referenced decision ids must exist in the project (`422 decision_reference_invalid`). Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
          */
         post: operations["handoff_api_v1_handoff_post"];
         delete?: never;
@@ -1930,13 +1930,13 @@ export interface paths {
         };
         /**
          * Get Events
-         * @description Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
+         * @description Read recent events, optionally filtered by project and task and `since` timestamp. Without a `project` filter, the listing is restricted to the caller's accessible projects — plus every project-less Studio `library.*` event (contract v2: a single Studio-wide event with `project_id` null, visible to every authenticated principal, never leaking another project's rows). With a `project` filter, only that project's events are returned by default — deployed readers parse `project_id` as a non-null UUID — and the project-less Studio events join in only with `include_global=true` (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
          */
         get: operations["get_events_api_v1_events_get"];
         put?: never;
         /**
          * Post Event
-         * @description Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported — use `user` or `system`.
+         * @description Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). A project is always required here (`project_id` null answers `422 project_required` — project-less `library.*` events are emitted by the server only, contract v2). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported — use `user` or `system`.
          */
         post: operations["post_event_api_v1_events_post"];
         delete?: never;
@@ -1954,7 +1954,7 @@ export interface paths {
         };
         /**
          * Stream Events
-         * @description Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required — there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
+         * @description Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) — there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
          */
         get: operations["stream_events_api_v1_events_stream_get"];
         put?: never;
@@ -2107,6 +2107,26 @@ export interface paths {
          * @description Get a short-lived presigned download URL (minutes, never the file bytes). Only the sender, the recipient, broadcast recipients, or a privileged role may obtain it. Downloads support HTTP `Range`, so a partial download resumes where it stopped.
          */
         post: operations["get_download_url_api_v1_transfers__transfer_id__download_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{transfer_id}/downloaded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Download
+         * @description Record receipt of a transfer after the client downloaded its bytes through the presigned URL (bytes never pass through this API). Any reader of the transfer with a writer role may acknowledge it — sender, recipient, broadcast readers, or a privileged role; a writer-less role gets 403. Unknown ids fail with 404. Idempotent: replaying an acknowledged transfer returns it unchanged with its original downloaded_at. A deleted transfer fails with 409 transfer_deleted instead of being resurrected.
+         */
+        post: operations["acknowledge_download_api_v1_transfers__transfer_id__downloaded_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4191,9 +4211,9 @@ export interface components {
             /**
              * Format
              * @default studio.completion/v1
-             * @constant
+             * @enum {string}
              */
-            format: "studio.completion/v1";
+            format: "studio.completion/v1" | "studio.completion/v2";
             /**
              * Kind
              * @enum {string}
@@ -4242,6 +4262,7 @@ export interface components {
              * @default false
              */
             deployed: boolean;
+            decisions?: components["schemas"]["DecisionReview"] | null;
         };
         /**
          * ConfigurationHistory
@@ -4638,6 +4659,29 @@ export interface components {
             [key: string]: unknown;
         };
         /**
+         * DecisionReview
+         * @description Structured review of the project decisions at handoff (DEC-0363,
+         *     additive): which decisions this work produced (`new`), reused
+         *     (`existing`), or why none was needed (`none`). `decision_ids` names
+         *     internal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves
+         *     each one and rejects unknown, foreign or invisible ids with
+         *     `422 decision_reference_invalid`. A `proposed` decision is a valid
+         *     reference and is never auto-accepted by the handoff. `reason` is
+         *     required (non-empty) when `outcome` is `none` — enforced for v2 by
+         *     `check_completion` (`decision_reason_missing`).
+         */
+        DecisionReview: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "new" | "existing" | "none";
+            /** Decision Ids */
+            decision_ids?: string[];
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
          * DecisionStatus
          * @enum {string}
          */
@@ -4847,6 +4891,11 @@ export interface components {
          *     across retries — it IS the idempotency key for events: replaying the
          *     same event_id returns the original stored event rather than creating a
          *     duplicate.
+         *
+         *     Contract v2: `project_id` is nullable in the type so server-internal
+         *     issuers (`_emit_library_event` for Studio scope) can share this model,
+         *     but the public creation path (`POST /events`, `studio_emit_event`)
+         *     always requires a project — a `None` there answers `422`.
          */
         EventCreate: {
             /**
@@ -4855,11 +4904,8 @@ export interface components {
              */
             event_id: string;
             event_type: components["schemas"]["EventType"];
-            /**
-             * Project Id
-             * Format: uuid
-             */
-            project_id: string;
+            /** Project Id */
+            project_id: string | null;
             /** Task Id */
             task_id?: string | null;
             /** Machine Id */
@@ -4897,6 +4943,11 @@ export interface components {
          * @description Fixed envelope — only `payload` grows across `schema_version` bumps;
          *     every other field keeps its shape. Unknown event types or extra payload
          *     fields must be tolerated, never rejected.
+         *
+         *     Contract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,
+         *     but only for `library.*` events of Studio scope — a single Studio-wide
+         *     event with no project, visible to every authenticated principal.
+         *     All other event types always carry a non-null `project_id`.
          */
         EventEnvelope: {
             /**
@@ -4905,11 +4956,8 @@ export interface components {
              */
             event_id: string;
             event_type: components["schemas"]["EventType"];
-            /**
-             * Project Id
-             * Format: uuid
-             */
-            project_id: string;
+            /** Project Id */
+            project_id: string | null;
             /** Task Id */
             task_id?: string | null;
             /** Machine Id */
@@ -5164,6 +5212,8 @@ export interface components {
          *     `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
          *     `handoff_cursor_seq` that the next session inherits, and the emitted
          *     `coordination_event_id` when a `coordination` signal was requested.
+         *     `warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`
+         *     when a v1 evidence closes without a decision review) — never a gate.
          */
         HandoffResult: {
             /**
@@ -5188,6 +5238,8 @@ export interface components {
             handoff_cursor_seq?: number | null;
             /** Coordination Event Id */
             coordination_event_id?: string | null;
+            /** Warnings */
+            warnings?: string[];
         };
         /**
          * HarnessReport
@@ -19706,6 +19758,8 @@ export interface operations {
                 task?: string | null;
                 since?: string | null;
                 limit?: number;
+                /** @description With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID. */
+                include_global?: boolean;
             };
             header?: never;
             path?: never;
@@ -19849,9 +19903,11 @@ export interface operations {
     };
     stream_events_api_v1_events_stream_get: {
         parameters: {
-            query: {
-                /** @description Project to subscribe to (UUID). No global stream exists. */
-                project: string;
+            query?: {
+                /** @description Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`). */
+                project?: string | null;
+                /** @description With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID. */
+                include_global?: boolean;
                 /** @description Explicit resume cursor: last `seq` already seen. Ignored when `Last-Event-ID` is present. */
                 since_seq?: number | null;
             };
@@ -20667,6 +20723,99 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_download_api_v1_transfers__transfer_id__downloaded_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transfer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transfer"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description The transfer is deleted (`transfer_deleted`): a download acknowledgement never resurrects a deleted transfer. Re-read the transfer if another client may have removed it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "transfer_deleted"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

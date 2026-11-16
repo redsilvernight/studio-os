@@ -516,6 +516,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe(_TR + "/upload/complete", {"size_bytes": 1, "sha256": "0" * 64}),
     ),
     ("POST", "/api/v1/transfers/{transfer_id}/download-url"): (Probe(_TR + "/download-url"),),
+    ("POST", "/api/v1/transfers/{transfer_id}/downloaded"): (Probe(_TR + "/downloaded"),),
     ("GET", "/api/v1/projects/{project_id}/roadmaps"): (Probe("/api/v1/projects/{pid}/roadmaps"),),
     ("POST", "/api/v1/roadmaps"): (
         Probe("/api/v1/roadmaps", {"project_id": "{pid}", "title": "x"}),

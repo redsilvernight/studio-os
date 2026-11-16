@@ -125,6 +125,17 @@ conservée dans AIWork ; le verdict reste déclaratif, sans vérification du
 poste distant. Aucun défaut de branche, d'intégration, de CI ou de
 déploiement n'est ajouté. Les appels sans preuve et leurs empreintes
 d'idempotence restent compatibles ; une preuve fournie participe à l'empreinte.
+Revue des décisions (DEC-0363) : `decisions: {outcome: new|existing|none,
+decision_ids: <=20 UUID ou DEC-NNNN, reason?}` ; `studio.completion/v2` rend
+la revue obligatoire (`decision_review_missing` / `decision_reason_missing` /
+`decision_ids_missing`, bloquant pour `completed`), tandis qu'en v1 l'absence
+revient en avertissement non bloquant `decision_review_missing` (relayed dans
+l'ack minimal). Les ids référencés sont validés côté serveur (existence, même
+projet, visibilité, sinon `422 decision_reference_invalid`) ; une DEC
+`proposed` est acceptée comme référence sans jamais être auto-acceptée.
+`studio_update_roadmap_step` avec `state_override=done` ajoute
+`decision_review_warnings` listant les tâches liées sans revue (lecture seule,
+aucun second gate).
 
 ### studio_sync (C2, additif, DEC-0157)
 Resynchronisation en un appel : « quoi de neuf depuis mon dernier sync qui
@@ -175,7 +186,16 @@ studio_create_transfer_metadata
 studio_get_transfers
 studio_get_transfer
 studio_request_transfer_download
+studio_acknowledge_transfer_download
 studio_delete_transfer
+
+`studio_acknowledge_transfer_download(transfer_id)` enregistre la reception
+d'un transfert apres son telechargement via l'URL presignee — jamais les
+octets du fichier. Meme regle d'acces que la lecture, avec un role d'ecriture
+requis (`readonly` et etrangers repondent `forbidden`) ; inconnu repond
+`error`, supprime repond `transfer_deleted`. Idempotent : un rejeu renvoie le
+transfert inchange (`already_acknowledged=true`) avec le `downloaded_at`
+d'origine.
 
 `studio_delete_transfer(transfer_id)` est decouvert dans le profil `admin` uniquement.
 Confirmation explicite de l'utilisateur, identifiant le fichier, requise avant appel.

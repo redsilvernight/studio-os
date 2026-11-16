@@ -71,6 +71,7 @@ from studio_mcp.tools.tasks import (
 from studio_mcp.tools.teammates import studio_get_teammate_activity
 from studio_mcp.tools.timeline import studio_get_timeline
 from studio_mcp.tools.transfers import (
+    studio_acknowledge_transfer_download,
     studio_create_transfer_metadata,
     studio_delete_transfer,
     studio_get_transfer,
@@ -722,6 +723,19 @@ def create_server() -> MCPServer:
             "outsiders fail with forbidden. Download with HTTP Range to resume a partial fetch."
         ),
         annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_acknowledge_transfer_download,
+        name="studio_acknowledge_transfer_download",
+        description=(
+            "Record receipt of a transfer_id (UUID string) after its bytes "
+            "were downloaded through the presigned URL — never the file "
+            "bytes. Any reader of the transfer with a writer role may "
+            "acknowledge it; outsiders and writer-less roles fail with "
+            "forbidden. Safe to repeat: a replay returns the transfer "
+            "unchanged with its original downloaded_at."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_delete_transfer,
