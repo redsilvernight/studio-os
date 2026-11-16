@@ -614,7 +614,7 @@
      "projects"
     ],
     "summary": "List Projects",
-    "description": "List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise.",
+    "description": "List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise. Each entry carries its linked repository URLs (`repositories`).",
     "operationId": "list_projects_api_v1_projects_get",
     "security": [
      {
@@ -629,7 +629,7 @@
         "schema": {
          "type": "array",
          "items": {
-          "$ref": "#/components/schemas/Project"
+          "$ref": "#/components/schemas/ProjectRead"
          },
          "title": "Response List Projects Api V1 Projects Get"
         }
@@ -756,7 +756,7 @@
      "projects"
     ],
     "summary": "Get Project",
-    "description": "Get one project by id. A project the caller may not access \u2014 nonexistent included \u2014 answers `403 forbidden`.",
+    "description": "Get one project by id, with its linked repository URLs (`repositories`). A project the caller may not access \u2014 nonexistent included \u2014 answers `403 forbidden`.",
     "operationId": "get_project_api_v1_projects__project_id__get",
     "security": [
      {
@@ -781,7 +781,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/Project"
+         "$ref": "#/components/schemas/ProjectRead"
         }
        }
       }
@@ -1126,6 +1126,201 @@
        "type": "string",
        "format": "uuid",
        "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/repositories": {
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Link Project Repository",
+    "description": "Link a remote repository to a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The URL is normalized server-side (invalid URL: `422 invalid_repository_url`). A remote belongs to at most one project: linking one owned by another project fails with `409 repository_already_linked`. Re-linking the same URL to the same project is a no-op answering `200`. Unknown project: 404.",
+    "operationId": "link_project_repository_api_v1_projects__project_id__repositories_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProjectRepositoryCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectRepository"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Remote already linked to another project.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "repository_already_linked",
+          "message": "repository is already linked to another project",
+          "url": "https://github.com/org/repo"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Repository URL refused, nothing stored (`invalid_repository_url`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_repository_url",
+          "message": "invalid repository url: 'not-a-url'"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/repositories/{normalized_url}": {
+   "delete": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Unlink Project Repository",
+    "description": "Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. Idempotent `204`; unlinking a remote that is not linked answers 404. Unknown project: 404.",
+    "operationId": "unlink_project_repository_api_v1_projects__project_id__repositories__normalized_url__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "normalized_url",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Normalized Url"
       }
      }
     ],
@@ -25132,6 +25327,13 @@
       "type": "boolean",
       "title": "Archived",
       "default": false
+     },
+     "repositories": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Repositories"
      }
     },
     "additionalProperties": false,
@@ -25393,6 +25595,72 @@
     ],
     "title": "ProjectMission"
    },
+   "ProjectRead": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+     },
+     "repositories": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Repositories"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "slug",
+     "name"
+    ],
+    "title": "ProjectRead",
+    "description": "Read shape of a project: `Project` plus the normalized remote URLs\nlinked to it (`project_repositories`, Bloc A). Empty when none linked."
+   },
    "ProjectRef": {
     "properties": {
      "id": {
@@ -25432,6 +25700,60 @@
      "name"
     ],
     "title": "ProjectRef"
+   },
+   "ProjectRepository": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "created_by": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "url",
+     "created_at"
+    ],
+    "title": "ProjectRepository",
+    "description": "One normalized remote URL linked to a project. `url` is the canonical\nform (globally unique: one URL belongs to at most one project)."
+   },
+   "ProjectRepositoryCreate": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "url"
+    ],
+    "title": "ProjectRepositoryCreate",
+    "description": "Link a remote repository to a project: any URL form is accepted, the\nserver normalizes it via `studio_contracts.repositories.normalize_remote_url`\n(invalid URL: 422)."
    },
    "ProjectState": {
     "properties": {
