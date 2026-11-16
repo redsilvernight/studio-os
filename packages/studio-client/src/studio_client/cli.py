@@ -1645,16 +1645,23 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
         plan_hook_sync,
     )
 
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+
     async def action(client: StudioApiClient) -> Any:
-        return await fetch_hook_projections(client, None, limit=args.library_limit)
+        return await fetch_hook_projections(client, project_id, limit=args.library_limit)
 
     try:
         projections = _run(config, action)
+        if project_id is not None:
+            # Studio and user hooks are installed once in the home; the project
+            # checkout only carries its own project-scope hooks.
+            projections = tuple(p for p in projections if p.scope == "project")
         plan = plan_hook_sync(
-            Path(args.home),
+            Path(args.project_dir if project_id is not None else args.home),
             projections,
             consent=args.consent or (),
             disable=args.disable or (),
+            project=project_id is not None,
         )
         if args.hooks_command == "diff":
             print(diff_hook_plan(plan), end="")
@@ -2199,6 +2206,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "--home",
             default=str(Path.home()),
             help="User home receiving .claude, .config/opencode and .studio.",
+        )
+        hooks_command.add_argument(
+            "--project-id",
+            help="Project mode: install this project's own (scope project) hooks "
+            "into --project-dir/.claude instead of the home.",
+        )
+        hooks_command.add_argument(
+            "--project-dir",
+            default=".",
+            help="Project checkout receiving .claude in project mode.",
         )
         hooks_command.add_argument("--library-limit", type=int, default=100)
         hooks_command.add_argument(
