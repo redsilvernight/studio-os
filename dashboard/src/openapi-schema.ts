@@ -1930,13 +1930,13 @@ export interface paths {
         };
         /**
          * Get Events
-         * @description Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
+         * @description Read recent events, optionally filtered by project and task and `since` timestamp. Without a `project` filter, the listing is restricted to the caller's accessible projects — plus every project-less Studio `library.*` event (contract v2: a single Studio-wide event with `project_id` null, visible to every authenticated principal, never leaking another project's rows). With a `project` filter, only that project's events are returned by default — deployed readers parse `project_id` as a non-null UUID — and the project-less Studio events join in only with `include_global=true` (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
          */
         get: operations["get_events_api_v1_events_get"];
         put?: never;
         /**
          * Post Event
-         * @description Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported — use `user` or `system`.
+         * @description Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). A project is always required here (`project_id` null answers `422 project_required` — project-less `library.*` events are emitted by the server only, contract v2). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported — use `user` or `system`.
          */
         post: operations["post_event_api_v1_events_post"];
         delete?: never;
@@ -1954,7 +1954,7 @@ export interface paths {
         };
         /**
          * Stream Events
-         * @description Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required — there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
+         * @description Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) — there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
          */
         get: operations["stream_events_api_v1_events_stream_get"];
         put?: never;
@@ -4847,6 +4847,11 @@ export interface components {
          *     across retries — it IS the idempotency key for events: replaying the
          *     same event_id returns the original stored event rather than creating a
          *     duplicate.
+         *
+         *     Contract v2: `project_id` is nullable in the type so server-internal
+         *     issuers (`_emit_library_event` for Studio scope) can share this model,
+         *     but the public creation path (`POST /events`, `studio_emit_event`)
+         *     always requires a project — a `None` there answers `422`.
          */
         EventCreate: {
             /**
@@ -4855,11 +4860,8 @@ export interface components {
              */
             event_id: string;
             event_type: components["schemas"]["EventType"];
-            /**
-             * Project Id
-             * Format: uuid
-             */
-            project_id: string;
+            /** Project Id */
+            project_id: string | null;
             /** Task Id */
             task_id?: string | null;
             /** Machine Id */
@@ -4897,6 +4899,11 @@ export interface components {
          * @description Fixed envelope — only `payload` grows across `schema_version` bumps;
          *     every other field keeps its shape. Unknown event types or extra payload
          *     fields must be tolerated, never rejected.
+         *
+         *     Contract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,
+         *     but only for `library.*` events of Studio scope — a single Studio-wide
+         *     event with no project, visible to every authenticated principal.
+         *     All other event types always carry a non-null `project_id`.
          */
         EventEnvelope: {
             /**
@@ -4905,11 +4912,8 @@ export interface components {
              */
             event_id: string;
             event_type: components["schemas"]["EventType"];
-            /**
-             * Project Id
-             * Format: uuid
-             */
-            project_id: string;
+            /** Project Id */
+            project_id: string | null;
             /** Task Id */
             task_id?: string | null;
             /** Machine Id */
@@ -19706,6 +19710,8 @@ export interface operations {
                 task?: string | null;
                 since?: string | null;
                 limit?: number;
+                /** @description With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID. */
+                include_global?: boolean;
             };
             header?: never;
             path?: never;
@@ -19849,9 +19855,11 @@ export interface operations {
     };
     stream_events_api_v1_events_stream_get: {
         parameters: {
-            query: {
-                /** @description Project to subscribe to (UUID). No global stream exists. */
-                project: string;
+            query?: {
+                /** @description Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`). */
+                project?: string | null;
+                /** @description With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID. */
+                include_global?: boolean;
                 /** @description Explicit resume cursor: last `seq` already seen. Ignored when `Last-Event-ID` is present. */
                 since_seq?: number | null;
             };
