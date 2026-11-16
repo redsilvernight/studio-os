@@ -12,7 +12,8 @@ import pytest
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.errors import TransferError
-from studio_client.outbox import OutboxStore, connect
+from studio_client.outbox import OutboxReplayer, OutboxStore, OutboxTable, connect
+from studio_client.retry import RetryPolicy
 from studio_client.tokens import MemoryTokenStore
 from studio_client.transfers import TransferClient
 from studio_contracts.transfers import Transfer, TransferCategory, TransferStatus
@@ -548,8 +549,14 @@ async def test_download_full_file_no_range_header(tmp_path: Path) -> None:
     transfer = _transfer(size_bytes=5)
     dest = tmp_path / "out.bin"
     seen: dict[str, str] = {}
+    acked: list[str] = []
 
     def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/downloaded"):
+            acked.append(request.url.path)
+            data = transfer.model_dump(mode="json")
+            data["status"] = "downloaded"
+            return httpx.Response(200, json=data)
         return httpx.Response(
             200,
             json={
@@ -577,6 +584,7 @@ async def test_download_full_file_no_range_header(tmp_path: Path) -> None:
 
     assert seen["range"] == ""
     assert dest.read_bytes() == b"hello"
+    assert acked == [f"/api/v1/transfers/{transfer.id}/downloaded"]
 
 
 async def test_download_resumes_with_range_header(tmp_path: Path) -> None:
@@ -584,8 +592,14 @@ async def test_download_resumes_with_range_header(tmp_path: Path) -> None:
     dest = tmp_path / "out.bin"
     dest.write_bytes(b"he")
     seen: dict[str, str] = {}
+    acked: list[str] = []
 
     def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/downloaded"):
+            acked.append(request.url.path)
+            data = transfer.model_dump(mode="json")
+            data["status"] = "downloaded"
+            return httpx.Response(200, json=data)
         return httpx.Response(
             200,
             json={
@@ -613,6 +627,7 @@ async def test_download_resumes_with_range_header(tmp_path: Path) -> None:
 
     assert seen["range"] == "bytes=2-"
     assert dest.read_bytes() == b"hello"
+    assert acked == [f"/api/v1/transfers/{transfer.id}/downloaded"]
 
 
 async def test_download_already_complete_is_a_noop(tmp_path: Path) -> None:
@@ -830,8 +845,15 @@ async def test_download_fresh_verifies_sha256_after_success(tmp_path: Path) -> N
     content = b"hello"
     transfer = _transfer(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
     dest = tmp_path / "out.bin"
+    acked: list[str] = []
 
     def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/downloaded"):
+            acked.append(request.url.path)
+            data = transfer.model_dump(mode="json")
+            data["status"] = "downloaded"
+            data["downloaded_at"] = datetime.now(UTC).isoformat()
+            return httpx.Response(200, json=data)
         return httpx.Response(
             200,
             json={
@@ -857,6 +879,7 @@ async def test_download_fresh_verifies_sha256_after_success(tmp_path: Path) -> N
             await client.aclose()
 
     assert dest.read_bytes() == content
+    assert acked == [f"/api/v1/transfers/{transfer.id}/downloaded"]
 
 
 async def test_download_fresh_sha256_mismatch_raises_transfer_error(tmp_path: Path) -> None:
@@ -888,3 +911,136 @@ async def test_download_fresh_sha256_mismatch_raises_transfer_error(tmp_path: Pa
                 await client.download(transfer, dest)
         finally:
             await client.aclose()
+
+
+async def test_acknowledge_download_posts_to_downloaded_endpoint(tmp_path: Path) -> None:
+    """Nominal: the api_client method hits `POST .../downloaded` and parses
+    the stamped transfer (idempotent server-side, safe to retry)."""
+    transfer = _transfer()
+    seen: dict[str, str] = {}
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        data = transfer.model_dump(mode="json")
+        data["status"] = "downloaded"
+        data["downloaded_at"] = datetime.now(UTC).isoformat()
+        return httpx.Response(200, json=data)
+
+    async with _api_client(api_handler) as api:
+        result = await api.acknowledge_download(transfer.id)
+
+    assert seen == {"method": "POST", "path": f"/api/v1/transfers/{transfer.id}/downloaded"}
+    assert result.status == TransferStatus.DOWNLOADED
+    assert result.downloaded_at is not None
+
+
+async def test_download_acknowledges_after_verified_download(tmp_path: Path) -> None:
+    """Nominal end-to-end: a fresh verified download calls `.../downloaded`
+    once and queues nothing in the outbox."""
+    content = b"hello"
+    transfer = _transfer(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+    dest = tmp_path / "out.bin"
+    calls: list[str] = []
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path.endswith("/downloaded"):
+            data = transfer.model_dump(mode="json")
+            data["status"] = "downloaded"
+            data["downloaded_at"] = datetime.now(UTC).isoformat()
+            return httpx.Response(200, json=data)
+        return httpx.Response(
+            200,
+            json={
+                "transfer_id": str(transfer.id),
+                "download_url": "http://storage.test/get",
+                "expires_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=content)
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+    assert dest.read_bytes() == content
+    assert calls.count(f"/api/v1/transfers/{transfer.id}/downloaded") == 1
+    assert store.list_pending(OutboxTable.MUTATIONS, ready_only=False) == []
+
+
+async def test_download_offline_ack_queued_and_replayed_idempotently(tmp_path: Path) -> None:
+    """Offline: bytes land verified but the ack hits a dead network — the
+    download still succeeds and the ack is queued under a key stable per
+    transfer, so a second download reuses the same row and the later replay
+    sends it exactly once."""
+    content = b"hello"
+    transfer = _transfer(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+    dest = tmp_path / "out.bin"
+    online = {"up": False}
+    replayed: list[str] = []
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/downloaded"):
+            if not online["up"]:
+                raise httpx.ConnectError("offline", request=request)
+            replayed.append(request.url.path)
+            data = transfer.model_dump(mode="json")
+            data["status"] = "downloaded"
+            data["downloaded_at"] = datetime.now(UTC).isoformat()
+            return httpx.Response(200, json=data)
+        return httpx.Response(
+            200,
+            json={
+                "transfer_id": str(transfer.id),
+                "download_url": "http://storage.test/get",
+                "expires_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=content)
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            await client.download(transfer, dest)
+            # Same transfer downloaded again (fresh file): same stable key,
+            # still a single queued row.
+            dest.unlink()
+            await client.download(transfer, dest)
+
+            pending = store.list_pending(OutboxTable.MUTATIONS, ready_only=False)
+            assert len(pending) == 1
+            row = pending[0]
+            assert row.extra["kind"] == "transfer.downloaded"
+            assert row.extra["method"] == "POST"
+            assert row.extra["path"] == f"/api/v1/transfers/{transfer.id}/downloaded"
+            assert row.payload == {}
+
+            online["up"] = True
+            replayer = OutboxReplayer(store, api, RetryPolicy(max_attempts=1))
+            outcome = await replayer.replay_ready()
+        finally:
+            await client.aclose()
+
+    assert dest.read_bytes() == content
+    assert outcome.succeeded == 1
+    assert outcome.dead_lettered == 0
+    assert replayed == [f"/api/v1/transfers/{transfer.id}/downloaded"]
+    assert store.list_pending(OutboxTable.MUTATIONS, ready_only=False) == []

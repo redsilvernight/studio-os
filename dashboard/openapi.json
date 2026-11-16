@@ -12086,6 +12086,101 @@
     }
    }
   },
+  "/api/v1/transfers/{transfer_id}/downloaded": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Acknowledge Download",
+    "description": "Record receipt of a transfer after the client downloaded its bytes through the presigned URL (bytes never pass through this API). Any reader of the transfer with a writer role may acknowledge it \u2014 sender, recipient, broadcast readers, or a privileged role; a writer-less role gets 403. Unknown ids fail with 404. Idempotent: replaying an acknowledged transfer returns it unchanged with its original downloaded_at. A deleted transfer fails with 409 transfer_deleted instead of being resurrected.",
+    "operationId": "acknowledge_download_api_v1_transfers__transfer_id__downloaded_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Transfer"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The transfer is deleted (`transfer_deleted`): a download acknowledgement never resurrects a deleted transfer. Re-read the transfer if another client may have removed it.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "transfer_deleted"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/machines": {
    "get": {
     "tags": [
@@ -19604,8 +19699,7 @@
      "limit": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19615,12 +19709,10 @@
      },
      "consumed": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Consumed"
      },
      "held": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Held"
      },
      "unknown_entries": {
@@ -19700,8 +19792,7 @@
      "cost_limit": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19738,8 +19829,7 @@
      "reservation_cost": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19891,8 +19981,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -19934,8 +20023,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -20014,8 +20102,7 @@
      "reserved_cost": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21276,8 +21363,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21328,8 +21414,7 @@
      "value": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21809,8 +21894,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -21839,8 +21923,7 @@
      "value": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -32923,8 +33006,7 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -32976,7 +33058,6 @@
      },
      "known_sum": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Known Sum"
      },
      "entries": {
@@ -33020,8 +33101,7 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -33478,8 +33558,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Input"
@@ -33491,8 +33570,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Output"
@@ -33504,8 +33582,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Cache Read"
@@ -33517,8 +33594,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+        "type": "string"
        }
       ],
       "title": "Cache Write"
@@ -33539,22 +33615,18 @@
     "properties": {
      "input": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Input"
      },
      "output": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Output"
      },
      "cache_read": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Cache Read"
      },
      "cache_write": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Cache Write"
      }
     },
@@ -33831,7 +33903,6 @@
      },
      "monthly_price": {
       "type": "string",
-      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
       "title": "Monthly Price"
      },
      "currency": {
@@ -33919,8 +33990,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+        "type": "string"
        }
       ],
       "title": "Monthly Price"
@@ -34018,8 +34088,7 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+        "type": "string"
        },
        {
         "type": "null"
@@ -34075,8 +34144,7 @@
         "minimum": 0.0
        },
        {
-        "type": "string",
-        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+        "type": "string"
        }
       ],
       "title": "Monthly Price"

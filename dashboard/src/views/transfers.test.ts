@@ -204,6 +204,16 @@ describe("transferDrawerBodyHtml", () => {
     expect(draft).toContain("Téléchargement indisponible");
     expect(draft).not.toContain("data-transfer-download");
   });
+
+  it("affiche « Téléchargé le » avec downloaded_at, « — » sinon", () => {
+    const stamped = transfer({
+      status: "downloaded",
+      downloaded_at: new Date(NOW).toISOString(),
+    });
+    expect(transferDrawerBodyHtml(stamped, ctx)).toContain("Téléchargé le");
+    expect(transferDrawerBodyHtml(stamped, ctx)).not.toContain("<dt>Téléchargé le</dt><dd>—</dd>");
+    expect(transferDrawerBodyHtml(transfer(), ctx)).toContain("<dt>Téléchargé le</dt><dd>—</dd>");
+  });
 });
 
 describe("uploadModalBodyHtml", () => {
