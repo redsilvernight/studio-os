@@ -187,10 +187,22 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
     `</div></footer>`;
 }
 
+/**
+ * Identity of what the toast reports. `last_check` changes on every daemon
+ * check (each launch), so it must not be part of it: the same conflicts or
+ * pending updates are announced once, not at every start. A completed sync
+ * stays identified by its own `last_successful_sync`.
+ */
+export function notificationKey(status: SkillsSyncStatus): string {
+  const names = (list?: string[]): string => [...(list ?? [])].sort().join(",");
+  const sync = status.state === "updated" ? (status.last_successful_sync ?? "") : "";
+  return `${status.state}|${names(status.added)}|${names(status.updated)}|${names(status.conflicts)}|${sync}`;
+}
+
 function notifyIfChanged(status: SkillsSyncStatus): void {
   if (!document.getElementById(DIALOG_ID)?.hidden) return;
   if (status.state === "in_progress" || status.state === "up_to_date" || status.state === "disabled") return;
-  const key = `${status.state}|${status.last_check}`;
+  const key = notificationKey(status);
   try {
     if (localStorage.getItem(NOTIFIED_KEY) === key) return;
     localStorage.setItem(NOTIFIED_KEY, key);
