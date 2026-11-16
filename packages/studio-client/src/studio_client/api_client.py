@@ -530,6 +530,7 @@ class StudioApiClient:
         task_id: UUID | None = None,
         since: datetime | None = None,
         limit: int = 100,
+        include_global: bool = False,
     ) -> list[EventEnvelope]:
         params: dict[str, Any] = {"limit": limit}
         if project_id is not None:
@@ -538,6 +539,8 @@ class StudioApiClient:
             params["task"] = str(task_id)
         if since is not None:
             params["since"] = since.isoformat()
+        if include_global:
+            params["include_global"] = "true"
         response = await self._request("GET", "/api/v1/events", params=params)
         return [EventEnvelope.model_validate(item) for item in response.json()]
 
