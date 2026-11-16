@@ -175,7 +175,16 @@ studio_create_transfer_metadata
 studio_get_transfers
 studio_get_transfer
 studio_request_transfer_download
+studio_acknowledge_transfer_download
 studio_delete_transfer
+
+`studio_acknowledge_transfer_download(transfer_id)` enregistre la reception
+d'un transfert apres son telechargement via l'URL presignee — jamais les
+octets du fichier. Meme regle d'acces que la lecture, avec un role d'ecriture
+requis (`readonly` et etrangers repondent `forbidden`) ; inconnu repond
+`error`, supprime repond `transfer_deleted`. Idempotent : un rejeu renvoie le
+transfert inchange (`already_acknowledged=true`) avec le `downloaded_at`
+d'origine.
 
 `studio_delete_transfer(transfer_id)` est decouvert dans le profil `admin` uniquement.
 Confirmation explicite de l'utilisateur, identifiant le fichier, requise avant appel.

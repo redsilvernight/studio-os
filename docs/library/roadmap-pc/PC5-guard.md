@@ -18,7 +18,7 @@ Les catégories structurelles de faux positifs relevées par PC0 sont écartées
 
 Le reste des exceptions est listé et justifié :
 
-- `scripts/deadcode_whitelist.py` : 255 noms, par catégorie. Éléments PC0 « à vérifier » encore présents (56, une note par élément, DEC-0354 cité pour `mark_downloaded` / `downloaded_at`), contrat public PC0 (16, une note par élément), utilisés hors périmètre par `scripts/` (2), colonnes et attributs ORM (6), champs Pydantic et réglages (115), membres d'Enum (58), protocoles stdlib et annotations en chaîne (2).
+- `scripts/deadcode_whitelist.py` : 255 noms, par catégorie. Éléments PC0 « à vérifier » encore présents (56, une note par élément), contrat public PC0 (16, une note par élément), utilisés hors périmètre par `scripts/` (2), colonnes et attributs ORM (6), champs Pydantic et réglages (115), membres d'Enum (58), protocoles stdlib et annotations en chaîne (2).
 - `dashboard/knip.jsonc` et `desktop/knip.jsonc` : entrées manuelles ou appelées par la CI, dépendance appelée par chemin, binaires système ; chaque ligne porte son commentaire.
 - Exports « à vérifier » de PC0 dans le dashboard (21) : balise JSDoc `@public PC0 à vérifier : <raison>` sur la déclaration. `git grep -n "@public PC0"` les liste.
 

@@ -151,6 +151,35 @@ async def studio_request_transfer_download(transfer_id: str, ctx: Context) -> di
     return await run_tool(ctx, _handler)
 
 
+async def studio_acknowledge_transfer_download(
+    transfer_id: str, ctx: Context
+) -> dict[str, Any]:
+    """Record receipt of a transfer after its bytes were downloaded through
+    the presigned download URL — never the file bytes through this tool. Any
+    reader of the transfer with a writer role may acknowledge it (sender,
+    recipient, broadcast readers, or a privileged role); outsiders fail with
+    forbidden and a writer-less role too. Safe to repeat: a replay returns the
+    transfer unchanged with its original downloaded_at."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(transfer_id, "transfer_id")
+        if isinstance(parsed, dict):
+            return parsed
+        transfer = await transfers_service.get_transfer(session, principal, parsed)
+        transfer, already_acknowledged = await transfers_service.acknowledge_download(
+            session, principal, transfer
+        )
+        return {
+            **_compact_transfer(transfer),
+            "downloaded_at": transfer.downloaded_at.isoformat()
+            if transfer.downloaded_at
+            else None,
+            "already_acknowledged": already_acknowledged,
+        }
+
+    return await run_tool(ctx, _handler)
+
+
 async def studio_delete_transfer(transfer_id: str, ctx: Context) -> dict[str, Any]:
     """Delete stored bytes after explicit user confirmation. Sender or admin only;
     keep metadata, preserve deletion time on replay, return storage errors explicitly."""

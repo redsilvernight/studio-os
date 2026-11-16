@@ -1652,6 +1652,16 @@ cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun 
 - POST /transfers/{id}/download-url — `403 forbidden` (DEC-0036) si
   l'appelant n'a aucun des 4 acces de la regle Transfer sur ce transfert
   precis (voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
+- POST /transfers/{id}/downloaded — accuse de reception emis par le client
+  apres un telechargement reussi via l'URL presignee (les octets ne transitent
+  jamais par l'API) ; c'est cet appel qui renseigne `downloaded_at` et fait
+  passer le statut a `downloaded`. Reserve a un lecteur autorise du transfert
+  en role d'ecriture (expediteur, destinataire, diffusion, admin — `readonly`
+  refuse par `403 forbidden`) ; inconnu -> `404`, supprime ->
+  `409 {"detail": {"error_code": "transfer_deleted"}}` (un accuse ne ressuscite
+  jamais un transfert supprime). Idempotent : un rejeu renvoie le transfert
+  inchange avec le `downloaded_at` d'origine. Aucune precondition d'etat
+  (hormis `deleted`) : l'accuse est recevable des `created`.
 - DELETE /transfers/{id}
   - Suppression explicite par l'expediteur ou un administrateur disposant de l'acces
     projet en ecriture ; destinataire seul et role `readonly` refusés (`403 forbidden`).
