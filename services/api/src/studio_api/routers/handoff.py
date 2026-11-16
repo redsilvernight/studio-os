@@ -27,6 +27,10 @@ router = APIRouter(prefix="/api/v1/handoff", tags=["handoff"])
         "(if `agent_id` + `summary` provided), and ends the session. "
         "The calling machine must own the session. `agent_id` must belong "
         "to the caller's machine. Compact response: ids + statuses only. "
+        "A v1 completion evidence without a decision review closes with a "
+        "non-blocking `decision_review_missing` warning; v2 requires the "
+        "review (`409 completion_incomplete` otherwise). Referenced decision "
+        "ids must exist in the project (`422 decision_reference_invalid`). "
         "Accepts `Idempotency-Key`: the same key returns the original "
         "result instead of running the composite again."
     ),

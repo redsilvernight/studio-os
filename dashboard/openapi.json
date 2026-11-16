@@ -3695,7 +3695,7 @@
      "handoff"
     ],
     "summary": "Handoff",
-    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
+    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. A v1 completion evidence without a decision review closes with a non-blocking `decision_review_missing` warning; v2 requires the review (`409 completion_incomplete` otherwise). Referenced decision ids must exist in the project (`422 decision_reference_invalid`). Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
     "operationId": "handoff_api_v1_handoff_post",
     "security": [
      {
@@ -20577,7 +20577,10 @@
     "properties": {
      "format": {
       "type": "string",
-      "const": "studio.completion/v1",
+      "enum": [
+       "studio.completion/v1",
+       "studio.completion/v2"
+      ],
       "title": "Format",
       "default": "studio.completion/v1"
      },
@@ -20667,6 +20670,16 @@
       "type": "boolean",
       "title": "Deployed",
       "default": false
+     },
+     "decisions": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DecisionReview"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -21508,6 +21521,48 @@
    "DecisionItem": {
     "additionalProperties": true,
     "type": "object"
+   },
+   "DecisionReview": {
+    "properties": {
+     "outcome": {
+      "type": "string",
+      "enum": [
+       "new",
+       "existing",
+       "none"
+      ],
+      "title": "Outcome"
+     },
+     "decision_ids": {
+      "items": {
+       "type": "string",
+       "maxLength": 100,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Decision Ids"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "outcome"
+    ],
+    "title": "DecisionReview",
+    "description": "Structured review of the project decisions at handoff (DEC-0363,\nadditive): which decisions this work produced (`new`), reused\n(`existing`), or why none was needed (`none`). `decision_ids` names\ninternal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves\neach one and rejects unknown, foreign or invisible ids with\n`422 decision_reference_invalid`. A `proposed` decision is a valid\nreference and is never auto-accepted by the handoff. `reason` is\nrequired (non-empty) when `outcome` is `none` \u2014 enforced for v2 by\n`check_completion` (`decision_reason_missing`)."
    },
    "DecisionStatus": {
     "type": "string",
@@ -22724,6 +22779,14 @@
        }
       ],
       "title": "Coordination Event Id"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 30,
+      "title": "Warnings"
      }
     },
     "additionalProperties": false,
@@ -22736,7 +22799,7 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested.\n`warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`\nwhen a v1 evidence closes without a decision review) \u2014 never a gate."
    },
    "HarnessReport": {
     "properties": {
