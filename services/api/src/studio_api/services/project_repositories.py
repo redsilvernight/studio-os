@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import importlib
-import re
 import uuid
-from collections.abc import Callable
-from urllib.parse import urlsplit
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -12,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 from studio_contracts.projects import ProjectRead
+from studio_contracts.repositories import normalize_remote_url
 
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_repository import ProjectRepositoryModel
@@ -20,48 +17,6 @@ from studio_api.services.authz import (
     ensure_project_access,
     forbidden,
 )
-
-_SSH_RE = re.compile(r"^git@([^:/\s]+):(.+?)(?:\.git)?/?$")
-
-
-def _fallback_normalize_remote_url(url: str) -> str:
-    """Temporary fallback for `studio_contracts.repositories.normalize_remote_url`
-    (parallel workstream not merged yet): canonical `https://host/owner/repo`
-    form, `ValueError` when invalid. Replaced by the shared implementation as
-    soon as it lands — same import path, same contract."""
-    raw = (url or "").strip()
-    if not raw or any(ch.isspace() for ch in raw):
-        raise ValueError(f"invalid repository url: {url!r}")
-    match = _SSH_RE.match(raw)
-    if match is not None:
-        host, path = match.group(1).lower(), match.group(2)
-    else:
-        parts = urlsplit(raw)
-        if parts.scheme not in ("http", "https") or not parts.hostname:
-            raise ValueError(f"invalid repository url: {url!r}")
-        host, path = parts.hostname.lower(), parts.path
-    path = path.removesuffix(".git").strip("/")
-    if "/" not in path or not all(path.split("/")):
-        raise ValueError(f"invalid repository url: {url!r}")
-    return f"https://{host}/{path}"
-
-
-def _load_normalizer() -> Callable[[str], str]:
-    """The shared `studio_contracts.repositories.normalize_remote_url`
-    (never reimplemented here); the local fallback applies only until the
-    parallel workstream lands."""
-    try:
-        module = importlib.import_module("studio_contracts.repositories")
-    except ImportError:
-        return _fallback_normalize_remote_url
-    normalize = module.normalize_remote_url
-    if not callable(normalize):
-        return _fallback_normalize_remote_url
-    loaded: Callable[[str], str] = normalize
-    return loaded
-
-
-normalize_remote_url = _load_normalizer()
 
 
 def authorize_repositories_write(principal: Principal, project_id: uuid.UUID) -> None:

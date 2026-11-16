@@ -59,17 +59,17 @@ async def test_link_lists_and_unlinks(
         project,
         "https://github.com/Org/Repo.git",
     )
-    assert normalized == "https://github.com/Org/Repo"
+    assert normalized == "github.com/org/repo"
 
     fetched = await client.get(f"/api/v1/projects/{project.id}", headers=auth_headers)
     assert fetched.status_code == 200
     read = ProjectRead.model_validate(fetched.json())
-    assert read.repositories == ["https://github.com/Org/Repo"]
+    assert read.repositories == ["github.com/org/repo"]
 
     listed = await client.get("/api/v1/projects", headers=auth_headers)
     assert listed.status_code == 200
     by_id = {item["id"]: item for item in listed.json()}
-    assert by_id[str(project.id)]["repositories"] == ["https://github.com/Org/Repo"]
+    assert by_id[str(project.id)]["repositories"] == ["github.com/org/repo"]
 
     # Re-linking the same remote (any spelling) is a no-op, not a duplicate.
     for spelling in ("https://github.com/Org/Repo", "https://github.com/Org/Repo/"):
@@ -81,10 +81,10 @@ async def test_link_lists_and_unlinks(
         assert replay.status_code == 200, replay.text
     assert (await client.get(f"/api/v1/projects/{project.id}", headers=auth_headers)).json()[
         "repositories"
-    ] == ["https://github.com/Org/Repo"]
+    ] == ["github.com/org/repo"]
 
     removed = await client.delete(
-        f"/api/v1/projects/{project.id}/repositories/https://github.com/Org/Repo",
+        f"/api/v1/projects/{project.id}/repositories/github.com/org/repo",
         headers=auth_headers,
     )
     assert removed.status_code == 204
@@ -93,7 +93,7 @@ async def test_link_lists_and_unlinks(
     ] == []
 
     again = await client.delete(
-        f"/api/v1/projects/{project.id}/repositories/https://github.com/Org/Repo",
+        f"/api/v1/projects/{project.id}/repositories/github.com/org/repo",
         headers=auth_headers,
     )
     assert again.status_code == 404
