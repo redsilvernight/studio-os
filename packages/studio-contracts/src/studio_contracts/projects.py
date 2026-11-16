@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from pydantic import Field
+
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
 
@@ -12,6 +14,30 @@ class Project(VersionedModel):
     name: str
     description: str | None = None
     archived: bool = False
+    repositories: list[str] = Field(default_factory=list)
+
+
+class ProjectRead(Project):
+    """Read shape of a project: `Project` plus the normalized remote URLs
+    linked to it (`project_repositories`, Bloc A). Empty when none linked."""
+
+
+class ProjectRepositoryCreate(ContractModel):
+    """Link a remote repository to a project: any URL form is accepted, the
+    server normalizes it via `studio_contracts.repositories.normalize_remote_url`
+    (invalid URL: 422)."""
+
+    url: str
+
+
+class ProjectRepository(ContractModel):
+    """One normalized remote URL linked to a project. `url` is the canonical
+    form (globally unique: one URL belongs to at most one project)."""
+
+    project_id: UUID
+    url: str
+    created_at: datetime
+    created_by: UUID | None = None
 
 
 class ProjectCreate(IdempotentCreate):

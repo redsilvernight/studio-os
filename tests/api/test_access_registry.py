@@ -403,6 +403,15 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("PATCH", "/api/v1/projects/{project_id}/github-integration"): (
         Probe("/api/v1/projects/{pid}/github-integration", {"enabled": False}),
     ),
+    ("POST", "/api/v1/projects/{project_id}/repositories"): (
+        Probe(
+            "/api/v1/projects/{pid}/repositories",
+            {"url": "https://github.com/outsider/repo"},
+        ),
+    ),
+    ("DELETE", "/api/v1/projects/{project_id}/repositories/{normalized_url:path}"): (
+        Probe("/api/v1/projects/{pid}/repositories/https://github.com/outsider/repo"),
+    ),
     ("GET", "/api/v1/builds"): (
         Probe("/api/v1/builds?project_id={pid}"),
         Probe("/api/v1/builds", expect="filtered"),

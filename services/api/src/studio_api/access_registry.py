@@ -174,6 +174,8 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("GET", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("PATCH", "/api/v1/projects/{project_id}/github-integration"): _P,
+    ("POST", "/api/v1/projects/{project_id}/repositories"): _P,
+    ("DELETE", "/api/v1/projects/{project_id}/repositories/{normalized_url:path}"): _P,
     ("GET", "/api/v1/builds"): _P,
     ("GET", "/api/v1/builds/{build_id}"): _P,
     ("POST", "/api/v1/producer-jobs"): _P,

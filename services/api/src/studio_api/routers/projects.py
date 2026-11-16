@@ -4,11 +4,18 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from studio_contracts.auth import Role
 from studio_contracts.claims import ResourceClaim
 from studio_contracts.project_state import ProjectState
-from studio_contracts.projects import Project, ProjectCreate, ProjectMember
+from studio_contracts.projects import (
+    Project,
+    ProjectCreate,
+    ProjectMember,
+    ProjectRead,
+    ProjectRepository,
+    ProjectRepositoryCreate,
+)
 from studio_contracts.tasks import Task
 
 from studio_api.db.models.project_membership import ProjectMembershipModel
@@ -22,6 +29,7 @@ from studio_api.openapi_meta import (
     RESP_409_IDEMPOTENCY,
 )
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services import project_repositories as project_repositories_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
 
@@ -30,16 +38,17 @@ router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
 @router.get(
     "",
-    response_model=list[Project],
+    response_model=list[ProjectRead],
     description=(
         "List the projects the caller may access: every project for an "
-        "admin, the projects the caller's User is a member of otherwise."
+        "admin, the projects the caller's User is a member of otherwise. "
+        "Each entry carries its linked repository URLs (`repositories`)."
     ),
     responses={**RESP_401_UNAUTHORIZED},
 )
-async def list_projects(session: DbSession, principal: CurrentPrincipal) -> list[Project]:
+async def list_projects(session: DbSession, principal: CurrentPrincipal) -> list[ProjectRead]:
     projects = await projects_service.list_projects(session, principal)
-    return [Project.model_validate(p) for p in projects]
+    return await project_repositories_service.projects_read(session, projects)
 
 
 @router.post(
@@ -88,16 +97,19 @@ async def create_project(
 
 @router.get(
     "/{project_id}",
-    response_model=Project,
+    response_model=ProjectRead,
     description=(
-        "Get one project by id. A project the caller may not access — "
+        "Get one project by id, with its linked repository URLs "
+        "(`repositories`). A project the caller may not access — "
         "nonexistent included — answers `403 forbidden`."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
-async def get_project(project_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Project:
+async def get_project(
+    project_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> ProjectRead:
     project = await projects_service.get_project(session, principal, project_id)
-    return Project.model_validate(project)
+    return await project_repositories_service.project_read(session, project)
 
 
 @router.get(
@@ -200,4 +212,98 @@ async def revoke_project_member(
     projects_service.ensure_members_admin(principal, "write")
     provisioning_service.ensure_not_self(principal.user, user_id, "revoke_access")
     await projects_service.revoke_member(session, project_id, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{project_id}/repositories",
+    response_model=ProjectRepository,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Link a remote repository to a project. Role `admin` or `developer` "
+        "with project access; any other role gets `403 forbidden`. The URL "
+        "is normalized server-side (invalid URL: `422 "
+        "invalid_repository_url`). A remote belongs to at most one project: "
+        "linking one owned by another project fails with `409 "
+        "repository_already_linked`. Re-linking the same URL to the same "
+        "project is a no-op answering `200`. Unknown project: 404."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        status.HTTP_409_CONFLICT: {
+            "description": "Remote already linked to another project.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "error_code": "repository_already_linked",
+                            "message": "repository is already linked to another project",
+                            "url": "https://github.com/org/repo",
+                        }
+                    }
+                }
+            },
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": "Repository URL refused, nothing stored (`invalid_repository_url`).",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "error_code": "invalid_repository_url",
+                            "message": "invalid repository url: 'not-a-url'",
+                        }
+                    }
+                }
+            },
+        },
+    },
+)
+async def link_project_repository(
+    project_id: UUID,
+    link_in: ProjectRepositoryCreate,
+    response: Response,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> ProjectRepository:
+    row, created = await project_repositories_service.link_repository(
+        session, principal, project_id, link_in.url
+    )
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return ProjectRepository(
+        project_id=row.project_id,
+        url=row.normalized_url,
+        created_at=row.created_at,
+        created_by=row.created_by,
+    )
+
+
+@router.delete(
+    "/{project_id}/repositories/{normalized_url:path}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    description=(
+        "Unlink a remote repository from a project. Role `admin` or "
+        "`developer` with project access; any other role gets `403 "
+        "forbidden`. Idempotent `204`; unlinking a remote that is not "
+        "linked answers 404. Unknown project: 404."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def unlink_project_repository(
+    project_id: UUID, normalized_url: str, session: DbSession, principal: CurrentPrincipal
+) -> Response:
+    removed = await project_repositories_service.unlink_repository(
+        session, principal, project_id, normalized_url
+    )
+    if not removed:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={
+                "error_code": "not_found",
+                "message": f"repository {normalized_url} is not linked to project {project_id}",
+            },
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
