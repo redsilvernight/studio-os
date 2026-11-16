@@ -117,6 +117,24 @@ export function downloadUrl(client: StudioClient, transferId: string): Promise<{
   );
 }
 
+/**
+ * Totale réception d'un transfert (`POST .../downloaded`) : le serveur
+ * renseigne `downloaded_at` (inchangé en cas de rejeu). Idempotent côté
+ * serveur. Le dashboard ne l'appelle pas après `window.open` — le
+ * navigateur télécharge sans vérification d'empreinte, il n'y a donc pas
+ * de « téléchargement vérifié » à accuser ici ; seul le client Python
+ * (`TransferClient`), qui contrôle les octets et le hash, accuse
+ * réception. Exposé pour les surfaces qui vérifieraient un jour les
+ * octets elles-mêmes.
+ */
+export function acknowledgeDownload(client: StudioClient, transferId: string): Promise<Transfer> {
+  return unwrap(
+    client.POST("/api/v1/transfers/{transfer_id}/downloaded", {
+      params: { path: { transfer_id: transferId } },
+    }),
+  );
+}
+
 export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
