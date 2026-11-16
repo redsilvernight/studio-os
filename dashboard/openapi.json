@@ -10926,7 +10926,7 @@
      "events"
     ],
     "summary": "Post Event",
-    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
+    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). A project is always required here (`project_id` null answers `422 project_required` \u2014 project-less `library.*` events are emitted by the server only, contract v2). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
     "operationId": "post_event_api_v1_events_post",
     "security": [
      {
@@ -11008,7 +11008,7 @@
      "events"
     ],
     "summary": "Get Events",
-    "description": "Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
+    "description": "Read recent events, optionally filtered by project and task and `since` timestamp. Without a `project` filter, the listing is restricted to the caller's accessible projects \u2014 plus every project-less Studio `library.*` event (contract v2: a single Studio-wide event with `project_id` null, visible to every authenticated principal, never leaking another project's rows). With a `project` filter, only that project's events are returned by default \u2014 deployed readers parse `project_id` as a non-null UUID \u2014 and the project-less Studio events join in only with `include_global=true` (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
     "operationId": "get_events_api_v1_events_get",
     "security": [
      {
@@ -11077,6 +11077,18 @@
        "default": 100,
        "title": "Limit"
       }
+     },
+     {
+      "name": "include_global",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID.",
+       "default": false,
+       "title": "Include Global"
+      },
+      "description": "With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID."
      }
     ],
     "responses": {
@@ -11137,7 +11149,7 @@
      "events"
     ],
     "summary": "Stream Events",
-    "description": "Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required \u2014 there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
+    "description": "Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) \u2014 there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
     "operationId": "stream_events_api_v1_events_stream_get",
     "security": [
      {
@@ -11148,14 +11160,33 @@
      {
       "name": "project",
       "in": "query",
-      "required": true,
+      "required": false,
       "schema": {
-       "type": "string",
-       "format": "uuid",
-       "description": "Project to subscribe to (UUID). No global stream exists.",
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`).",
        "title": "Project"
       },
-      "description": "Project to subscribe to (UUID). No global stream exists."
+      "description": "Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`)."
+     },
+     {
+      "name": "include_global",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID.",
+       "default": false,
+       "title": "Include Global"
+      },
+      "description": "With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID."
      },
      {
       "name": "since_seq",
@@ -21990,8 +22021,15 @@
       "$ref": "#/components/schemas/EventType"
      },
      "project_id": {
-      "type": "string",
-      "format": "uuid",
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Project Id"
      },
      "task_id": {
@@ -22060,7 +22098,7 @@
      "client_timestamp"
     ],
     "title": "EventCreate",
-    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate."
+    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate.\n\nContract v2: `project_id` is nullable in the type so server-internal\nissuers (`_emit_library_event` for Studio scope) can share this model,\nbut the public creation path (`POST /events`, `studio_emit_event`)\nalways requires a project \u2014 a `None` there answers `422`."
    },
    "EventEnvelope": {
     "properties": {
@@ -22073,8 +22111,15 @@
       "$ref": "#/components/schemas/EventType"
      },
      "project_id": {
-      "type": "string",
-      "format": "uuid",
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Project Id"
      },
      "task_id": {
@@ -22149,7 +22194,7 @@
      "server_timestamp"
     ],
     "title": "EventEnvelope",
-    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected."
+    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected.\n\nContract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,\nbut only for `library.*` events of Studio scope \u2014 a single Studio-wide\nevent with no project, visible to every authenticated principal.\nAll other event types always carry a non-null `project_id`."
    },
    "EventType": {
     "type": "string",
