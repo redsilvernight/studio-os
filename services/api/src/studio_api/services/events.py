@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 from studio_contracts.coordination import COORDINATION_EVENT_PREFIX
@@ -21,6 +21,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_project_access,
+    has_any_project,
     has_project_access,
     load_project_scope,
     owns_agent,
@@ -45,14 +46,25 @@ async def resolve_event_identity(
     replay never reveals whether it exists.
 
     Only for the public creation path (`POST /events`, `studio_emit_event`).
-    Server-internal code that calls `create_event` directly (e.g. the
-    `resource.conflict` event in `routers/claims.py`) is exempt — it is
-    trusted code, not client input. `actor_type="system"` IS a legitimate
-    client submission here too (git/godot watchers, DEC-0032, replayed
-    through the outbox like any other event) — restricted to
-    `actor_id == machine.id`, the machine self-attributing its own
-    automated event.
+    It always requires a project: a `None` `project_id` (contract v2,
+    Studio-scope `library.*`) is server-internal only and answers `422`
+    here. Server-internal code that calls `create_event` directly (e.g. the
+    `resource.conflict` event in `routers/claims.py`, `_emit_library_event`
+    for Studio scope) is exempt — it is trusted code, not client input.
+    `actor_type="system"` IS a legitimate client submission here too (git/godot
+    watchers, DEC-0032, replayed through the outbox like any other event) —
+    restricted to `actor_id == machine.id`, the machine self-attributing its
+    own automated event.
     """
+    if event_in.project_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error_code": "project_required",
+                "message": "POST /events always requires a project_id; "
+                "project-less library.* events are emitted by the server only",
+            },
+        )
     ensure_project_access(principal, event_in.project_id, "write")
     ensure_can_write(principal, "event")
     if event_in.event_type.value.startswith(COORDINATION_EVENT_PREFIX):
@@ -188,20 +200,32 @@ def _as_uuid(value: UUID | str) -> UUID:
 async def list_events_after(
     session: AsyncSession,
     principal: Principal,
-    project_id: UUID | str,
+    project_id: UUID | str | None,
     after_seq: int | None,
     limit: int = 500,
 ) -> list[EventModel]:
     """Realtime catch-up (DEC-0018): `seq` is a strictly monotonic identity
     column, unlike `server_timestamp` which can collide under concurrent
-    writes — safe to use as a no-loss/no-duplicate resume cursor."""
-    ensure_project_access(principal, _as_uuid(project_id))
+    writes — safe to use as a no-loss/no-duplicate resume cursor.
+
+    With a `project_id`, the backlog carries that project's events *plus*
+    every project-less Studio `library.*` event (contract v2: one global
+    event instead of a per-project fan-out, so a per-project watcher still
+    sees Studio activations). Without one, only the project-less events —
+    readable by any authenticated principal."""
     stmt = (
-        select(EventModel)
-        .where(EventModel.project_id == project_id)
-        .order_by(EventModel.seq.asc())
-        .limit(limit)
+        select(EventModel).order_by(EventModel.seq.asc()).limit(limit)
     )
+    if project_id is not None:
+        ensure_project_access(principal, _as_uuid(project_id))
+        stmt = stmt.where(
+            or_(
+                EventModel.project_id == project_id,
+                EventModel.project_id.is_(None),
+            )
+        )
+    else:
+        stmt = stmt.where(EventModel.project_id.is_(None))
     if after_seq is not None:
         stmt = stmt.where(EventModel.seq > after_seq)
     result = await session.execute(stmt)
@@ -227,9 +251,24 @@ async def list_events(
     )
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
-        stmt = stmt.where(EventModel.project_id == project_id)
+        stmt = stmt.where(
+            or_(
+                EventModel.project_id == project_id,
+                EventModel.project_id.is_(None),
+            )
+        )
     elif (visible := project_visibility_clause(principal, EventModel.project_id)) is not None:
-        stmt = stmt.where(visible)
+        # `project_visibility_clause` already keeps project-less rows for a
+        # principal with at least one membership; contract v2 goes one step
+        # further — a project-less row is always a Studio-scope `library.*`
+        # event (enforced by `ck_events_project_scope`), shared data with no
+        # inter-project leak, so an authenticated principal with no
+        # membership at all still reads those, just never another
+        # project's rows.
+        if not has_any_project(principal):
+            stmt = stmt.where(EventModel.project_id.is_(None))
+        else:
+            stmt = stmt.where(visible)
     if task_id is not None:
         # A task of an inaccessible project answers the project 403, not an
         # empty listing (DEC-0103 §8); an unknown task filters to nothing.
@@ -245,10 +284,33 @@ async def list_events(
     return list(result.scalars().all())
 
 
-def authorize_stream(principal: Principal, project_id: UUID) -> None:
+def authorize_stream(principal: Principal, project_id: UUID | None) -> None:
     """Opening check of `GET /events/stream`, run before the response starts
-    so an inaccessible project is a plain 403 (DEC-0103 §9)."""
+    so an inaccessible project is a plain 403 (DEC-0103 §9). A project-less
+    (global, Studio `library.*` only) stream needs no project check — any
+    authenticated principal may open it."""
+    if project_id is None:
+        return
     ensure_project_access(principal, project_id)
+
+
+async def stream_global_access_still_valid(
+    machine_id: UUID, jwt_auth_version: int | None = None
+) -> bool:
+    """Periodic revalidation of a project-less (global) stream: same
+    credential/state checks as `stream_access_still_valid`, but no project
+    membership — Studio `library.*` events stay visible to every
+    authenticated principal for as long as its credential is valid."""
+    async with get_session_factory()() as session:
+        machine = await session.get(MachineModel, machine_id)
+        if machine is None or machine.credential_revoked_at is not None:
+            return False
+        user = await session.get(UserModel, machine.owner_user_id)
+        if user is None or not user.is_active:
+            return False
+        if jwt_auth_version is not None and user.auth_version != jwt_auth_version:
+            return False
+    return True
 
 
 async def stream_access_still_valid(

@@ -269,6 +269,14 @@ Voir `TECH/03_EVENT_CONTRACT.md` — l'enveloppe y est deja completement figée
 d'idempotence pour `POST /events` (DEC-0006) — distinct du header
 `Idempotency-Key` utilise par les autres endpoints de creation.
 
+Contrat v2 (`EVENT_SCHEMA_VERSION = 2`, migration Alembic `0043`,
+reversible) : `events.project_id` est nullable et `project_id` l'est dans
+`EventEnvelope`/`EventCreate`, mais uniquement pour les events `library.*`
+de scope Studio — un evenement Studio unique, sans projet, visible par tout
+principal authentifie (garanti par le CHECK `ck_events_project_scope` :
+sans projet ⇒ type `library.*`). Le chemin public (`POST /events`)
+exige toujours un projet (`422 project_required` si null).
+
 ## Transfer
 Champs minimum: id, transfer_code, sender_user_id, recipient_user_id, project_id, task_id, category, filename, object_key, content_type, size_bytes, sha256, content_md5, status, expires_at, created_at, uploaded_at, downloaded_at, deleted_at.
 
@@ -541,8 +549,10 @@ par le P5 (voir la section P4 ci-dessous).
 resolution, ne bloque aucune ecriture.
 
 Traçabilite : mutations projet-scope et Studio emettent `library.*` (types
-additifs, `TECH/03_EVENT_CONTRACT.md` ; Studio : un evenement par projet non
-archive) ; le scope User sans projet reste audite par les lignes de version
+additifs, `TECH/03_EVENT_CONTRACT.md` ; contrat v2 : Studio = un evenement
+unique sans projet, `project_id` null, visible par tout principal
+authentifie — migration Alembic `0043` + CHECK `ck_events_project_scope`) ;
+le scope User sans projet reste audite par les lignes de version
 (`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
 
 ## AI Library — P3 semantic content (DEC-0066, validation applicative, sans DDL)

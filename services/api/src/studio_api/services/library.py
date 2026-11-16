@@ -614,12 +614,11 @@ async def _emit_library_event(
     ref: str,
     extra: dict[str, object] | None = None,
     occurrence: int | None = None,
-    only_project: UUID | None = None,
 ) -> None:
-    """Server-internal traceability: `events` require a non-null `project_id`.
-    A project resource emits to its project; a Studio resource, shared by every
-    project, emits one event per active project (or only to `only_project` for
-    a lock, which belongs to one project); User resources stay private and emit
+    """Server-internal traceability (contract v2): a project resource emits
+    to its project (`project_id` set); a Studio resource, shared by every
+    project, emits ONE project-less event (`project_id=None`, visible to
+    every authenticated principal); User resources stay private and emit
     nothing, auditable through the immutable version rows.
 
     `ref` makes the deterministic `event_id` unique per action: a
@@ -631,50 +630,34 @@ async def _emit_library_event(
     identity = f"{resource.id}:{event_type.value}:{ref}"
     if occurrence is not None:
         identity = f"{identity}:{occurrence}"
-    project_ids: Sequence[UUID]
     if resource.project_id is not None:
-        project_ids = [resource.project_id]
+        project_id: UUID | None = resource.project_id
     elif resource.scope == LibraryScope.STUDIO.value:
-        project_ids = (
-            [only_project]
-            if only_project is not None
-            else list(
-                (
-                    await session.execute(
-                        select(ProjectModel.id).where(ProjectModel.archived.is_(False))
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        )
+        project_id = None
     else:
         return
-    for project_id in project_ids:
-        await events_service.create_event(
-            session,
-            EventCreate(
-                event_id=uuid.uuid5(
-                    _LIBRARY_EVENT_NAMESPACE,
-                    identity if resource.project_id else f"{identity}:{project_id}",
-                ),
-                event_type=event_type,
-                project_id=project_id,
-                task_id=None,
-                machine_id=principal.machine.id,
-                actor_type="user",
-                actor_id=principal.user.id,
-                client_timestamp=datetime.now(UTC),
-                payload={
-                    "resource_id": str(resource.id),
-                    "kind": resource.kind,
-                    "stable_key": resource.stable_key,
-                    "scope": resource.scope,
-                    "ref": ref,
-                    **(extra or {}),
-                },
-            ),
-        )
+    await events_service.create_event(
+        session,
+        EventCreate(
+            event_id=uuid.uuid5(_LIBRARY_EVENT_NAMESPACE, identity),
+            event_type=event_type,
+            project_id=project_id,
+            task_id=None,
+            machine_id=principal.machine.id,
+            actor_type="user",
+            actor_id=principal.user.id,
+            client_timestamp=datetime.now(UTC),
+            payload={
+                "resource_id": str(resource.id),
+                "kind": resource.kind,
+                "stable_key": resource.stable_key,
+                "scope": resource.scope,
+                "ref": ref,
+                **(extra or {}),
+            },
+            schema_version=2 if project_id is None else 1,
+        ),
+    )
 
 
 def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
@@ -1171,7 +1154,6 @@ async def set_lock(
             "project_id": str(data.project_id),
             "locked_version": data.locked_version,
         },
-        only_project=data.project_id,
     )
     return lock
 
@@ -1212,7 +1194,6 @@ async def release_lock(
                 "project_id": str(lock_project_id),
                 "locked_version": locked_version,
             },
-            only_project=lock_project_id,
         )
     return released
 

@@ -1,11 +1,11 @@
-# Event Contract v1
+# Event Contract v2
 
 ## Envelope
 ```json
 {
   "event_id": "uuid",
   "event_type": "task.started",
-  "project_id": "uuid",
+  "project_id": "uuid-or-null",
   "task_id": "uuid-or-null",
   "machine_id": "uuid-or-null",
   "actor_type": "user|agent|system",
@@ -21,11 +21,23 @@ Acces en lecture (DEC-0103, NEUTRE pour ce contrat : enveloppe et
 `schema_version` inchanges) : la livraison d'un event — `GET /events`
 (polling) comme `GET /events/stream` (SSE) — suit l'acces au projet de
 l'event (`project_id`) : membership du User appelant ou role `admin`.
-Emettre un event (`POST /events`) exige aussi l'acces au projet, controle
-avant la deduplication `event_id`. Le retrait d'une membership produit un
-signal strictement interne au serveur (fermeture des flux SSE concernes) ;
-ce n'est **pas** un type d'event et il n'est jamais persiste dans le
-journal. Regles : `TECH/02_API_CONTRACT.md` section Realtime et
+**Contrat v2 (`EVENT_SCHEMA_VERSION = 2`, migration Alembic `0043`,
+reversible) : `project_id` peut etre null, mais alors uniquement pour un
+event `library.*` de scope Studio (garanti par le CHECK
+`ck_events_project_scope` : sans projet ⇒ type `library.*`) — un evenement
+Studio unique, sans projet, visible par tout principal authentifie, meme
+sans membership, sans jamais exposer les lignes d'un autre projet. Avec un
+filtre `project`, le projet demande *plus* les events sans projet sont
+retournes (un watcher par projet voit les activations Studio) ; sans
+filtre, les projets accessibles plus les events sans projet ; le flux SSE
+sans `project` ne porte que les events sans projet. Emettre un event
+(`POST /events`) exige toujours l'acces au projet, controle avant la
+deduplication `event_id` — le chemin public refuse un `project_id` null
+(`422 project_required`), seuls les emetteurs serveur internes posent des
+events sans projet. Le retrait d'une membership produit un signal
+strictement interne au serveur (fermeture des flux SSE concernes) ; ce
+n'est **pas** un type d'event et il n'est jamais persiste dans le journal.
+Regles : `TECH/02_API_CONTRACT.md` section Realtime et
 `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation.
 
 ## Types
@@ -87,16 +99,21 @@ par le Producer a chaque job. `payload.source` (`github_webhook` /
 ## Compatibilite
 Ajouter des champs est permis si les anciens clients peuvent les ignorer. Un changement incompatible exige une nouvelle version de schema.
 
-## Note P1 (DEC-0064)
-Les types `library.*` sont emis cote serveur avec un `project_id` non null
-(les tables `events`/`ai_work_logs` l'exigent) : une ressource de scope projet
-emet vers son projet ; une ressource Studio, partagee par tous les projets,
-emet un evenement par projet non archive (les evenements de verrou vers le seul
-projet verrouille ; `event_id` derive aussi du `project_id`) ; le scope User reste
-prive et n'emet rien, audite par les lignes de version (`created_by_user_id`,
-`created_at`) et l'AIWorkLog explicite de l'agent. `library.version.activated` et
-`library.resource.deprecated` derivent leur `event_id` du compteur `version` de la
-ressource : activer v2, v1 puis v2 emet trois evenements distincts.
+## Note P1 (DEC-0064) — contrat v2 : un evenement Studio unique, sans projet
+Les types `library.*` sont emis cote serveur. Depuis le contrat v2
+(`EVENT_SCHEMA_VERSION = 2`, migration Alembic `0043` reversible :
+`events.project_id` nullable + CHECK `ck_events_project_scope`), une
+ressource de scope projet emet vers son projet (`project_id` renseigne) ;
+une ressource Studio, partagee par tous les projets, emet **un evenement
+unique sans projet** (`project_id` null, `schema_version: 2`, `event_id`
+derive de `(resource, type, ref, occurrence)` sans suffixe projet) — plus
+de fan-out d'un evenement par projet non archive. Les verrous portent le
+projet verrouille dans le `payload` (`project_id`, pas dans l'enveloppe).
+Le scope User reste prive et n'emet rien, audite par les lignes de version
+(`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent.
+`library.version.activated` et `library.resource.deprecated` derivent leur
+`event_id` du compteur `version` de la ressource : activer v2, v1 puis v2
+emet trois evenements distincts.
 
 ## Note Roadmaps P1 (DEC-0084/DEC-0085) — emis par P2/P3 (DEC-0086)
 Les types `roadmap.*` sont additifs et emis cote serveur depuis P2/P3

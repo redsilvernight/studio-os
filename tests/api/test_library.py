@@ -256,12 +256,15 @@ async def test_reactivating_a_version_emits_a_new_event(
     assert activated_versions == [1, 2, 2]
 
 
-async def test_studio_scope_activation_emits_to_every_active_project(
+async def test_studio_scope_activation_emits_a_single_projectless_event(
     client: AsyncClient,
     admin_auth_headers: dict[str, str],
     project: ProjectModel,
     db_session: AsyncSession,
 ) -> None:
+    """Contract v2: a Studio activation emits ONE project-less event
+    (`project_id` null, visible to every authenticated principal) — the
+    per-project fan-out is gone."""
     other = await projects_service.create_project(
         db_session, f"proj-{uuid.uuid4().hex[:8]}", "Second Project", None, creator=None
     )
@@ -269,7 +272,7 @@ async def test_studio_scope_activation_emits_to_every_active_project(
         await client.post(
             "/api/v1/library",
             headers=admin_auth_headers,
-            json=_rule_payload("studio", key=f"fanout-{uuid.uuid4().hex[:8]}"),
+            json=_rule_payload("studio", key=f"studio-{uuid.uuid4().hex[:8]}"),
         )
     ).json()
     activated = await client.post(
@@ -285,11 +288,131 @@ async def test_studio_scope_activation_emits_to_every_active_project(
                 "/api/v1/events", headers=admin_auth_headers, params={"project": str(target.id)}
             )
         ).json()
-        assert [
-            e["payload"]["resource_id"]
+        studio_activations = [
+            e
             for e in events
-            if e["event_type"] == "library.version.activated" and e["payload"]["scope"] == "studio"
-        ] == [created["id"]]
+            if e["event_type"] == "library.version.activated"
+            and e["payload"]["resource_id"] == created["id"]
+        ]
+        assert len(studio_activations) == 1
+        assert studio_activations[0]["project_id"] is None
+        assert studio_activations[0]["payload"]["scope"] == "studio"
+
+    unfiltered = (await client.get("/api/v1/events", headers=admin_auth_headers)).json()
+    assert (
+        sum(
+            1
+            for e in unfiltered
+            if e["event_type"] == "library.version.activated"
+            and e["payload"].get("resource_id") == created["id"]
+        )
+        == 1
+    )
+
+
+async def test_studio_reactivation_v2_v1_v2_emits_three_projectless_events(
+    client: AsyncClient, admin_auth_headers: dict[str, str]
+) -> None:
+    """Same replay-stable identity as project scope (occurrence counter):
+    v2, v1, v2 is three distinct project-less events."""
+    created = (
+        await client.post(
+            "/api/v1/library",
+            headers=admin_auth_headers,
+            json=_rule_payload("studio", key=f"studio-{uuid.uuid4().hex[:8]}"),
+        )
+    ).json()
+    resource_url = f"/api/v1/library/{created['id']}"
+    await client.post(
+        f"{resource_url}/versions",
+        headers=admin_auth_headers,
+        json={
+            "title": "v2",
+            "content": {"content_schema": "studio.library.rule/v1", "text": "v2"},
+        },
+    )
+    resource_version = (await client.get(resource_url, headers=admin_auth_headers)).json()[
+        "version"
+    ]
+    for version in (2, 1, 2):
+        activated = await client.post(
+            resource_url + "/activate",
+            headers=admin_auth_headers,
+            json={"version": version, "expected_resource_version": resource_version},
+        )
+        assert activated.status_code == 200
+        resource_version = activated.json()["version"]
+
+    events = (await client.get("/api/v1/events", headers=admin_auth_headers)).json()
+    activated_versions = sorted(
+        e["payload"]["version"]
+        for e in events
+        if e["event_type"] == "library.version.activated"
+        and e["payload"].get("resource_id") == created["id"]
+    )
+    assert activated_versions == [1, 2, 2]
+    assert all(
+        e["project_id"] is None
+        for e in events
+        if e["event_type"] == "library.version.activated"
+        and e["payload"].get("resource_id") == created["id"]
+    )
+
+
+@pytest.mark.isolation
+async def test_projectless_studio_events_visible_without_project_access(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_auth_headers: dict[str, str],
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    other_machine: tuple[MachineModel, str],
+) -> None:
+    """A principal with no access to a project still reads the Studio-wide
+    events — but never that project's rows (403 on the project filter,
+    no project row in the unfiltered listing), whether it holds other
+    memberships or none at all."""
+    await _grant(db_session, project, machine)
+    await _other_project(db_session, other_machine)
+    lonely_user = await provisioning_service.create_user(
+        db_session, "Lonely User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    _, lonely_token = await provisioning_service.create_machine(
+        db_session, lonely_user.id, "lonely-machine"
+    )
+    lonely_headers = {"Authorization": f"Bearer {lonely_token}"}
+    outsider_headers = _headers(other_machine)
+
+    created = (
+        await client.post(
+            "/api/v1/library",
+            headers=admin_auth_headers,
+            json=_rule_payload("studio", key=f"studio-{uuid.uuid4().hex[:8]}"),
+        )
+    ).json()
+    activated = await client.post(
+        f"/api/v1/library/{created['id']}/activate",
+        headers=admin_auth_headers,
+        json={"version": 1, "expected_resource_version": created["version"]},
+    )
+    assert activated.status_code == 200
+
+    forbidden = await client.get(
+        "/api/v1/events", headers=outsider_headers, params={"project": str(project.id)}
+    )
+    assert forbidden.status_code == 403
+
+    for headers in (outsider_headers, lonely_headers):
+        visible = (await client.get("/api/v1/events", headers=headers)).json()
+        assert any(
+            e["event_type"] == "library.version.activated"
+            and e["payload"].get("resource_id") == created["id"]
+            and e["project_id"] is None
+            for e in visible
+        )
+        assert all(e["project_id"] != str(project.id) for e in visible)
+    lonely_visible = (await client.get("/api/v1/events", headers=lonely_headers)).json()
+    assert all(e["project_id"] is None for e in lonely_visible)
 
 
 async def test_user_scope_mutation_emits_no_event(

@@ -33,7 +33,7 @@ def _compact_event(event: EventModel) -> dict[str, Any]:
     return {
         "event_id": str(event.id),
         "event_type": event.event_type,
-        "project_id": str(event.project_id),
+        "project_id": str(event.project_id) if event.project_id is not None else None,
         "task_id": str(event.task_id) if event.task_id else None,
         "actor_type": event.actor_type,
         "actor_id": str(event.actor_id),

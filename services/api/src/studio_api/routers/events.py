@@ -49,6 +49,9 @@ def _format_sse(event: event_stream.StreamEvent) -> bytes:
         "`event_id` is a caller-generated UUID and the replay key: "
         "resending the same `event_id` returns the stored event, never a "
         "duplicate (this endpoint does not use `Idempotency-Key`). "
+        "A project is always required here (`project_id` null answers "
+        "`422 project_required` — project-less `library.*` events are "
+        "emitted by the server only, contract v2). "
         "Identity is validated against the authenticated machine: omit "
         "`machine_id` (it is derived automatically) or send the machine's "
         "own id; `actor_type=user` requires the machine owner's user id "
@@ -72,13 +75,19 @@ async def post_event(
     "",
     response_model=list[EventEnvelope],
     description=(
-        "Read recent events, optionally filtered by project, task and "
-        "`since` timestamp, restricted to the caller's accessible "
-        "projects (a `project`, or a `task_id` of a project, the caller "
-        "cannot access answers `403 forbidden`). This is "
-        "the polling and catch-up channel: after a disconnect, poll with "
-        "`since` to retrieve missed history, then optionally resume live "
-        "delivery on `GET /events/stream`."
+        "Read recent events, optionally filtered by project and task and "
+        "`since` timestamp. Without a `project` filter, the listing is "
+        "restricted to the caller's accessible projects — plus every "
+        "project-less Studio `library.*` event (contract v2: a single "
+        "Studio-wide event with `project_id` null, visible to every "
+        "authenticated principal, never leaking another project's rows). "
+        "With a `project` filter, that project's events *and* the "
+        "project-less Studio events are returned (a `project`, or a "
+        "`task_id` of a project, the caller cannot access answers "
+        "`403 forbidden`). This is the polling and catch-up channel: "
+        "after a disconnect, poll with `since` to retrieve missed "
+        "history, then optionally resume live delivery on "
+        "`GET /events/stream`."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
@@ -104,19 +113,23 @@ async def get_events(
 @router.get(
     "/stream",
     description=(
-        "Live event push for one project as Server-Sent Events "
-        "(`text/event-stream`; each SSE `id:` is the event's `seq`, a "
-        "strictly increasing integer). `project` is required — there is "
-        "no global cross-project stream. Resuming after a cutover loses "
-        "nothing: pass the last seen `seq` as `since_seq`, or rely on the "
-        "standard SSE `Last-Event-ID` auto-reconnect header "
-        "(`Last-Event-ID` wins when both are present). With no cursor, "
-        "only events created from connection time are delivered — use "
-        "`GET /events?since=` first to backfill history, then open the "
-        "stream for live updates. Same authentication as the rest of the API. "
-        "An inaccessible `project` answers `403 forbidden` before the stream "
-        "opens; an idle stream receives an SSE comment keep-alive, and the "
-        "stream closes once the caller loses access to the project."
+        "Live event push as Server-Sent Events (`text/event-stream`; each "
+        "SSE `id:` is the event's `seq`, a strictly increasing integer). "
+        "`project` is optional: without it, the stream carries only the "
+        "project-less Studio `library.*` events (contract v2, visible to "
+        "every authenticated principal); with it, that project's events "
+        "*plus* the project-less Studio events — there is still no global "
+        "cross-project stream, a subscriber never sees another project's "
+        "rows. Resuming after a cutover loses nothing: pass the last seen "
+        "`seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` "
+        "auto-reconnect header (`Last-Event-ID` wins when both are "
+        "present). With no cursor, only events created from connection "
+        "time are delivered — use `GET /events?since=` first to backfill "
+        "history, then open the stream for live updates. Same "
+        "authentication as the rest of the API. An inaccessible `project` "
+        "answers `403 forbidden` before the stream opens; an idle stream "
+        "receives an SSE comment keep-alive, and the stream closes once "
+        "the caller loses access to the project."
     ),
     responses={
         200: {
@@ -143,8 +156,11 @@ async def stream_events(
     request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
-    project: UUID = Query(
-        ..., description="Project to subscribe to (UUID). No global stream exists."
+    project: UUID | None = Query(
+        default=None,
+        description="Project to subscribe to (UUID). Without it, the stream "
+        "carries only the project-less Studio `library.*` events; with it, "
+        "that project's events plus the project-less Studio events.",
     ),
     since_seq: int | None = Query(
         default=None,
@@ -197,20 +213,38 @@ async def stream_events(
                 if event is None:
                     return
                 if isinstance(event, event_stream.AccessRevoked):
-                    if event.user_id == user_id and event.project_id == project:
+                    # A project-less stream carries no project's rows: a lost
+                    # membership never closes it. A project stream also
+                    # carries the project-less Studio events, so it still
+                    # closes when its own project is lost.
+                    if (
+                        project is not None
+                        and event.user_id == user_id
+                        and event.project_id == project
+                    ):
                         return
                     continue
                 if isinstance(event, event_stream.UserRevalidation):
                     if event.user_id != user_id:
                         continue
-                    if not await events_service.stream_access_still_valid(
+                    if project is None:
+                        if not await events_service.stream_global_access_still_valid(
+                            machine_id, jwt_auth_version
+                        ):
+                            return
+                    elif not await events_service.stream_access_still_valid(
                         machine_id, project, jwt_auth_version
                     ):
                         return
                     checked_at = time.monotonic()
                     continue
                 if time.monotonic() - checked_at >= REVALIDATE_SECONDS:
-                    if not await events_service.stream_access_still_valid(
+                    if project is None:
+                        if not await events_service.stream_global_access_still_valid(
+                            machine_id, jwt_auth_version
+                        ):
+                            return
+                    elif not await events_service.stream_access_still_valid(
                         machine_id, project, jwt_auth_version
                     ):
                         return
@@ -218,7 +252,10 @@ async def stream_events(
                 if not isinstance(event, event_stream.StreamEvent):  # KEEPALIVE
                     yield b": keep-alive\n\n"
                     continue
-                if event.project_id != project:
+                if project is None:
+                    if event.project_id is not None:
+                        continue
+                elif event.project_id is not None and event.project_id != project:
                     continue
                 if last_seq is not None and event.seq <= last_seq:
                     continue
