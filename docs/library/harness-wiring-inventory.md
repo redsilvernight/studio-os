@@ -133,3 +133,13 @@ identifié dans ces 4 fichiers).
   (étape ultérieure), avec contrôle `SECRET_MATERIAL` ?
 - **A8 — Codex** : la garde `hooks.json` devient-elle une définition Library non projetée (rapport
   `codex:not_supported`, reste local en pratique) ou attend-on un projecteur Codex (code, hors étapes 1-2) ?
+
+## 5. Arbitrages tranchés (2026-11-16, DEC-0365 proposée)
+
+- **A1** : protect-files `blocking`, ruff-on-edit `advisory` ; la garde Codex reste locale.
+- **A2** : `.opencode/opencode.json` n'existe pas, le point est clos.
+- **A3** : `library_equivalence.py` a été retiré par P45 (`c1a8b353`) ; il n'y a plus d'exclusion à lever.
+- **A4** : aucune extension de contrat.
+- **A5, A6, A8** : MCP, context7, modèles épinglés et garde `.codex/hooks.json` restent locaux.
+- **A7** : les scripts ont été déplacés tels quels dans `library/project/hooks/` et publiés en scope `project`.
+- Projection : `studio-client hooks-library sync --project-id <id>` écrit `.claude/studio-hooks/` et `.claude/settings.json`, et `check` contrôle la dérive. OpenCode n'est pas couvert en mode projet.
