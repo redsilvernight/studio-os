@@ -211,6 +211,9 @@ def handoff_ack(result: dict[str, Any]) -> dict[str, Any]:
     block: dict[str, Any] = result.get("sync") or {}
     items: list[dict[str, Any]] = block.get("items") or []
     warnings: list[str] = []
+    for forwarded in result.get("warnings") or []:
+        if isinstance(forwarded, str) and forwarded not in warnings:
+            warnings.append(forwarded)
     signals = sum(1 for item in items if item.get("coordination") is not None)
     if signals:
         warnings.append(f"coordination_signals_pending:{signals}")

@@ -12,6 +12,7 @@ import type { components } from "./openapi-schema";
 
 export type RuntimeRegistration = components["schemas"]["RuntimeRegistration"];
 export type RuntimeRegistrationCreate = components["schemas"]["RuntimeRegistrationCreate"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type RuntimeRegistrationUpdate = components["schemas"]["RuntimeRegistrationUpdate"];
 export type RuntimeRegistrationUpdateRequest = components["schemas"]["RuntimeRegistrationUpdateRequest"];
 export type RuntimeStatus = components["schemas"]["RuntimeStatus"];

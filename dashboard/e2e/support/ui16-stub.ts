@@ -173,6 +173,12 @@ export function apiStub(captured: Captured, options: StubOptions = {}) {
       captured.claimReleases.push(path);
       return route.fulfill({ status: 204 });
     }
+    if (url.includes("/api/v1/events/stream")) {
+      // Flux direct laissé ouvert et silencieux : une réponse JSON le referme
+      // aussitôt et le client reconnecte en boucle (~1 s), chaque reconnexion
+      // re-rendant la vue et invalidant l'état local (pagination, focus…).
+      return new Promise<void>(() => {});
+    }
     if (url.endsWith("/api/v1/resolutions")) return json(200, { agent: null, rules: [], skills: [], requirements: {}, composed_agents: [], workflows: [], model_profile: null, runtime: null });
     if (method === "GET" && /\/api\/v1\/machines\/?$/.test(url)) return json(404, { detail: "not found" });
     if (/\/api\/v1\/projects\/[^/]+\/state$/.test(url)) return json(200, { project_id: P1, active_tasks: [], active_claims: [], generated_at: "2026-09-12T10:00:00Z" });

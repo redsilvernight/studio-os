@@ -20,10 +20,7 @@ studio_get_task
 studio_get_active_tasks
 studio_create_task
 studio_update_task
-studio_claim_task
-studio_release_task
 studio_get_resource_claims
-studio_claim_resource
 studio_claim_resources
 studio_release_resource
 studio_get_decisions
@@ -33,8 +30,6 @@ studio_supersede_decision
 studio_get_recent_changes
 studio_get_sessions
 studio_get_teammate_activity
-studio_start_session
-studio_end_session
 studio_start_work
 studio_sync
 studio_coordinate
@@ -92,6 +87,9 @@ Version API 4 : les claims d'un autre agent sont preserves ; les claims sans
 agent suivent le detenteur de la tache. Une tache reprise par un autre agent
 du poste refuse l'ancien handoff (`already_claimed`). `agent_id` fourni doit
 correspondre a la session (`session_agent_mismatch` sinon).
+`task_status=abandoned` (additif) clot la tache sans livraison : `summary`
+obligatoire (`abandon_reason_required`), aucune preuve exigee, refus depuis
+`completed` (`invalid_transition`). Meme statut via `studio_update_task`.
 Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 revision API contractuelle 5 (P0 livraison, 2026-11-04),
 `idempotency_key` optionnel. Autorisation avant le court-circuit
@@ -127,6 +125,17 @@ conservée dans AIWork ; le verdict reste déclaratif, sans vérification du
 poste distant. Aucun défaut de branche, d'intégration, de CI ou de
 déploiement n'est ajouté. Les appels sans preuve et leurs empreintes
 d'idempotence restent compatibles ; une preuve fournie participe à l'empreinte.
+Revue des décisions (DEC-0363) : `decisions: {outcome: new|existing|none,
+decision_ids: <=20 UUID ou DEC-NNNN, reason?}` ; `studio.completion/v2` rend
+la revue obligatoire (`decision_review_missing` / `decision_reason_missing` /
+`decision_ids_missing`, bloquant pour `completed`), tandis qu'en v1 l'absence
+revient en avertissement non bloquant `decision_review_missing` (relayed dans
+l'ack minimal). Les ids référencés sont validés côté serveur (existence, même
+projet, visibilité, sinon `422 decision_reference_invalid`) ; une DEC
+`proposed` est acceptée comme référence sans jamais être auto-acceptée.
+`studio_update_roadmap_step` avec `state_override=done` ajoute
+`decision_review_warnings` listant les tâches liées sans revue (lecture seule,
+aucun second gate).
 
 ### studio_sync (C2, additif, DEC-0157)
 Resynchronisation en un appel : « quoi de neuf depuis mon dernier sync qui
@@ -177,7 +186,16 @@ studio_create_transfer_metadata
 studio_get_transfers
 studio_get_transfer
 studio_request_transfer_download
+studio_acknowledge_transfer_download
 studio_delete_transfer
+
+`studio_acknowledge_transfer_download(transfer_id)` enregistre la reception
+d'un transfert apres son telechargement via l'URL presignee — jamais les
+octets du fichier. Meme regle d'acces que la lecture, avec un role d'ecriture
+requis (`readonly` et etrangers repondent `forbidden`) ; inconnu repond
+`error`, supprime repond `transfer_deleted`. Idempotent : un rejeu renvoie le
+transfert inchange (`already_acknowledged=true`) avec le `downloaded_at`
+d'origine.
 
 `studio_delete_transfer(transfer_id)` est decouvert dans le profil `admin` uniquement.
 Confirmation explicite de l'utilisateur, identifiant le fichier, requise avant appel.
@@ -200,15 +218,9 @@ argument hors contrat repond `{error_code: "invalid_argument",
 unknown_arguments: [...], valid_arguments: [...]}` sans executer l'outil.
 Un appel valide garde son comportement inchange.
 
-Les outils de workflow `studio_update_task`, `studio_claim_task`,
-`studio_release_task` et `studio_start_session` conservent leur reponse
-detaillee historique par defaut (`verbose=true`). Avec `verbose=false`, les
-trois outils Task renvoient uniquement `id`, `status`, `version` et
-`claimed_by_machine_id`; `studio_start_session` renvoie `id`, `task_id`,
-`agent_id` et `status`. Pour les outils rejouables, le mode historique garde
-l'empreinte d'idempotence anterieure ; le mode compact ajoute explicitement
-`verbose=false`, donc une meme cle utilisee avec les deux formes est rejetee
-comme payload different.
+L'outil de workflow `studio_update_task` conserve sa reponse detaillee
+historique par defaut (`verbose=true`). Avec `verbose=false`, il renvoie
+uniquement `id`, `status`, `version` et `claimed_by_machine_id`.
 
 `studio_start_work` et `studio_handoff` sont compacts par defaut
 (`verbose=false`) : `studio_handoff` renvoie un accuse minimal, `studio_start_work`
@@ -264,8 +276,8 @@ token (pas d'attaquant reseau).
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047 superseded par DEC-0191, P8/DEC-0072)
 
 Le serveur VPS enregistre la surface complete des outils listes dans
-`MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 54 entrees au
-2026-10-04) : outils historiques, AI Library P8, `studio_prepare_context`
+`MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 58 entrees au
+2026-11-14, apres le retrait DEC-0186) : outils historiques, AI Library P8, `studio_prepare_context`
 (DEC-0080), Roadmaps P4/P5 (DEC-0087), `studio_register_agent` (DEC-0101),
 `studio_transition_roadmap`, `studio_claim_resources`, `studio_handoff` (L3),
 `studio_sync` (C2) et `studio_coordinate` (C3). Le profil `session` (defaut)
@@ -274,7 +286,9 @@ l'ensemble (section « Profils d'outils MCP » ci-dessous, DEC-0183).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047 superseded par DEC-0191) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
-`studio_memory_read`, `studio_graph_query`.
+`studio_memory_read`, `studio_graph_query`. S'y ajoute
+`studio_resolve_workspace` (resolution workspace locale, DEC-0364 —
+voir section dediee ci-dessous).
 `studio_generate_context_package` n'est **pas** un outil MCP : il est
 reclassé en capacité locale du Bloc B par DEC-0057 (voir section
 « Context Package (8.3b, DEC-0057) » ci-dessous).
@@ -395,8 +409,8 @@ pour l'appelant (appel one-shot).
 
 **idempotency_key (DEC-0027)** : un sous-ensemble d'outils createurs de
 ressource accepte desormais un parametre optionnel `idempotency_key` (str) —
-`studio_create_task`, `studio_add_decision`, `studio_claim_resource`,
-`studio_claim_resources`, `studio_start_session`. Reutilise le meme coeur atomique
+`studio_create_task`, `studio_add_decision`, `studio_claim_resources`.
+Reutilise le meme coeur atomique
 (`services/api/src/studio_api/services/idempotency.py::run_idempotent_dict`)
 que `Idempotency-Key` HTTP, sous un espace `endpoint` distinct
 (`"MCP <nom_outil>"`, jamais `"METHOD /path"`) — une meme valeur de cle
@@ -407,7 +421,7 @@ meme cle avec les memes arguments renvoie la ressource d'origine ; la meme
 cle avec des arguments differents echoue `idempotency_key_payload_mismatch`.
 
 **Claims par lot — `studio_claim_resources` (tache W3, additif/DEC-0048)** :
-variante « par lot » de `studio_claim_resource`, meme service
+pose de claims par lot, meme service
 (`claims.create_claim`, DEC-0005) et meme semantique warn-only (un claim ne
 bloque jamais Git ni une ecriture ; un chevauchement emet `resource.conflict`).
 Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
@@ -416,15 +430,13 @@ Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
 claims crees qui chevauche un claim actif. Idempotent sous
 `MCP studio_claim_resources` (DEC-0027) : une fois le premier appel abouti, un
 rejeu identique renvoie le lot d'origine au lieu de dupliquer. Les claims
-etant valides un par un (comme pour `studio_claim_resource`), un echec en
+etant valides un par un, un echec en
 milieu de lot peut laisser les claims deja valides en place ; la cle est
 alors liberee et un nouvel appel identique repart du lot complet. La
 liberation ciblee par `task_id` reste du ressort de la tache W1
 (`studio_handoff`), pas de cet outil.
 
-**Outils exemptes, et pourquoi** : `studio_claim_task` (deja protege par
-`already_claimed`, jamais une seconde ressource), `studio_release_task` /
-`studio_release_resource` / `studio_end_session` (liberation deja
+**Outils exemptes, et pourquoi** : `studio_release_resource` (liberation deja
 naturellement idempotente — un second appel est un no-op ou une erreur
 `not_found`, jamais une duplication), `studio_update_task` (concurrence
 optimiste via `expected_version`, deja protegee), `studio_log_ai_work`
@@ -507,12 +519,15 @@ mute jamais taches ni claims. `idempotency_key` optionnel (namespace
 integration GitHub et la reception du webhook restent HTTP-only (pas de
 secret partageable comme parametre d'outil).
 
-## Outils depreciés (DEC-0186)
+## Outils retires (DEC-0186)
 
-Cinq outils redondants restent appelables, sans changement de comportement,
-jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
+Historique : cinq outils redondants, depreciés le 2026-10-04 (description
+`DEPRECATED` et objet `deprecation` dans les reponses, fenetre jusqu'au
+`2026-11-04`), ont ete **retires le 2026-11-14** (changement cassant, skill
+`contract-change`). Ils ne sont plus enregistres, pour aucun profil.
+Remplacants :
 
-| Outil deprecie | Remplacant |
+| Outil retire | Remplacant |
 |---|---|
 | `studio_start_session` | `studio_start_work` |
 | `studio_end_session` | `studio_handoff` |
@@ -520,13 +535,11 @@ jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
 | `studio_release_task` | `studio_handoff` |
 | `studio_claim_resource` | `studio_claim_resources` (un seul chemin) |
 
-Signalement : la description de `tools/list` commence par `DEPRECATED, removal
-on or after 2026-11-04: use <remplacant> instead.` ; chaque reponse reussie
-porte un objet `deprecation` `{replaced_by, sunset}` ; les erreurs restent
-inchangees (`services/mcp/src/studio_mcp/deprecation.py`). Ces outils sont
-deja absents du profil `session` (DEC-0183). Le retrait, apres la date, est un
-changement cassant traite par le skill `contract-change` ; les routes HTTP
-equivalentes ne sont pas concernees.
+Les routes HTTP equivalentes (`POST /sessions`, `PATCH /sessions/{id}/end`,
+`POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`) ne sont
+pas concernees. Liberation par un role privilegie du claim de tache d'une
+autre machine : `POST /tasks/{id}/release` (TECH/02), conservee. Les
+identifiants ephemeres de lancement n'autorisent plus ces noms.
 
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 
@@ -553,9 +566,16 @@ explicitement (par exemple suffixe `_v2`) avec coexistence bornee des
 qu'une coexistence est necessaire ; aucune duree generique de
 coexistence n'est fixee d'avance.
 
+Journal des changements cassants :
+
+| Date | Changement | Decision |
+|---|---|---|
+| 2026-11-14 | Retrait de `studio_start_session`, `studio_end_session`, `studio_claim_task`, `studio_release_task`, `studio_claim_resource` apres la fenetre de depreciation (SUNSET 2026-11-04) ; `MCP_ACCESS` 63 -> 58 outils, allowlist de lancement 21 -> 16 | DEC-0186 |
+
 ### Dette output schemas
 
-Les `outputSchema` des 29 outils historiques (auto-generes depuis
+Les `outputSchema` des 24 outils historiques restants (29 avant le retrait
+DEC-0186, auto-generes depuis
 `dict[str, Any]`, `additionalProperties: True`) ne decrivent pas
 suffisamment leurs outputs. Des output schemas explicites sont
 necessaires avant toute evolution breaking sure d'un tool reellement
@@ -874,3 +894,24 @@ Surface volontairement partielle : pas d'arbre (`tree`), pas d'historique de
 versions, pas de suppression (l'archivage est un `status`, et l'outil ne le
 propose pas) — ces lectures-la restent HTTP. Les trois outils sont exposes
 dans le profil `session` (avec `studio_get_decisions` / `studio_add_decision`).
+
+## Resolution workspace locale (additif, DEC-0364/DEC-0366)
+
+`studio_resolve_workspace` — **non implemente** (livre par P2-mcp-local ;
+contrat cible) — outil **local**, lecture seule, expose par le
+serveur MCP local `studio-os-local` (stdio, sans DB ni `Principal`
+serveur) : il lit les remotes git du workspace courant, les normalise
+(`TECH/05_DATA_MODEL.md`) et appelle `POST /projects/resolve-repository`.
+Reponse `{project_id: UUID|null, reason, repository_key}` (`repository_key`
+= cle normalisee du premier remote utilisable, `null` si aucun ;
+`reason` = motif machine-readable : `resolved`, `not_found`,
+`ambiguous`, `no_git_remote`, ...). Jamais d'ecriture, jamais de secret.
+
+Instructions MCP a l'initialisation du serveur local : `studio-os-local`
+resout le workspace au demarrage et annonce le `project_id` (ou
+`not_found`) dans ses instructions serveur ; les outils locaux composent
+ensuite avec ce `project_id` explicite.
+
+Le MCP distant (VPS) reste **sans etat workspace** : chaque appel porte un
+`project_id` explicite et la membership est re-verifiee a chaque appel
+(DEC-0366, DEC-0364) — aucune resolution implicite cote serveur.

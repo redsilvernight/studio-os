@@ -239,6 +239,9 @@ def test_neutral_document_carries_no_ids_or_status() -> None:
         (None, [TaskStatusValue.COMPLETED, TaskStatusValue.CREATED], StepState.NOT_STARTED),
         (None, [TaskStatusValue.COMPLETED, TaskStatusValue.IN_PROGRESS], StepState.IN_PROGRESS),
         (None, [TaskStatusValue.IN_PROGRESS, TaskStatusValue.BLOCKED], StepState.BLOCKED),
+        (None, [TaskStatusValue.COMPLETED, TaskStatusValue.ABANDONED], StepState.DONE),
+        (None, [TaskStatusValue.ABANDONED], StepState.NOT_STARTED),
+        (None, [TaskStatusValue.ABANDONED, TaskStatusValue.BLOCKED], StepState.BLOCKED),
     ],
 )
 def test_derive_step_state(

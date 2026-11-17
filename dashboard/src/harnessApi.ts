@@ -65,7 +65,7 @@ function utcNow(): string {
  * Turns `features.harness` on in the folder's local config. Only the local
  * toggle changes: no harness file is written before a confirmed apply.
  */
-export async function enableHarnessFeature(platform: Platform, workspaceId: string): Promise<HarnessOutcome<null>> {
+async function enableHarnessFeature(platform: Platform, workspaceId: string): Promise<HarnessOutcome<null>> {
   const stored = await call<Record<string, unknown>>(platform, "workspace.get_config", { workspace_id: workspaceId });
   if (!stored.ok) return stored;
   const config = stored.value;
@@ -159,7 +159,7 @@ export const STATE_TONES: Record<HarnessState, "neutral" | "success" | "warning"
  * before `harness.detect` knows them (e.g. Codex on an older daemon). The
  * contract carries no vendor concept: only these fixed labels are shown.
  */
-export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
+const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   "claude-code": "Claude Code",
   opencode: "OpenCode",
   codex: "Codex",
@@ -288,14 +288,14 @@ export function harnessErrorMessage(error: LocalError | null | undefined): strin
 export const CHANGE_LABELS: Record<string, string> = { create: "Création", modify: "Modification", delete: "Suppression" };
 
 /** Fixed French wording per kind: the daemon's English summary is never displayed. */
-export const CHANGE_DETAILS: Record<string, string> = {
+const CHANGE_DETAILS: Record<string, string> = {
   create: "Le fichier est créé avec l'entrée MCP studio-os.",
   modify: "L'ancienne entrée MCP studio-os du projet est retirée ; les autres réglages sont conservés et l'ancien fichier est sauvegardé.",
   delete: "Le fichier ne contenait que l'ancienne entrée studio-os : il est supprimé ; l'ancien contenu est sauvegardé.",
 };
 
 /** A change to the tool's own configuration, in the user's home (DEC-0104 §2). */
-export const USER_CHANGE_DETAILS: Record<string, string> = {
+const USER_CHANGE_DETAILS: Record<string, string> = {
   create:
     "L'entrée MCP studio-os est ajoutée à la configuration de l'outil, avec un identifiant Studi'OS créé pour lui seul ; cet identifiant n'est jamais affiché.",
   modify:

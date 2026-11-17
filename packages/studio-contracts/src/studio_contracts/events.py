@@ -5,6 +5,8 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
+from pydantic import model_validator
+
 from studio_contracts.common import ContractModel
 
 
@@ -114,11 +116,16 @@ ActorType = Literal["user", "agent", "system"]
 class EventEnvelope(ContractModel):
     """Fixed envelope — only `payload` grows across `schema_version` bumps;
     every other field keeps its shape. Unknown event types or extra payload
-    fields must be tolerated, never rejected."""
+    fields must be tolerated, never rejected.
+
+    Contract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,
+    but only for `library.*` events of Studio scope — a single Studio-wide
+    event with no project, visible to every authenticated principal.
+    All other event types always carry a non-null `project_id`."""
 
     event_id: UUID
     event_type: EventType
-    project_id: UUID
+    project_id: UUID | None
     task_id: UUID | None = None
     machine_id: UUID | None = None
     actor_type: ActorType
@@ -128,16 +135,27 @@ class EventEnvelope(ContractModel):
     payload: dict[str, object] = {}
     schema_version: int = 1
 
+    @model_validator(mode="after")
+    def _projectless_means_library(self) -> EventEnvelope:
+        if self.project_id is None and not self.event_type.value.startswith("library."):
+            raise ValueError("project_id may be null only for library.* events")
+        return self
+
 
 class EventCreate(ContractModel):
     """POST /events request body. `event_id` is client-generated and stable
     across retries — it IS the idempotency key for events: replaying the
     same event_id returns the original stored event rather than creating a
-    duplicate."""
+    duplicate.
+
+    Contract v2: `project_id` is nullable in the type so server-internal
+    issuers (`_emit_library_event` for Studio scope) can share this model,
+    but the public creation path (`POST /events`, `studio_emit_event`)
+    always requires a project — a `None` there answers `422`."""
 
     event_id: UUID
     event_type: EventType
-    project_id: UUID
+    project_id: UUID | None
     task_id: UUID | None = None
     machine_id: UUID | None = None
     actor_type: ActorType
@@ -145,3 +163,9 @@ class EventCreate(ContractModel):
     client_timestamp: datetime
     payload: dict[str, object] = {}
     schema_version: int = 1
+
+    @model_validator(mode="after")
+    def _projectless_means_library(self) -> EventCreate:
+        if self.project_id is None and not self.event_type.value.startswith("library."):
+            raise ValueError("project_id may be null only for library.* events")
+        return self

@@ -1,17 +1,13 @@
 """Anti-drift gate (P3.7) as a function: managed harness files must equal a
-fresh export of the canonical definitions. Shared by ``studio-client adapters
+fresh projection of the Library bundle. Shared by ``studio-client adapters
 check`` and the Desktop setup report; never writes, never merges."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from studio_client.projection_source import ProjectionBundle
-
-LibraryFor = Callable[[str], Any]
 
 
 @dataclass(frozen=True)
@@ -20,32 +16,23 @@ class AdaptersCheck:
     failures: tuple[dict[str, str], ...]
 
 
-def has_canonical_definitions(root: Path) -> bool:
-    """False for a folder that carries no canonical definitions: nothing to check."""
-    return (root / ".agents").is_dir()
-
-
 def check_adapters(
     root: Path,
+    bundle: ProjectionBundle,
     *,
     adapter_id: str | None = None,
     stable_key: str | None = None,
-    library_for: LibraryFor | None = None,
-    bundle: ProjectionBundle | None = None,
 ) -> AdaptersCheck:
     from studio_client.adapters import AdapterError, get_adapter, list_adapters
     from studio_client.canonical import (
         agents_rules_current_with,
-        build_merged_resolved,
         legacy_rules_text,
         render_agents_rules_block_from,
         render_claude_rule,
         skill_projections_from,
     )
-    from studio_client.projection_source import bundle_from_repo
 
     adapter_ids = [adapter_id] if adapter_id else list_adapters()
-    bundle = bundle if bundle is not None else bundle_from_repo(root)
     keys = [stable_key] if stable_key else list(bundle.agents)
     failures: list[dict[str, str]] = []
     checked = 0
@@ -58,11 +45,7 @@ def check_adapters(
         for key in keys:
             checked += 1
             try:
-                if library_for is not None:
-                    resolved = build_merged_resolved(root, key, library=library_for(key))
-                else:
-                    resolved = bundle.agents[key]
-                result = adapter.translate(resolved)
+                result = adapter.translate(bundle.agents[key])
             except (AdapterError, ValueError, OSError) as exc:
                 failures.append({"adapter": current_adapter, "key": key, "error": str(exc)})
                 continue

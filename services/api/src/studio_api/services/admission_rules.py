@@ -72,6 +72,8 @@ def compose_dry_run(snapshot: AdmissionSnapshot, *, evaluated_at: datetime) -> A
                 reasons.append(AdmissionExclusionReason.TASK_DATA_MISSING)
             elif task.status is TaskStatusValue.COMPLETED:
                 reasons.append(AdmissionExclusionReason.TASK_COMPLETED)
+            elif task.status is TaskStatusValue.ABANDONED:
+                reasons.append(AdmissionExclusionReason.TASK_ABANDONED)
             elif task.status is TaskStatusValue.BLOCKED:
                 reasons.append(AdmissionExclusionReason.TASK_BLOCKED)
             if task.review_pending:

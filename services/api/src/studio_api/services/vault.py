@@ -220,7 +220,6 @@ async def _ensure_slug_available(session: AsyncSession, note_in: VaultNoteCreate
 
 async def _validate_links(
     session: AsyncSession,
-    source_scope: str,
     source_project_id: uuid.UUID | None,
     links: list[VaultNoteLink],
 ) -> None:
@@ -284,7 +283,7 @@ async def create_note(
 ) -> VaultNoteModel:
     authorize_create(principal, note_in)
     await _ensure_slug_available(session, note_in)
-    await _validate_links(session, note_in.scope.value, note_in.project_id, note_in.links)
+    await _validate_links(session, note_in.project_id, note_in.links)
     readable_id = (
         await _next_readable_id(session) if note_in.note_type is VaultNoteType.DECISION else None
     )
@@ -363,7 +362,7 @@ async def update_note(
     current_links = await load_links(session, note.id)
     links = current_links if note_in.links is None else note_in.links
     if note_in.links is not None:
-        await _validate_links(session, note.scope, note.project_id, note_in.links)
+        await _validate_links(session, note.project_id, note_in.links)
 
     if note_in.title is not None:
         note.title = note_in.title

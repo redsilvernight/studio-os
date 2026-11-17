@@ -5,6 +5,7 @@ import { hookVersionSummary, loadHookListContent, loadIncomingHookDependencies }
 
 const resource = (id: string, overrides: Partial<LibraryResource> = {}): LibraryResource => ({
   id, kind: "hook", stable_key: "before-tool", scope: "studio", status: "active", active_version: 1, version: 3,
+  base_update_available: false,
   created_at: "2026-10-11T10:00:00Z", updated_at: "2026-10-11T10:00:00Z", ...overrides,
 });
 const version = (number: number, overrides: Partial<LibraryVersion> = {}): LibraryVersion => ({

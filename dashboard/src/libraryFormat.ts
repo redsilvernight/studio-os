@@ -46,8 +46,6 @@ export const LIBRARY_KINDS: readonly LibraryKindMeta[] = [
   { kind: "hook", slug: "hooks", singular: "Hook", plural: "Hooks" },
 ];
 
-export const LIBRARY_SLUGS: readonly LibraryKindSlug[] = LIBRARY_KINDS.map((meta) => meta.slug);
-
 export function kindFromSlug(slug: string): LibraryKindMeta | null {
   return LIBRARY_KINDS.find((meta) => meta.slug === slug) ?? null;
 }
@@ -233,7 +231,7 @@ export function contentText(content: Record<string, unknown> | null | undefined)
   return typeof value === "string" ? value : null;
 }
 
-export interface WorkflowIOSource {
+interface WorkflowIOSource {
   participantId: string | null;
   name: string;
 }
@@ -246,7 +244,7 @@ export interface WorkflowIODeclaration {
   source: WorkflowIOSource | null;
 }
 
-export interface WorkflowParticipant {
+interface WorkflowParticipant {
   participantId: string;
   description: string | null;
   agentStableKey: string;
@@ -344,9 +342,4 @@ export function workflowEdges(view: WorkflowView): WorkflowEdge[] {
     }
   }
   return edges;
-}
-
-export function ioSourceLabel(source: WorkflowIOSource | null): string {
-  if (source === null) return "harness / external";
-  return source.participantId === null ? `workflow input ${source.name}` : `${source.participantId}.${source.name}`;
 }

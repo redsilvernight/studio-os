@@ -614,7 +614,7 @@
      "projects"
     ],
     "summary": "List Projects",
-    "description": "List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise.",
+    "description": "List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise. Each entry carries its linked repository URLs (`repositories`).",
     "operationId": "list_projects_api_v1_projects_get",
     "security": [
      {
@@ -629,7 +629,7 @@
         "schema": {
          "type": "array",
          "items": {
-          "$ref": "#/components/schemas/Project"
+          "$ref": "#/components/schemas/ProjectRead"
          },
          "title": "Response List Projects Api V1 Projects Get"
         }
@@ -653,7 +653,7 @@
      "projects"
     ],
     "summary": "Create Project",
-    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. The optional `repository` is registered with the project in the same call (`resolve-repository` finds it immediately); a URL already linked to another project fails with `409 repository_already_linked` and an invalid one with `422 invalid_repository_url`, both before the project is written. Accepts `Idempotency-Key` for safe retries.",
     "operationId": "create_project_api_v1_projects_post",
     "security": [
      {
@@ -685,7 +685,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/ProjectCreate"
+        "$ref": "#/components/schemas/ProjectCreateRequest"
        }
       }
      }
@@ -726,23 +726,42 @@
       }
      },
      "409": {
-      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Nothing created: the slug is already used (`conflict`), `repository` is already linked to another project (`repository_already_linked`), or the replay key is wrong (`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`).",
       "content": {
        "application/json": {
-        "example": {
-         "detail": {
-          "error_code": "idempotency_key_payload_mismatch"
+        "examples": {
+         "repository_already_linked": {
+          "value": {
+           "detail": {
+            "error_code": "repository_already_linked",
+            "message": "repository is already linked to another project",
+            "url": "github.com/org/repo"
+           }
+          }
+         },
+         "idempotency_key_payload_mismatch": {
+          "value": {
+           "detail": {
+            "error_code": "idempotency_key_payload_mismatch"
+           }
+          }
          }
         }
        }
       }
      },
      "422": {
-      "description": "Validation Error",
+      "description": "Nothing stored: `repository` was refused (`invalid_repository_url`) or the body itself is invalid (framework `HTTPValidationError`, e.g. an over-long URL).",
       "content": {
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/HTTPValidationError"
+        },
+        "example": {
+         "detail": {
+          "error_code": "invalid_repository_url",
+          "message": "invalid repository url: 'not-a-url'"
+         }
         }
        }
       }
@@ -756,7 +775,7 @@
      "projects"
     ],
     "summary": "Get Project",
-    "description": "Get one project by id. A project the caller may not access \u2014 nonexistent included \u2014 answers `403 forbidden`.",
+    "description": "Get one project by id, with its linked repository URLs (`repositories`). A project the caller may not access \u2014 nonexistent included \u2014 answers `403 forbidden`.",
     "operationId": "get_project_api_v1_projects__project_id__get",
     "security": [
      {
@@ -781,7 +800,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/Project"
+         "$ref": "#/components/schemas/ProjectRead"
         }
        }
       }
@@ -1126,6 +1145,258 @@
        "type": "string",
        "format": "uuid",
        "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/resolve-repository": {
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Resolve Repository",
+    "description": "Resolve the project linked to the remotes of a local Git repository (1 to 10 remotes, any URL form). Only projects the caller is a member of are considered: an unknown repository and one the caller has no access to both answer `200 {status: not_found}`, identical in status and body. Remotes matching two projects: `409 ambiguous`. No valid remote: `422 invalid_repository_url`.",
+    "operationId": "resolve_repository_api_v1_projects_resolve_repository_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResolveRepositoryRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResolveRepositoryResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
+  "/api/v1/projects/{project_id}/repositories": {
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Link Project Repository",
+    "description": "Link a remote repository to a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The URL is normalized server-side (invalid URL: `422 invalid_repository_url`). A remote belongs to at most one project: linking one owned by another project fails with `409 repository_already_linked`. Re-linking the same URL to the same project is a no-op answering `200`. Unknown project: 404.",
+    "operationId": "link_project_repository_api_v1_projects__project_id__repositories_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProjectRepositoryCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectRepository"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Remote already linked to another project.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "repository_already_linked",
+          "message": "repository is already linked to another project",
+          "url": "https://github.com/org/repo"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Repository URL refused, nothing stored (`invalid_repository_url`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_repository_url",
+          "message": "invalid repository url: 'not-a-url'"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/repositories/{normalized_url}": {
+   "delete": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Unlink Project Repository",
+    "description": "Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The path value is re-normalized, so equivalent spellings match. `204` once removed; a remote that is not linked to the project answers `404`. Unknown project: 404.",
+    "operationId": "unlink_project_repository_api_v1_projects__project_id__repositories__normalized_url__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "normalized_url",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Normalized Url"
       }
      }
     ],
@@ -3695,7 +3966,7 @@
      "handoff"
     ],
     "summary": "Handoff",
-    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
+    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. A v1 completion evidence without a decision review closes with a non-blocking `decision_review_missing` warning; v2 requires the review (`409 completion_incomplete` otherwise). Referenced decision ids must exist in the project (`422 decision_reference_invalid`). Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
     "operationId": "handoff_api_v1_handoff_post",
     "security": [
      {
@@ -5213,6 +5484,171 @@
         }
        }
       }
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}/merge-preview": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Get Library Merge Preview",
+    "description": "Preview a three-way merge for the owner's active text override against its original and current common versions. This endpoint never writes.",
+    "operationId": "get_library_merge_preview_api_v1_library__resource_id__merge_preview_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryMergePreview"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid resource ID or merge_preview_too_many_lines."
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}/merge-apply": {
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Apply Library Merge",
+    "description": "Apply one choice to the owner's active text override whose common base moved: `keep_override` (new version, same text, rebased on the current common), `merge` (new version with the clean three-way merge or the caller-resolved `content`) or `revert_to_common` (deprecates the override). A conflicting merge without resolved `content` answers 409 `merge_conflict` and writes nothing. The previous version stays in history and can be reactivated. Accepts `Idempotency-Key`.",
+    "operationId": "apply_library_merge_api_v1_library__resource_id__merge_apply_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryMergeApply"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryResource"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Invalid body, unresolved_merge_conflict, invalid_content or merge_preview_too_many_lines."
      }
     }
    }
@@ -7657,6 +8093,703 @@
     }
    }
   },
+  "/api/v1/usage/price-lists": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "List Price Lists",
+    "description": "List the global price lists, plus the project's own when project_id is given, newest effective_from first.",
+    "operationId": "list_price_lists_api_v1_usage_price_lists_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/UsagePriceList"
+         },
+         "title": "Response List Price Lists Api V1 Usage Price Lists Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Create Price List",
+    "description": "Publish an immutable, dated price list (per million tokens). A global list (project_id null) is admin-only; a project list needs an admin or a developer with write access. Agents and launch credentials never publish. Supports Idempotency-Key.",
+    "operationId": "create_price_list_api_v1_usage_price_lists_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsagePriceListCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsagePriceList"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "price_list_not_found"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "price_list_id already exists (price_list_conflict). Lists are immutable: publish a correction under a new id. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "price_list_conflict"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/price-lists/effective": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Effective Price List",
+    "description": "The price list in force at `at` (default now): the project's own latest list with effective_from <= at, otherwise the global one. Daemons price local usage with it and record its price_list_id in PricingRef.",
+    "operationId": "effective_price_list_api_v1_usage_price_lists_effective_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "at",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "At"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsagePriceList"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "price_list_not_found"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/subscriptions": {
+   "get": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "List Subscriptions",
+    "description": "List the subscriptions declared for a project, by start date.",
+    "operationId": "list_subscriptions_api_v1_usage_subscriptions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/UsageSubscription"
+         },
+         "title": "Response List Subscriptions Api V1 Usage Subscriptions Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Create Subscription",
+    "description": "Declare a flat-rate subscription (monthly price, currency, covered harnesses and/or providers, period). Its price is spread over the covered usage at read time in /usage/summary (subscription_share); nothing is stored per entry. Launch-scoped credentials cannot manage subscriptions. Supports Idempotency-Key.",
+    "operationId": "create_subscription_api_v1_usage_subscriptions_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsageSubscriptionCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageSubscription"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/usage/subscriptions/{subscription_id}": {
+   "put": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Update Subscription",
+    "description": "Replace a subscription's terms. A stale expected_version fails with version_conflict and server_version.",
+    "operationId": "update_subscription_api_v1_usage_subscriptions__subscription_id__put",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "subscription_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Subscription Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UsageSubscriptionUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UsageSubscription"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "usage"
+    ],
+    "summary": "Delete Subscription",
+    "description": "Delete a subscription; summaries stop allocating it. A stale expected_version fails with version_conflict and server_version.",
+    "operationId": "delete_subscription_api_v1_usage_subscriptions__subscription_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "subscription_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Subscription Id"
+      }
+     },
+     {
+      "name": "expected_version",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Expected Version"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/usage": {
    "get": {
     "tags": [
@@ -10064,7 +11197,7 @@
      "events"
     ],
     "summary": "Post Event",
-    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
+    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). A project is always required here (`project_id` null answers `422 project_required` \u2014 project-less `library.*` events are emitted by the server only, contract v2). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
     "operationId": "post_event_api_v1_events_post",
     "security": [
      {
@@ -10146,7 +11279,7 @@
      "events"
     ],
     "summary": "Get Events",
-    "description": "Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
+    "description": "Read recent events, optionally filtered by project and task and `since` timestamp. Without a `project` filter, the listing is restricted to the caller's accessible projects \u2014 plus every project-less Studio `library.*` event (contract v2: a single Studio-wide event with `project_id` null, visible to every authenticated principal, never leaking another project's rows). With a `project` filter, only that project's events are returned by default \u2014 deployed readers parse `project_id` as a non-null UUID \u2014 and the project-less Studio events join in only with `include_global=true` (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
     "operationId": "get_events_api_v1_events_get",
     "security": [
      {
@@ -10215,6 +11348,18 @@
        "default": 100,
        "title": "Limit"
       }
+     },
+     {
+      "name": "include_global",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID.",
+       "default": false,
+       "title": "Include Global"
+      },
+      "description": "With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID."
      }
     ],
     "responses": {
@@ -10275,7 +11420,7 @@
      "events"
     ],
     "summary": "Stream Events",
-    "description": "Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required \u2014 there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
+    "description": "Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) \u2014 there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
     "operationId": "stream_events_api_v1_events_stream_get",
     "security": [
      {
@@ -10286,14 +11431,33 @@
      {
       "name": "project",
       "in": "query",
-      "required": true,
+      "required": false,
       "schema": {
-       "type": "string",
-       "format": "uuid",
-       "description": "Project to subscribe to (UUID). No global stream exists.",
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`).",
        "title": "Project"
       },
-      "description": "Project to subscribe to (UUID). No global stream exists."
+      "description": "Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`)."
+     },
+     {
+      "name": "include_global",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "description": "With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID.",
+       "default": false,
+       "title": "Include Global"
+      },
+      "description": "With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID."
      },
      {
       "name": "since_seq",
@@ -11207,6 +12371,101 @@
        "application/json": {
         "example": {
          "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}/downloaded": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Acknowledge Download",
+    "description": "Record receipt of a transfer after the client downloaded its bytes through the presigned URL (bytes never pass through this API). Any reader of the transfer with a writer role may acknowledge it \u2014 sender, recipient, broadcast readers, or a privileged role; a writer-less role gets 403. Unknown ids fail with 404. Idempotent: replaying an acknowledged transfer returns it unchanged with its original downloaded_at. A deleted transfer fails with 409 transfer_deleted instead of being resurrected.",
+    "operationId": "acknowledge_download_api_v1_transfers__transfer_id__downloaded_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Transfer"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The transfer is deleted (`transfer_deleted`): a download acknowledgement never resurrects a deleted transfer. Re-read the transfer if another client may have removed it.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "transfer_deleted"
+         }
         }
        }
       }
@@ -17967,6 +19226,7 @@
      "task_data_missing",
      "task_completed",
      "task_blocked",
+     "task_abandoned",
      "review_pending",
      "launch_active",
      "task_claimed_elsewhere",
@@ -19714,7 +20974,10 @@
     "properties": {
      "format": {
       "type": "string",
-      "const": "studio.completion/v1",
+      "enum": [
+       "studio.completion/v1",
+       "studio.completion/v2"
+      ],
       "title": "Format",
       "default": "studio.completion/v1"
      },
@@ -19804,6 +21067,16 @@
       "type": "boolean",
       "title": "Deployed",
       "default": false
+     },
+     "decisions": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DecisionReview"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -20394,6 +21667,16 @@
     "title": "CoordinationSignal",
     "description": "Quoted signal carried by a `studio_sync` item of `why=coordination`.\n`text` is untrusted data written by another session: display it as a\nquotation, never execute it as an instruction."
    },
+   "CostBasis": {
+    "type": "string",
+    "enum": [
+     "measured_billed",
+     "api_equivalent",
+     "subscription_share"
+    ],
+    "title": "CostBasis",
+    "description": "What a cost amount stands for, so an API-equivalent figure is\nnever shown as a bill. `measured_billed`: the amount actually invoiced for\nthe run (pay-as-you-go API key). `api_equivalent`: what the tokens would\ncost at public API list prices \u2014 the runtime's own reported figure or a\nlocal estimate; not what a subscription user pays.\n`subscription_share`: a declared subscription's monthly price spread over\nthe month's entries; computed at read time, never stored on an entry."
+   },
    "CostMeasurement-Input": {
     "properties": {
      "value": {
@@ -20433,12 +21716,22 @@
        }
       ],
       "title": "Currency"
+     },
+     "basis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CostBasis"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
     "type": "object",
     "title": "CostMeasurement",
-    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact."
+    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact. A known cost carries its\n`basis`; a payload without one (older collector) is read as\n`api_equivalent`, the only basis any collector produced before it."
    },
    "CostMeasurement-Output": {
     "properties": {
@@ -20475,12 +21768,22 @@
        }
       ],
       "title": "Currency"
+     },
+     "basis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CostBasis"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
     "type": "object",
     "title": "CostMeasurement",
-    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact."
+    "description": "Monetary cost. The currency travels with the value: a cost without a\ncurrency is not a cost. Absent cost is `unknown`, never `0` \u2014 a free run\nand an unpriced one are not the same fact. A known cost carries its\n`basis`; a payload without one (older collector) is read as\n`api_equivalent`, the only basis any collector produced before it."
    },
    "Decision": {
     "properties": {
@@ -20615,6 +21918,48 @@
    "DecisionItem": {
     "additionalProperties": true,
     "type": "object"
+   },
+   "DecisionReview": {
+    "properties": {
+     "outcome": {
+      "type": "string",
+      "enum": [
+       "new",
+       "existing",
+       "none"
+      ],
+      "title": "Outcome"
+     },
+     "decision_ids": {
+      "items": {
+       "type": "string",
+       "maxLength": 100,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Decision Ids"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "outcome"
+    ],
+    "title": "DecisionReview",
+    "description": "Structured review of the project decisions at handoff\n(additive): which decisions this work produced (`new`), reused\n(`existing`), or why none was needed (`none`). `decision_ids` names\ninternal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves\neach one and rejects unknown, foreign or invisible ids with\n`422 decision_reference_invalid`. A `proposed` decision is a valid\nreference and is never auto-accepted by the handoff. `reason` is\nrequired (non-empty) when `outcome` is `none` \u2014 enforced for v2 by\n`check_completion` (`decision_reason_missing`)."
    },
    "DecisionStatus": {
     "type": "string",
@@ -21042,8 +22387,15 @@
       "$ref": "#/components/schemas/EventType"
      },
      "project_id": {
-      "type": "string",
-      "format": "uuid",
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Project Id"
      },
      "task_id": {
@@ -21112,7 +22464,7 @@
      "client_timestamp"
     ],
     "title": "EventCreate",
-    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate."
+    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate.\n\nContract v2: `project_id` is nullable in the type so server-internal\nissuers (`_emit_library_event` for Studio scope) can share this model,\nbut the public creation path (`POST /events`, `studio_emit_event`)\nalways requires a project \u2014 a `None` there answers `422`."
    },
    "EventEnvelope": {
     "properties": {
@@ -21125,8 +22477,15 @@
       "$ref": "#/components/schemas/EventType"
      },
      "project_id": {
-      "type": "string",
-      "format": "uuid",
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Project Id"
      },
      "task_id": {
@@ -21201,7 +22560,7 @@
      "server_timestamp"
     ],
     "title": "EventEnvelope",
-    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected."
+    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected.\n\nContract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,\nbut only for `library.*` events of Studio scope \u2014 a single Studio-wide\nevent with no project, visible to every authenticated principal.\nAll other event types always carry a non-null `project_id`."
    },
    "EventType": {
     "type": "string",
@@ -21831,6 +23190,14 @@
        }
       ],
       "title": "Coordination Event Id"
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 30,
+      "title": "Warnings"
      }
     },
     "additionalProperties": false,
@@ -21843,7 +23210,7 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested.\n`warnings` carries non-blocking hints (`decision_review_missing`\nwhen a v1 evidence closes without a decision review) \u2014 never a gate."
    },
    "HarnessReport": {
     "properties": {
@@ -22431,6 +23798,18 @@
        }
       ],
       "title": "Description"
+     },
+     "repository": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 512
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repository"
      }
     },
     "additionalProperties": false,
@@ -22831,6 +24210,153 @@
     ],
     "title": "LibraryLockCreate"
    },
+   "LibraryMergeApply": {
+    "properties": {
+     "choice": {
+      "$ref": "#/components/schemas/LibraryMergeChoice"
+     },
+     "expected_resource_version": {
+      "type": "integer",
+      "title": "Expected Resource Version"
+     },
+     "base_active_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Base Active Version"
+     },
+     "content": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Content"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "choice",
+     "expected_resource_version",
+     "base_active_version"
+    ],
+    "title": "LibraryMergeApply",
+    "description": "Applies one choice to an override whose common base moved.\n`base_active_version` is the common version the caller previewed (409\n`base_moved` if it changed); `content` is the caller-resolved text, only\nwith `merge`."
+   },
+   "LibraryMergeChoice": {
+    "type": "string",
+    "enum": [
+     "keep_override",
+     "merge",
+     "revert_to_common"
+    ],
+    "title": "LibraryMergeChoice"
+   },
+   "LibraryMergeConflict": {
+    "properties": {
+     "base": {
+      "type": "string",
+      "title": "Base"
+     },
+     "ours": {
+      "type": "string",
+      "title": "Ours"
+     },
+     "theirs": {
+      "type": "string",
+      "title": "Theirs"
+     },
+     "start_line": {
+      "type": "integer",
+      "title": "Start Line"
+     },
+     "base_start": {
+      "type": "integer",
+      "title": "Base Start"
+     },
+     "base_end": {
+      "type": "integer",
+      "title": "Base End"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base",
+     "ours",
+     "theirs",
+     "start_line",
+     "base_start",
+     "base_end"
+    ],
+    "title": "LibraryMergeConflict"
+   },
+   "LibraryMergeInputs": {
+    "properties": {
+     "base": {
+      "type": "string",
+      "title": "Base"
+     },
+     "ours": {
+      "type": "string",
+      "title": "Ours"
+     },
+     "theirs": {
+      "type": "string",
+      "title": "Theirs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base",
+     "ours",
+     "theirs"
+    ],
+    "title": "LibraryMergeInputs"
+   },
+   "LibraryMergePreview": {
+    "properties": {
+     "inputs": {
+      "$ref": "#/components/schemas/LibraryMergeInputs"
+     },
+     "result": {
+      "$ref": "#/components/schemas/LibraryMergeResult"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "inputs",
+     "result"
+    ],
+    "title": "LibraryMergePreview"
+   },
+   "LibraryMergeResult": {
+    "properties": {
+     "content": {
+      "type": "string",
+      "title": "Content"
+     },
+     "conflicts": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryMergeConflict"
+      },
+      "type": "array",
+      "title": "Conflicts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "content",
+     "conflicts"
+    ],
+    "title": "LibraryMergeResult"
+   },
    "LibraryProjectLock": {
     "properties": {
      "id": {
@@ -22957,6 +24483,22 @@
        }
       ],
       "title": "Created By User Id"
+     },
+     "base_update_available": {
+      "type": "boolean",
+      "title": "Base Update Available",
+      "default": false
+     },
+     "base_active_version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Base Active Version"
      }
     },
     "additionalProperties": false,
@@ -25116,6 +26658,13 @@
       "type": "boolean",
       "title": "Archived",
       "default": false
+     },
+     "repositories": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Repositories"
      }
     },
     "additionalProperties": false,
@@ -25156,7 +26705,7 @@
     "title": "ProjectBootstrapStatus",
     "description": "Machine-observed state of one project's AI bundle (AIB P6): the result\nof the machine's own local `bootstrap check` at `checked_at`. Counts only\n- never a path or file name. It says what the machine observed, not what\nthe server expects."
    },
-   "ProjectCreate": {
+   "ProjectCreateRequest": {
     "properties": {
      "slug": {
       "type": "string",
@@ -25176,6 +26725,18 @@
        }
       ],
       "title": "Description"
+     },
+     "repository": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 512
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repository"
      }
     },
     "additionalProperties": false,
@@ -25184,7 +26745,8 @@
      "slug",
      "name"
     ],
-    "title": "ProjectCreate"
+    "title": "ProjectCreateRequest",
+    "description": "`POST /projects` payload: the canonical `ProjectCreate` fields plus an\noptional `repository` (any URL form, normalized server-side like\n`ProjectRepositoryCreate.url`, 512 characters max), registered with the\nproject in the same call so `resolve-repository` finds it immediately.\n\nRouter-local on purpose: the frozen `studio_contracts` shape is reused\nunchanged, so this is an additive *input* field of this route only \u2014 a\nclient sending the canonical fields alone behaves exactly as before.\nAbsent, the project is created alone and its remotes are linked later."
    },
    "ProjectInitializationPlan": {
     "properties": {
@@ -25377,6 +26939,72 @@
     ],
     "title": "ProjectMission"
    },
+   "ProjectRead": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+     },
+     "repositories": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Repositories"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "slug",
+     "name"
+    ],
+    "title": "ProjectRead",
+    "description": "Read shape of a project: `Project` plus the normalized remote URLs\nlinked to it (`project_repositories`, Bloc A). Empty when none linked."
+   },
    "ProjectRef": {
     "properties": {
      "id": {
@@ -25416,6 +27044,60 @@
      "name"
     ],
     "title": "ProjectRef"
+   },
+   "ProjectRepository": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "created_by": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "url",
+     "created_at"
+    ],
+    "title": "ProjectRepository",
+    "description": "One normalized remote URL linked to a project. `url` is the canonical\nform (globally unique: one URL belongs to at most one project)."
+   },
+   "ProjectRepositoryCreate": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "url"
+    ],
+    "title": "ProjectRepositoryCreate",
+    "description": "Link a remote repository to a project: any URL form is accepted, the\nserver normalizes it via `studio_contracts.repositories.normalize_remote_url`\n(invalid URL: 422)."
    },
    "ProjectState": {
     "properties": {
@@ -25828,6 +27510,81 @@
      "new_password"
     ],
     "title": "ResetPasswordRequest"
+   },
+   "ResolveRepositoryRequest": {
+    "properties": {
+     "remotes": {
+      "items": {
+       "type": "string",
+       "maxLength": 512,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Remotes"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "remotes"
+    ],
+    "title": "ResolveRepositoryRequest",
+    "description": "Remotes of a local Git repository (any URL form, 1 to 10, each at most\n512 characters); the server normalizes them."
+   },
+   "ResolveRepositoryResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "resolved",
+       "not_found"
+      ],
+      "title": "Status"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "slug": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slug"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "ResolveRepositoryResponse",
+    "description": "`resolved` carries the project the caller is a member of; `not_found`\nis the single answer for an unknown repository and for one the caller\nhas no access to (no existence oracle)."
    },
    "ResolvedAgent": {
     "properties": {
@@ -30966,7 +32723,8 @@
      "created",
      "in_progress",
      "blocked",
-     "completed"
+     "completed",
+     "abandoned"
     ],
     "title": "TaskStatus",
     "description": "Task lifecycle. Claiming a task moves it to `in_progress`; releasing\nclears the holder without changing the status."
@@ -31814,6 +33572,16 @@
       },
       "type": "array",
       "title": "Sources"
+     },
+     "subscription_share": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/UsageSubscriptionShare"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -31883,6 +33651,13 @@
       },
       "type": "array",
       "title": "By Currency"
+     },
+     "bases": {
+      "items": {
+       "$ref": "#/components/schemas/CostBasis"
+      },
+      "type": "array",
+      "title": "Bases"
      }
     },
     "additionalProperties": false,
@@ -31891,7 +33666,7 @@
      "status"
     ],
     "title": "UsageCostTotal",
-    "description": "Cost summed per currency. `known_sum`/`currency` are set only when every\nknown cost shares one currency; with several currencies `status` is\n`mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum\napart. An unknown cost is never counted as zero."
+    "description": "Cost summed per currency. `known_sum`/`currency` are set only when every\nknown cost shares one currency; with several currencies `status` is\n`mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum\napart. An unknown cost is never counted as zero. `bases` lists the cost\nbases of the known amounts (sorted): a client labels the sum with them and\nnever presents an `api_equivalent` total as a bill."
    },
    "UsageCurrencyAmount": {
     "properties": {
@@ -32395,6 +34170,232 @@
     "title": "UsageLedgerEntryCreate",
     "description": "Ingestion payload. Ingestion is deduplicated on `(machine_id,\nsource_event_id)`: a replayed or delayed collector event returns the entry\nalready recorded instead of appending a second row. A late correction of an\nalready recorded fact targets that entry with `UsageLedgerCorrection`, never\na fresh `source_event_id`."
    },
+   "UsageModelRate-Input": {
+    "properties": {
+     "input": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Input"
+     },
+     "output": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Output"
+     },
+     "cache_read": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Cache Read"
+     },
+     "cache_write": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
+       }
+      ],
+      "title": "Cache Write"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "input",
+     "output",
+     "cache_read",
+     "cache_write"
+    ],
+    "title": "UsageModelRate",
+    "description": "Price per million tokens, in the list currency, per billing bucket."
+   },
+   "UsageModelRate-Output": {
+    "properties": {
+     "input": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Input"
+     },
+     "output": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Output"
+     },
+     "cache_read": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Cache Read"
+     },
+     "cache_write": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
+      "title": "Cache Write"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "input",
+     "output",
+     "cache_read",
+     "cache_write"
+    ],
+    "title": "UsageModelRate",
+    "description": "Price per million tokens, in the list currency, per billing bucket."
+   },
+   "UsagePriceList": {
+    "properties": {
+     "price_list_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$",
+      "title": "Price List Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "effective_from": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Effective From"
+     },
+     "models": {
+      "patternProperties": {
+       "^[a-z0-9][a-z0-9.+_:@/\\[\\]-]*$": {
+        "$ref": "#/components/schemas/UsageModelRate-Output"
+       }
+      },
+      "propertyNames": {
+       "maxLength": 128,
+       "minLength": 1
+      },
+      "type": "object",
+      "maxProperties": 500,
+      "minProperties": 1,
+      "title": "Models"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "price_list_id",
+     "currency",
+     "effective_from",
+     "models",
+     "id",
+     "created_at"
+    ],
+    "title": "UsagePriceList"
+   },
+   "UsagePriceListCreate": {
+    "properties": {
+     "price_list_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$",
+      "title": "Price List Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "effective_from": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Effective From"
+     },
+     "models": {
+      "patternProperties": {
+       "^[a-z0-9][a-z0-9.+_:@/\\[\\]-]*$": {
+        "$ref": "#/components/schemas/UsageModelRate-Input"
+       }
+      },
+      "propertyNames": {
+       "maxLength": 128,
+       "minLength": 1
+      },
+      "type": "object",
+      "maxProperties": 500,
+      "minProperties": 1,
+      "title": "Models"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "price_list_id",
+     "currency",
+     "effective_from",
+     "models"
+    ],
+    "title": "UsagePriceListCreate"
+   },
    "UsageProvenance": {
     "properties": {
      "collector": {
@@ -32506,6 +34507,342 @@
     ],
     "title": "UsageSourceCount",
     "description": "Collector that produced entries of the aggregate, with its entry count."
+   },
+   "UsageSubscription": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "label": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label"
+     },
+     "monthly_price": {
+      "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+      "title": "Monthly Price"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "harnesses": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1,
+       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Harnesses"
+     },
+     "providers": {
+      "items": {
+       "type": "string",
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Providers"
+     },
+     "starts_on": {
+      "type": "string",
+      "format": "date",
+      "title": "Starts On"
+     },
+     "ends_on": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ends On"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "label",
+     "monthly_price",
+     "currency",
+     "starts_on",
+     "id",
+     "project_id"
+    ],
+    "title": "UsageSubscription"
+   },
+   "UsageSubscriptionCreate": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label"
+     },
+     "monthly_price": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+       }
+      ],
+      "title": "Monthly Price"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "harnesses": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1,
+       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Harnesses"
+     },
+     "providers": {
+      "items": {
+       "type": "string",
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Providers"
+     },
+     "starts_on": {
+      "type": "string",
+      "format": "date",
+      "title": "Starts On"
+     },
+     "ends_on": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ends On"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "label",
+     "monthly_price",
+     "currency",
+     "starts_on",
+     "project_id"
+    ],
+    "title": "UsageSubscriptionCreate"
+   },
+   "UsageSubscriptionShare": {
+    "properties": {
+     "measured_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Measured Entries",
+      "default": 0
+     },
+     "estimated_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Estimated Entries",
+      "default": 0
+     },
+     "unknown_entries": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Unknown Entries",
+      "default": 0
+     },
+     "basis": {
+      "type": "string",
+      "const": "subscription_share",
+      "title": "Basis",
+      "default": "subscription_share"
+     },
+     "status": {
+      "$ref": "#/components/schemas/UsageTotalStatus"
+     },
+     "known_sum": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Known Sum"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     },
+     "by_currency": {
+      "items": {
+       "$ref": "#/components/schemas/UsageCurrencyAmount"
+      },
+      "type": "array",
+      "title": "By Currency"
+     },
+     "provisional": {
+      "type": "boolean",
+      "title": "Provisional",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "UsageSubscriptionShare",
+    "description": "Part of the declared subscriptions attributed to an aggregate,\ncomputed at read time and never stored. For each subscription and each UTC\nmonth it is active, the monthly price is spread over the covered entries of\nthat month \u2014 every machine, every task \u2014 pro rata of their API-equivalent\ncost; an aggregate gets the shares of its own entries. `estimated_entries`\ncounts covered entries that received a share, `unknown_entries` covered\nentries that could not (no cost, or a month whose covered costs are in\nseveral currencies or sum to zero), once per covering subscription.\nLimits: a lightly used subscription yields a high cost per task;\n`provisional` is true when a share comes from the current, unfinished\nmonth, whose split still moves."
+   },
+   "UsageSubscriptionUpdate": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label"
+     },
+     "monthly_price": {
+      "anyOf": [
+       {
+        "type": "number",
+        "minimum": 0.0
+       },
+       {
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+       }
+      ],
+      "title": "Monthly Price"
+     },
+     "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency"
+     },
+     "harnesses": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1,
+       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Harnesses"
+     },
+     "providers": {
+      "items": {
+       "type": "string",
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Providers"
+     },
+     "starts_on": {
+      "type": "string",
+      "format": "date",
+      "title": "Starts On"
+     },
+     "ends_on": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ends On"
+     },
+     "expected_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Expected Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "label",
+     "monthly_price",
+     "currency",
+     "starts_on",
+     "expected_version"
+    ],
+    "title": "UsageSubscriptionUpdate",
+    "description": "Whole replacement of a subscription's terms, refused on a stale version."
    },
    "UsageSummary": {
     "properties": {

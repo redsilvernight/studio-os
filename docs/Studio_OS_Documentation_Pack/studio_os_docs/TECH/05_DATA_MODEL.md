@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry.
+Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry, UsageSubscription.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -178,6 +178,21 @@ une membership, sauf ressource propre (Transfer emetteur/destinataire,
 Library User, runtimes, bindings User) dont la regle existante s'applique
 seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 
+## ProjectRepository (additif — migration Alembic reversible)
+Table `project_repositories` : `id`, `project_id` (FK Project,
+`ON DELETE CASCADE`), `normalized_url` (texte, cle normalisee du depot),
+`created_at`, `created_by` (FK User, nullable,
+`ON DELETE SET NULL`). Cle primaire `id` ; contrainte unique globale sur
+`normalized_url` (un depot n'est lie qu'a un seul projet, serveur-wide) ;
+index `(project_id)`. Pas de `version` : un lien est ajoute ou retire,
+jamais modifie.
+
+Forme normalisee `host/owner/repo` : minuscules ; `SSH` et `HTTPS`
+unifies (meme cle) ; suffixe `.git` retire ; slash final retire ;
+identifiants (`user@`, token) et port supprimes ; chemin reduit a
+`owner/repo` (sous-groupes et chemins supplementaires refuses en `422`).
+Exemples : `git@github.com:Org/Repo.git` et
+`https://github.com/org/repo` -> `github.com/org/repo`.
 
 ## MachineLaunchGrant (AIB-J, additif — migration Alembic reversible)
 Table `machine_launch_grants` : `machine_id` (FK Machine, `ON DELETE CASCADE`), `user_id`
@@ -189,7 +204,8 @@ jamais modifie. Ne remplace ni la membership projet ni l'opt-in local de la mach
 ## Task
 `id`, `readable_id` (nullable, unique — ID lisible optionnel a cote de l'UUID
 per `TECH/02_API_CONTRACT.md`), `project_id` (FK Project), `title`,
-`description` (nullable), `status` (`created|in_progress|blocked|completed`,
+`description` (nullable), `status` (`created|in_progress|blocked|completed|abandoned`, `abandoned` =
+close sans livraison, additif DEC-0359,
 miroir des event types `task.*`), `claimed_by_machine_id` (FK Machine,
 nullable), `claimed_by_agent_id` (FK Agent, nullable), + champs communs
 mutables.
@@ -267,6 +283,16 @@ Voir `TECH/03_EVENT_CONTRACT.md` — l'enveloppe y est deja completement figée
 `schema_version`). `event_id` est genere client-side et sert lui-meme de cle
 d'idempotence pour `POST /events` (DEC-0006) — distinct du header
 `Idempotency-Key` utilise par les autres endpoints de creation.
+
+Contrat v2 (`EVENT_SCHEMA_VERSION = 2`, migration Alembic `0043` reversible,
+CHECK `ck_events_project_scope` pose `NOT VALID` puis valide — pas de verrou
+long sur table peuplee) : `events.project_id` est nullable et `project_id`
+l'est dans `EventEnvelope`/`EventCreate`, mais uniquement pour les events
+`library.*` de scope Studio — un evenement Studio unique, sans projet,
+visible par tout principal authentifie (lecture : sans filtre, projets
+accessibles + sans-projet ; avec filtre projet, opt-in
+`include_global=true`). Le chemin public (`POST /events`)
+exige toujours un projet (`422 project_required` si null).
 
 ## Transfer
 Champs minimum: id, transfer_code, sender_user_id, recipient_user_id, project_id, task_id, category, filename, object_key, content_type, size_bytes, sha256, content_md5, status, expires_at, created_at, uploaded_at, downloaded_at, deleted_at.
@@ -404,6 +430,27 @@ lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnel
   machine, liens, collecteur fixes).
 - `created_at`/`updated_at`/`version`. Index `(project_id, period_start)`,
   `session_id`, `task_launch_id`.
+- Base du cout (DEC-0361, migration `0041`) : `cost_basis` ∈
+  `measured_billed|api_equivalent`, NULL ⇔ cout NULL ; un payload sans base
+  est lu `api_equivalent`. La migration a reetiquete USD les estimations
+  locales d'une grille `public-eur-*` (prix publics USD, montants inchanges).
+
+## UsageSubscription (DEC-0361, migration Alembic `0041`, table `usage_subscriptions`)
+
+Forfait paye par un projet : `id`, `project_id` (FK Project), `label`,
+`monthly_price` (Numeric 12,2), `currency` (ISO 4217), `harnesses` et
+`providers` (tableaux, au moins un non vide), `starts_on`, `ends_on` (inclus,
+NULL = en cours, `>= starts_on`), `created_at`/`updated_at`/`version`. Index
+`project_id`. Aucune part n'est stockee : la repartition est calculee a la
+lecture par GET /usage/summary.
+
+## UsagePriceList (DEC-0362, migration Alembic `0042`, table `usage_price_lists`)
+
+Grille de prix d'usage versionnee et immuable : `id`, `price_list_id` (unique),
+`project_id` (FK Project, NULL = globale), `currency` (ISO 4217),
+`effective_from` (timestamptz), `models` (JSONB : prefixe -> tarifs au million),
+`created_at`. Index `(project_id, effective_from)`. Une nouvelle grille remplace
+la precedente par sa date d'effet, jamais par mise a jour.
 
 ## ExecutionSnapshot (Mission Control P04, DEC-0199, migration Alembic `0032`, table `execution_snapshots`)
 
@@ -519,8 +566,10 @@ par le P5 (voir la section P4 ci-dessous).
 resolution, ne bloque aucune ecriture.
 
 Traçabilite : mutations projet-scope et Studio emettent `library.*` (types
-additifs, `TECH/03_EVENT_CONTRACT.md` ; Studio : un evenement par projet non
-archive) ; le scope User sans projet reste audite par les lignes de version
+additifs, `TECH/03_EVENT_CONTRACT.md` ; contrat v2 : Studio = un evenement
+unique sans projet, `project_id` null, visible par tout principal
+authentifie — migration Alembic `0043` + CHECK `ck_events_project_scope`) ;
+le scope User sans projet reste audite par les lignes de version
 (`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
 
 ## AI Library — P3 semantic content (DEC-0066, validation applicative, sans DDL)

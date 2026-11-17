@@ -33,7 +33,6 @@ from studio_contracts.initialization import (
     InitializationResourceRef,
     InitializationResult,
     InitializationSection,
-    InitializationSummary,
     InitializationTask,
     ProjectInitializationPlan,
     blocking_problems,
@@ -51,6 +50,7 @@ from studio_contracts.runtime import RuntimeBindingCreate, RuntimeLevel
 from studio_contracts.tasks import TaskCreate
 
 from studio_api.services import library as library_service
+from studio_api.services import project_repositories as project_repositories_service
 from studio_api.services import projects as projects_service
 from studio_api.services import runtime_bindings as runtime_bindings_service
 from studio_api.services import tasks as tasks_service
@@ -91,6 +91,8 @@ class InitializationTarget(Protocol):
     Studio OS services; a fake target implements the same surface in memory."""
 
     async def project_id_for_slug(self, slug: str) -> UUID | None: ...
+
+    async def ensure_repository_available(self, repository: str | None) -> None: ...
 
     async def create_project(self, spec: InitializationProjectSpec) -> UUID: ...
 
@@ -193,6 +195,7 @@ async def reconnoiter(target: InitializationTarget, plan: ProjectInitializationP
     project_id = await target.project_id_for_slug(plan.project.slug)
     recon.project_id = project_id
     if project_id is None:
+        await target.ensure_repository_available(plan.project.repository)
         recon.actions.append(
             _action(
                 InitializationSection.PROJECT, plan.project.slug, InitializationActionKind.CREATE
@@ -497,11 +500,6 @@ def _planned_create(recon: _Recon, section: InitializationSection, key: str) -> 
     )
 
 
-def summarize(result: InitializationPreview | InitializationResult) -> InitializationSummary:
-    """Single roll-up accessor shared by preview/apply callers (MCP, HTTP)."""
-    return result.summary
-
-
 class StudioServicesInitializationTarget:
     """Default adapter: reuses existing Studio OS services. `studio_api.services
     .roadmaps` (P3) is imported lazily so this lane builds and tests before P3
@@ -531,11 +529,19 @@ class StudioServicesInitializationTarget:
                 return project.id
         return None
 
+    async def ensure_repository_available(self, repository: str | None) -> None:
+        if repository is not None:
+            await project_repositories_service.ensure_remote_available(self._session, repository)
+
     async def create_project(self, spec: InitializationProjectSpec) -> UUID:
         project = await projects_service.create_project(
             self._session, spec.slug, spec.name, spec.description, creator=self._principal.user
         )
         self._principal = with_created_project(self._principal, project.id)
+        if spec.repository is not None:
+            await project_repositories_service.link_repository(
+                self._session, self._principal, project.id, spec.repository
+            )
         return project.id
 
     async def roadmap_ids_by_title(self, project_id: UUID) -> dict[str, UUID]:

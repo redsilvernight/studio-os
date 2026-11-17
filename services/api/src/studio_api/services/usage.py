@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.usage import (
     USAGE_SUMMARY_MAX_GROUPS,
     CacheTokenScope,
+    CostBasis,
     MeasurementCoverage,
     UsageAggregate,
     UsageCostTotal,
@@ -47,6 +48,9 @@ from studio_api.services.authz import (
     owns_agent,
     project_visibility_clause,
 )
+from studio_api.services.usage_subscriptions import ShareAccumulator, subscription_shares
+
+MISLABELLED_PRICE_LIST_PREFIX = "public-eur-"
 
 
 def _conflict(code: str, **details: Any) -> HTTPException:
@@ -173,7 +177,12 @@ def to_entry(row: UsageLedgerEntryModel) -> UsageLedgerEntry:
             tokens_out={"value": row.tokens_out, "coverage": row.tokens_out_coverage},
             tokens_cached={"value": row.tokens_cached, "coverage": row.tokens_cached_coverage},
             cached_tokens_scope=row.cached_tokens_scope,
-            cost={"value": row.cost, "coverage": row.cost_coverage, "currency": row.cost_currency},
+            cost={
+                "value": row.cost,
+                "coverage": row.cost_coverage,
+                "currency": row.cost_currency,
+                "basis": row.cost_basis,
+            },
             duration={"value": row.duration_seconds, "coverage": row.duration_coverage},
             pricing={"price_list_id": row.price_list_id, "effective_from": row.price_effective_from}
             if row.price_list_id is not None
@@ -185,6 +194,19 @@ def to_entry(row: UsageLedgerEntryModel) -> UsageLedgerEntry:
     )
 
 
+def _currency(entry: UsageLedgerEntryCreate | UsageLedgerCorrection) -> str | None:
+    """Grids `public-eur-*` held public USD list prices labelled EUR; an older
+    daemon or a queued entry still sends that label and is stored as USD."""
+    if (
+        entry.cost.coverage is MeasurementCoverage.ESTIMATED
+        and entry.cost.currency == "EUR"
+        and entry.pricing is not None
+        and entry.pricing.price_list_id.startswith(MISLABELLED_PRICE_LIST_PREFIX)
+    ):
+        return "USD"
+    return entry.cost.currency
+
+
 def _measurement_values(entry: UsageLedgerEntryCreate | UsageLedgerCorrection) -> dict[str, Any]:
     values: dict[str, Any] = entry.provenance.model_dump(mode="json")
     values.update(
@@ -193,7 +215,8 @@ def _measurement_values(entry: UsageLedgerEntryCreate | UsageLedgerCorrection) -
         cached_tokens_scope=entry.cached_tokens_scope.value,
         cost=entry.cost.value,
         cost_coverage=entry.cost.coverage.value,
-        cost_currency=entry.cost.currency,
+        cost_currency=_currency(entry),
+        cost_basis=entry.cost.basis.value if entry.cost.basis is not None else None,
         duration_seconds=entry.duration.value,
         duration_coverage=entry.duration.coverage.value,
         price_list_id=entry.pricing.price_list_id if entry.pricing is not None else None,
@@ -415,7 +438,9 @@ class _AggregateAccumulator:
     last_period_end: datetime | None = None
     metrics: dict[str, _MetricAccumulator] = field(default_factory=_new_metrics)
     cost_by_currency: dict[str, _MetricAccumulator] = field(default_factory=dict)
+    cost_bases: set[str] = field(default_factory=set)
     sources: dict[str, int] = field(default_factory=dict)
+    share: ShareAccumulator | None = None
 
     def span(self, start: datetime | None, end: datetime | None) -> None:
         if start is not None and (
@@ -432,8 +457,13 @@ class _AggregateAccumulator:
             self.metrics[name].merge(metric)
         for currency, metric in other.cost_by_currency.items():
             self.cost_by_currency.setdefault(currency, _MetricAccumulator()).merge(metric)
+        self.cost_bases |= other.cost_bases
         for collector, count in other.sources.items():
             self.sources[collector] = self.sources.get(collector, 0) + count
+        if other.share is not None:
+            if self.share is None:
+                self.share = ShareAccumulator()
+            self.share.merge(other.share)
 
     def cost(self) -> UsageCostTotal:
         metric = self.metrics["cost"]
@@ -441,12 +471,14 @@ class _AggregateAccumulator:
             UsageCurrencyAmount(currency=currency, known_sum=amount.known_sum, entries=amount.known)
             for currency, amount in sorted(self.cost_by_currency.items())
         ]
+        bases = [CostBasis(basis) for basis in sorted(self.cost_bases)]
         if len(by_currency) > 1:
             return UsageCostTotal(
                 status=UsageTotalStatus.MIXED_CURRENCY,
                 known_sum=None,
                 currency=None,
                 by_currency=by_currency,
+                bases=bases,
                 **metric.counts(),
             )
         single = by_currency[0] if by_currency else None
@@ -455,6 +487,7 @@ class _AggregateAccumulator:
             known_sum=single.known_sum if single is not None else None,
             currency=single.currency if single is not None else None,
             by_currency=by_currency,
+            bases=bases,
             **metric.counts(),
         )
 
@@ -474,6 +507,7 @@ class _AggregateAccumulator:
                 UsageSourceCount(collector=collector, entries=count)
                 for collector, count in sorted(self.sources.items())
             ],
+            subscription_share=self.share.finalize() if self.share is not None else None,
         )
 
 
@@ -560,30 +594,31 @@ async def summarize_usage(
         )
     entry = UsageLedgerEntryModel
     groups = _group_columns(group_by)
-    dimensions = [*groups.values(), entry.cost_currency, entry.collector]
+    scope: list[Any] = []
+    if task_id is not None:
+        scope.append(entry.task_id == task_id)
+    if task_launch_id is not None:
+        scope.append(entry.task_launch_id == task_launch_id)
+    if since is not None:
+        scope.append(entry.period_start >= since)
+    if until is not None:
+        scope.append(entry.period_start < until)
+    dimensions = [*groups.values(), entry.cost_currency, entry.cost_basis, entry.collector]
     stmt = select(
         *dimensions,
         func.count(),
         func.min(entry.period_start),
         func.max(entry.period_end),
         *_summary_measures(),
-    ).where(entry.project_id == project_id)
+    ).where(entry.project_id == project_id, *scope)
     if group_by is UsageGroupBy.TASK:
         stmt = stmt.outerjoin(TaskModel, TaskModel.id == entry.task_id)
-    if task_id is not None:
-        stmt = stmt.where(entry.task_id == task_id)
-    if task_launch_id is not None:
-        stmt = stmt.where(entry.task_launch_id == task_launch_id)
-    if since is not None:
-        stmt = stmt.where(entry.period_start >= since)
-    if until is not None:
-        stmt = stmt.where(entry.period_start < until)
     stmt = stmt.group_by(*dimensions)
 
     by_key: dict[tuple[Any, ...], _AggregateAccumulator] = {}
     for row in (await session.execute(stmt)).all():
         key_values = tuple(row[: len(groups)])
-        currency, collector, count, first_start, last_end, *values = row[len(groups) :]
+        currency, basis, collector, count, first_start, last_end, *values = row[len(groups) :]
         key = UsageGroupKey(**dict(zip(groups, key_values, strict=True)))
         part = _AggregateAccumulator(key=key, entries=count)
         part.span(first_start, last_end)
@@ -592,10 +627,26 @@ async def summarize_usage(
         if currency is not None:
             part.cost_by_currency[currency] = _MetricAccumulator()
             part.cost_by_currency[currency].merge(part.metrics["cost"])
+        if basis is not None:
+            part.cost_bases.add(basis)
         part.sources[collector] = count
         by_key.setdefault(key_values, _AggregateAccumulator(key=key)).merge(part)
 
+    shares = await subscription_shares(
+        session,
+        project_id,
+        groups,
+        scope,
+        join_task=group_by is UsageGroupBy.TASK,
+        now=datetime.now(UTC),
+    )
+    if shares is not None:
+        for key_values, aggregate in by_key.items():
+            aggregate.share = shares.get(key_values, ShareAccumulator())
+
     total = _AggregateAccumulator(key=UsageGroupKey())
+    if shares is not None:
+        total.share = ShareAccumulator()
     for aggregate in by_key.values():
         total.merge(aggregate)
     grouped = group_by is not UsageGroupBy.NONE

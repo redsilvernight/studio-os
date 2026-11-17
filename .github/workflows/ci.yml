@@ -46,6 +46,30 @@ jobs:
       - name: mypy
         run: uv run mypy packages/studio-contracts/src packages/studio-client/src packages/studio-workspaces/src packages/studio-code-graph/src services/api/src services/mcp/src
 
+  deadcode:
+    # PC5 : même commande qu'en local (docs/library/roadmap-pc/PC5-guard.md).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.12
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install dashboard
+        # knip charge vite/vitest/playwright pour lire leurs configurations.
+        working-directory: dashboard
+        run: npm ci
+      - name: Dead code (vulture + knip)
+        run: uv run python -m scripts.deadcode_check
+
   dashboard:
     runs-on: ubuntu-latest
     defaults:
@@ -136,8 +160,6 @@ jobs:
             mc alias set ci http://localhost:9000 studio studio-dev-secret &&
             mc mb --ignore-existing ci/studio-transfers
           "
-      - name: adapters check (canonical projections anti-drift)
-        run: uv run --package studio-client studio-client adapters check --repo-root .
       - name: pytest
         run: uv run pytest -n 4 -q --junitxml=pytest-results.xml
       - name: Annotate failing tests

@@ -134,6 +134,7 @@ from studio_client.daemon.local_features import (
 from studio_client.daemon.logging import configure_daemon_logging
 from studio_client.daemon.machine_identity import MachineResolver, resolve_machine_id
 from studio_client.daemon.project_projections import (
+    RepoTarget,
     apply_project_update,
     project_projections_status,
 )
@@ -157,7 +158,7 @@ from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.11.0"
+DAEMON_VERSION = "0.12.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
@@ -318,6 +319,7 @@ class DaemonController:
             self._token_store,
             home=skills_home,
             roots=self._workspace_roots,
+            targets=self._project_repo_targets,
         )
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
@@ -519,6 +521,10 @@ class DaemonController:
             self.data_root,
             request.workspace_id,
         )
+
+    def _project_repo_targets(self) -> list[RepoTarget]:
+        runtime = self._runtime
+        return [] if runtime is None else runtime.project_repo_targets()
 
     def _workspace_roots(self) -> tuple[Path, ...]:
         features = self.local_features
@@ -871,6 +877,20 @@ class BridgeService:
                 LocalErrorCode.CAPABILITY_MISSING,
                 "Rule and agent resolutions require the skills.definitions capability.",
             )
+        if (
+            request.command is BridgeCommand.SKILLS_APPLY
+            and any(
+                isinstance(resolution, dict) and resolution.get("choice") == "publish"
+                for resolution in request.payload.get("resolutions") or []
+            )
+            and "skills.publish" not in self._granted_capabilities
+        ):
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.CAPABILITY_MISSING,
+                "The publish choice requires the skills.publish capability.",
+            )
         if request.command in _LOCAL_FEATURE_COMMANDS and self.controller.local_features is None:
             return self._error(
                 request,
@@ -975,6 +995,7 @@ class BridgeService:
                             "skills.apply",
                             "skills.resolve",
                             "skills.definitions",
+                            "skills.publish",
                             "setup.plan",
                             "setup.apply",
                             "launch.settings",

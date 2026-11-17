@@ -22,6 +22,7 @@ from studio_api.openapi_meta import (
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
     RESP_409_IDEMPOTENCY,
+    RESP_409_TRANSFER_DELETED,
     RESP_409_TRANSFER_STATE,
     RESP_413_TRANSFER_TOO_LARGE,
     RESP_422_TRANSFER_INTEGRITY,
@@ -290,6 +291,34 @@ async def get_download_url(
     storage = get_storage()
     url, expires_at = transfers_service.get_download_url(storage, settings, transfer)
     return DownloadUrlResponse(transfer_id=transfer.id, download_url=url, expires_at=expires_at)
+
+
+@router.post(
+    "/{transfer_id}/downloaded",
+    response_model=Transfer,
+    description=(
+        "Record receipt of a transfer after the client downloaded its bytes "
+        "through the presigned URL (bytes never pass through this API). Any "
+        "reader of the transfer with a writer role may acknowledge it — "
+        "sender, recipient, broadcast readers, or a privileged role; a "
+        "writer-less role gets 403. Unknown ids fail with 404. Idempotent: "
+        "replaying an acknowledged transfer returns it unchanged with its "
+        "original downloaded_at. A deleted transfer fails with 409 "
+        "transfer_deleted instead of being resurrected."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_TRANSFER_DELETED,
+    },
+)
+async def acknowledge_download(
+    transfer_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Transfer:
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
+    transfer, _ = await transfers_service.acknowledge_download(session, principal, transfer)
+    return Transfer.model_validate(transfer)
 
 
 @router.delete(

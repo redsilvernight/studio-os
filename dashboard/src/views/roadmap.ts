@@ -37,6 +37,9 @@ import { renderAdmissionPanelInto } from "./admissionPanel";
 
 export type RoadmapMode = "plan" | "execution";
 
+/** One `beforeprint` hook per mounted root, so repaints never stack listeners. */
+const printHooks = new WeakMap<HTMLElement, () => void>();
+
 export interface RoadmapViewContext {
   dataSource: RoadmapDataSource;
   projectId: string;
@@ -379,7 +382,7 @@ function diffHtml(diff: RoadmapDiff): string {
     .join("")}</ul>`;
 }
 
-export function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: Roadmap): string {
+function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: Roadmap): string {
   const { revision, diff } = proposal;
   const author = revision.provenance.actor_type === "agent"
     ? `Agent ${agentRef(revision.provenance.agent_id ?? revision.provenance.actor_id)}`
@@ -472,6 +475,7 @@ export function roadmapShellHtml(
     `<input class="ds-sr-only" type="file" accept="application/json,.json" aria-label="Choisir un fichier Roadmap JSON" data-import-file>` +
     `<div class="roadmap-reading-tabs roadmap-no-print" role="tablist" aria-label="Lecture de la roadmap"><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "execution"}" data-mode="execution">Exécution</button><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "plan"}" data-mode="plan">Plan</button></div>` +
     `<div class="roadmap-layout"><main class="roadmap-reading" data-roadmap-reading>${plan}</main>${roadmapStepDetailHtml(selected, roadmap)}</div>` +
+    `<div class="roadmap-export-error roadmap-no-print" data-roadmap-export-error></div>` +
     `<p class="roadmap-print-help roadmap-no-print">L'export PDF ouvre la vue d'impression du navigateur. Choisissez « Enregistrer au format PDF ».</p>` +
     `</div>`;
 }
@@ -538,13 +542,45 @@ function readEditor(form: HTMLFormElement, baseline: RoadmapDocument): RoadmapDo
   };
 }
 
-function downloadText(filename: string, contents: string): void {
-  const url = URL.createObjectURL(new Blob([contents], { type: "application/json;charset=utf-8" }));
+/** File slug of a roadmap title: ASCII, lowercase, dash-separated, never empty. */
+function roadmapFileSlug(title: string): string {
+  const slug = title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+  return slug === "" ? "plan" : slug;
+}
+
+export function roadmapExportFilename(roadmap: Roadmap): string {
+  return `roadmap-${roadmapFileSlug(roadmap.title)}.json`;
+}
+
+/** Chromium reads a blob URL asynchronously; releasing it sooner cancels the download. */
+export const EXPORT_REVOKE_DELAY_MS = 1_000;
+
+/**
+ * Saves `contents` as `filename`. The anchor must be attached to the document
+ * and its object URL must outlive the click: a detached anchor or an immediate
+ * `revokeObjectURL` makes Chromium drop the download without any error.
+ */
+function downloadJsonFile(filename: string, contents: string): void {
+  const blob = new Blob([contents], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.hidden = true;
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, EXPORT_REVOKE_DELAY_MS);
 }
 
 function emptyDocument(projectName: string): RoadmapDocument {
@@ -640,6 +676,32 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
     mountAdmission(roadmap);
   };
 
+  const setExportError = (title: string | null, error?: unknown): void => {
+    const box = root.querySelector<HTMLElement>("[data-roadmap-export-error]");
+    const html = title === null
+      ? ""
+      : `<div class="ds-notice ds-notice--danger" role="alert"><strong>${esc(title)}</strong> ${esc(describeError(error))}</div>`;
+    if (box === null) {
+      if (html !== "") root.insertAdjacentHTML("afterbegin", html);
+      return;
+    }
+    box.innerHTML = html;
+  };
+
+  // The print sheet is rebuilt from the live plan right before printing so the
+  // paper always carries every phase and step, including collapsed ones.
+  const refreshPrintDocument = (): void => {
+    if (roadmap === null) return;
+    const sheet = root.querySelector<HTMLElement>(".roadmap-print-document");
+    if (sheet !== null) sheet.outerHTML = roadmapPrintHtml(roadmap);
+    else root.querySelector<HTMLElement>(".roadmap-view")?.insertAdjacentHTML("afterbegin", roadmapPrintHtml(roadmap));
+  };
+  const previousPrintHook = printHooks.get(root);
+  if (previousPrintHook !== undefined) window.removeEventListener("beforeprint", previousPrintHook);
+  const printHook = (): void => refreshPrintDocument();
+  window.addEventListener("beforeprint", printHook);
+  printHooks.set(root, printHook);
+
   const openEditor = (document: RoadmapDocument): void => {
     root.insertAdjacentHTML("beforeend", `<div class="ds-overlay roadmap-editor-overlay" data-roadmap-editor-overlay><div class="ds-modal roadmap-editor-modal" role="dialog" aria-modal="true" aria-labelledby="roadmap-editor-title"><h2 id="roadmap-editor-title">Modifier la roadmap</h2>${documentEditorHtml(document)}</div></div>`);
     const overlay = root.querySelector<HTMLElement>("[data-roadmap-editor-overlay]");
@@ -726,9 +788,27 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
     });
     root.querySelector<HTMLButtonElement>("[data-export-json]")?.addEventListener("click", () => {
       if (roadmap === null) return;
-      downloadText("studio-roadmap.json", serializeRoadmapDocument(roadmapToDocument(roadmap)));
+      try {
+        // Serialization validates the plan: a broken payload never reaches disk.
+        const payload = serializeRoadmapDocument(roadmapToDocument(roadmap));
+        downloadJsonFile(roadmapExportFilename(roadmap), payload);
+        setExportError(null);
+      } catch (error) {
+        setExportError("Export JSON impossible.", error);
+      }
     });
-    root.querySelector<HTMLButtonElement>("[data-export-pdf]")?.addEventListener("click", () => window.print());
+    // Chromium's print preview cannot save from an embedded frame: the export
+    // prints this page with its @media print sheet, not an iframe/embed blob.
+    root.querySelector<HTMLButtonElement>("[data-export-pdf]")?.addEventListener("click", () => {
+      try {
+        refreshPrintDocument();
+        if (typeof window.print !== "function") throw new Error("L'impression n'est pas disponible dans cet environnement.");
+        window.print();
+        setExportError(null);
+      } catch (error) {
+        setExportError("Export PDF impossible.", error);
+      }
+    });
     const reviewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-review]")];
     reviewButtons.forEach((button) => button.addEventListener("click", async () => {
       if (roadmap === null) return;

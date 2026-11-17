@@ -196,7 +196,10 @@ def test_bootstrap_statuses_report_counts_only_for_repos_with_manifest(tmp_path:
             {"repo_path": str(without), "project_id": str(project_b)},
         ]
     )
-    (status,) = bootstrap_statuses(config)
+    from tests.library_bundle import sample_bundle
+
+    assert bootstrap_statuses(config) == []
+    (status,) = bootstrap_statuses(config, lambda _project: sample_bundle())
     assert status.project_id == project_a
     assert status.summary.up_to_date == 0
     assert status.summary.absent > 0

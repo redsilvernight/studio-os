@@ -16,6 +16,7 @@ export type AiIntegrationStatus = components["schemas"]["AiIntegrationStatus"];
 export type DesiredIntegration = components["schemas"]["DesiredIntegration"];
 export type ReportedMachineIntegration = components["schemas"]["ReportedMachineIntegration"];
 export type HarnessReport = components["schemas"]["HarnessReport"];
+/** @public PC0 à vérifier : alias miroir du schéma OpenAPI, sans référence. */
 export type ReportFreshness = components["schemas"]["ReportFreshness"];
 
 export async function getAiIntegrationStatus(

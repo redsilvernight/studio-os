@@ -1,0 +1,23 @@
+// Contrôle de code mort du dashboard (PC5), knip 6.45.1 épinglé dans scripts/deadcode_check.py.
+// Procédure et règles d'exception : docs/library/roadmap-pc/PC5-guard.md.
+// Les entrées Vite (index.html), vitest (src/**/*.test.ts) et Playwright (e2e/) viennent des
+// plugins knip, les scripts de package.json sont lus directement.
+// Exports « à vérifier » de PC0 gardés : balise JSDoc `@public` dans le source, avec sa raison
+// (`git grep -n "@public PC0"` les liste).
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "entry": [
+    // Lanceur manuel documenté (docs/DESKTOP_C2_NEW_USER_E2E.md, e2e/c2-new-user-live.spec.ts).
+    "scripts/c2-new-user-live.mjs"
+  ],
+  "ignore": [
+    // Fichiers générés : leurs exports suivent la source (OpenAPI, contracts/local, notes de
+    // version), pas les consommateurs. Régénérés par `npm run openapi`, `gen:local-contracts`
+    // et desktop/scripts/release-notes.mjs.
+    "src/openapi-schema.ts",
+    "src/platform/generated/local-contracts.generated.ts",
+    "src/releaseNotes.generated.ts"
+  ],
+  // Outil Python appelé par le lanceur c2 (uv run ...), pas un paquet npm.
+  "ignoreBinaries": ["uv"]
+}

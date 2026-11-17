@@ -19,11 +19,6 @@ def vault(tmp_path: Path) -> Path:
     return make_vault(tmp_path)
 
 
-@pytest.fixture
-def cache_dir(tmp_path: Path) -> Path:
-    return tmp_path / "cache"
-
-
 def build_provider(
     vault: Path,
     cache_dir: Path,

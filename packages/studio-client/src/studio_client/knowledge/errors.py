@@ -19,7 +19,6 @@ class KnowledgeError(Exception):
     GRAPH_INVALID = "graph_invalid"
     INDEX_CORRUPT = "index_corrupt"
     REFRESH_UNSUPPORTED = "refresh_unsupported"
-    WRITE_UNSUPPORTED = "write_unsupported"
 
     def __init__(self, reason: str, message: str) -> None:
         super().__init__(f"{reason}: {message}")

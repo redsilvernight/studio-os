@@ -126,11 +126,11 @@ function hash01(value: string, salt = 0): number {
   return (h >>> 0) / 0x100000000;
 }
 
-export function clusterKey(node: AtlasNoteNode): string {
+function clusterKey(node: AtlasNoteNode): string {
   return node.scope === "project" ? `cluster:project:${node.projectId ?? "?"}:${node.noteType}` : `cluster:studio:${node.noteType}`;
 }
 
-export function zoneColorIndex(scope: AtlasNoteNode["scope"], projectId: string | null): number {
+function zoneColorIndex(scope: AtlasNoteNode["scope"], projectId: string | null): number {
   if (scope === "studio") return 0;
   const span = Math.max(1, ATLAS_ZONE_COLORS.length - 1);
   return 1 + Math.floor(hash01(projectId ?? "?", 11) * span) % span;
@@ -145,7 +145,7 @@ const R2_A = 0.7548776662466927;
 const R2_B = 0.5698402909980532;
 
 /** Rayon monde de la boule d'un groupe de `count` notes. */
-export function groupRadius(count: number): number {
+function groupRadius(count: number): number {
   return NODE_SPACING * 0.78 * Math.cbrt(count) + 6;
 }
 
@@ -268,7 +268,7 @@ function noteVisible(node: AtlasNoteNode, filters: AtlasFilters): boolean {
 }
 
 /** Groupes (portée/projet × type) des notes visibles, pour les étiquettes flottantes. */
-export function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<string, string>): AtlasGroup[] {
+function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<string, string>): AtlasGroup[] {
   const groups = new Map<string, AtlasNoteNode[]>();
   for (const node of notes) {
     const key = clusterKey(node);
@@ -294,7 +294,7 @@ export function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<s
   });
 }
 
-export function atlasCommunities(notes: AtlasNoteNode[], edges: AtlasEdge[]): AtlasCommunity[] {
+function atlasCommunities(notes: AtlasNoteNode[], edges: AtlasEdge[]): AtlasCommunity[] {
   const byId = new Map(notes.map((note) => [note.id, note]));
   const adjacency = new Map<string, Set<string>>();
   for (const edge of edges) {

@@ -188,6 +188,12 @@ async function login(page: Page, startHash: string, opts: { agentsFail?: boolean
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
   await expect(page.locator(".app-sidebar")).toBeVisible();
+  // La coquille est peinte avant le rendu de la vue (chunk paresseux +
+  // appels API) : la première assertion du test ne doit pas courir ce
+  // premier rendu. On attend le titre de la page, présent dans tous les
+  // états (liste, fiche, introuvable, vide, erreur) — même budget que les
+  // autres specs e2e pour un premier rendu.
+  await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 15_000 });
 }
 
 function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {

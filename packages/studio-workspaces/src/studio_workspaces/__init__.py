@@ -1,6 +1,12 @@
 from studio_workspaces.daemon_config import WatchPlan, daemon_watch_plan
+from studio_workspaces.detected import (
+    DetectedRepository,
+    forget_detected_repository,
+    list_detected_repositories,
+    record_detected_repository,
+)
 from studio_workspaces.flows import FlowKind, FlowResult, run_flow
-from studio_workspaces.git_detection import GitRepoInfo, GitStatus, detect_git
+from studio_workspaces.git_detection import GitRepoInfo, GitStatus, detect_git, main_repo_root
 from studio_workspaces.native_picker import (
     NativeFolderPicker,
     NativePick,
@@ -33,6 +39,7 @@ from studio_workspaces.workspace_bridge import WorkspaceBridge
 
 __all__ = [
     "ConfigSource",
+    "DetectedRepository",
     "DissociateResult",
     "FlowKind",
     "FlowResult",
@@ -62,7 +69,11 @@ __all__ = [
     "classify_local_path",
     "daemon_watch_plan",
     "detect_git",
+    "forget_detected_repository",
+    "list_detected_repositories",
+    "main_repo_root",
     "parse_native_pick",
+    "record_detected_repository",
     "register_workspace",
     "registry_config_source",
     "registry_watch_source",

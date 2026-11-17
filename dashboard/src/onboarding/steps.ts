@@ -98,7 +98,7 @@ export function stepById(id: OnboardingStepId): OnboardingStep {
   return found;
 }
 
-export function stepIndex(id: OnboardingStepId): number {
+function stepIndex(id: OnboardingStepId): number {
   return STEP_ORDER.indexOf(id);
 }
 

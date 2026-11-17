@@ -14,7 +14,7 @@ import uuid
 from typing import Any
 
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.event import EventModel
@@ -1127,6 +1127,95 @@ async def test_step_progress_override_criteria_and_notes(
     )
     assert edited.status_code == 200, edited.text
     assert step_of(edited.json(), "S2")["criteria_checked"] == []
+
+
+async def test_step_ignores_an_in_progress_task_without_a_live_claim(
+    client: AsyncClient, auth_headers: Headers, project: ProjectModel, db_session: AsyncSession
+) -> None:
+    """Regression (task ab7ac2b9): a Task keeps `in_progress` once its claim is
+    released (releasing clears the holder without rewriting the status), which
+    made the step report `in_progress` while nobody was working on it. Step
+    state reads the current row only — status and holder — never claim history:
+    a released claim is back to `created`, a live claim still counts, and notes
+    alone never start a step."""
+    roadmap = await active_roadmap(client, auth_headers, project)
+    rid = roadmap["id"]
+    task_id = await make_task(client, auth_headers, project)
+    linked = await client.post(
+        f"/api/v1/roadmaps/{rid}/steps/S1/links",
+        headers=auth_headers,
+        json={"task_id": task_id},
+    )
+    assert linked.status_code == 201, linked.text
+    assert step_of(linked.json(), "S1")["state"] == "not_started"
+
+    claim = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    assert claim.status_code == 200
+    assert step_of(await get(client, auth_headers, rid), "S1")["state"] == "in_progress"
+
+    release = await client.post(f"/api/v1/tasks/{task_id}/release", headers=auth_headers)
+    assert release.status_code == 200
+    assert release.json()["claimed_by_machine_id"] is None
+    released = await get(client, auth_headers, rid)
+    assert step_of(released, "S1")["state"] == "not_started"
+    assert step_of(released, "S1")["task_progress"] == {"completed": 0, "total": 1}
+
+    # The exact footprint of a released claim, whatever the release endpoint
+    # writes: `in_progress` with no holder must not start the step.
+    await db_session.execute(
+        update(TaskModel)
+        .where(TaskModel.id == uuid.UUID(task_id))
+        .values(status="in_progress", claimed_by_machine_id=None, claimed_by_agent_id=None)
+        .execution_options(synchronize_session=False)
+    )
+    orphan = (await client.get(f"/api/v1/tasks/{task_id}", headers=auth_headers)).json()
+    assert orphan["status"] == "in_progress" and orphan["claimed_by_machine_id"] is None
+    assert step_of(await get(client, auth_headers, rid), "S1")["state"] == "not_started"
+
+    noted = await client.patch(
+        f"/api/v1/roadmaps/{rid}/steps/S1/progress",
+        headers={
+            **auth_headers,
+            "If-Match-Version": str(step_of(released, "S1")["version"]),
+        },
+        json={"notes": "wip"},
+    )
+    assert noted.status_code == 200, noted.text
+    assert step_of(noted.json(), "S1")["state"] == "not_started"
+
+    reclaimed = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    assert reclaimed.status_code == 200
+    assert step_of(await get(client, auth_headers, rid), "S1")["state"] == "in_progress"
+
+
+async def test_step_state_follows_current_task_status_not_claim_history(
+    client: AsyncClient, auth_headers: Headers, project: ProjectModel
+) -> None:
+    """A step derives from the current linked-Task statuses, never from claim
+    history: once the Task reads `created` again, the step is back to
+    `not_started`, holder or not."""
+    roadmap = await active_roadmap(client, auth_headers, project)
+    rid = roadmap["id"]
+    task_id = await make_task(client, auth_headers, project)
+    linked = await client.post(
+        f"/api/v1/roadmaps/{rid}/steps/S1/links",
+        headers=auth_headers,
+        json={"task_id": task_id},
+    )
+    assert linked.status_code == 201, linked.text
+
+    claim = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    assert claim.status_code == 200
+    assert step_of(await get(client, auth_headers, rid), "S1")["state"] == "in_progress"
+
+    current = (await client.get(f"/api/v1/tasks/{task_id}", headers=auth_headers)).json()
+    back = await client.patch(
+        f"/api/v1/tasks/{task_id}",
+        headers={**auth_headers, "If-Match-Version": str(current["version"])},
+        json={"status": "created"},
+    )
+    assert back.status_code == 200, back.text
+    assert step_of(await get(client, auth_headers, rid), "S1")["state"] == "not_started"
 
 
 # --- hydration ---

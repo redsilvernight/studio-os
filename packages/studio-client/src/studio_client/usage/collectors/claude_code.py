@@ -17,6 +17,7 @@ from typing import Any
 
 from studio_contracts.usage import (
     CacheTokenScope,
+    CostBasis,
     CostMeasurement,
     MeasurementCoverage,
     TokenMeasurement,
@@ -34,7 +35,6 @@ from studio_client.usage.collectors.base import (
 
 COLLECTOR_ID = "studio-claude-code"
 COLLECTOR_VERSION = "1.0.0"
-CERTIFIED_HARNESS_SERIES = "2.1"
 
 _PROVIDER_ALIASES = {"firstParty": "anthropic"}
 
@@ -167,7 +167,10 @@ class ClaudeCodeCollector:
                 diagnostics.append(CollectorDiagnostic.INVALID_COUNTER)
             else:
                 cost = CostMeasurement(
-                    value=amount, coverage=MeasurementCoverage.MEASURED, currency="USD"
+                    value=amount,
+                    coverage=MeasurementCoverage.MEASURED,
+                    currency="USD",
+                    basis=CostBasis.API_EQUIVALENT,
                 )
 
         if document.get("is_error") is True:

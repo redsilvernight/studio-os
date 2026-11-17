@@ -73,7 +73,11 @@ le chemin multipart (MinIO/S3 n'exposent pas de checksum d'objet complet via
 URL pre-signee a un client sans identifiants AWS).
 
 ## Download
-URL GET pre-signee courte. Support HTTP Range pour reprise.
+URL GET pre-signee courte. Support HTTP Range pour reprise. Apres un
+telechargement reussi, le client emet l'accuse de reception
+`POST /transfers/{id}/downloaded` (idempotent : un rejeu renvoie le transfert
+inchange avec le `downloaded_at` d'origine) — c'est cet appel qui renseigne
+`Transfer.downloaded_at` et fait passer le statut a `downloaded`.
 
 ## Suppression explicite
 

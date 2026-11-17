@@ -31,6 +31,18 @@ def _event(event_type: EventType, at: datetime) -> EventEnvelope:
     )
 
 
+def _global_event(event_type: EventType, at: datetime) -> EventEnvelope:
+    return EventEnvelope(
+        event_id=uuid4(),
+        event_type=event_type,
+        project_id=None,
+        actor_type="user",
+        actor_id=uuid4(),
+        client_timestamp=at,
+        server_timestamp=at,
+    )
+
+
 class FakeClient:
     def __init__(self) -> None:
         self.events: list[EventEnvelope] = []
@@ -126,6 +138,52 @@ async def test_cursor_survives_a_restart(tmp_path: Path) -> None:
     await _watcher(client, tmp_path, calls).poll_once()
     client.events.append(_event(EventType.LIBRARY_VERSION_ACTIVATED, T0))
     await _watcher(client, tmp_path, calls).poll_once()
+    assert calls == [1]
+
+
+def _studio_watcher(client: FakeClient, tmp_path: Path, calls: list[int]) -> LibraryEventWatcher:
+    def on_change() -> None:
+        calls.append(1)
+
+    return LibraryEventWatcher(
+        client,  # type: ignore[arg-type]
+        project_ids=lambda: [],
+        cursor_path=tmp_path / CURSOR_FILE_NAME,
+        on_library_change=on_change,
+    )
+
+
+async def test_studio_activation_detected_once_without_followed_projects(
+    tmp_path: Path,
+) -> None:
+    client, calls = FakeClient(), []
+    watcher = _studio_watcher(client, tmp_path, calls)
+    await watcher.poll_once()
+    assert calls == []
+
+    client.events.append(_global_event(EventType.LIBRARY_VERSION_ACTIVATED, T0))
+    await watcher.poll_once()
+    assert calls == [1]
+
+    await watcher.poll_once()
+    assert calls == [1]
+
+
+async def test_studio_cursor_ignores_project_events_and_survives_a_restart(
+    tmp_path: Path,
+) -> None:
+    client, calls = FakeClient(), []
+    await _studio_watcher(client, tmp_path, calls).poll_once()
+    client.events.append(_event(EventType.LIBRARY_VERSION_ACTIVATED, T0))
+    await _studio_watcher(client, tmp_path, calls).poll_once()
+    assert calls == []
+
+    client.events.append(
+        _global_event(EventType.LIBRARY_RESOURCE_DEPRECATED, T0 + timedelta(seconds=5))
+    )
+    await _studio_watcher(client, tmp_path, calls).poll_once()
+    assert calls == [1]
+    await _studio_watcher(client, tmp_path, calls).poll_once()
     assert calls == [1]
 
 

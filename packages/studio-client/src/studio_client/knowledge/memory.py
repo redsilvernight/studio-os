@@ -36,25 +36,13 @@ class MemoryReadResult:
     truncated: bool = False
 
 
-class MemoryProposal(dict[str, object]):
-    """Placeholder shape for a future memory write proposal (8.4/8.5)."""
-
-
 class MemoryProvider(Protocol):
-    """`TECH/09` memory surface, read-only for 8.2 (DEC-0042).
-
-    Write methods are declared so the `TECH/09` names freeze now, but their
-    approval loop crosses the server and belongs to 8.4/8.5.
-    """
+    """`TECH/09` memory surface, read-only (DEC-0042)."""
 
     def search(
         self, query: str, *, max_results: int = DEFAULT_MAX_RESULTS
     ) -> MemorySearchResult: ...
     def read(self, path: str, *, max_chars: int = DEFAULT_READ_CHARS) -> MemoryReadResult: ...
-    def propose(self, proposal: MemoryProposal) -> object: ...
-    def write_if_authorized(self, proposal: MemoryProposal) -> object: ...
-    def append_task_log(self, entry: dict[str, object]) -> object: ...
-    def create_decision_note(self, note: dict[str, object]) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -211,28 +199,4 @@ class VaultMemoryProvider:
             title=note.title,
             content=content,
             truncated=truncated,
-        )
-
-    def propose(self, proposal: MemoryProposal) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "memory writes need the server approval loop (8.4/8.5), not this read-only adapter",
-        )
-
-    def write_if_authorized(self, proposal: MemoryProposal) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "memory writes need the server approval loop (8.4/8.5), not this read-only adapter",
-        )
-
-    def append_task_log(self, entry: dict[str, object]) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "memory writes need the server approval loop (8.4/8.5), not this read-only adapter",
-        )
-
-    def create_decision_note(self, note: dict[str, object]) -> object:
-        raise KnowledgeError(
-            KnowledgeError.WRITE_UNSUPPORTED,
-            "memory writes need the server approval loop (8.4/8.5), not this read-only adapter",
         )

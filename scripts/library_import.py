@@ -141,7 +141,7 @@ def _content(entry: dict[str, Any], texts: dict[str, str]) -> tuple[str, dict[st
             ]
         elif len(texts) > 1:
             warnings.append(f"{kind} {key}: {len(texts) - 1} auxiliary file(s) not stored")
-        return (key if kind == "rule" else title), content, warnings
+        return title, content, warnings
     if kind == "agent_definition":
         summary = str(meta.get("summary") or meta.get("description") or key)
         return (
@@ -253,7 +253,14 @@ def load_plan(layer: str, root: Path = ROOT) -> LayerPlan:
         pins = tuple(
             (KIND_ALIAS.get(d["kind"], d["kind"]), d["stable_key"]) for d in entry["dependencies"]
         )
-        plan.items.append(PublishItem(short, entry["stable_key"], title, content, pins))
+        # Rules keep their frontmatter description on the version (rendered back by the projection).
+        description = None
+        if kind is LibraryKind.RULE and title != entry["stable_key"]:
+            description = title
+            title = entry["stable_key"]
+        plan.items.append(
+            PublishItem(short, entry["stable_key"], title, content, pins, description=description)
+        )
         plan.warnings += warnings
     return plan
 

@@ -36,7 +36,7 @@ def _candidate_clause() -> tuple[ColumnElement[bool], ColumnElement[bool]]:
     """Unclaimed and not finished — the work a fresh start can take."""
     return (
         TaskModel.claimed_by_machine_id.is_(None),
-        TaskModel.status != TaskStatus.COMPLETED.value,
+        TaskModel.status.not_in((TaskStatus.COMPLETED.value, TaskStatus.ABANDONED.value)),
     )
 
 

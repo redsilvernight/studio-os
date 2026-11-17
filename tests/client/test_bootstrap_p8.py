@@ -19,6 +19,8 @@ from studio_client.bootstrap import BootstrapError
 from studio_client.team_rebuild import rebuild, scan_committed_files
 from studio_contracts.local.identity import ProfileRef
 
+from tests.library_bundle import sample_bundle
+
 REPO = Path(__file__).resolve().parents[2]
 PROFILE = ProfileRef(profile_id="dev-profile", server_origin="https://studio.example")
 
@@ -30,7 +32,6 @@ def _git(root: Path, *args: str) -> None:
 def _machine_a(tmp_path: Path) -> Path:
     repo = tmp_path / "machine-a" / "demo"
     repo.mkdir(parents=True)
-    shutil.copytree(REPO / ".agents", repo / ".agents")
     cli.main(
         [
             "bootstrap",
@@ -53,7 +54,7 @@ def _machine_a(tmp_path: Path) -> Path:
 def _clone_b(a: Path, tmp_path: Path) -> Path:
     b = tmp_path / "machine-b" / "other-location" / "demo"
     b.mkdir(parents=True)
-    shutil.copytree(a / ".agents", b / ".agents")
+    shutil.copytree(a / ".studio", b / ".studio")
     _git(b, "init", "-q")
     _git(b, "add", "-A")
     return b
@@ -65,14 +66,14 @@ def test_scan_clean_on_committed_bundle(tmp_path: Path) -> None:
 
 def test_scan_flags_absolute_path_and_secret_without_echo(tmp_path: Path) -> None:
     repo = _machine_a(tmp_path)
-    (repo / ".agents" / "leak.md").write_text(
+    (repo / ".studio" / "leak.md").write_text(
         "see C:\\Users\\alice\\proj\nand /home/bob/x\n", encoding="utf-8"
     )
-    (repo / ".agents" / "tok.md").write_text("sk-ant-api03-" + "a" * 40 + "\n", encoding="utf-8")
+    (repo / ".studio" / "tok.md").write_text("sk-ant-api03-" + "a" * 40 + "\n", encoding="utf-8")
     _git(repo, "add", "-A")
     kinds = {(i.path, i.kind) for i in scan_committed_files(repo)}
-    assert (".agents/leak.md", "absolute_path") in kinds
-    assert (".agents/tok.md", "secret") in kinds
+    assert (".studio/leak.md", "absolute_path") in kinds
+    assert (".studio/tok.md", "secret") in kinds
 
 
 def test_b_rebuilds_from_manifest_with_local_mapping(tmp_path: Path) -> None:
@@ -80,7 +81,7 @@ def test_b_rebuilds_from_manifest_with_local_mapping(tmp_path: Path) -> None:
     b = _clone_b(a, tmp_path)
     registry = tmp_path / "registry-b"
     project_id = uuid4()
-    result = rebuild(b, registry, PROFILE, project_id)
+    result = rebuild(b, registry, PROFILE, project_id, sample_bundle())
     assert result.registration.action.value == "created"
     assert (b / "CLAUDE.md").is_file()
     assert result.written
@@ -89,17 +90,17 @@ def test_b_rebuilds_from_manifest_with_local_mapping(tmp_path: Path) -> None:
     # the mapping lives in the registry, never in the repository
     _git(b, "add", "-A")
     assert scan_committed_files(b) == []
-    again = rebuild(b, registry, PROFILE, project_id)
+    again = rebuild(b, registry, PROFILE, project_id, sample_bundle())
     assert again.written == []
     assert again.registration.action.value == "unchanged"
 
 
 def test_rebuild_refuses_unclean_shared_files(tmp_path: Path) -> None:
     a = _machine_a(tmp_path)
-    (a / ".agents" / "leak.md").write_text("C:\\Users\\alice\\x\n", encoding="utf-8")
+    (a / ".studio" / "leak.md").write_text("C:\\Users\\alice\\x\n", encoding="utf-8")
     _git(a, "add", "-A")
     with pytest.raises(BootstrapError, match="not clean"):
-        rebuild(a, tmp_path / "registry", PROFILE, uuid4())
+        rebuild(a, tmp_path / "registry", PROFILE, uuid4(), sample_bundle())
     assert not (tmp_path / "registry").exists()
 
 

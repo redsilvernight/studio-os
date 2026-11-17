@@ -13,8 +13,10 @@ from studio_client.config import ClientConfig
 from studio_client.context.library import LibraryContextItem
 from studio_client.daemon import skills_bridge
 from studio_client.daemon.local_features import LocalFeatureError
+from studio_client.daemon.project_projections import RepoTarget
 from studio_client.daemon.service import BridgeService, DaemonController
 from studio_client.daemon.setup_bridge import SetupBridge
+from studio_client.errors import StudioApiError
 from studio_client.hooks import HARNESSES, MANAGED_MARKER
 from studio_client.tokens import MemoryTokenStore
 from studio_contracts.local.bridge import BridgeRequest
@@ -85,12 +87,25 @@ def _patch_fetch(monkeypatch: pytest.MonkeyPatch, result) -> None:
     monkeypatch.setattr(skills_bridge, "_fetch", fake)
 
 
-def _bridge(home: Path, *, token: str | None = "tok", roots: tuple[Path, ...] = ()) -> SetupBridge:
+def _bridge(
+    home: Path,
+    *,
+    token: str | None = "tok",
+    roots: tuple[Path, ...] = (),
+    targets: tuple[RepoTarget, ...] = (),
+) -> SetupBridge:
     store = MemoryTokenStore()
     if token:
         store.set_token(ORIGIN, token)
     config = ClientConfig(api_base_url=f"{ORIGIN}/api/v1", profile_id="main", machine_id=uuid4())
-    return SetupBridge(config, store, home=lambda: home, roots=lambda: roots, path_dirs=lambda: ())
+    return SetupBridge(
+        config,
+        store,
+        home=lambda: home,
+        roots=lambda: roots,
+        targets=lambda: targets,
+        path_dirs=lambda: (),
+    )
 
 
 def _home(tmp_path: Path, *harnesses: str) -> Path:
@@ -352,8 +367,10 @@ def test_plan_expires(tmp_path: Path, monkeypatch) -> None:
 def test_adapters_drift_is_counted_not_fixed(tmp_path: Path, monkeypatch) -> None:
     home = _home(tmp_path)
     workspace = tmp_path / "ws"
-    (workspace / ".agents").mkdir(parents=True)
+    workspace.mkdir()
+    target = RepoTarget(uuid4(), uuid4(), workspace)
     _patch_fetch(monkeypatch, [])
+    monkeypatch.setattr("studio_client.daemon.setup_bridge._fetch_bundle", lambda *_: object())
 
     class Report:
         checked = 4
@@ -362,8 +379,10 @@ def test_adapters_drift_is_counted_not_fixed(tmp_path: Path, monkeypatch) -> Non
             {"adapter": "a", "key": "k", "error": "drifted again"},
         )
 
-    monkeypatch.setattr("studio_client.daemon.setup_bridge.check_adapters", lambda root: Report)
-    plan = _bridge(home, roots=(workspace,)).plan()
+    monkeypatch.setattr(
+        "studio_client.daemon.setup_bridge.check_adapters", lambda root, bundle: Report
+    )
+    plan = _bridge(home, targets=(target,)).plan()
     assert plan.adapters.state is SetupAdaptersState.CHECKED
     assert (plan.adapters.workspaces, plan.adapters.checked, plan.adapters.drifted) == (1, 4, 1)
 
@@ -371,15 +390,34 @@ def test_adapters_drift_is_counted_not_fixed(tmp_path: Path, monkeypatch) -> Non
 def test_adapters_failure_is_reported_unavailable(tmp_path: Path, monkeypatch) -> None:
     home = _home(tmp_path)
     workspace = tmp_path / "ws"
-    (workspace / ".agents").mkdir(parents=True)
+    workspace.mkdir()
+    target = RepoTarget(uuid4(), uuid4(), workspace)
     _patch_fetch(monkeypatch, [])
+    monkeypatch.setattr("studio_client.daemon.setup_bridge._fetch_bundle", lambda *_: object())
 
-    def boom(root):
+    def boom(root, bundle):
         raise OSError("disk")
 
     monkeypatch.setattr("studio_client.daemon.setup_bridge.check_adapters", boom)
-    plan = _bridge(home, roots=(workspace,)).plan()
+    plan = _bridge(home, targets=(target,)).plan()
     assert plan.adapters.state is SetupAdaptersState.UNAVAILABLE and plan.adapters.checked == 0
+
+
+def test_adapters_check_is_unavailable_when_the_library_is_unreachable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    home = _home(tmp_path)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    target = RepoTarget(uuid4(), uuid4(), workspace)
+    _patch_fetch(monkeypatch, [])
+
+    def unreachable(*_args):
+        raise StudioApiError(503, "unavailable", "unreachable")
+
+    monkeypatch.setattr("studio_client.daemon.setup_bridge._fetch_bundle", unreachable)
+    plan = _bridge(home, targets=(target,)).plan()
+    assert plan.adapters.state is SetupAdaptersState.UNAVAILABLE
 
 
 def test_engine_diff_is_bounded(tmp_path: Path) -> None:

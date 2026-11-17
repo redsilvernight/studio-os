@@ -7,9 +7,10 @@ import uuid
 from typing import Any
 
 from pydantic import BaseModel
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.project import ProjectModel
 from studio_mcp.tools.coordination import studio_coordinate
-from studio_mcp.tools.sessions import studio_start_session
+from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.tasks import studio_create_task
 
 from tests.mcp.conftest import FakeContext
@@ -22,14 +23,16 @@ def dump(result: Any) -> dict[str, Any]:
     return result
 
 
-async def _session(ctx: FakeContext, project: ProjectModel) -> tuple[str, str]:
+async def _session(ctx: FakeContext, project: ProjectModel, agent: AgentModel) -> tuple[str, str]:
     task = await studio_create_task(str(project.id), "Coord", ctx)
-    started = dump(await studio_start_session(task["id"], ctx))
-    return task["id"], started["id"]
+    started = dump(await studio_start_work(str(project.id), str(agent.id), ctx, task_id=task["id"]))
+    return task["id"], started["session"]["id"]
 
 
-async def test_emit_and_replay(auth_ctx: FakeContext, project: ProjectModel) -> None:
-    task_id, session_id = await _session(auth_ctx, project)
+async def test_emit_and_replay(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task_id, session_id = await _session(auth_ctx, project, agent)
     kwargs: dict[str, Any] = {
         "from_session_id": session_id,
         "intent": "heads_up",
@@ -43,8 +46,10 @@ async def test_emit_and_replay(auth_ctx: FakeContext, project: ProjectModel) -> 
     assert dump(await studio_coordinate(ctx=auth_ctx, **kwargs)) == first
 
 
-async def test_rejects_bad_input(auth_ctx: FakeContext, project: ProjectModel) -> None:
-    task_id, session_id = await _session(auth_ctx, project)
+async def test_rejects_bad_input(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task_id, session_id = await _session(auth_ctx, project, agent)
     base: dict[str, Any] = {"from_session_id": session_id, "task_id": task_id, "text": "hi"}
     bad_intent = dump(await studio_coordinate(ctx=auth_ctx, intent="chat", **base))
     assert bad_intent["error_code"] == "invalid_coordination"

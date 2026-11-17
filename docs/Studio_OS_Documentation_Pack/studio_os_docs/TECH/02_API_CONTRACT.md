@@ -1,5 +1,18 @@
 # API Contract v1
 
+Version contractuelle 6 — depots lies au projet (additif) : `ProjectRead`
+expose `repositories: list[str]` (cle normalisee, vide par defaut) ;
+nouveaux endpoints `POST|DELETE /projects/{id}/repositories` et
+`POST /projects/resolve-repository` (section Depots lies au projet).
+Aucun champ existant modifie, aucun statut modifie : un client N-1 ignore
+`repositories` et n'appelle pas les nouvelles routes.
+Extension additive de v6 (pas de bump) : `POST /projects` accepte un champ
+**optionnel** `repository` dans son modèle de requete (`ProjectCreateRequest`
+= champs canoniques de `ProjectCreate` + ce champ) ; un client N-1 envoie le
+corps canonique inchange et un serveur N-1 refuse le champ inconnu
+(`extra=forbid`). Aucun champ de `studio_contracts` n'est modifie.
+Le schema OpenAPI de ce corps s'appelle desormais `ProjectCreateRequest` (ancien nom `ProjectCreate`).
+
 Version contractuelle 5 — révision sémantique P0 livraison (2026-11-04),
 `studio_contracts.API_CONTRACT_VERSION=5`, transport `/api/v1` conservé :
 le bloc sync de handoff cesse d'être auto-acquitté. Ce changement de sens est
@@ -38,7 +51,7 @@ contourne ni le profil lecture seule ni les permissions du poste. Une opération
 nécessitant une commande en mode protégé exige `studio_handoff(task_status=blocked)`
 avec commande et cible ; une nouvelle demande humaine est nécessaire.
 
-Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 5`.
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 6`.
 
 Version 4 : un claim protege le couple machine/agent. Une autre identite
 d'agent (y compris `null`) ne remplace plus silencieusement le detenteur sur
@@ -74,7 +87,7 @@ ressource rattachee a un projet.
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. `POST /task-launches/{id}/snapshot` (DEC-0199) : N/A — idempotent par contenu (meme payload = snapshot d'origine, contenu different = `409 execution_snapshot_immutable`). Lectures pures (`GET`, `POST /resolutions`, `POST /library/versions/batch-get`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, plus library merge-apply P61b, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. `POST /task-launches/{id}/snapshot` (DEC-0199) : N/A — idempotent par contenu (meme payload = snapshot d'origine, contenu different = `409 execution_snapshot_immutable`). Lectures pures (`GET`, `POST /resolutions`, `POST /library/versions/batch-get`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
@@ -207,6 +220,54 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   sont fermes.
 - Non-admin : `403`. Projet ou utilisateur inexistant : `404`.
 
+### Depots lies au projet (additif)
+`ProjectRead` expose `repositories: list[str]` (cles normalisees du
+projet, `[]` par defaut ; un client N-1 l'ignore).
+- POST /projects — corps `ProjectCreateRequest` : les champs canoniques de
+  `ProjectCreate` (`slug`, `name`, `description`) plus un champ **optionnel**
+  `repository` (meme normalisation que `ProjectRepositoryCreate.url`,
+  512 caracteres max). Present, le depot est enregistre avec le projet dans
+  le meme appel, si bien que `POST /projects/resolve-repository` le trouve
+  immediatement (`201`, reponse `Project` avec `repositories` rempli). Le
+  champ est valide **avant** l'ecriture du projet : URL invalide ->
+  `422 invalid_repository_url`, depot deja lie a un autre projet ->
+  `409 repository_already_linked` (`url` normalisee) ; dans les deux cas
+  aucun projet n'est cree, le slug reste libre. Absent : projet cree sans
+  depot, un ou plusieurs depots restent ajoutables par la route de lien.
+  Un rejeu `Idempotency-Key` rend la reponse d'origine (aucun lien double).
+- POST /projects/{project_id}/repositories (roles `admin|developer`) —
+  body `{url: str}` : normalise puis lie le depot au projet (profondeur
+  `host/owner/repo` exactement). `201` a la creation, `200` idempotent si
+  le meme depot est deja lie a ce projet. URL invalide ->
+  `422 {"detail": {"error_code": "invalid_repository_url"}}` ; depot lie a
+  un autre projet ->
+  `409 {"detail": {"error_code": "repository_already_linked", "url"}}` ;
+  projet inexistant -> `404`.
+- DELETE /projects/{project_id}/repositories/{normalized_url}
+  (roles `admin|developer`) — `204` une fois le lien retire ; `404` si le
+  depot n'est pas lie au projet ou si le projet n'existe pas. La valeur du
+  chemin est re-normalisee (graphies equivalentes acceptees).
+- POST /projects/resolve-repository — body `{remotes: [str]}` (1 a 10
+  URLs de 512 caracteres max, sinon `422`) : normalise chaque remote
+  (les invalides sont ignores ; aucun valide ->
+  `422 invalid_repository_url`), puis cherche les projets non archives
+  dont l'appelant est **membre** (l'admin non membre n'est pas special).
+  Un seul projet -> `200 {status: "resolved", project_id, slug, name}` ;
+  aucun -> `200 {status: "not_found"}`, **corps et statut strictement
+  identiques** au cas d'un depot connu mais sans acces (jamais d'oracle).
+  Des remotes designant deux projets distincts ->
+  `409 {"detail": {"error_code": "ambiguous"}}`.
+- Acces : projet inaccessible ou inexistant -> `403 resource=project`
+  (DEC-0103) ; `readonly` -> `403 forbidden` sur les ecritures.
+  Le `403` precede tout lookup pour un non-admin ; le `404` projet
+  inexistant n'est donc observable que par un admin.
+- Limite connue : un `developer` apprend par le `409
+  repository_already_linked` qu'une URL qu'il fournit est deja liee a un
+  autre projet (aucun autre champ n'est divulgue).
+- Compatibilite : `Project.repositories` est additif cote serveur, mais les
+  modeles etant `extra="forbid"`, un `studio-client` N-1 doit etre livre avec
+  le serveur v6 (matrice N/N-1 par release train).
+
 ### Machines et Users (provisioning, DEC-0011/DEC-0012)
 - GET /machines (DEC-0082, additif) — liste des machines dont le credential
   n'est pas revoque, de la plus ancienne a la plus recente. Aucun role
@@ -329,7 +390,11 @@ public de bootstrap, pas de secret d'environnement dedie.
   `project_id`, `limit`, `offset` ; tri et visibilite inchanges.
 - POST /tasks
 - GET /tasks/{id}
-- PATCH /tasks/{id}
+- PATCH /tasks/{id} — `status=abandoned` (additif) : clot une tache sans
+  livraison depuis `created|in_progress|blocked` et libere son claim ; depuis
+  `completed` -> `409 invalid_transition`. Reouverture explicite vers
+  `created` autorisee. Une tache `abandoned` n'est ni active (`/projects/{id}/state`)
+  ni candidate ; une etape de roadmap l'ignore dans sa derivation.
 - POST /tasks/{id}/claim — claim idempotent (L2, additif/clarification,
   DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
   meme machine avec le meme agent, est un no-op (aucun bump de `version`,
@@ -345,8 +410,9 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
   comportement inchange ; present et perime, `409 {"detail": {"error_code":
   "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
-  (detenteur ou admin, `403 forbidden`) evalue avant la version. MCP
-  `studio_release_task` : `expected_version` facultatif, meme semantique.
+  (detenteur ou admin, `403 forbidden`) evalue avant la version. Seul moyen,
+  depuis le retrait MCP de `studio_release_task` (DEC-0186), pour un role
+  privilegie de liberer le claim de tache d'une autre machine.
 
 ### Sessions
 - POST /sessions
@@ -510,6 +576,10 @@ CI de validation sont requis. Aucune branche cible n'est choisie par défaut.
 Une opération exige `effect_verified=true`. `deployed` est un état séparé,
 jamais déduit de la clôture.
 
+Avec `task_status.status=abandoned`, un `summary` vide produit
+`422 abandon_reason_required` avant toute mutation ; aucune preuve de
+completion n'est exigee.
+
 Avant toute mutation du handoff, une preuve sans `agent_id` et `summary`
 produit `422 completion_log_required`. Avec `task_status.status=completed`,
 une preuve incohérente produit `409 completion_incomplete` et une liste
@@ -519,6 +589,26 @@ AIWork (`COMPLETION` / `COMPLETION_EVIDENCE`). Le contrôle vérifie la cohéren
 déclarée, pas la réalité d'un Git ou d'une commande sur un poste distant.
 Le rejeu idempotent inclut la preuve lorsqu'elle est fournie ; les empreintes
 des anciens appels sans preuve sont conservées.
+
+Revue des décisions (DEC-0363, additif) : `CompletionEvidence` porte un champ
+optionnel `decisions: {outcome: new|existing|none, decision_ids: <=20 UUID ou
+DEC-NNNN, reason?}`. `outcome=new` cite les décisions créées par le travail,
+`existing` celles réutilisées, `none` exige une `reason` concrète non vide
+(aucune détection sémantique). Le format `studio.completion/v2` rend la revue
+obligatoire : `check_completion` signale `decision_review_missing`,
+`decision_reason_missing` (none sans raison) ou `decision_ids_missing`
+(new/existing sans ids) et bloque `completed` en `409 completion_incomplete`.
+En v1 l'absence de revue reste non bloquante et revient en avertissement
+`decision_review_missing` dans `HandoffResult.warnings` (appels historiques
+inchangés). Le serveur valide chaque id — existence, même projet, visibilité —
+sinon `422 decision_reference_invalid` unique (aucune révélation hors
+périmètre) ; une DEC `proposed` est une référence valide et n'est jamais
+auto-acceptée. La revue est persistée dans le JSON `COMPLETION_EVIDENCE`
+existant (aucune migration SQL) et réaffichée en avertissement à la clôture
+d'une étape de roadmap (`state_override=done` : tâches liées sans revue
+listées, sans second gate ni accrochage au stop-check). MCP `studio_handoff`
+expose le champ via `CompletionEvidence` et relaie les avertissements ;
+`studio_update_roadmap_step` ajoute `decision_review_warnings` à la clôture.
 
 ### Sync (C2, additif, DEC-0157)
 - GET /sync — point de resynchronisation unique : « Qu'est-ce qui a changé depuis mon dernier sync et qui concerne mon travail ? », en réponse compacte et bornée. Lecture seule sur les ressources métier ; écrit un curseur de session (distinct de `prepare_context`, qui reste en lecture seule, DEC-0080). Outil MCP `studio_sync` (même contrat, DEC-0046/DEC-0048 : pas de version dans le payload).
@@ -780,6 +870,41 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `status` et de `group_by` sont additives. Groupes plafonnes a 100 (`truncated`) ;
   `total` couvre tout le perimetre. `until < since` -> `422
   invalid_usage_period`. Lecture refusee aux credentials ephemeres (`403`).
+  Base du cout (DEC-0361, additif) : a l'ingestion (POST /usage et
+  /usage/corrections), `cost.basis` ∈ `measured_billed|api_equivalent` ; absent
+  avec une valeur -> `api_equivalent` ; present sans valeur ou egal a
+  `subscription_share` -> `422`. Une estimation `EUR` sur une grille
+  `public-eur-*` (prix publics USD mal etiquetes) est stockee en `USD`.
+  Deploiement : serveur avant daemons (un ancien serveur refuse le champ
+  `basis` envoye par un daemon a jour). En lecture, `cost.bases` liste les bases des couts
+  connus (`measured_billed`, `api_equivalent`) ; un client ne presente jamais
+  un `api_equivalent` comme une facture. `subscription_share` (null si le
+  projet ne declare aucun abonnement) : pour chaque abonnement et chaque mois
+  UTC actif, le prix mensuel complet est reparti au prorata du cout des
+  entrees couvertes du mois (tout le projet, toutes machines) ; un agregat
+  recoit la part de ses entrees. Mois non repartissable (cout inconnu,
+  plusieurs devises, somme nulle) -> entrees `unknown_entries` ;
+  `provisional` = mois en cours. Calcule a la lecture, jamais stocke.
+- GET/POST /usage/subscriptions, PUT/DELETE /usage/subscriptions/{id}
+  (DEC-0361, additif) — `UsageSubscription` : `label`, `monthly_price`,
+  `currency`, `harnesses` et/ou `providers` couverts (au moins un), `starts_on`,
+  `ends_on` (inclus, null = en cours). GET filtre par `project_id` (lecture du
+  projet) ; POST `201` (Idempotency-Key) ; PUT remplace les termes avec
+  `expected_version`, DELETE prend `expected_version` en query (`204`) ;
+  version perimee -> `409 version_conflict` + `server_version`. Ecriture du
+  projet requise, refusee aux credentials ephemeres (`403`).
+- GET/POST /usage/price-lists, GET /usage/price-lists/effective (DEC-0362,
+  additif) — `UsagePriceList` : `price_list_id` (unique, immuable), `project_id`
+  (null = grille globale), `currency`, `effective_from`, `models` (1 a 500
+  prefixes de modele -> prix au million `input`/`output`/`cache_read`/
+  `cache_write`). GET liste les grilles globales et celles du projet ;
+  `/effective?project_id&at` rend la grille en vigueur a `at` (defaut
+  maintenant) : celle du projet prime sur la globale, `404 price_list_not_found`
+  si aucune. POST `201` (Idempotency-Key) ; id deja pris -> `409
+  price_list_conflict`. Publication globale reservee aux admins, grille projet
+  aux admins/developpeurs avec ecriture du projet ; credentials ephemeres `403`.
+  Le daemon s'en sert pour `PricingRef` (cache local, repli sur la grille
+  embarquee).
 - GET /usage/configuration-history (P06-history-option, additif, DEC-0221) —
   `ConfigurationHistory`, `200`. `project_id` requis ; `since`, `until`
   (filtre `created_at` du TaskLaunch dans `[since, until)` ; defauts
@@ -884,7 +1009,10 @@ les evenements sont inchanges.
   Aucune resolution de cle ni masquage (DEC-0065 reste cote client) ; 1 jeton du
   bucket general par lot. Pas de migration ; `API_CONTRACT_VERSION` inchange (ajout).
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
-  `active_version`). `Idempotency-Key` supporte. Dependances epinglees
+  `active_version`). `Idempotency-Key` supporte. Autorisation par scope
+  (P70b) : Project = tout membre en role d'ecriture (`developer`/`agent`),
+  meme si un autre membre a cree la ressource ; User = proprietaire ou
+  `admin` ; Studio = `admin` seul. Dependances epinglees
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
   epinglee inexistante = `404 pin_version_not_found`, pin
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
@@ -955,11 +1083,14 @@ les evenements sont inchanges.
 - POST /library/{id}/activate — body `LibraryActivate`
   (`version`, `expected_resource_version`) : deplace explicitement
   `active_version` (passe `status` a `active`), `409 version_conflict` sur
-  version perimee, no-op si deja active. `Idempotency-Key` supporte.
+  version perimee, no-op si deja active. `Idempotency-Key` supporte. Meme
+  autorisation par scope que la creation d'une version (P70b : Project
+  ouvert a tout membre en role d'ecriture).
 - POST /library/{id}/deprecate — body `LibraryDeprecate`
   (`expected_resource_version`) : remplace la suppression (historique et
   `active_version` conserves), no-op si deja depreciee. `Idempotency-Key`
-  supporte (rejeu d'une reponse non vue). Une override `user` depreciee ne
+  supporte (rejeu d'une reponse non vue). Meme autorisation par scope
+  (P70b). Une override `user` depreciee ne
   masque plus la version commune : la resolution (serveur et client) et la
   synchro reviennent a la version studio/project visible (DEC-0324).
 - Provenance (P50, DEC-0323, additif) : `derived_from` optionnel
@@ -970,6 +1101,31 @@ les evenements sont inchanges.
   {"error_code": "derived_from_not_found"}` ; autre cas = `422
   {"error_code": "invalid_derived_from", "reason": "not_user_scope" |
   "not_common_scope" | "key_mismatch"}`.
+- GET /library/{id}/merge-preview — le propriétaire d’un override actif
+  peut comparer le texte commun d’origine (`derived_from`), son texte actif
+  et le texte commun actif. `inputs` contient `base`, `ours`, `theirs`.
+  `result` contient le texte fusionné (`content`) et les `conflicts`.
+  Chaque conflit contient les trois fragments et leurs positions
+  (`start_line` à partir de 1, `base_start` inclus et `base_end` exclu à
+  partir de 0). `404` si l’override est invisible, sans changement de base
+  ou sans texte comparable. `422 merge_preview_too_many_lines` si l’un des
+  textes dépasse 1 000 sauts de ligne. Cet aperçu ne crée aucune version.
+- POST /library/{id}/merge-apply — même périmètre que l’aperçu. Corps :
+  `choice` (`keep_override` | `merge` | `revert_to_common`),
+  `expected_resource_version`, `base_active_version` (version commune
+  prévisualisée) et `content` (texte résolu, accepté seulement avec `merge`).
+  `keep_override` et `merge` créent puis activent une version dérivée de la
+  version commune active ; `revert_to_common` déprécie l’override. `merge`
+  sans `content` exige une fusion sans conflit, sinon
+  `409 merge_conflict` (`conflicts` = nombre) et rien n’est écrit ; un
+  `content` contenant encore des marqueurs → `422 unresolved_merge_conflict`.
+  `409 base_moved` (`base_active_version` = version commune active) si le
+  commun a changé depuis l’aperçu, `409 version_conflict`
+  (`server_version`) si l’override a changé. `422 invalid_content` si le
+  texte ne respecte pas le schéma du kind, `422
+  merge_preview_too_many_lines` comme l’aperçu. Création et activation de
+  la version sont atomiques. La version précédente reste
+  réactivable par POST /library/{id}/activate. Accepte `Idempotency-Key`.
 - GET /library-locks (`project_id` optionnel), POST /library-locks
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou
@@ -1297,6 +1453,15 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   Slug deja pris par un autre projet (meme invisible de l'appelant) ->
   `409 {"detail": {"error_code": "conflict", "message", "slug"}}` via le point
   commun `create_project` (oracle accepte, slugs non secrets, DEC-0105).
+- `project.repository` (additif, optionnel, 512 car. max) : remote enregistre avec le projet
+  cree, comme `POST /projects` (`ensure_remote_available` avant ecriture puis `link_repository`).
+  `preview` et `apply` creant le projet : `422 invalid_repository_url` ou
+  `409 {"detail": {"error_code": "repository_already_linked"}}`, aucun projet cree. Projet
+  reutilise (slug existant) : champ ignore, aucun depot lie. Le manifeste
+  `studio.bootstrap/v1` reutilise le modele : la cle `project.repository` n'y figure que si
+  renseignee (remote `origin` lu par `studio-client bootstrap init`), `format` inchange.
+  Un `studio-client` anterieur refuse un manifeste portant cette cle (`extra=forbid`, DEC-0181) :
+  mettre les clients a jour avant de regenerer les manifestes de depots ayant un `origin`.
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.
@@ -1577,6 +1742,16 @@ cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun 
 - POST /transfers/{id}/download-url — `403 forbidden` (DEC-0036) si
   l'appelant n'a aucun des 4 acces de la regle Transfer sur ce transfert
   precis (voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
+- POST /transfers/{id}/downloaded — accuse de reception emis par le client
+  apres un telechargement reussi via l'URL presignee (les octets ne transitent
+  jamais par l'API) ; c'est cet appel qui renseigne `downloaded_at` et fait
+  passer le statut a `downloaded`. Reserve a un lecteur autorise du transfert
+  en role d'ecriture (expediteur, destinataire, diffusion, admin — `readonly`
+  refuse par `403 forbidden`) ; inconnu -> `404`, supprime ->
+  `409 {"detail": {"error_code": "transfer_deleted"}}` (un accuse ne ressuscite
+  jamais un transfert supprime). Idempotent : un rejeu renvoie le transfert
+  inchange avec le `downloaded_at` d'origine. Aucune precondition d'etat
+  (hormis `deleted`) : l'accuse est recevable des `created`.
 - DELETE /transfers/{id}
   - Suppression explicite par l'expediteur ou un administrateur disposant de l'acces
     projet en ecriture ; destinataire seul et role `readonly` refusés (`403 forbidden`).

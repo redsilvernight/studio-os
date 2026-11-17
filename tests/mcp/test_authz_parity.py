@@ -13,13 +13,11 @@ from studio_api.db.models.transfer import TransferModel
 from studio_api.services import provisioning as provisioning_service
 from studio_mcp.tools.ai_work import studio_log_ai_work
 from studio_mcp.tools.claims import (
-    studio_claim_resource,
     studio_claim_resources,
     studio_release_resource,
 )
 from studio_mcp.tools.decisions import studio_add_decision
-from studio_mcp.tools.sessions import studio_end_session, studio_start_session
-from studio_mcp.tools.tasks import studio_claim_task, studio_create_task, studio_release_task
+from studio_mcp.tools.tasks import studio_create_task
 from studio_mcp.tools.transfers import (
     studio_create_transfer_metadata,
     studio_get_transfer,
@@ -42,15 +40,6 @@ async def test_readonly_cannot_create_task_via_mcp(
     assert result["error_code"] == "forbidden"
 
 
-async def test_readonly_cannot_claim_resource_via_mcp(
-    readonly_auth_ctx: FakeContext, project: ProjectModel
-) -> None:
-    result = await studio_claim_resource(
-        str(project.id), "src/foo.py", "file", 60, readonly_auth_ctx
-    )
-    assert result["error_code"] == "forbidden"
-
-
 async def test_readonly_cannot_claim_resources_via_mcp(
     readonly_auth_ctx: FakeContext, project: ProjectModel
 ) -> None:
@@ -65,24 +54,11 @@ async def test_readonly_cannot_add_decision_via_mcp(readonly_auth_ctx: FakeConte
     assert result["error_code"] == "forbidden"
 
 
-async def test_task_release_by_non_owning_machine_forbidden_via_mcp(
-    auth_ctx: FakeContext, other_auth_ctx: FakeContext, project: ProjectModel
-) -> None:
-    created = await studio_create_task(str(project.id), "t", auth_ctx)
-    await studio_claim_task(created["id"], auth_ctx)
-
-    forbidden = await studio_release_task(created["id"], other_auth_ctx)
-    assert forbidden["error_code"] == "forbidden"
-
-    allowed = await studio_release_task(created["id"], auth_ctx)
-    assert allowed.get("error_code") is None
-    assert allowed["claimed_by_machine_id"] is None
-
-
 async def test_claim_release_by_non_owning_machine_forbidden_via_mcp(
     auth_ctx: FakeContext, other_auth_ctx: FakeContext, project: ProjectModel
 ) -> None:
-    created = await studio_claim_resource(str(project.id), "src/bar.py", "file", 60, auth_ctx)
+    batch = await studio_claim_resources(str(project.id), ["src/bar.py"], "file", 60, auth_ctx)
+    created = batch["claims"][0]
 
     forbidden = await studio_release_resource(created["id"], other_auth_ctx)
     assert forbidden["error_code"] == "forbidden"
@@ -90,20 +66,6 @@ async def test_claim_release_by_non_owning_machine_forbidden_via_mcp(
     allowed = await studio_release_resource(created["id"], auth_ctx)
     assert allowed.get("error_code") is None
     assert allowed["status"] == "released"
-
-
-async def test_session_end_by_non_owning_machine_forbidden_via_mcp(
-    auth_ctx: FakeContext, other_auth_ctx: FakeContext, project: ProjectModel
-) -> None:
-    task = await studio_create_task(str(project.id), "t", auth_ctx)
-    session = await studio_start_session(task["id"], auth_ctx)
-
-    forbidden = await studio_end_session(session["id"], other_auth_ctx)
-    assert forbidden["error_code"] == "forbidden"
-
-    allowed = await studio_end_session(session["id"], auth_ctx)
-    assert allowed.get("error_code") is None
-    assert allowed["ended_at"] is not None
 
 
 async def test_ai_work_patch_by_non_owning_machine_forbidden_via_mcp(

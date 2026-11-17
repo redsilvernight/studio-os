@@ -23,6 +23,9 @@
  *   ressources) : aucune fonction perdue.
  * - 409 version_conflict → explication humaine + relecture immédiate, AUCUN
  *   retry automatique : l'utilisateur réapplique consciemment.
+ * - Abandon (created/in_progress/blocked → abandoned, motif obligatoire en
+ *   dialogue DS) : PATCH + If-Match-Version, motif rappelé dans la notice,
+ *   409 invalid_transition (terminée entre-temps) expliqué + relecture.
  * - Les compléments sont best-effort : leur échec n'efface jamais la tâche
  *   et affiche une mention « indisponible », jamais une erreur bloquante.
  * - Le compteur de réservations liées n'apparaît que lorsque la donnée a
@@ -32,9 +35,11 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { claimTask, getTask, patchTask, releaseTask, type Task } from "../tasksApi";
 import {
+  closeDsDialog,
   dsBadge,
   dsEmptyState,
   dsField,
+  dsModalHtml,
   focusDsErrorBox,
   dsNotify,
   dsPageHeader,
@@ -42,6 +47,7 @@ import {
   dsSkeleton,
   dsStatus,
   dsTechDetails,
+  openDsDialog,
   type DsStatusState,
   type DsTone,
 } from "../ds/ds";
@@ -204,6 +210,60 @@ export function canReleaseTask(task: Task, authed: boolean, identity: AuthIdenti
   return identity.role === "admin" || identity.machine_id === holder;
 }
 
+/** Statuts depuis lesquels l'abandon est proposé (le serveur refuse depuis `completed`, 409 invalid_transition). */
+export const ABANDONABLE_STATUSES = ["created", "in_progress", "blocked"] as const;
+
+function isAbandonableStatus(status: string): boolean {
+  return (ABANDONABLE_STATUSES as readonly string[]).includes(status);
+}
+
+export function canAbandonTask(task: Task, authed: boolean): boolean {
+  return authed && isAbandonableStatus(task.status);
+}
+
+/** Motif rappelé dans la notice de confirmation (le motif n'est pas stocké côté tâche). */
+export function abandonSuccessNotice(motif: string): string {
+  return `Tâche abandonnée. Motif : ${motif}`;
+}
+
+/** Explication humaine d'un refus 409 invalid_transition (tâche terminée entre-temps). */
+export function taskAbandonRefusedNotice(): string {
+  return "Cette tâche est terminée : une tâche terminée ne peut pas être abandonnée. Les données ont été rechargées.";
+}
+
+/** Dialogue d'abandon : motif obligatoire, contrat DS (role=dialog, aria-modal, focus piégé et rendu). */
+export function taskAbandonDialogHtml(task: Task): string {
+  return dsModalHtml({
+    id: "task-abandon-dialog",
+    title: "Abandonner la tâche",
+    body:
+      `<form id="task-abandon-form" novalidate>` +
+      `<p>Tâche « ${esc(task.title)} » — l'abandon clôt la tâche sans livraison et libère la prise éventuelle. Le statut reste modifiable ensuite depuis « Modifier la tâche ».</p>` +
+      dsField(
+        "task-abandon-reason",
+        "Motif",
+        `<textarea class="ds-textarea" id="FIELD" name="reason" rows="3" required></textarea>`,
+        "Obligatoire : rappelez pourquoi cette tâche est abandonnée.",
+      ) +
+      `<div class="ds-field-error" id="task-abandon-error" role="alert" hidden></div>` +
+      `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
+      `<button class="ds-btn ds-btn--primary" type="submit" id="task-abandon-submit">Abandonner</button></div>` +
+      `</form>`,
+  });
+}
+
+function abandonSectionHtml(task: Task, authed: boolean): string {
+  return `<section class="task-detail-section" aria-label="Abandonner la tâche">` +
+    `${dsSectionHeader("Abandonner")}` +
+    `<p class="ds-list-sub">Clôt la tâche sans livraison. Une tâche terminée ne peut pas être abandonnée.</p>` +
+    `<div class="tasks-footer">` +
+    `<button class="ds-btn" type="button" id="task-abandon-open"${authed ? "" : " disabled"}>Abandonner…</button>` +
+    `</div>` +
+    (authed ? "" : `<p class="ds-list-sub">Lecture seule : connectez-vous pour abandonner cette tâche.</p>`) +
+    taskAbandonDialogHtml(task) +
+    `</section>`;
+}
+
 function claimSectionHtml(task: Task, authed: boolean, canRelease: boolean): string {
   const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
   const stateLine = held
@@ -259,6 +319,8 @@ export function nextActionText(task: Task, pendingReview: number): string {
         : "Prendre la tâche pour démarrer le travail.";
     case "completed":
       return "Vérifier le résultat, puis rouvrir la tâche (« En cours ») si le travail reste à faire.";
+    case "abandoned":
+      return "Aucun travail attendu : la tâche a été abandonnée sans livraison. Rouvrez-la (« En cours ») si le besoin revient.";
     default:
       break;
   }
@@ -524,7 +586,7 @@ function loadTaskUsage(client: StudioClient, task: Task): Promise<UsageSummary |
 }
 
 export function taskEditFormHtml(task: Task, authed: boolean): string {
-  const statusOptions = (["created", "in_progress", "blocked", "completed"] as const)
+  const statusOptions = (["created", "in_progress", "blocked", "completed", "abandoned"] as const)
     .map(
       (status) =>
         `<option value="${status}"${task.status === status ? " selected" : ""}>${esc(taskStatusLabel(status))}</option>`,
@@ -619,8 +681,9 @@ export function taskDetailHtml(data: TaskDetailData): string {
     // puis ce que les autres sessions ont dit de la tâche.
     `${blockagesSectionHtml(task)}${validationSectionHtml(data.worklogs)}${coordinationSectionHtml(data.coordination)}` +
     taskUsageSectionHtml(data.usage) +
-    // Mécanique ensuite : modifier, puis la prise en charge.
-    `${edit}${claimSectionHtml(task, data.authed, canRelease)}` +
+    // Mécanique ensuite : modifier, puis la prise en charge, puis l'abandon
+    // (proposé seulement hors completed/abandoned — le serveur refuse 409).
+    `${edit}${claimSectionHtml(task, data.authed, canRelease)}${isAbandonableStatus(task.status) ? abandonSectionHtml(task, data.authed) : ""}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
     `${foldedMechanicsHtml(data)}${techDetailsHtml(task)}${claimsLine}` +
     `</div>${propsAsideHtml(task)}</div></div>`;
@@ -683,6 +746,19 @@ function setMsg(root: HTMLElement, human: string, technical = ""): void {
 
 function setEditError(root: HTMLElement, message: string): void {
   const node = root.querySelector("#task-edit-error");
+  if (node === null) return;
+  if (message === "") {
+    node.setAttribute("hidden", "");
+    node.textContent = "";
+  } else {
+    node.removeAttribute("hidden");
+    node.textContent = message;
+    if (node instanceof HTMLElement) focusDsErrorBox(node);
+  }
+}
+
+function setAbandonError(root: HTMLElement, message: string): void {
+  const node = root.querySelector("#task-abandon-error");
   if (node === null) return;
   if (message === "") {
     node.setAttribute("hidden", "");
@@ -797,6 +873,16 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
   });
   root.querySelector("[data-release]")?.addEventListener("click", () => {
     void doRelease(root, ctx, task);
+  });
+
+  root.querySelector<HTMLElement>("#task-abandon-open")?.addEventListener("click", (event) => {
+    setAbandonError(root, "");
+    openDsDialog(root, "task-abandon-dialog", event.target instanceof HTMLElement ? event.target : null);
+    root.querySelector<HTMLElement>("#task-abandon-reason")?.focus();
+  });
+  root.querySelector<HTMLFormElement>("#task-abandon-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void doAbandon(root, ctx, task);
   });
 
   bindLaunchPanel(root, ctx, task, data.launch ?? null);
@@ -1105,6 +1191,50 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task):
       return;
     }
     setMsg(root, "Libération impossible.", describeError(error));
+  }
+}
+
+async function doAbandon(root: HTMLElement, ctx: TaskDetailContext, task: Task): Promise<void> {
+  const reason = (root.querySelector<HTMLTextAreaElement>("#task-abandon-reason")?.value ?? "").trim();
+  if (reason === "") {
+    setAbandonError(root, "Le motif est obligatoire.");
+    root.querySelector<HTMLElement>("#task-abandon-reason")?.focus();
+    return;
+  }
+  const submit = root.querySelector<HTMLButtonElement>("#task-abandon-submit");
+  if (submit !== null) {
+    submit.disabled = true;
+    submit.textContent = "Abandon en cours…";
+  }
+  setAbandonError(root, "");
+  try {
+    await patchTask(ctx.client, task.id, { status: "abandoned" }, task.version);
+    closeDsDialog(root, "task-abandon-dialog");
+    dsNotify("Tâche abandonnée.", "success");
+    const data = await readComplements(root, ctx, task.id);
+    paint(root, ctx, { ...data, notice: abandonSuccessNotice(reason), noticeTone: "info", authed: ctx.authed });
+  } catch (error) {
+    if (error instanceof ApiError && (error.errorCode === "invalid_transition" || error.errorCode === "version_conflict")) {
+      // La tâche a changé ailleurs (terminée, ou version périmée) : on relit
+      // la vérité serveur, jamais de retry aveugle.
+      closeDsDialog(root, "task-abandon-dialog");
+      try {
+        const data = await readComplements(root, ctx, task.id);
+        paint(root, ctx, {
+          ...data,
+          notice: error.errorCode === "invalid_transition" ? taskAbandonRefusedNotice() : taskConflictNotice(data.task.version),
+          authed: ctx.authed,
+        });
+      } catch {
+        // readComplements a déjà signalé l'échec du rechargement.
+      }
+      return;
+    }
+    if (submit !== null) {
+      submit.disabled = false;
+      submit.textContent = "Abandonner";
+    }
+    setAbandonError(root, describeError(error));
   }
 }
 

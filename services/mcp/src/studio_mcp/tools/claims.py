@@ -47,103 +47,6 @@ async def studio_get_resource_claims(project_id: str, ctx: Context) -> dict[str,
     return await run_tool(ctx, _handler)
 
 
-async def studio_claim_resource(
-    project_id: str,
-    resource_path: str,
-    resource_type: str,
-    ttl_seconds: int,
-    ctx: Context,
-    task_id: str | None = None,
-    agent_id: str | None = None,
-    idempotency_key: str | None = None,
-) -> dict[str, Any]:
-    """Soft lock a resource path for the caller's machine (never blocks a Git
-    operation or a file write — it warns via a `resource.conflict` event when
-    another active claim overlaps it). Pass a caller-generated
-    `idempotency_key` when this call might be retried — replaying the same
-    key with the same arguments returns the original claim instead of
-    creating a second one (and never re-emits the conflict event); the same
-    key with different arguments fails with
-    `idempotency_key_payload_mismatch` (DEC-0027)."""
-
-    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
-        parsed_project = parse_uuid(project_id, "project_id")
-        if isinstance(parsed_project, dict):
-            return parsed_project
-        try:
-            parsed_type = ResourceType(resource_type)
-        except ValueError:
-            return {
-                "error_code": "invalid_argument",
-                "message": f"unknown resource_type: {resource_type!r}",
-            }
-        parsed_task_id: UUID | None = None
-        if task_id is not None:
-            parsed_task = parse_uuid(task_id, "task_id")
-            if isinstance(parsed_task, dict):
-                return parsed_task
-            parsed_task_id = parsed_task
-        parsed_agent_id: UUID | None = None
-        if agent_id is not None:
-            parsed_agent = parse_uuid(agent_id, "agent_id")
-            if isinstance(parsed_agent, dict):
-                return parsed_agent
-            parsed_agent_id = parsed_agent
-        # Ahead of `run_idempotent_dict`'s replay short-circuit — see
-        # `routers/tasks.py::create_task` for why (DEC-0036).
-        claims_service.authorize_create(principal, parsed_project)
-
-        async def _create() -> dict[str, Any]:
-            claim = await claims_service.create_claim(
-                session,
-                principal,
-                ResourceClaimCreate(
-                    project_id=parsed_project,
-                    task_id=parsed_task_id,
-                    resource_path=resource_path,
-                    resource_type=parsed_type,
-                    ttl_seconds=ttl_seconds,
-                ),
-                principal.machine.id,
-                parsed_agent_id,
-            )
-            if await claims_service.has_conflict(session, claim):
-                await events_service.create_event(
-                    session,
-                    EventCreate(
-                        event_id=uuid4(),
-                        event_type=EventType.RESOURCE_CONFLICT,
-                        project_id=claim.project_id,
-                        task_id=claim.task_id,
-                        machine_id=principal.machine.id,
-                        actor_type="system",
-                        actor_id=principal.machine.id,
-                        client_timestamp=datetime.now(UTC),
-                        payload={"claim_id": str(claim.id), "resource_path": claim.resource_path},
-                    ),
-                )
-            return _compact_claim(claim)
-
-        request_hash = idempotency_service.hash_request(
-            json.dumps(
-                {
-                    "project_id": project_id,
-                    "resource_path": resource_path,
-                    "resource_type": resource_type,
-                    "ttl_seconds": ttl_seconds,
-                    "task_id": task_id,
-                    "agent_id": agent_id,
-                },
-                sort_keys=True,
-            ).encode()
-        )
-        return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_claim_resource", request_hash, _create
-        )
-
-    return await run_tool(ctx, _handler)
-
-
 async def studio_claim_resources(
     project_id: str,
     paths: list[str],
@@ -155,18 +58,21 @@ async def studio_claim_resources(
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Soft-lock several resource paths (files/folders) for the caller's
-    machine in one call, with the same warn-only semantics as
-    `studio_claim_resource` — a claim warns via a `resource.conflict` event
+    machine in one call, warn-only — a claim warns via a `resource.conflict` event
     when an active claim overlaps it, it never blocks a Git operation or a
     file write. Returns one compact batch: every created claim plus the subset
-    that overlaps another active claim. All paths share the same
-    `resource_type`, `ttl_seconds` and optional `task_id`. Pass a
+    that overlaps another active claim. `paths` is a list of at most 50 strings
+    (a singular `path` argument is not accepted); `resource_type` is exactly
+    "file" or "folder". All paths share the same
+    `resource_type`, `ttl_seconds` and optional `task_id`. A claim made without
+    `task_id` while the caller has an open session is attached to that
+    session's task, so the handoff ending it releases the claim. Pass a
     caller-generated `idempotency_key` when this call might be retried —
     once the first call completed, replaying the same key with the same
     arguments returns the original batch instead of creating duplicates (and
     never re-emits the conflict events); the same key with different arguments
-    fails with `idempotency_key_payload_mismatch` (DEC-0027). Like
-    `studio_claim_resource`, each claim is committed as it is created, so a
+    fails with `idempotency_key_payload_mismatch` (DEC-0027). Each claim is
+    committed as it is created, so a
     failure part-way through the batch can leave the already-committed claims
     in place."""
 

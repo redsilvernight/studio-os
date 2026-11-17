@@ -14,6 +14,9 @@ class TaskStatus(StrEnum):
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
     COMPLETED = "completed"
+    ABANDONED = "abandoned"
+    """Closed without delivery (from created/in_progress/blocked, never from
+    completed). Not active, never a candidate; may be reopened to created."""
 
 
 class Task(VersionedModel):
