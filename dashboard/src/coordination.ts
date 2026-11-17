@@ -13,7 +13,7 @@ import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
 
 export const COORDINATION_PREFIX = "coordination.";
-export const COORDINATION_FETCH_LIMIT = 500;
+const COORDINATION_FETCH_LIMIT = 500;
 
 export type CoordinationIntent = "heads_up" | "question" | "blocked_by" | "handoff";
 

@@ -6,7 +6,6 @@ from typing import Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from studio_mcp.deprecation import deprecated, deprecated_description
 from studio_mcp.strict_args import enforce_strict_arguments
 from studio_mcp.tool_profiles import ToolProfileMiddleware
 from studio_mcp.tools.agents import (
@@ -26,7 +25,6 @@ from studio_mcp.tools.ai_library import (
 from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
 from studio_mcp.tools.builds import studio_get_builds, studio_request_producer_job
 from studio_mcp.tools.claims import (
-    studio_claim_resource,
     studio_claim_resources,
     studio_get_resource_claims,
     studio_release_resource,
@@ -56,7 +54,7 @@ from studio_mcp.tools.roadmaps import (
     studio_transition_roadmap,
     studio_update_roadmap_step,
 )
-from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
+from studio_mcp.tools.sessions import studio_get_sessions
 from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.sync import studio_sync
 from studio_mcp.tools.task_launches import (
@@ -65,16 +63,15 @@ from studio_mcp.tools.task_launches import (
     studio_pull_pending_launches,
 )
 from studio_mcp.tools.tasks import (
-    studio_claim_task,
     studio_create_task,
     studio_get_active_tasks,
     studio_get_task,
-    studio_release_task,
     studio_update_task,
 )
 from studio_mcp.tools.teammates import studio_get_teammate_activity
 from studio_mcp.tools.timeline import studio_get_timeline
 from studio_mcp.tools.transfers import (
+    studio_acknowledge_transfer_download,
     studio_create_transfer_metadata,
     studio_delete_transfer,
     studio_get_transfer,
@@ -172,38 +169,6 @@ def create_server() -> MCPServer:
         ),
     )
     server.add_tool(
-        deprecated("studio_claim_task", studio_claim_task),
-        name="studio_claim_task",
-        description=deprecated_description(
-            "studio_claim_task",
-            (
-                "Claim a task for the caller's machine (soft lock, sets status to "
-                "in_progress). Requires a writer role. Fails with already_claimed if another "
-                "machine holds it; re-claiming a task this machine already holds while it is "
-                "still in_progress with the same agent is a no-op. Pass idempotency_key when "
-                "retrying a call that may have already succeeded — replaying the same "
-                "key+arguments returns the original claim instead of running it again "
-                "(never a duplicate); the same key with different arguments fails with "
-                "idempotency_key_payload_mismatch."
-            ),
-        ),
-        annotations=_IDEMPOTENT_WRITE,
-    )
-    server.add_tool(
-        deprecated("studio_release_task", studio_release_task),
-        name="studio_release_task",
-        description=deprecated_description(
-            "studio_release_task",
-            (
-                "Release a task's claim by task_id (UUID string). Only the holding machine (or a "
-                "privileged role) may release; anyone else fails with forbidden. Optional "
-                "expected_version: a stale version fails with version_conflict. Safe to repeat — "
-                "never creates anything."
-            ),
-        ),
-        annotations=_IDEMPOTENT_WRITE,
-    )
-    server.add_tool(
         studio_get_task_launch,
         name="studio_get_task_launch",
         description=(
@@ -237,31 +202,20 @@ def create_server() -> MCPServer:
         annotations=_READ_ONLY,
     )
     server.add_tool(
-        deprecated("studio_claim_resource", studio_claim_resource),
-        name="studio_claim_resource",
-        description=deprecated_description(
-            "studio_claim_resource",
-            (
-                "Soft-lock a resource path (file/folder) for the caller's machine. Requires a "
-                "writer role. Claims warn, they never block: a conflicting active claim is "
-                "surfaced via a resource.conflict event, not a rejection, and no Git operation "
-                "or file write is ever refused. "
-                "Pass idempotency_key when retrying a call that may have already succeeded — "
-                "replaying the same key+arguments returns the original claim instead of a "
-                "duplicate and never re-emits the conflict event."
-            ),
-        ),
-    )
-    server.add_tool(
         studio_claim_resources,
         name="studio_claim_resources",
         description=(
             "Soft-lock several resource paths (file/folder) for the caller's machine in one call, "
-            "with the same warn-only semantics as studio_claim_resource — a claim warns, it never "
+            "with warn-only semantics — a claim warns, it never "
             "blocks a Git operation or a file write. Requires a writer role. Returns one compact "
             "batch: every created claim, plus the subset that overlaps another active claim (each "
-            "overlap still emits a resource.conflict event). All paths share the same "
-            "resource_type, ttl_seconds and optional task_id. "
+            "overlap still emits a resource.conflict event). The paths are given as paths, a list "
+            "of at most 50 strings — a singular path argument is not accepted, pass a one-element "
+            'paths list instead. resource_type accepts exactly "file" or "folder"; any other '
+            "value fails with invalid_argument. All paths share the same "
+            "resource_type, ttl_seconds and optional task_id. A claim made without task_id while "
+            "the caller has an open session is attached to that session's task, so the handoff "
+            "that ends the session releases it instead of leaving it until its ttl. "
             "Pass idempotency_key when retrying a call that may have already succeeded — "
             "once the first call completed, replaying the same key+arguments returns the "
             "original batch instead of a duplicate and never re-emits the conflict events."
@@ -478,32 +432,6 @@ def create_server() -> MCPServer:
             "`tasks` (id, title, status) and `claims` (resource_path, resource_type) — read-only."
         ),
         annotations=_READ_ONLY,
-    )
-    server.add_tool(
-        deprecated("studio_start_session", studio_start_session),
-        name="studio_start_session",
-        description=deprecated_description(
-            "studio_start_session",
-            (
-                "Start a work session on a task for the caller's machine. Requires a writer role. "
-                "Pass idempotency_key when retrying a call that may have already succeeded — "
-                "replaying the same key+arguments returns the original session instead "
-                "of starting a duplicate."
-            ),
-        ),
-    )
-    server.add_tool(
-        deprecated("studio_end_session", studio_end_session),
-        name="studio_end_session",
-        description=deprecated_description(
-            "studio_end_session",
-            (
-                "End a work session by session_id (UUID string). Only the machine that started it "
-                "(or a privileged role) may end it; anyone else fails with forbidden. "
-                "Safe to repeat."
-            ),
-        ),
-        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_register_agent,
@@ -795,6 +723,19 @@ def create_server() -> MCPServer:
             "outsiders fail with forbidden. Download with HTTP Range to resume a partial fetch."
         ),
         annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_acknowledge_transfer_download,
+        name="studio_acknowledge_transfer_download",
+        description=(
+            "Record receipt of a transfer_id (UUID string) after its bytes "
+            "were downloaded through the presigned URL — never the file "
+            "bytes. Any reader of the transfer with a writer role may "
+            "acknowledge it; outsiders and writer-less roles fail with "
+            "forbidden. Safe to repeat: a replay returns the transfer "
+            "unchanged with its original downloaded_at."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_delete_transfer,

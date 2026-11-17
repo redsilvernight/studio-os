@@ -2,7 +2,6 @@ import type { Platform } from "./platform/types";
 import { installUpdateOnce, resetUpdateInstallerForTests, updateErrorMessage } from "./updateInstaller";
 
 const BANNER_ID = "desktop-update-banner";
-export const APPLICATION_SETTINGS_HASH = "#/configuration/application";
 type UpdatePlatform = Pick<Platform, "checkForUpdate" | "installUpdate" | "restartDesktop">;
 
 let available: string | null = null;

@@ -1,7 +1,7 @@
 """`agents ensure` (workflow W2, AIB-I): the session-start hook finds this
 machine's harness agent or registers it through `POST /agents/ensure`
 (CC-1/DEC-0045, public registration without authority; DEC-0053 metadata
-echoed verbatim), so `studio_start_session` and `studio_log_ai_work` receive
+echoed verbatim), so `studio_start_work` and `studio_log_ai_work` receive
 a stable `agent_id` instead of null. The server matches on the local stable
 key (`agents-ensure-{harness}` by default), scoped to the calling machine —
 never on `(harness, display_name)` — so a retried hook registers no

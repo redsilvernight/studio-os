@@ -430,7 +430,7 @@ export function focusDsErrorBox(box: HTMLElement): void {
  */
 export type DsSharedState = "notFound" | "empty" | "loading" | "error" | "offline";
 
-export interface DsStateAction {
+interface DsStateAction {
   label: string;
   href?: string;
   id?: string;

@@ -243,7 +243,12 @@ def test_no_provider_model_runtime_or_secret_field_exists() -> None:
 
 
 def test_project_identity_shape_is_locked() -> None:
-    assert set(InitializationProjectSpec.model_fields) == {"slug", "name", "description"}
+    assert set(InitializationProjectSpec.model_fields) == {
+        "slug",
+        "name",
+        "description",
+        "repository",
+    }
 
 
 def test_duplicate_harness_is_a_problem_not_a_parse_error() -> None:
@@ -415,3 +420,19 @@ def test_dry_run_models_carry_no_secret_or_runtime_field() -> None:
         | set(BootstrapDryRunReport.model_fields)
     )
     assert forbidden & fields == set()
+
+
+def test_manifest_repository_is_optional_and_bounded() -> None:
+    assert _minimal().project.repository is None
+    manifest = _minimal(
+        project={"slug": "p", "name": "P", "repository": "github.com/studio-os/demo"}
+    )
+    assert manifest.project.repository == "github.com/studio-os/demo"
+    with pytest.raises(ValidationError):
+        _minimal(project={"slug": "p", "name": "P", "repository": "x" * 513})
+
+
+def test_existing_fixtures_stay_valid_without_repository() -> None:
+    for raw in _load_manifests():
+        assert "repository" not in raw["project"]
+        assert BootstrapManifest.model_validate(raw).project.repository is None

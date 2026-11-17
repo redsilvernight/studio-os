@@ -25,9 +25,9 @@ export interface TokenBody {
 }
 
 /** Renew this long before the JWT expires. */
-export const RENEW_MARGIN_S = 60;
+const RENEW_MARGIN_S = 60;
 /** Retry delay when a scheduled renewal could not reach the server. */
-export const RETRY_DELAY_S = 30;
+const RETRY_DELAY_S = 30;
 
 let vault: SessionVault | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -44,7 +44,7 @@ export function persistentSessionAvailable(): boolean {
   return vault !== null;
 }
 
-export function cancelRenewal(): void {
+function cancelRenewal(): void {
   if (timer !== null) clearTimeout(timer);
   timer = null;
 }

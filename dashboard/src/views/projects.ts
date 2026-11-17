@@ -10,6 +10,9 @@
  * - Création (POST /projects, admin/developer, Idempotency-Key par tentative)
  *   dans une modale du Design System : focus initial, Échap, retour focus,
  *   erreurs accessibles, état de chargement, double soumission empêchée.
+ *   L'adresse du dépôt est facultative : le serveur l'enregistre avec le
+ *   projet (resolve-repository la retrouve ensuite), un conflit ou une URL
+ *   invalide refuse la création sans laisser de projet derrière.
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
@@ -109,6 +112,7 @@ export function projectCreateFormHtml(): string {
     dsField("project-slug", "Identifiant court", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
     dsField("project-name", "Nom", `<input class="ds-input" id="FIELD" name="name" required autocomplete="off" />`) +
     dsField("project-desc", "Description (facultative)", `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`) +
+    dsField("project-repository", "Adresse du dépôt (facultative)", `<input class="ds-input" id="FIELD" name="repository" inputmode="url" placeholder="https://github.com/organisation/depot" autocomplete="off" />`, "Enregistrée avec le projet : les dépôts locaux de ce dépôt retrouvent alors le projet. Un dépôt déjà lié à un autre projet est refusé.") +
     `<p class="ds-list-sub">Réservé aux administrateurs et aux développeurs. Un envoi répété ne crée pas de doublon.</p>` +
     `<div class="ds-field-error" id="project-create-error" role="alert" hidden></div>` +
     `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
@@ -190,6 +194,12 @@ function bindCreateDialog(root: HTMLElement, client: StudioClient, refresh: () =
       name: String(data.get("name") ?? "").trim(),
       description: (() => {
         const raw = String(data.get("description") ?? "").trim();
+        return raw === "" ? null : raw;
+      })(),
+      // Champ facultatif : absent (null) = projet créé sans dépôt, le dépôt
+      // pourra être lié plus tard depuis l'API.
+      repository: (() => {
+        const raw = String(data.get("repository") ?? "").trim();
         return raw === "" ? null : raw;
       })(),
     };

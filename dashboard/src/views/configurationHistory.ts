@@ -47,7 +47,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 /** Borne basse de « Tout l'historique » : la route exige `since` et `until`. */
-export const HISTORY_ALL_SINCE = "1970-01-01T00:00:00.000Z";
+const HISTORY_ALL_SINCE = "1970-01-01T00:00:00.000Z";
 
 export function historyWindow(periodId: string, now: number): { since: string; until: string } {
   const days = USAGE_PERIODS.find((period) => period.id === periodId)?.days ?? null;
@@ -185,7 +185,7 @@ export function configurationHistoryHtml(history: ConfigurationHistory): string 
   );
 }
 
-export function historyUnavailableHtml(error: unknown): string {
+function historyUnavailableHtml(error: unknown): string {
   const text =
     error instanceof ApiError && error.status === 403
       ? "Votre compte n'a pas accès à l'historique des configurations de ce projet."

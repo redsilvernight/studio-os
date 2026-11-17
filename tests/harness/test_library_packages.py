@@ -33,7 +33,7 @@ def _mans() -> dict:
 def test_every_historical_definition_has_a_justified_decision() -> None:
     decisions = lp.load_decisions(ROOT)
     old = [d for d in decisions if not d["new"]]
-    assert len(old) == 87
+    assert len(old) == 70
     for d in decisions:
         assert d["decision"] in lp.DECISIONS
         assert d["rationale"].strip()
@@ -56,7 +56,7 @@ def test_core_and_project_are_public_and_separated() -> None:
 
 def test_generation_is_deterministic(tmp_path: Path) -> None:
     root = tmp_path / "repo"
-    for rel in ("library", ".agents", "scripts", "docs/library/rebuild-2026"):
+    for rel in ("library", ".studio", "scripts", "docs/library/rebuild-2026"):
         shutil.copytree(ROOT / rel, root / rel, ignore=shutil.ignore_patterns("personal"))
     first = lp.build(root, HOME)
     snap = {p: p.read_bytes() for p in (root / "library/packages").rglob("*") if p.is_file()}

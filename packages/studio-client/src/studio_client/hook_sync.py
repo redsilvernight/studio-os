@@ -35,6 +35,12 @@ _MANIFEST_SCHEMA_VERSION = 1
 _MANIFEST_RELATIVE = (".studio-os", "library-hooks-manifest.json")
 _CONSENT_RELATIVE = (".studio", "hook-consent.json")
 _DISABLED_RELATIVE = (".studio", "hook-disabled.json")
+# Project mode: consent stays per machine, under the Git-ignored `.studio-os/`
+# (a project's `.studio/` is versioned).
+_PROJECT_CONSENT_RELATIVE = (".studio-os", "hook-consent.json")
+_PROJECT_DISABLED_RELATIVE = (".studio-os", "hook-disabled.json")
+# Versioned project settings must not embed a machine path.
+_CLAUDE_PROJECT_DIR = "$CLAUDE_PROJECT_DIR"
 _CLAUDE_SETTINGS_RELATIVE = (".claude", "settings.json")
 _CLAUDE_SCRIPTS_RELATIVE = (".claude", "studio-hooks")
 _OPENCODE_PLUGIN_RELATIVE = (".config", "opencode", "plugin", "studio-hooks.js")
@@ -238,8 +244,15 @@ def plan_hook_sync(
     consent: Iterable[str] = (),
     disable: Iterable[str] = (),
     os_name: HookOs | None = None,
+    project: bool = False,
 ) -> HookSyncPlan:
-    """Inspect hook targets and local consent without changing the filesystem."""
+    """Inspect hook targets and local consent without changing the filesystem.
+
+    ``project=True`` targets a project checkout instead of the user home:
+    commands go through ``$CLAUDE_PROJECT_DIR`` so the versioned
+    ``.claude/settings.json`` stays machine-neutral, consent lives under the
+    Git-ignored ``.studio-os/``, and OpenCode is reported as not supported.
+    """
 
     root = Path(home).expanduser().resolve()
     target_os = os_name or current_hook_os()
@@ -250,8 +263,8 @@ def plan_hook_sync(
             raise HookSyncError(f"duplicate hook stable_key: {projection.stable_key!r}")
         by_key[projection.stable_key] = projection
 
-    consent_path = root.joinpath(*_CONSENT_RELATIVE)
-    disabled_path = root.joinpath(*_DISABLED_RELATIVE)
+    consent_path = root.joinpath(*(_PROJECT_CONSENT_RELATIVE if project else _CONSENT_RELATIVE))
+    disabled_path = root.joinpath(*(_PROJECT_DISABLED_RELATIVE if project else _DISABLED_RELATIVE))
     consents = _load_consents(consent_path)
     disabled = _load_disabled(disabled_path)
     for key in consent:
@@ -268,7 +281,7 @@ def plan_hook_sync(
     previous_rows = {row["stable_key"]: row for row in manifest["hooks"]}
 
     entries = [
-        _plan_entry(root, projection, consents, disabled, target_os)
+        _plan_entry(root, projection, consents, disabled, target_os, project)
         for projection in by_key.values()
     ]
     installed = [entry for entry in entries if entry.status == "installed"]
@@ -494,12 +507,18 @@ def _plan_entry(
     consents: dict[str, str],
     disabled: set[str],
     target_os: HookOs,
+    project: bool = False,
 ) -> HookPlanEntry:
     content = projection.content
     claude_event = CLAUDE_EVENTS[content.event]
     reports: list[str] = ["codex:not_supported"]
     opencode_event = OPENCODE_EVENTS.get(content.event)
-    if opencode_event is None:
+    if project:
+        # shortcut: no project-level OpenCode plugin yet (it would need a
+        # machine-neutral script path); add one when a project needs it.
+        reports.append("opencode:project_not_supported")
+        opencode_event = None
+    elif opencode_event is None:
         reports.append(f"opencode:event_not_expressible:{content.event.value}")
     elif content.mode is HookMode.BLOCKING and content.event not in _OPENCODE_BLOCKING_EVENTS:
         reports.append(f"opencode:blocking_not_expressible:{content.event.value}")
@@ -529,14 +548,19 @@ def _plan_entry(
         claude_event=claude_event,
         script=script,
         script_path=script_path,
-        command=_command(script.shell, script_path),
+        command=_command(
+            script.shell,
+            f"{_CLAUDE_PROJECT_DIR}/{script_path.relative_to(root).as_posix()}"
+            if project
+            else script_path.as_posix(),
+        ),
         opencode_event=opencode_event,
         reports=tuple(reports),
     )
 
 
-def _command(shell: HookShell, script_path: Path) -> str:
-    parts = [*_SHELL_ARGV[shell], script_path.as_posix()]
+def _command(shell: HookShell, script_path: str) -> str:
+    parts = [*_SHELL_ARGV[shell], script_path]
     return " ".join(part if _SAFE_ARG_RE.fullmatch(part) else f'"{part}"' for part in parts)
 
 

@@ -81,7 +81,7 @@ export const AGENT_RECENT_MS = 30 * 60 * 1000;
 
 export type AgentSignal = "open-session" | "recent" | "past" | "none" | "unknown";
 
-export type AgentActivitySource = "session" | "ai-work" | "task" | "event" | null;
+type AgentActivitySource = "session" | "ai-work" | "task" | "event" | null;
 
 export interface AgentActivity {
   signal: AgentSignal;
@@ -187,7 +187,7 @@ export function filterAgents(agents: Agent[], query: string): Agent[] {
 /* Libellés français (présentation seule — clés backend inchangées).    */
 /* ------------------------------------------------------------------ */
 
-export const AI_WORK_STATUS_LABEL_FR: Record<string, string> = {
+const AI_WORK_STATUS_LABEL_FR: Record<string, string> = {
   started: "Commencé",
   completed: "Terminé",
   failed: "Échoué",

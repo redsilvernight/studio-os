@@ -2,7 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BridgeAnswer } from "./platform/contracts";
 import type { SkillsSyncStatus, SkillsPreviewResult } from "./skillsApi";
-import { mountSkillsSync, resetSkillsSyncForTests, skillsDetailHtml, skillsIndicatorHtml } from "./skillsSync";
+import {
+  mountSkillsSync,
+  notificationKey,
+  resetSkillsSyncForTests,
+  skillsDetailHtml,
+  skillsIndicatorHtml,
+} from "./skillsSync";
 import { fakeDesktop } from "./testSupport/fakeDesktop";
 import { webPlatform } from "./platform/web";
 
@@ -51,6 +57,22 @@ beforeEach(() => {
 afterEach(() => {
   resetSkillsSyncForTests();
   vi.useRealTimers();
+});
+
+describe("skills sync notification key", () => {
+  it("ignores last_check so unchanged conflicts are not announced at every launch", () => {
+    const first = status({ state: "conflicts", conflicts: ["b", "a"], last_check: "2026-11-15T22:19:55Z" });
+    const relaunch = status({ state: "conflicts", conflicts: ["a", "b"], last_check: "2026-11-16T05:16:43Z" });
+    expect(notificationKey(relaunch)).toBe(notificationKey(first));
+  });
+
+  it("changes when the reported items or a new sync change", () => {
+    const base = status({ state: "conflicts", conflicts: ["a"] });
+    expect(notificationKey(status({ state: "conflicts", conflicts: ["a", "c"] }))).not.toBe(notificationKey(base));
+    const synced = status({ state: "updated", updated: ["x"], last_successful_sync: "2026-11-16T05:00:00Z" });
+    const again = status({ state: "updated", updated: ["x"], last_successful_sync: "2026-11-16T09:00:00Z" });
+    expect(notificationKey(again)).not.toBe(notificationKey(synced));
+  });
 });
 
 describe("skills sync indicator", () => {
@@ -179,6 +201,37 @@ describe("skills sync indicator", () => {
     document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
     await flush();
     expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"kind":"agent","stable_key":"reviewer","choice":"library","preview_hash":"' + "b".repeat(64) + '"}]}');
+  });
+
+  it("offers publishing a locally modified file as the user's own override", async () => {
+    const calls: string[] = [];
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    expect([...choice.options].map((option) => option.value)).toContain("publish");
+    choice.value = "publish";
+    choice.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLElement>('[data-skills-action="apply"]')?.click();
+    const confirmation = document.querySelector(".skills-sync-confirmation")?.textContent ?? "";
+    expect(confirmation).toContain("version personnelle");
+    expect(confirmation).toContain("delegate");
+    document.querySelector<HTMLElement>('[data-skills-action="confirm"]')?.click();
+    await flush();
+    expect(calls).toContain('skills.apply:{"confirm":true,"resolutions":[{"stable_key":"delegate","choice":"publish","preview_hash":"' + "1".repeat(64) + '"}]}');
+  });
+
+  it("hides publishing when nothing was modified locally", async () => {
+    const calls: string[] = [];
+    const plan = previewResult();
+    plan.skills![0]!.targets = [{ harness: "agents", state: "outdated" }];
+    mountSkillsSync(platformWith(() => status({ state: "update_pending" }), calls, plan));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    await flush();
+    const choice = document.querySelector<HTMLSelectElement>('[data-skills-choice="skill:delegate"]')!;
+    expect([...choice.options].map((option) => option.value)).not.toContain("publish");
   });
 
   it("keeps local choices without authorizing a global overwrite", async () => {

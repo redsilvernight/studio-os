@@ -178,6 +178,8 @@ describe("projectCreateFormHtml", () => {
     expect(html).toContain('for="project-slug"');
     expect(html).toContain('for="project-name"');
     expect(html).toContain('for="project-desc"');
+    expect(html).toContain('for="project-repository"');
+    expect(html).toContain('name="repository"');
     expect(html).toContain("required");
     expect(html).toContain('id="project-create-error"');
     expect(html).toContain("hidden");

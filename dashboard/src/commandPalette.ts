@@ -103,7 +103,7 @@ function go(href: string): void {
   else location.hash = href;
 }
 
-export function openPalette(entries: PaletteEntry[], trigger: HTMLElement | null): void {
+function openPalette(entries: PaletteEntry[], trigger: HTMLElement | null): void {
   const node = overlay();
   const input = document.getElementById("app-palette-input") as HTMLInputElement | null;
   if (node === null || input === null) return;

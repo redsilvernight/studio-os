@@ -11,7 +11,7 @@ const STATE_LABELS = {
   unsupported: "Non pris en charge",
 };
 
-export async function fetchProductDiscovery(
+async function fetchProductDiscovery(
   client: StudioClient,
   intent: Intent = "overview",
   key?: string,

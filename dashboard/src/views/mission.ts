@@ -35,11 +35,11 @@ export interface MissionViewContext {
   maxPolls?: number;
 }
 
-export const MISSION_POLL_MS = 30_000;
-export const MISSION_MAX_POLLS = 10;
+const MISSION_POLL_MS = 30_000;
+const MISSION_MAX_POLLS = 10;
 /** Verdicts mis en avant dans la vue d'ensemble, dans cet ordre de priorité. */
-export const MISSION_ATTENTION_VERDICTS = ["waiting_human", "needs_attention", "stale", "failed"] as const;
-export const MISSION_SUMMARY_MAX = 3;
+const MISSION_ATTENTION_VERDICTS = ["waiting_human", "needs_attention", "stale", "failed"] as const;
+const MISSION_SUMMARY_MAX = 3;
 
 const VERDICT_LABEL: Record<string, string> = {
   pending: "En attente",
@@ -235,7 +235,7 @@ export function missionRunHtml(run: MissionRun): string {
 }
 
 /** Compteurs par verdict sur toute la fenêtre (`counts`), jamais recomptés sur la page. */
-export function missionCountsHtml(mission: ProjectMission): string {
+function missionCountsHtml(mission: ProjectMission): string {
   const byVerdict = mission.counts.by_verdict;
   const known = Object.keys(VERDICT_LABEL).filter((v) => (byVerdict[v] ?? 0) > 0);
   const unknown = Object.keys(byVerdict).filter((v) => !(v in VERDICT_LABEL) && (byVerdict[v] ?? 0) > 0);
@@ -412,7 +412,7 @@ export async function renderMissionInto(root: HTMLElement, ctx: MissionViewConte
 }
 
 /** Runs à regarder pour la vue d'ensemble : verdicts d'attention, ordre de priorité, au plus 3. */
-export function attentionRuns(runs: MissionRun[], max = MISSION_SUMMARY_MAX): MissionRun[] {
+function attentionRuns(runs: MissionRun[], max = MISSION_SUMMARY_MAX): MissionRun[] {
   const rank = (v: string): number => (MISSION_ATTENTION_VERDICTS as readonly string[]).indexOf(v);
   return runs
     .filter((r) => rank(r.verdict) >= 0)

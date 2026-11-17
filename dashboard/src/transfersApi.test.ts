@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "./api";
 import {
+  acknowledgeDownload,
   createTransfer,
   deleteTransfer,
   partRange,
@@ -47,6 +48,17 @@ describe("createTransfer", () => {
       params: { header: { "Idempotency-Key": "key-1" } },
       body: expect.objectContaining({ filename: "a.bin", size_bytes: 10 }),
     });
+  });
+});
+
+describe("acknowledgeDownload", () => {
+  it("accuse réception sur l'endpoint dédié et renvoie le transfert horodaté", async () => {
+    const POST = vi.fn().mockResolvedValue(ok({ id: "tr1", status: "downloaded", downloaded_at: "2026-09-15T12:00:00.000Z" }));
+    const result = await acknowledgeDownload(fakeClient({ POST }), "tr1");
+    expect(POST).toHaveBeenCalledWith("/api/v1/transfers/{transfer_id}/downloaded", {
+      params: { path: { transfer_id: "tr1" } },
+    });
+    expect(result).toMatchObject({ status: "downloaded", downloaded_at: "2026-09-15T12:00:00.000Z" });
   });
 });
 

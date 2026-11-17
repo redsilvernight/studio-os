@@ -139,8 +139,8 @@ async def test_tampered_package_refused(tmp_path: Path) -> None:
         root / "library",
         ignore=shutil.ignore_patterns("personal", "project"),
     )
-    shutil.copytree(li.ROOT / ".agents", root / ".agents")
-    assert len(li.load_plan("core", root).items) == 42
+    shutil.copytree(li.ROOT / ".studio", root / ".studio")
+    assert len(li.load_plan("core", root).items) == 38
     manifest = json.loads(
         (root / "library" / "packages" / "core" / "manifest.json").read_text("utf-8")
     )

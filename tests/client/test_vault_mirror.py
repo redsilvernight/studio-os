@@ -208,6 +208,3 @@ async def test_provider_is_read_only_and_scoped(mirror: ServerVaultMirror) -> No
     with pytest.raises(KnowledgeError) as missing:
         provider.read("global/absent")
     assert missing.value.reason == KnowledgeError.NOT_FOUND
-    with pytest.raises(KnowledgeError) as write:
-        provider.propose({"title": "x"})  # type: ignore[arg-type]
-    assert write.value.reason == KnowledgeError.WRITE_UNSUPPORTED

@@ -42,7 +42,7 @@ export function statusBlock(status: SectionStatus, message = ""): string {
   return "";
 }
 
-export function section(title: string, meta: string, body: string): string {
+function section(title: string, meta: string, body: string): string {
   return `<section class="panel"><header><h2>${esc(title)}</h2><span class="meta">${meta}</span></header><div class="body">${body}</div></section>`;
 }
 
@@ -76,6 +76,8 @@ const CODE_MESSAGES: Record<string, string> = {
   invalid_scope_context: "La portée choisie ne correspond pas au projet indiqué.",
   project_not_found: "Projet introuvable.",
   task_not_found: "Tâche introuvable.",
+  repository_already_linked: "Ce dépôt est déjà lié à un autre projet. Retirez-le de cet autre projet, ou saisissez un autre dépôt.",
+  invalid_repository_url: "L'adresse du dépôt n'est pas valide. Utilisez une adresse https, ssh ou git@hôte:chemin/vers/dépôt.",
   forbidden: "Vous n'avez pas les droits nécessaires pour cette action.",
 };
 

@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -53,6 +54,7 @@ from studio_client.daemon.launch_settings_bridge import (
 from studio_client.daemon.library_events import CURSOR_FILE_NAME, LibraryEventWatcher
 from studio_client.daemon.project_projections import (
     RepoTarget,
+    _fetch_bundle,
     mark_project_updates_pending,
     repo_targets,
 )
@@ -80,10 +82,12 @@ from studio_client.outbox import (
     partitioned_outbox_path,
 )
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
+from studio_client.projection_source import ProjectionBundle
 from studio_client.retry import RetryPolicy
 from studio_client.tokens import KeyringTokenStore, TokenStore
 from studio_client.usage import UsageWriteQueue
 from studio_client.usage.local import (
+    CentralPriceTables,
     ClaudeCodeLocalReader,
     CodexLocalReader,
     LocalUsageScanner,
@@ -95,6 +99,7 @@ from studio_client.usage.recorder import LaunchUsageRecorder
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
+_BUNDLE_TTL_SECONDS = 300.0
 
 WorkspaceSource = Callable[[ProfileRef], Sequence[WorkspaceWatchLike]]
 WorkspaceRefreshListener = Callable[[], Awaitable[None]]
@@ -333,6 +338,7 @@ class DaemonRuntime:
         self._workspace_inputs: list[WorkspaceWatchLike] = []
         self._git_watch_inputs: list[GitWatchConfig] = list(config.git_watches)
         self._workspace_source = workspace_source
+        self._bundles: dict[UUID, tuple[float, ProjectionBundle]] = {}
         self._workspace_sync_seconds = workspace_sync_seconds
         self._stop_event: asyncio.Event | None = None
         self._stop_requested = False
@@ -417,6 +423,21 @@ class DaemonRuntime:
                 self._workspace_inputs = list(workspaces)
         return await self.reconcile_workspace_watchers()
 
+    def _cached_bundle(self, project_id: UUID) -> ProjectionBundle | None:
+        """Library bundle of a project for the heartbeat's bootstrap report,
+        refetched at most every `_BUNDLE_TTL_SECONDS`; None when the server
+        cannot be reached (the project is then simply not reported)."""
+        now = time.monotonic()
+        cached = self._bundles.get(project_id)
+        if cached is not None and now - cached[0] < _BUNDLE_TTL_SECONDS:
+            return cached[1]
+        try:
+            bundle = _fetch_bundle(self.config, self._token_store, project_id)
+        except (StudioApiError, AuthenticationError, OSError):
+            return cached[1] if cached is not None else None
+        self._bundles[project_id] = (now, bundle)
+        return bundle
+
     def project_repo_targets(self) -> list[RepoTarget]:
         return repo_targets(self._workspace_inputs)
 
@@ -451,7 +472,9 @@ class DaemonRuntime:
             for path in watch.plan.repo_paths
         )
 
-    def _build_usage_scan(self, store: OutboxStore) -> UsageScanLoop | None:
+    def _build_usage_scan(
+        self, store: OutboxStore, client: StudioApiClient
+    ) -> UsageScanLoop | None:
         """Background scanner of the desktop harness stores; disabled, it
         returns None and the daemon runs exactly as before."""
         if not self.config.usage_scan_enabled or self.config.usage_scan_lookback_days <= 0:
@@ -459,12 +482,17 @@ class DaemonRuntime:
         stop_event = self._stop_event
         if stop_event is None:
             return None
+        prices = CentralPriceTables(
+            lambda project_id: client.get_effective_price_list(project_id),
+            self.data_root / "pricing-cache",
+            load_price_table(self.data_root / "pricing.json"),
+        )
         scanner = LocalUsageScanner(
             store=store,
             machine_id=self.binding.machine_id,
             readers=(ClaudeCodeLocalReader(), CodexLocalReader(), OpenCodeLocalReader()),
             workspace_roots=self._usage_roots,
-            price_table=load_price_table(self.data_root / "pricing.json"),
+            price_table=prices.table_for,
             lookback=timedelta(days=self.config.usage_scan_lookback_days),
         )
         return UsageScanLoop(
@@ -472,6 +500,7 @@ class DaemonRuntime:
             self.config.usage_scan_interval_seconds,
             stop_event=stop_event,
             stopped=lambda: self._stop_requested,
+            before_scan=lambda: prices.refresh(root.project_id for root in self._usage_roots()),
         )
 
     async def _workspace_sync_loop(self) -> None:
@@ -508,7 +537,11 @@ class DaemonRuntime:
                 executor = LaunchExecutor(
                     client=client,
                     reporter=reporter,
-                    preparer=LaunchPreparer(),
+                    preparer=LaunchPreparer(
+                        bundle_fetcher=lambda project_id: _fetch_bundle(
+                            self.config, self._token_store, project_id
+                        )
+                    ),
                     runner=LaunchRunner(),
                     resolve=build_launch_resolver(
                         client,
@@ -536,6 +569,7 @@ class DaemonRuntime:
                         registry=registry,
                         running_launches=executor.running,
                         extra_project_ids=self._workspace_project_ids(),
+                        bundle_for=self._cached_bundle,
                     ),
                     launch_puller=LaunchPuller(
                         client,
@@ -557,7 +591,7 @@ class DaemonRuntime:
                     interval_seconds=self.config.git_watch_interval_seconds,
                     change_listener=self._git_change_listener,
                 )
-                usage_loop = self._build_usage_scan(store)
+                usage_loop = self._build_usage_scan(store, client)
                 if not self._stop_requested:
                     await self.refresh_workspace_watchers()
                 if self._stop_requested:

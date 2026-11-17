@@ -10,13 +10,14 @@ lecture seule. Les paragraphes UC-3 ci-dessous (DEC-0047, superseded par
 DEC-0191) decrivent l'exposition historique d'un vault local.
 
 ### MemoryProvider
-search, read, propose, write_if_authorized, append_task_log, create_decision_note.
+search, read.
 
 Implémentation Bloc B (roadmap 8.2, DEC-0042) :
-`packages/studio-client/src/studio_client/knowledge/` — `search`/`read`
-seuls sont effectifs (`VaultMemoryProvider`), les écritures sont déclarées
-mais refusées (`write_unsupported`, boucle d'approbation serveur en 8.4/8.5),
-portée fermée par défaut via `ClientConfig` (`STUDIO_CLIENT_KNOWLEDGE_*`).
+`packages/studio-client/src/studio_client/knowledge/` — lecture seule
+(`VaultMemoryProvider`), portée fermée par défaut via `ClientConfig`
+(`STUDIO_CLIENT_KNOWLEDGE_*`). Les écritures passent par le vault serveur
+(`studio_vault_write`, DEC-0191) ; les méthodes d'écriture locales ont été
+retirées (DEC-0354).
 
 Exposition UC-3 historique (DEC-0047, superseded par DEC-0191) : `search`/`read` via MCP local par poste
 (`studio_memory_search`, `studio_memory_read`, `TECH/07`), stdio, read-only.

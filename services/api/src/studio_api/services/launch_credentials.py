@@ -37,8 +37,6 @@ LAUNCH_MCP_ALLOWLIST: frozenset[str] = frozenset(
     {
         "studio_prepare_context",
         "studio_start_work",
-        "studio_start_session",
-        "studio_end_session",
         "studio_sync",
         "studio_coordinate",
         "studio_log_ai_work",
@@ -48,9 +46,6 @@ LAUNCH_MCP_ALLOWLIST: frozenset[str] = frozenset(
         "studio_discover_capabilities",
         "studio_get_task",
         "studio_update_task",
-        "studio_claim_task",
-        "studio_release_task",
-        "studio_claim_resource",
         "studio_claim_resources",
         "studio_release_resource",
         "studio_get_resource_claims",

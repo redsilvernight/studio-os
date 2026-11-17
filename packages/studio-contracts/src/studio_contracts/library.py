@@ -172,6 +172,13 @@ class LibraryResource(VersionedModel):
     owner_user_id: UUID | None = None
     project_id: UUID | None = None
     created_by_user_id: UUID | None = None
+    base_update_available: bool = False
+    """Read-only alert for a User-scope override (P60): the common version its
+    active version derives from (`derived_from`) is no longer the active one.
+    Purely informational — nothing is re-based or re-applied automatically."""
+    base_active_version: int | None = None
+    """Active version of that common base when the alert is raised; `None`
+    when the resource has no derived base or no update to report."""
 
 
 class LibraryVersionRef(ContractModel):
@@ -210,6 +217,52 @@ class LibraryVersion(ContractModel):
     derived_from: LibraryVersionRef | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
+
+
+class LibraryMergeInputs(ContractModel):
+    base: str
+    ours: str
+    theirs: str
+
+
+class LibraryMergeConflict(LibraryMergeInputs):
+    start_line: int
+    base_start: int
+    base_end: int
+
+
+class LibraryMergeResult(ContractModel):
+    content: str
+    conflicts: list[LibraryMergeConflict]
+
+
+class LibraryMergePreview(ContractModel):
+    inputs: LibraryMergeInputs
+    result: LibraryMergeResult
+
+
+class LibraryMergeChoice(StrEnum):
+    KEEP_OVERRIDE = "keep_override"
+    MERGE = "merge"
+    REVERT_TO_COMMON = "revert_to_common"
+
+
+class LibraryMergeApply(ContractModel):
+    """Applies one choice to an override whose common base moved.
+    `base_active_version` is the common version the caller previewed (409
+    `base_moved` if it changed); `content` is the caller-resolved text, only
+    with `merge`."""
+
+    choice: LibraryMergeChoice
+    expected_resource_version: int
+    base_active_version: int = Field(ge=1)
+    content: str | None = None
+
+    @model_validator(mode="after")
+    def _content_only_for_merge(self) -> LibraryMergeApply:
+        if self.content is not None and self.choice != LibraryMergeChoice.MERGE:
+            raise ValueError("content is only accepted with choice=merge")
+        return self
 
 
 LIBRARY_VERSION_BATCH_MAX = 500

@@ -253,6 +253,21 @@ describe("resourcesTableHtml", () => {
     expect(html).toContain("Actif");
     expect(resourcesTableHtml([])).toContain("Aucune ressource");
   });
+
+  it("alerte le propriétaire d'un override dont la base commune a changé, sans appliquer rien", () => {
+    const html = resourcesTableHtml([
+      resource({ scope: "user", base_update_available: true, base_active_version: 3 }),
+    ]);
+    expect(html).toContain("Base commune mise à jour");
+    expect(html).toContain("commun actif v3");
+    expect(html).toContain("Rien n'est appliqué automatiquement");
+    expect(html).toContain("data-library-base-update");
+  });
+
+  it("reste silencieux quand la base de l'override est à jour", () => {
+    const html = resourcesTableHtml([resource({ scope: "user", base_update_available: false })]);
+    expect(html).not.toContain("Base commune mise à jour");
+  });
 });
 
 /* ---------------- Shadowing : signalé, jamais décidé ---------------- */
@@ -358,6 +373,19 @@ describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
     expect(html).toContain("Actif");
     expect(html).toContain("Version active : v2");
     expect(html).toContain("← Retour aux règles");
+  });
+
+  it("signale la base commune périmée en lecture seule sur le détail de l'override", () => {
+    const html = libraryDetailHtml(
+      resource({ scope: "user", base_update_available: true, base_active_version: 4 }),
+      versions,
+      [],
+      [],
+    );
+    expect(html).toContain("Base commune mise à jour");
+    expect(html).toContain("commun actif v4");
+    expect(html).toContain("Rien n'est appliqué automatiquement");
+    expect(html).toContain("data-library-base-update");
   });
 
   it("replie les détails techniques par défaut", () => {

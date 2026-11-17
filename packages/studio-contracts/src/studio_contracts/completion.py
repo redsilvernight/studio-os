@@ -18,8 +18,31 @@ class CompletionCheck(ContractModel):
     reference: str | None = Field(default=None, max_length=1000)
 
 
+DecisionOutcome = Literal["new", "existing", "none"]
+
+CompletionFormat = Literal["studio.completion/v1", "studio.completion/v2"]
+
+
+class DecisionReview(ContractModel):
+    """Structured review of the project decisions at handoff
+    (additive): which decisions this work produced (`new`), reused
+    (`existing`), or why none was needed (`none`). `decision_ids` names
+    internal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves
+    each one and rejects unknown, foreign or invisible ids with
+    `422 decision_reference_invalid`. A `proposed` decision is a valid
+    reference and is never auto-accepted by the handoff. `reason` is
+    required (non-empty) when `outcome` is `none` — enforced for v2 by
+    `check_completion` (`decision_reason_missing`)."""
+
+    outcome: DecisionOutcome
+    decision_ids: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=list, max_length=20
+    )
+    reason: str | None = Field(default=None, max_length=2000)
+
+
 class CompletionEvidence(ContractModel):
-    format: Literal["studio.completion/v1"] = "studio.completion/v1"
+    format: CompletionFormat = "studio.completion/v1"
     kind: WorkKind
     artifacts: list[Annotated[str, Field(min_length=1, max_length=1000)]] = Field(
         default_factory=list, max_length=10
@@ -34,6 +57,7 @@ class CompletionEvidence(ContractModel):
     ci_verified: bool = False
     effect_verified: bool = False
     deployed: bool = False
+    decisions: DecisionReview | None = None
 
 
 class CompletionReport(ContractModel):
@@ -81,4 +105,16 @@ def check_completion(evidence: CompletionEvidence) -> CompletionReport:
         issues.append("ci_required")
     if evidence.kind == "operation" and not evidence.effect_verified:
         issues.append("effect_not_verified")
+    if evidence.format == "studio.completion/v2":
+        review = evidence.decisions
+        if review is None:
+            issues.append("decision_review_missing")
+        elif review.outcome == "none":
+            if not (review.reason or "").strip():
+                issues.append("decision_reason_missing")
+        elif not review.decision_ids:
+            issues.append("decision_ids_missing")
+    # v1 carries no decision gate: a missing review is a non-blocking
+    # `decision_review_missing` warning returned by the handoff caller, so
+    # historical callers and non-terminal closures keep working unchanged.
     return CompletionReport(ready=not issues, issues=issues)

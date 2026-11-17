@@ -9,10 +9,12 @@
  *   (filtres serveur DEC-0185, pas de total). La recherche reste un filtre
  *   client honnête sur les tâches chargées, dans l'ordre du serveur.
  * - Liste groupée par statut réel (En cours / Bloquées / À démarrer /
- *   Terminées), sans menu de statut par ligne : le statut se change depuis
- *   la fiche (ou le Tableau de « Toutes »).
- * - Clés backend inchangées (created/in_progress/blocked/completed), seuls
- *   les libellés visibles sont français (taskStatus.ts).
+ *   Terminées / Abandonnées), sans menu de statut par ligne : le statut se
+ *   change depuis la fiche (ou le Tableau de « Toutes »).
+ * - Clés backend inchangées (created/in_progress/blocked/completed/abandoned),
+ *   seuls les libellés visibles sont français (taskStatus.ts). Les tâches
+ *   abandonnées quittent les vues actives et vivent dans leur propre colonne
+ *   ABANDONED — jamais fusionnées avec Terminées.
  * - Changement de statut : drag & drop + alternative clavier explicite
  *   « Déplacer vers… ». PATCH + If-Match-Version, 409 → relecture serveur,
  *   AUCUN retry automatique silencieux.
@@ -75,13 +77,13 @@ export interface TasksPageMessage {
   technical?: string;
 }
 
-const STATUSES: TaskStatus[] = ["created", "in_progress", "blocked", "completed"];
+const STATUSES: TaskStatus[] = ["created", "in_progress", "blocked", "completed", "abandoned"];
 const OPEN_STATUSES: TaskStatus[] = ["in_progress", "blocked", "created"];
 
 export const TASK_SCOPES: { id: TasksScope; label: string; hint: string }[] = [
   { id: "now", label: "Maintenant", hint: "Ce qui avance ou bloque, et les prochaines tâches à démarrer." },
   { id: "mine", label: "Mon travail", hint: "Les tâches prises par vos postes, non terminées." },
-  { id: "all", label: "Toutes les tâches", hint: "Toutes les tâches, terminées comprises." },
+  { id: "all", label: "Toutes les tâches", hint: "Toutes les tâches, terminées et abandonnées comprises." },
 ];
 
 /** Plafonds de « Maintenant » : une vue de pilotage, pas un inventaire. */
@@ -94,6 +96,7 @@ const GROUPS: { status: TaskStatus; label: string }[] = [
   { status: "blocked", label: "Bloquées" },
   { status: "created", label: "À faire" },
   { status: "completed", label: "Terminées" },
+  { status: "abandoned", label: "Abandonnées" },
 ];
 
 export interface TasksScopeRequest {
@@ -126,8 +129,10 @@ export function tasksScopeRequests(scope: TasksScope, limit: number = TASK_PAGE_
   }
   const pageLimit = Math.min(limit, TASK_PAGE_LIMIT);
   if (scope === "mine") return [{ mine: true, status: OPEN_STATUSES, limit: pageLimit }];
+  // Les abandonnées partent avec les actives : elles quittent les vues
+  // « Maintenant » / « Mon travail » mais restent visibles dans « Toutes ».
   return [
-    { status: ["in_progress", "blocked"], limit: pageLimit },
+    { status: ["in_progress", "blocked", "abandoned"], limit: pageLimit },
     { status: ["created"], limit: pageLimit },
   ];
 }
@@ -300,7 +305,7 @@ export function tasksListHtml(tasks: Task[], options: TasksRenderOptions): strin
 }
 
 export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): string {
-  const groups: Record<string, Task[]> = { TODO: [], "IN PROGRESS": [], BLOCKED: [], DONE: [] };
+  const groups: Record<string, Task[]> = { TODO: [], "IN PROGRESS": [], BLOCKED: [], DONE: [], ABANDONED: [] };
   for (const task of tasks) {
     const column = statusColumn(task.status);
     if (column !== "UNKNOWN") groups[column]?.push(task);

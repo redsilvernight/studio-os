@@ -50,6 +50,7 @@ const EXCLUSION_REASON_FR: Record<AdmissionExclusionReason, string> = {
   task_data_missing: "des données de tâche manquent",
   task_completed: "la tâche est déjà terminée",
   task_blocked: "la tâche est bloquée",
+  task_abandoned: "la tâche est abandonnée",
   review_pending: "une relecture est en attente",
   launch_active: "un lancement est déjà actif",
   task_claimed_elsewhere: "la tâche est réservée ailleurs",
@@ -64,11 +65,11 @@ const REFUSAL_REASON_FR: Record<string, string> = {
   budget_refused: "le budget du projet refuse ce lancement",
 };
 
-export function exclusionReasonLabel(reason: AdmissionExclusionReason): string {
+function exclusionReasonLabel(reason: AdmissionExclusionReason): string {
   return EXCLUSION_REASON_FR[reason] ?? reason;
 }
 
-export function refusalReasonLabel(reason: string): string {
+function refusalReasonLabel(reason: string): string {
   return REFUSAL_REASON_FR[reason] ?? reason;
 }
 

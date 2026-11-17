@@ -139,7 +139,7 @@ async def world(rebuild_engine: AsyncEngine) -> AsyncIterator[World]:
     app.dependency_overrides.pop(get_session, None)
 
 
-EXPECTED = {"core": 42, "project": 21, "personal": 21}
+EXPECTED = {"core": 38, "project": 2, "personal": 21}
 
 
 def actor_for(world: World, layer: str) -> Actor:

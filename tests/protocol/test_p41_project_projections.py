@@ -8,15 +8,14 @@ from pathlib import Path
 import pytest
 from studio_client import bootstrap
 from studio_client.daemon import project_projections as pp
-from studio_client.projection_source import bundle_from_repo
 from studio_contracts.local.project_projections import ProjectProjectionsStatus
 
-REPO = Path(__file__).resolve().parents[2]
+from tests.library_bundle import sample_bundle
 
 
 @pytest.fixture
 def target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> pp.RepoTarget:
-    bundle = bundle_from_repo(REPO)
+    bundle = sample_bundle()
     monkeypatch.setattr(pp, "_fetch_bundle", lambda *_: bundle)
     repo = tmp_path / "repo"
     repo.mkdir()

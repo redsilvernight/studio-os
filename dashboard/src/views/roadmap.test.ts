@@ -4,7 +4,7 @@ import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
 import { ApiError, parseErrorBody } from "../api";
 import type { StudioClient } from "../api";
-import { isRoadmapManagerRole, roadmapCurrentStepHtml, roadmapDonePhasesHtml, roadmapExecutionHtml, roadmapFullyDone, roadmapLifecycleHtml, roadmapPhaseStripHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapProposalsHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
+import { isRoadmapManagerRole, roadmapCurrentStepHtml, roadmapDonePhasesHtml, roadmapExecutionHtml, roadmapExportFilename, roadmapFullyDone, roadmapLifecycleHtml, roadmapPhaseStripHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapProposalsHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto, EXPORT_REVOKE_DELAY_MS } from "./roadmap";
 import type { Roadmap, RoadmapDataSource, RoadmapPendingProposal } from "../roadmapTypes";
 
 describe("Roadmap workspace", () => {
@@ -489,6 +489,124 @@ describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
     (root.querySelector('[data-mode="plan"]') as HTMLButtonElement).click();
     expect(root.querySelector('[data-mode="plan"]')?.getAttribute("aria-selected")).toBe("true");
     expect(root.querySelector(".roadmap-timeline")).not.toBeNull();
+  });
+});
+
+describe("Roadmap — exports JSON et PDF", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  interface ObjectUrlStubs {
+    blobs: Blob[];
+    revoked: string[];
+    restore: () => void;
+  }
+
+  function stubObjectUrls(create?: (blob: Blob) => string): ObjectUrlStubs {
+    const originalCreate = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+    const originalRevoke = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
+    const blobs: Blob[] = [];
+    const revoked: string[] = [];
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      writable: true,
+      value: (blob: Blob) => {
+        blobs.push(blob);
+        return create === undefined ? `blob:roadmap-${blobs.length}` : create(blob);
+      },
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      writable: true,
+      value: (url: string) => revoked.push(url),
+    });
+    return {
+      blobs,
+      revoked,
+      restore: () => {
+        if (originalCreate === undefined) delete (URL as unknown as Record<string, unknown>).createObjectURL;
+        else Object.defineProperty(URL, "createObjectURL", originalCreate);
+        if (originalRevoke === undefined) delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
+        else Object.defineProperty(URL, "revokeObjectURL", originalRevoke);
+      },
+    };
+  }
+
+  it("télécharge un roadmap-<slug>.json attaché au document, libéré après le clic", async () => {
+    const roadmap = (await createFixtureRoadmapDataSource().load(roadmapFixtureProjectIds.active))!;
+    const urls = stubObjectUrls();
+    const clicks: Array<{ attached: boolean; download: string; href: string }> = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicks.push({ attached: document.body.contains(this), download: this.download, href: this.getAttribute("href") ?? "" });
+    });
+    try {
+      const root = document.getElementById("root") as HTMLElement;
+      await renderRoadmapInto(root, { dataSource: createFixtureRoadmapDataSource(), projectId: roadmapFixtureProjectIds.active, projectName: "P" });
+      (root.querySelector("[data-export-json]") as HTMLButtonElement).click();
+
+      expect(clicks).toHaveLength(1);
+      expect(clicks[0]).toEqual({
+        attached: true,
+        download: roadmapExportFilename(roadmap),
+        href: "blob:roadmap-1",
+      });
+      expect(clicks[0]!.download).toMatch(/^roadmap-[a-z0-9-]+\.json$/);
+      expect(urls.revoked).toEqual([]);
+      expect(root.querySelector("[data-roadmap-export-error]")?.textContent).toBe("");
+
+      const text = await urls.blobs[0]!.text();
+      const exported = JSON.parse(text) as { format: string; phases: unknown[] };
+      expect(exported.format).toBe("studio.roadmap/v1");
+      expect(exported.phases.length).toBe(roadmap.phases?.length ?? 0);
+      expect(urls.blobs[0]!.type).toContain("application/json");
+
+      await new Promise((resolve) => setTimeout(resolve, EXPORT_REVOKE_DELAY_MS + 100));
+      expect(urls.revoked).toEqual(["blob:roadmap-1"]);
+      expect(document.querySelectorAll("a[download]")).toHaveLength(0);
+    } finally {
+      click.mockRestore();
+      urls.restore();
+    }
+  });
+
+  it("signale l'échec de l'export JSON au lieu de rester silencieux", async () => {
+    const urls = stubObjectUrls(() => {
+      throw new Error("blob indisponible");
+    });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    try {
+      const root = document.getElementById("root") as HTMLElement;
+      await renderRoadmapInto(root, { dataSource: createFixtureRoadmapDataSource(), projectId: roadmapFixtureProjectIds.active, projectName: "P" });
+      (root.querySelector("[data-export-json]") as HTMLButtonElement).click();
+      const alert = root.querySelector("[data-roadmap-export-error] [role=alert]");
+      expect(alert?.textContent).toContain("Export JSON impossible");
+      expect(alert?.textContent).toContain("blob indisponible");
+      expect(click).not.toHaveBeenCalled();
+    } finally {
+      click.mockRestore();
+      urls.restore();
+    }
+  });
+
+  it("imprime la page entière : toutes les phases dans la feuille d'impression", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const source = createFixtureRoadmapDataSource();
+    const roadmap = (await source.load(roadmapFixtureProjectIds.large))!;
+    const phaseCount = roadmap.phases?.length ?? 0;
+    expect(phaseCount).toBeGreaterThan(10);
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, { dataSource: source, projectId: roadmapFixtureProjectIds.large, projectName: "P" });
+    expect(root.querySelectorAll(".roadmap-print-phase")).toHaveLength(phaseCount);
+    expect(root.querySelectorAll(".roadmap-print-step").length).toBeGreaterThanOrEqual(phaseCount);
+    // Ctrl+P as well as the button must rebuild the sheet from the live plan.
+    root.querySelector(".roadmap-print-document")?.remove();
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(root.querySelectorAll(".roadmap-print-phase")).toHaveLength(phaseCount);
+    (root.querySelector("[data-export-pdf]") as HTMLButtonElement).click();
+    expect(print).toHaveBeenCalledOnce();
+    expect(root.querySelector(".roadmap-print-document")).not.toBeNull();
+    print.mockRestore();
   });
 });
 

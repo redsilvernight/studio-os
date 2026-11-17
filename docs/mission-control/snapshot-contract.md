@@ -83,8 +83,9 @@ Colonnes de la ligne : `id`, `project_id`, `task_launch_id` (unique), `content_h
 
 `retention_until = created_at + STUDIO_EXECUTION_SNAPSHOT_RETENTION_DAYS` (défaut
 **90 jours**, borné 1–3650 ; surcharge possible par appel). `purge_expired` supprime
-par lots de 1000 les lignes échues et renvoie le nombre supprimé ; aucune tâche
-planifiée n'est encore branchée.
+par lots de 1000 les lignes échues et renvoie le nombre supprimé ; la commande
+`studio-admin snapshots purge-expired` l'appelle jusqu'à 0 et affiche le total
+supprimé, à planifier comme `studio-admin transfers expire` (cron du VPS).
 
 ## Lecture et export
 

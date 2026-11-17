@@ -156,6 +156,27 @@ export function countTimelineEvents(timeline: Timeline): number {
 const AI_WORK_PREFIX = "ai_work.";
 const AI_WORK_ID_KEY = "ai_work_id";
 
+const STUDIO_LIBRARY_ACTIVATION = "library.version.activated";
+const STUDIO_SCOPE = "studio";
+
+/**
+ * Une activation de portée Studio est un événement global unique (contrat
+ * v2, `project_id` nul), pas une activité du projet : les copies par projet
+ * (anciennes ventilations, `payload.scope === "studio"`) sont exclues de la
+ * timeline projet pour ne pas répéter la même activation dans chaque
+ * projet. Fonction pure : l'entrée n'est jamais modifiée. Les activations
+ * de portée projet restent affichées.
+ */
+export function withoutStudioActivation(timeline: Timeline): Timeline {
+  const days = timeline.days.flatMap((day) => {
+    const events = day.events.filter(
+      (event) => event.event_type !== STUDIO_LIBRARY_ACTIVATION || event.payload["scope"] !== STUDIO_SCOPE,
+    );
+    return events.length === 0 ? [] : [{ ...day, events }];
+  });
+  return { ...timeline, days };
+}
+
 /** Identifiant de regroupement d'un événement `ai_work.*`, "" sinon (jamais regroupé). */
 function aiWorkGroupId(event: TimelineEvent): string {
   if (!event.event_type.startsWith(AI_WORK_PREFIX)) return "";
@@ -247,19 +268,19 @@ function dayHtml(day: TimelineDay): string {
 }
 
 /** Vue calendrier : mois affiché (YYYY-MM) et jour sélectionné (YYYY-MM-DD). */
-export interface CalendarView {
+interface CalendarView {
   month: string;
   selected: string;
 }
 
 /** Vue par défaut : le jour le plus récent qui porte des événements. */
-export function defaultCalendarView(timeline: Timeline): CalendarView {
+function defaultCalendarView(timeline: Timeline): CalendarView {
   const dates = timeline.days.filter((day) => day.events.length > 0).map((day) => day.date).sort();
   const latest = dates[dates.length - 1] ?? new Date().toISOString().slice(0, 10);
   return { month: latest.slice(0, 7), selected: latest };
 }
 
-export function shiftMonth(month: string, delta: number): string {
+function shiftMonth(month: string, delta: number): string {
   const [year = 1970, mon = 1] = month.split("-").map(Number);
   const d = new Date(Date.UTC(year, mon - 1 + delta, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -302,7 +323,7 @@ export interface TimelineViewData {
 }
 
 export function timelineHtml(data: TimelineViewData): string {
-  const timeline = newestTimelineFirst(collapseAiWork(data.timeline));
+  const timeline = newestTimelineFirst(withoutStudioActivation(collapseAiWork(data.timeline)));
   const dates = data.dates ?? timeline.days.filter((day) => day.events.length > 0).map((day) => day.date);
   if (dates.length === 0) {
     return dsEmptyState(
@@ -328,7 +349,7 @@ export function activityLoadingHtml(): string {
   return dsSkeleton(4);
 }
 
-export async function fetchTimeline(
+async function fetchTimeline(
   client: StudioClient,
   projectId: string,
   limit: number,
@@ -342,13 +363,13 @@ export async function fetchTimeline(
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-export async function fetchActivityDates(client: StudioClient, projectId: string): Promise<string[]> {
+async function fetchActivityDates(client: StudioClient, projectId: string): Promise<string[]> {
   const result = await client.GET("/api/v1/timeline/dates", { params: { query: { project_id: projectId } } });
   if (result.response.ok && result.data !== undefined) return [...result.data].sort().reverse();
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-export async function fetchDaySessions(client: StudioClient, projectId: string, day: string, offset = 0): Promise<WorkSession[]> {
+async function fetchDaySessions(client: StudioClient, projectId: string, day: string, offset = 0): Promise<WorkSession[]> {
   const result = await client.GET("/api/v1/sessions", {
     params: { query: { project_id: projectId, ...utcDayWindow(day), limit: TIMELINE_LIMIT_DEFAULT, offset } },
   });

@@ -378,10 +378,12 @@ est l'exception explicite : ecrit son propre etat (`last_seen_at`) meme sous
 Ownership (au-dela du role transverse — la machine proprietaire, ou un
 `admin`, uniquement) : `POST /tasks/{id}/release`, `POST /claims/{id}/renew`,
 `DELETE /claims/{id}`, `PATCH /sessions/{id}/end`, `PATCH /ai-work/{id}`,
-`POST /library/{id}/versions`, `POST /library/{id}/activate`,
-`POST /library/{id}/deprecate` (ici le "proprietaire" est l'utilisateur
-createur `owner_user_id`, renseigne depuis l'appelant a la creation),
-`DELETE /library-locks/{id}` (utilisateur createur ou `admin`). Une
+`DELETE /library-locks/{id}` (utilisateur createur ou `admin`). Les
+mutations Library (`POST /library/{id}/versions`, `POST
+/library/{id}/activate`, `POST /library/{id}/deprecate`) suivent leur scope
+(P70b) : User = `owner_user_id` (utilisateur createur renseigne depuis
+l'appelant a la creation) ou `admin` ; Project = tout membre en role
+d'ecriture, pas seulement le createur ; Studio = `admin` seul (P70a). Une
 ressource pas encore possedee (`claimed_by_machine_id` nul) reste ouverte a
 tout ecrivain passe le role transverse et l'acces projet.
 
@@ -394,8 +396,13 @@ recherche, resolution, erreur, compteur, metadonnee — ne doit reveler
 l'existence d'une ressource User d'autrui) ; creation, nouvelle version,
 activation et depreciation Studio exigent `admin` (P70a, DEC D3 : `403`
 `forbidden`/`provision` pour `developer`, `agent`, `readonly` ; le dashboard
-masque ces actions), memes actions Project/User : tout writer ; `GET /library` et `GET /library-locks` filtrent silencieusement
-les lignes invisibles au lieu de 403.
+masque ces actions), memes actions Project/User : tout writer — Project
+appartient a ses membres, donc toute version, activation ou depreciation
+d'une ressource Project est ouverte a tout membre en role d'ecriture
+(`developer`/`agent`), pas seulement a son createur (P70b) ; User reste
+reservee a son proprietaire (`owner_user_id`) ou `admin` ; `GET /library` et
+`GET /library-locks` filtrent silencieusement les lignes invisibles au lieu
+de 403.
 
 Exception a l'ownership ci-dessus (DEC-0041) : sur `PATCH /ai-work/{id}`, un
 `status` cible `approved`/`changes_requested` exige `admin` strictement —

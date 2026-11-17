@@ -32,12 +32,7 @@ from studio_contracts.local.graph import (
     GraphSourceKind,
 )
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
-from studio_contracts.local.workspace import (
-    WORKSPACE_HEALTH_BEHAVIOR,
-    LocalWorkspaceConfig,
-    WorkspaceHealth,
-    WorkspaceStatus,
-)
+from studio_contracts.local.workspace import LocalWorkspaceConfig
 
 from studio_code_graph.errors import CodeGraphQueryError, build_failure_error, make_error
 from studio_code_graph.gitstate import ChangeSummary, RepoFiles, read_repo_files, summarize_change
@@ -84,7 +79,6 @@ class _Repo:
     stale: bool = False
     missing: bool = False
     building: bool = False
-    queued: bool = False
     rerun: bool = False
     full: bool = False
     deadline: float = 0.0
@@ -205,19 +199,6 @@ class CodeGraphService:
                 await self._check_freshness(ws, repo, provider, probe, force=True)
                 if repo.snapshot is None or repo.corrupt or repo.stale:
                     self._schedule(ws, repo, 0.0, full=repo.corrupt)
-
-    async def apply_workspace_status(self, status: WorkspaceStatus) -> None:
-        if status.health is WorkspaceHealth.VALID and status.config is not None:
-            await self.configure(status.config)
-            return
-        ws = self._workspaces.setdefault(status.workspace_id, _Workspace(status.workspace_id))
-        code = (
-            WORKSPACE_HEALTH_BEHAVIOR[status.health][0] or LocalErrorCode.WORKSPACE_CONFIG_INVALID
-        )
-        async with ws.lock:
-            ws.invalid = code
-            for repo in ws.repos.values():
-                self._cancel_pump(repo)
 
     async def forget(self, workspace_id: UUID, *, purge_cache: bool = False) -> None:
         ws = self._workspaces.pop(workspace_id, None)
@@ -483,7 +464,6 @@ class CodeGraphService:
     def _schedule(self, ws: _Workspace, repo: _Repo, delay: float, *, full: bool) -> None:
         if self._closed:
             return
-        repo.queued = True
         repo.full = repo.full or full
         repo.deadline = self._clock() + delay
         if repo.building:
@@ -497,7 +477,6 @@ class CodeGraphService:
         if pump is not None and not pump.done():
             pump.cancel()
         repo.pump = None
-        repo.queued = False
 
     def _drop_repos(self, ws: _Workspace, names: Iterable[str]) -> None:
         for name in list(names):
@@ -519,7 +498,6 @@ class CodeGraphService:
         finally:
             if repo.pump is asyncio.current_task():
                 repo.pump = None
-                repo.queued = False
 
     async def _build(self, ws: _Workspace, repo: _Repo, *, full: bool) -> None:
         provider = self._provider_of(ws)

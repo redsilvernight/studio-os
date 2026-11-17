@@ -125,6 +125,7 @@ class InitializationProjectSpec(ContractModel):
     slug: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=MAX_TITLE)
     description: str | None = Field(default=None, max_length=MAX_CONTEXT)
+    repository: str | None = Field(default=None, max_length=512)
 
 
 class InitializationTask(ContractModel):

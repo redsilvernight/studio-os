@@ -37,7 +37,8 @@ async def studio_handoff(
 ) -> dict[str, Any]:
     """Close a work session in one call (L3 handoff). `project_id` and
     `session_id` (UUID strings) are required. `task_status` (e.g.
-    "completed", "blocked") optionally updates the task, with
+    "completed", "blocked", "abandoned" — the latter needs a summary giving
+    the reason, never completion evidence) optionally updates the task, with
     `expected_version` for optimistic concurrency (required only then).
     `agent_id` + `summary` optionally logs an AI work entry linked
     to the session. `agent_id` must belong to the caller's machine.
@@ -50,7 +51,10 @@ async def studio_handoff(
     through `studio_sync`, never re-emitted on replay). By default the
     response is a minimal acknowledgement (<= 1000 characters): ids, task
     status/version, released claim count, `handoff_cursor_seq` and
-    `warnings` summarizing the unacknowledged last sync. Recover through
+    `warnings` summarizing the unacknowledged last sync, plus
+    `decision_review_missing` when a v1 completion evidence closes without a
+    decision review (non-blocking; v2 without a review refuses `completed`
+    instead). Recover through
     `studio_start_work` then `studio_sync`; ack only after processing.
     `verbose=true` returns
     the full composite answer (claim ids, last bounded `sync` block).
