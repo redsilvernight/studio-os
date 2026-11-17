@@ -101,9 +101,7 @@ async def list_projects(session: DbSession, principal: CurrentPrincipal) -> list
                             "value": {
                                 "detail": {
                                     "error_code": "repository_already_linked",
-                                    "message": (
-                                        "repository is already linked to another project"
-                                    ),
+                                    "message": ("repository is already linked to another project"),
                                     "url": "github.com/org/repo",
                                 }
                             }

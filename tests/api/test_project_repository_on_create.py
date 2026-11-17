@@ -14,7 +14,6 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from studio_api.db.models.project import ProjectModel
 
 pytestmark = pytest.mark.isolation
 
