@@ -224,8 +224,20 @@ async def test_deleting_a_note_removes_links_and_versions(db_session: AsyncSessi
     await db_session.flush()
 
     await db_session.execute(delete(VaultNoteModel).where(VaultNoteModel.id == a.id))
-    assert await db_session.scalar(select(VaultNoteLinkModel.source_note_id)) is None
-    assert await db_session.scalar(select(VaultNoteVersionModel.note_id)) is None
+    assert (
+        await db_session.scalar(
+            select(VaultNoteLinkModel.source_note_id).where(
+                VaultNoteLinkModel.source_note_id == a.id
+            )
+        )
+        is None
+    )
+    assert (
+        await db_session.scalar(
+            select(VaultNoteVersionModel.note_id).where(VaultNoteVersionModel.note_id == a.id)
+        )
+        is None
+    )
 
 
 @pytest_asyncio.fixture
