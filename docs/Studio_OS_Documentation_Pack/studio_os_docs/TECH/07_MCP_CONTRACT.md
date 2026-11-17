@@ -46,6 +46,7 @@ studio_request_producer_job
 studio_memory_search
 studio_memory_read
 studio_graph_query
+studio_resolve_workspace
 studio_emit_event
 
 ### studio_start_work (L2, additif, DEC-0159)
@@ -895,22 +896,28 @@ versions, pas de suppression (l'archivage est un `status`, et l'outil ne le
 propose pas) — ces lectures-la restent HTTP. Les trois outils sont exposes
 dans le profil `session` (avec `studio_get_decisions` / `studio_add_decision`).
 
-## Resolution workspace locale (additif, DEC-0364/DEC-0366)
+## Resolution workspace locale (additif, DEC-0364/DEC-0366, P2-mcp-local)
 
-`studio_resolve_workspace` — **non implemente** (livre par P2-mcp-local ;
-contrat cible) — outil **local**, lecture seule, expose par le
-serveur MCP local `studio-os-local` (stdio, sans DB ni `Principal`
-serveur) : il lit les remotes git du workspace courant, les normalise
-(`TECH/05_DATA_MODEL.md`) et appelle `POST /projects/resolve-repository`.
-Reponse `{project_id: UUID|null, reason, repository_key}` (`repository_key`
-= cle normalisee du premier remote utilisable, `null` si aucun ;
-`reason` = motif machine-readable : `resolved`, `not_found`,
-`ambiguous`, `no_git_remote`, ...). Jamais d'ecriture, jamais de secret.
+`studio_resolve_workspace` — outil **local** du serveur `studio-os-local`
+(stdio, sans DB ni `Principal` serveur), lecture seule : il rend l'etat
+machine-readable du rattachement du dossier du client a un projet.
+Reponse `{status: resolved|unresolved, reason, path, repo_root,
+repository_key, project_id: UUID|null, project_slug, created, cached,
+detail, source: roots|cwd, roots: [...]}` (`repository_key` = cle
+normalisee du premier remote utilisable, `null` si aucun ; `reason` =
+motif machine-readable : `resolved`, `not_found`, `ambiguous`,
+`no_git_remote`, `not_a_repo`, `not_initialized`, `no_roots`,
+`roots_list_failed`, ...). Jamais d'ecriture : un dossier non resolu ne
+rend qu'un motif explicite et ne cree aucun workspace.
 
-Instructions MCP a l'initialisation du serveur local : `studio-os-local`
-resout le workspace au demarrage et annonce le `project_id` (ou
-`not_found`) dans ses instructions serveur ; les outils locaux composent
-ensuite avec ce `project_id` explicite.
+Rattachement a l'initialisation : si le client declare la capacite roots,
+le serveur appelle `roots/list` et resout chaque root `file://` (les
+autres schemes sont ignores, sans branche par harnais) ; sinon il resout
+le repertoire de lancement. `notifications/roots/list_changed` re-resout.
+Le premier appel a l'outil apres l'initialisation rafraichit aussi l'etat
+si le rafraichissement d'initialisation n'a pas encore abouti ; les
+instructions statiques du serveur decrivent le mecanisme (elles ne portent
+pas le resultat, fige avant la connexion).
 
 Le MCP distant (VPS) reste **sans etat workspace** : chaque appel porte un
 `project_id` explicite et la membership est re-verifiee a chaque appel
