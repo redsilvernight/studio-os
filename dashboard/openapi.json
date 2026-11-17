@@ -653,7 +653,7 @@
      "projects"
     ],
     "summary": "Create Project",
-    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. The optional `repository` is registered with the project in the same call (`resolve-repository` finds it immediately); a URL already linked to another project fails with `409 repository_already_linked` and an invalid one with `422 invalid_repository_url`, both before the project is written. Accepts `Idempotency-Key` for safe retries.",
     "operationId": "create_project_api_v1_projects_post",
     "security": [
      {
@@ -685,7 +685,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/ProjectCreate"
+        "$ref": "#/components/schemas/ProjectCreateRequest"
        }
       }
      }
@@ -726,23 +726,42 @@
       }
      },
      "409": {
-      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "description": "Nothing created: the slug is already used (`conflict`), `repository` is already linked to another project (`repository_already_linked`), or the replay key is wrong (`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`).",
       "content": {
        "application/json": {
-        "example": {
-         "detail": {
-          "error_code": "idempotency_key_payload_mismatch"
+        "examples": {
+         "repository_already_linked": {
+          "value": {
+           "detail": {
+            "error_code": "repository_already_linked",
+            "message": "repository is already linked to another project",
+            "url": "github.com/org/repo"
+           }
+          }
+         },
+         "idempotency_key_payload_mismatch": {
+          "value": {
+           "detail": {
+            "error_code": "idempotency_key_payload_mismatch"
+           }
+          }
          }
         }
        }
       }
      },
      "422": {
-      "description": "Validation Error",
+      "description": "Nothing stored: `repository` was refused (`invalid_repository_url`) or the body itself is invalid (framework `HTTPValidationError`, e.g. an over-long URL).",
       "content": {
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/HTTPValidationError"
+        },
+        "example": {
+         "detail": {
+          "error_code": "invalid_repository_url",
+          "message": "invalid repository url: 'not-a-url'"
+         }
         }
        }
       }
@@ -26674,7 +26693,7 @@
     "title": "ProjectBootstrapStatus",
     "description": "Machine-observed state of one project's AI bundle (AIB P6): the result\nof the machine's own local `bootstrap check` at `checked_at`. Counts only\n- never a path or file name. It says what the machine observed, not what\nthe server expects."
    },
-   "ProjectCreate": {
+   "ProjectCreateRequest": {
     "properties": {
      "slug": {
       "type": "string",
@@ -26694,6 +26713,18 @@
        }
       ],
       "title": "Description"
+     },
+     "repository": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 512
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repository"
      }
     },
     "additionalProperties": false,
@@ -26702,7 +26733,8 @@
      "slug",
      "name"
     ],
-    "title": "ProjectCreate"
+    "title": "ProjectCreateRequest",
+    "description": "`POST /projects` payload: the canonical `ProjectCreate` fields plus an\noptional `repository` (any URL form, normalized server-side like\n`ProjectRepositoryCreate.url`, 512 characters max), registered with the\nproject in the same call so `resolve-repository` finds it immediately.\n\nRouter-local on purpose: the frozen `studio_contracts` shape is reused\nunchanged, so this is an additive *input* field of this route only \u2014 a\nclient sending the canonical fields alone behaves exactly as before.\nAbsent, the project is created alone and its remotes are linked later."
    },
    "ProjectInitializationPlan": {
     "properties": {
