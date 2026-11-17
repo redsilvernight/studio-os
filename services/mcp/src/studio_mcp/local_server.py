@@ -7,6 +7,7 @@ from uuid import UUID
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
+from pydantic import ValidationError
 from studio_client.config import ClientConfig
 from studio_client.knowledge import (
     GraphifyGraphProvider,
@@ -17,11 +18,17 @@ from studio_client.knowledge import (
     VaultMemoryProvider,
     knowledge_service_from_workspace,
 )
+from studio_contracts.local.identity import ProfileRef
 from studio_contracts.local.knowledge import KnowledgeReindexRequest
 from studio_contracts.local.workspace import LocalWorkspaceConfig
 
 from studio_mcp.local_tools import make_graph_query, make_memory_read, make_memory_search
 from studio_mcp.strict_args import enforce_strict_arguments
+from studio_mcp.workspace_attach import (
+    WORKSPACE_INSTRUCTIONS,
+    WorkspaceAttachConfig,
+    attach_workspace,
+)
 
 _READ_ONLY = ToolAnnotations(read_only_hint=True)
 
@@ -56,14 +63,25 @@ def create_local_server(
     scope_allow: tuple[str, ...] = (),
     graph_dir: Path | None = None,
     source_root: Path | None = None,
+    workspace: WorkspaceAttachConfig | None = None,
 ) -> MCPServer:
     """Build the UC-3 local MCP server (DEC-0047): tools are registered
     exactly when their backend is *configured*, never on physical
     reachability — a configured-but-unavailable backend stays announced
     and answers with the provider's machine-readable degraded shape.
     This process touches no database, no token, no remote API: the stdio
-    child process launched by the MCP client is the trust boundary."""
-    server = MCPServer(name="studio-os-local")
+    child process launched by the MCP client is the trust boundary.
+
+    With `workspace`, the server also attaches the client's folder to a
+    project at initialization (P2-mcp-local, DEC-0364/DEC-0366): the
+    `studio_resolve_workspace` tool and its refresh middleware are
+    registered, and the instructions describe the mechanism. Without it the
+    surface is exactly the knowledge tools, as before.
+    """
+    server = MCPServer(
+        name="studio-os-local",
+        instructions=WORKSPACE_INSTRUCTIONS if workspace is not None else None,
+    )
     if vault_path is not None:
         memory = VaultMemoryProvider(vault_path, ScopePolicy(allowed_prefixes=scope_allow))
         server.add_tool(
@@ -86,6 +104,8 @@ def create_local_server(
             description=GRAPH_QUERY_DESCRIPTION,
             annotations=_READ_ONLY,
         )
+    if workspace is not None:
+        attach_workspace(server, workspace)
     enforce_strict_arguments(server)
     return server
 
@@ -184,16 +204,38 @@ def _env_scope(name: str) -> tuple[str, ...]:
     return tuple(parsed)
 
 
+def _workspace_config_from_env() -> WorkspaceAttachConfig | None:
+    """Workspace attachment for the stdio entrypoint, if and only if a server
+    origin is configured (`STUDIO_CLIENT_API_BASE_URL`, optional
+    `STUDIO_CLIENT_PROFILE_ID` defaulting to `default`). No origin (or an
+    invalid one) means a knowledge-only server, exactly as before — attaching
+    must never break a harness that only configured memory/graph."""
+    base_url = os.environ.get("STUDIO_CLIENT_API_BASE_URL")
+    if not base_url:
+        return None
+    try:
+        profile = ProfileRef(
+            profile_id=os.environ.get("STUDIO_CLIENT_PROFILE_ID", "default"),
+            server_origin=base_url,
+        )
+    except ValidationError:
+        return None
+    return WorkspaceAttachConfig(profile=profile)
+
+
 def create_local_server_from_env() -> MCPServer:
     """Stdio entrypoint configuration: `STUDIO_CLIENT_KNOWLEDGE_VAULT_PATH`,
     `STUDIO_CLIENT_KNOWLEDGE_SCOPE_ALLOW` (JSON list),
-    `STUDIO_CLIENT_KNOWLEDGE_GRAPH_DIR`, `STUDIO_CLIENT_KNOWLEDGE_SOURCE_ROOT`.
+    `STUDIO_CLIENT_KNOWLEDGE_GRAPH_DIR`, `STUDIO_CLIENT_KNOWLEDGE_SOURCE_ROOT`,
+    plus the workspace attachment above (`STUDIO_CLIENT_API_BASE_URL`,
+    `STUDIO_CLIENT_PROFILE_ID`).
     """
     return create_local_server(
         vault_path=_env_path("STUDIO_CLIENT_KNOWLEDGE_VAULT_PATH"),
         scope_allow=_env_scope("STUDIO_CLIENT_KNOWLEDGE_SCOPE_ALLOW"),
         graph_dir=_env_path("STUDIO_CLIENT_KNOWLEDGE_GRAPH_DIR"),
         source_root=_env_path("STUDIO_CLIENT_KNOWLEDGE_SOURCE_ROOT"),
+        workspace=_workspace_config_from_env(),
     )
 
 

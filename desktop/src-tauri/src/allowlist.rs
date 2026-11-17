@@ -31,6 +31,7 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "identity.enroll",
     "identity.forget",
     "workspace.list",
+    "workspace.list_detected",
     "workspace.validate",
     "workspace.get_config",
     "workspace.confirm_roots",
@@ -119,8 +120,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            50,
-            "studio.local/v1 exports 50 commands"
+            51,
+            "studio.local/v1 exports 51 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());

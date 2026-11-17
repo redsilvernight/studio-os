@@ -230,6 +230,8 @@
     "DaemonInstanceRef",
     "DaemonStatus",
     "DegradedFeature",
+    "DetectedRepositoryListResult",
+    "DetectedRepositoryView",
     "EmptyPayload",
     "GraphCounts",
     "GraphEdge",
@@ -768,6 +770,14 @@
     {
       "model": "WorkspaceConfirmRootsResult",
       "name": "workspace.confirm.result"
+    },
+    {
+      "model": "DetectedRepositoryListResult",
+      "name": "workspace.detected.empty"
+    },
+    {
+      "model": "DetectedRepositoryListResult",
+      "name": "workspace.detected.list"
     },
     {
       "model": "WorkspaceGitStatus",

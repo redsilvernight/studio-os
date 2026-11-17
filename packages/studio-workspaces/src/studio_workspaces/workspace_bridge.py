@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -7,6 +8,8 @@ from pydantic import ValidationError
 from studio_contracts.local.common import LocalErrorCode
 from studio_contracts.local.identity import ProfileRef
 from studio_contracts.local.workspace import (
+    DetectedRepositoryListResult,
+    DetectedRepositoryView,
     GitState,
     LocalWorkspaceConfig,
     WorkspaceConfirmRootsRequest,
@@ -17,7 +20,12 @@ from studio_contracts.local.workspace import (
     WorkspaceScope,
     WorkspaceStatus,
 )
+from studio_contracts.repositories import normalize_remote_url
 
+from studio_workspaces.detected import (
+    forget_detected_repository,
+    list_detected_repositories,
+)
 from studio_workspaces.git_detection import detect_git
 from studio_workspaces.path_safety import check_readable
 from studio_workspaces.root_confirmation import RootConfirmationService
@@ -41,6 +49,7 @@ class WorkspaceBridge:
         confirmations: RootConfirmationService,
         project_available: ProjectAvailable = lambda _project_id: True,  # noqa: E731
     ) -> None:
+        self._registry_dir = registry_dir
         self._store = WorkspaceStore(
             registry_dir, confirmations, project_available=project_available
         )
@@ -59,6 +68,49 @@ class WorkspaceBridge:
             ]
         )
 
+    def list_detected(self, profile: ProfileRef) -> DetectedRepositoryListResult:
+        """Repositories `resolve_workspace` saw but no workspace follows yet.
+
+        Only entries of the active server origin, already followed folders
+        excluded, remotes re-normalised (an invalid one is dropped, never
+        stored), most recently seen first. Never raises for a bad entry:
+        this registry is observability, not source of truth."""
+        from pydantic import ValidationError
+
+        from studio_workspaces.path_safety import workspace_binding_key
+
+        followed = {
+            workspace_binding_key(path)
+            for config in self._store.all_workspaces()
+            for path in (
+                [config.roots.workspace_root] + [repo.path for repo in config.roots.repo_roots]
+            )
+        }
+        items: list[DetectedRepositoryView] = []
+        for entry in list_detected_repositories(self._registry_dir, profile):
+            if workspace_binding_key(entry.root) in followed:
+                continue
+            remotes: list[str] = []
+            for remote in entry.remotes:
+                try:
+                    normalized = normalize_remote_url(remote)
+                except ValueError:
+                    continue
+                if normalized not in remotes:
+                    remotes.append(normalized)
+            try:
+                items.append(
+                    DetectedRepositoryView(
+                        root=entry.root,
+                        remotes=remotes,
+                        reason=entry.reason,
+                        last_seen_at=datetime.fromisoformat(entry.last_seen_at),
+                    )
+                )
+            except (ValidationError, ValueError):
+                continue
+        return DetectedRepositoryListResult(items=items)
+
     def get_config(self, workspace_id: UUID, profile: ProfileRef) -> LocalWorkspaceConfig:
         return self._store.load(workspace_id, profile)
 
@@ -70,8 +122,20 @@ class WorkspaceBridge:
         except WorkspaceStoreError as exc:
             if exc.code is not LocalErrorCode.WORKSPACE_CONFIG_MISSING:
                 raise
-            return self._store.create(request, profile)
-        return self._store.save(request, profile)
+            created = self._store.create(request, profile)
+            self._forget_detected(profile, created.roots.workspace_root)
+            return created
+        saved = self._store.save(request, profile)
+        self._forget_detected(profile, saved.roots.workspace_root)
+        return saved
+
+    def _forget_detected(self, profile: ProfileRef, root: str) -> None:
+        """A followed repository leaves the detected list: `save_config` is
+        the dashboard's link gesture, so the entry must not linger."""
+        try:
+            forget_detected_repository(self._registry_dir, profile, root)
+        except OSError:
+            pass
 
     def confirm(self, request: WorkspaceConfirmRootsRequest) -> WorkspaceConfirmRootsResult:
         verdict = check_readable(request.roots.workspace_root)

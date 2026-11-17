@@ -279,3 +279,57 @@ def test_workspace_commands_need_the_bridge(tmp_path) -> None:
     answer = service.handle_line(request("workspace.validate", {"workspace_id": str(WS)}))
     assert answer["kind"] == "error"
     assert answer["error"]["code"] == "capability_missing"
+
+
+def test_list_detected_over_the_bridge_then_forgotten_on_save(tmp_path) -> None:
+    from studio_workspaces.detected import record_detected_repository
+
+    folder = tmp_path / "game"
+    folder.mkdir()
+    service = BridgeService(controller(tmp_path))
+    negotiate(service)
+    record_detected_repository(
+        tmp_path,
+        PROFILE,
+        str(folder),
+        ["https://github.com/org/game.git"],
+        "github.com/org/game",
+        "not_found",
+    )
+    listed = answer_payload(service.handle_line(request("workspace.list_detected", {})))
+    assert [item["root"] for item in listed["items"]] == [str(folder)]
+    assert listed["items"][0]["remotes"] == ["github.com/org/game"]
+
+    confirmed = answer_payload(
+        service.handle_line(
+            request(
+                "workspace.confirm_roots",
+                {"roots": {"workspace_root": str(folder), "repo_roots": []}},
+            )
+        )
+    )
+    answer_payload(
+        service.handle_line(
+            request(
+                "workspace.save_config",
+                {
+                    "config": {
+                        "schema_version": 1,
+                        "workspace_id": str(WS),
+                        "profile": {
+                            "profile_id": "main",
+                            "server_origin": "https://studio.example",
+                        },
+                        "project_id": str(PROJECT_ID),
+                        "roots": {"workspace_root": str(folder), "repo_roots": []},
+                        "created_at": "2026-01-15T10:00:00Z",
+                        "updated_at": "2026-01-15T12:00:00Z",
+                    },
+                    "current_roots": None,
+                    "root_confirmation_id": confirmed["root_confirmation_id"],
+                },
+            )
+        )
+    )
+    again = answer_payload(service.handle_line(request("workspace.list_detected", {})))
+    assert again["items"] == []

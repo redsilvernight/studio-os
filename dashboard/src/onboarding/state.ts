@@ -16,11 +16,6 @@ export type OnboardingStepId =
   | "bienvenue"
   | "connexion"
   | "verification"
-  | "projet"
-  | "dossier"
-  | "memoire"
-  | "environnement"
-  | "assistant"
   | "final"
   | "termine";
 
@@ -29,7 +24,8 @@ export interface OnboardingState {
   status: OnboardingStatus;
   /** Dernière étape atteinte ; revalidée contre l'état réel à la reprise. */
   current: OnboardingStepId;
-  /** Identifiants choisis pendant le parcours (jamais saisis à la main). */
+  /** Identifiants hérités d'un parcours pré-P3 (poste seul) : conservés pour
+   * la migration, ignorés par le nouveau parcours. */
   projectId?: string;
   projectName?: string;
   /** Slug machine du projet ; seule forme acceptée par `project_slug` côté pont. */
@@ -38,6 +34,28 @@ export interface OnboardingState {
   /** Nom d'affichage du dossier (nom seul, jamais le chemin complet). */
   folderName?: string;
   completedAt?: string;
+}
+
+/**
+ * P3 : le premier lancement ne configure que le poste. Un état persisté sur
+ * une étape retirée (projet, dossier, mémoire, environnement, assistant)
+ * reprend sur l'étape valide suivante, jamais en erreur.
+ */
+const LEGACY_STEP_FALLBACK: Record<string, OnboardingStepId> = {
+  projet: "final",
+  dossier: "final",
+  memoire: "final",
+  environnement: "final",
+  assistant: "final",
+};
+
+/** Étape suivante valide pour un état persisté, y compris hérité. */
+export function migrateStepId(value: unknown): OnboardingStepId {
+  if (isStepId(value)) return value;
+  if (typeof value === "string" && value in LEGACY_STEP_FALLBACK) {
+    return LEGACY_STEP_FALLBACK[value] as OnboardingStepId;
+  }
+  return "bienvenue";
 }
 
 export const INITIAL_ONBOARDING_STATE: OnboardingState = {
@@ -61,11 +79,6 @@ function isStepId(value: unknown): value is OnboardingStepId {
     value === "bienvenue" ||
     value === "connexion" ||
     value === "verification" ||
-    value === "projet" ||
-    value === "dossier" ||
-    value === "memoire" ||
-    value === "environnement" ||
-    value === "assistant" ||
     value === "final" ||
     value === "termine"
   );
@@ -86,7 +99,7 @@ export function loadOnboardingState(store: StorageLike | null = storage()): Onbo
     return {
       schema: ONBOARDING_SCHEMA_VERSION,
       status: parsed.status,
-      current: isStepId(parsed.current) ? parsed.current : "bienvenue",
+      current: migrateStepId(parsed.current),
       ...(typeof parsed.projectId === "string" ? { projectId: parsed.projectId } : {}),
       ...(typeof parsed.projectName === "string" ? { projectName: parsed.projectName } : {}),
       ...(typeof parsed.projectSlug === "string" ? { projectSlug: parsed.projectSlug } : {}),
