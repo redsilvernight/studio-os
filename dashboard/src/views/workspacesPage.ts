@@ -195,8 +195,8 @@ export async function renderWorkspaces(root: HTMLElement, platform: Platform = g
     if (!result.ok) { state.error = workspaceErrorMessage(result.error); return; }
     state.items = result.value;
     const detected = await listDetectedRepositories(platform);
-    if (!detected.ok) { state.error = workspaceErrorMessage(detected.error); return; }
-    state.detected = detected.value;
+    // Démon plus ancien sans list_detected : la page reste utilisable, liste vide.
+    state.detected = detected.ok ? detected.value : [];
   };
   const linkDetected = async (entryIndex: number): Promise<void> => {
     if (state.busy || !canLinkDetected(state.role)) return;

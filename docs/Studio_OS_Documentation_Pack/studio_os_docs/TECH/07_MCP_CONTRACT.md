@@ -907,8 +907,9 @@ detail, source: roots|cwd, roots: [...]}` (`repository_key` = cle
 normalisee du premier remote utilisable, `null` si aucun ; `reason` =
 motif machine-readable : `resolved`, `not_found`, `ambiguous`,
 `no_git_remote`, `not_a_repo`, `not_initialized`, `no_roots`,
-`roots_list_failed`, ...). Jamais d'ecriture : un dossier non resolu ne
-rend qu'un motif explicite et ne cree aucun workspace.
+`roots_list_failed`, ...). Aucune ecriture serveur et aucun workspace
+cree : un dossier non resolu ne rend qu'un motif explicite ; seul le
+registre local des depots detectes (machine-locale) est alimente.
 
 Rattachement a l'initialisation : si le client declare la capacite roots,
 le serveur appelle `roots/list` et resout chaque root `file://` (les
