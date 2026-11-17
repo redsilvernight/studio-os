@@ -51,14 +51,3 @@ def normalize_remote_url(url: str) -> str:
     if match is None:
         raise ValueError(f"invalid remote URL: {url!r}")
     return _build(_check_host(match.group("host")), _clean_path(match.group("path")))
-
-
-def normalize_remotes(urls: list[str]) -> list[str]:
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for url in urls:
-        key = normalize_remote_url(url)
-        if key not in seen:
-            seen.add(key)
-            normalized.append(key)
-    return normalized

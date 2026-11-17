@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from studio_contracts.repositories import normalize_remote_url, normalize_remotes
+from studio_contracts.repositories import normalize_remote_url
 
 
 def test_scp_like_ssh() -> None:
@@ -66,19 +66,3 @@ def test_all_forms_unify() -> None:
 def test_invalid_urls_rejected(url: str) -> None:
     with pytest.raises(ValueError):
         normalize_remote_url(url)
-
-
-def test_normalize_remotes_dedupes_preserving_order() -> None:
-    assert normalize_remotes(
-        [
-            "git@github.com:Owner/Repo.git",
-            "https://github.com/Other/Thing",
-            "https://user:tok@GitHub.com:443/Owner/Repo",
-            "ssh://git@github.com:22/Other/Thing.git/",
-        ]
-    ) == ["github.com/owner/repo", "github.com/other/thing"]
-
-
-def test_normalize_remotes_rejects_invalid_entry() -> None:
-    with pytest.raises(ValueError):
-        normalize_remotes(["https://github.com/Owner/Repo", ""])
