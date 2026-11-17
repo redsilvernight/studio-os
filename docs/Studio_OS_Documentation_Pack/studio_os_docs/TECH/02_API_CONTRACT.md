@@ -11,6 +11,7 @@ Extension additive de v6 (pas de bump) : `POST /projects` accepte un champ
 = champs canoniques de `ProjectCreate` + ce champ) ; un client N-1 envoie le
 corps canonique inchange et un serveur N-1 refuse le champ inconnu
 (`extra=forbid`). Aucun champ de `studio_contracts` n'est modifie.
+Le schema OpenAPI de ce corps s'appelle desormais `ProjectCreateRequest` (ancien nom `ProjectCreate`).
 
 Version contractuelle 5 — révision sémantique P0 livraison (2026-11-04),
 `studio_contracts.API_CONTRACT_VERSION=5`, transport `/api/v1` conservé :
@@ -1459,6 +1460,8 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   reutilise (slug existant) : champ ignore, aucun depot lie. Le manifeste
   `studio.bootstrap/v1` reutilise le modele : la cle `project.repository` n'y figure que si
   renseignee (remote `origin` lu par `studio-client bootstrap init`), `format` inchange.
+  Un `studio-client` anterieur refuse un manifeste portant cette cle (`extra=forbid`, DEC-0181) :
+  mettre les clients a jour avant de regenerer les manifestes de depots ayant un `origin`.
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.
