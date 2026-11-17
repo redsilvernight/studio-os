@@ -163,6 +163,7 @@ WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
         BridgeCommand.WORKSPACE_LIST,
+        BridgeCommand.WORKSPACE_LIST_DETECTED,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -201,6 +202,7 @@ SERVED = frozenset(
         BridgeCommand.IDENTITY_ENROLL,
         BridgeCommand.IDENTITY_FORGET,
         BridgeCommand.WORKSPACE_LIST,
+        BridgeCommand.WORKSPACE_LIST_DETECTED,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -1084,6 +1086,8 @@ class BridgeService:
         profile = self.controller._profile()
         if request.command is BridgeCommand.WORKSPACE_LIST:
             return bridge.list(profile)
+        if request.command is BridgeCommand.WORKSPACE_LIST_DETECTED:
+            return bridge.list_detected(profile)
         if request.command is BridgeCommand.WORKSPACE_VALIDATE:
             return bridge.validate(
                 WorkspaceValidateRequest.model_validate(payload).workspace_id, profile
