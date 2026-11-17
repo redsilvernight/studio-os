@@ -249,4 +249,50 @@ describe("Espaces de travail navigation", () => {
     expect(workspacesPageHtml("desktop", null)).toContain("Détails techniques");
     expect(workspacesPageHtml("web", null)).toContain("Studi'OS Desktop");
   });
+
+  it("mounts the per-folder setup (memory, environment, harness) when configuring a folder", async () => {
+    const ws = "11111111-1111-4111-8111-111111111111";
+    const at = "2026-09-22T10:00:00Z";
+    const config = {
+      schema_version: 1,
+      workspace_id: ws,
+      profile: { profile_id: "main", server_origin: "https://studio.example" },
+      project_id: "22222222-2222-4222-8222-222222222222",
+      project_slug: "mon-jeu",
+      roots: { workspace_root: "C:\\Work\\game", repo_roots: [] },
+      features: {},
+      created_at: at,
+      updated_at: at,
+    };
+    const base = fakeDesktop({
+      request: (async (command: string) => {
+        if (command === "workspace.list") return { ok: true, response: { payload: { items: [{ workspace_id: ws, health: "valid", action: "none", config }] } } };
+        if (command === "identity.get_view") {
+          return { ok: true, response: { payload: { profile: config.profile, machine: { machine_name: "PC Bureau" }, secrets: [{ status: "present" }] } } };
+        }
+        if (command === "knowledge.status") return { ok: true, response: { payload: { workspace_id: ws, state: "disabled" } } };
+        if (command === "workspace.git_status") return { ok: true, response: { payload: { state: "valid" } } };
+        if (command === "code_graph.status") return { ok: true, response: { payload: { workspace_id: ws, state: "disabled" } } };
+        if (command === "harness.detect") return { ok: true, response: { payload: { harnesses: [] } } };
+        return { ok: false, error: { code: "not_supported" } };
+      }) as never,
+    });
+    const ctx = {
+      authed: true,
+      client: { GET: async () => ({ response: { ok: true }, data: [{ id: config.project_id, name: "Mon jeu", slug: "mon-jeu" }] }) },
+    } as never;
+    const root = document.createElement("div");
+    await renderWorkspaces(root, base, ctx);
+    root.querySelector<HTMLButtonElement>("[data-workspace-edit]")!.click();
+    await flush();
+    // Minimal branch: the dedicated folder-setup module is mounted in place.
+    expect(root.querySelector("[data-folder-setup]")).not.toBeNull();
+    for (let i = 0; i < 20 && !root.querySelector('[data-testid="folder-setup"]'); i += 1) {
+      await flush();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(root.querySelector('[data-testid="folder-setup-memory"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="folder-setup-environment"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="folder-setup-harness"]')).not.toBeNull();
+  });
 });

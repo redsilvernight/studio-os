@@ -138,7 +138,11 @@ function cardsHtml(state: PageState): string {
       `<p>Poste : ${esc(machine)} · Dossier vérifié sur ce poste</p>` +
       `<div class="settings-actions">${config ? `<a class="ds-btn" href="#/projects/${esc(config.project_id)}">Ouvrir le projet</a> <button type="button" class="ds-btn" data-workspace-edit="${esc(item.workspace_id)}">Configurer le dossier</button> <a class="ds-btn" href="#/configuration/integrations/${esc(item.workspace_id)}">Configurer les outils</a>` : ""}</div>` +
       (edit ? `<form data-workspace-config="${esc(item.workspace_id)}"><h3>Configuration de ce dossier</h3><label><input name="watchers" type="checkbox"${config.features?.watchers !== false ? " checked" : ""}> Activer le suivi Git de ce dossier</label>` +
-        `<p class="ds-list-sub">Le suivi observe les dépôts Git existants lorsque l'assistant local est démarré. Un dossier sans dépôt reste utilisable.</p><p><button type="submit" class="ds-btn ds-btn--primary"${state.busy ? " disabled" : ""}>Enregistrer le suivi</button> <button type="button" class="ds-btn" data-workspace-move="${esc(item.workspace_id)}"${state.busy ? " disabled" : ""}>Choisir le nouvel emplacement</button></p></form>` : "") + `</li>`;
+        `<p class="ds-list-sub">Le suivi observe les dépôts Git existants lorsque l'assistant local est démarré. Un dossier sans dépôt reste utilisable.</p><p><button type="submit" class="ds-btn ds-btn--primary"${state.busy ? " disabled" : ""}>Enregistrer le suivi</button> <button type="button" class="ds-btn" data-workspace-move="${esc(item.workspace_id)}"${state.busy ? " disabled" : ""}>Choisir le nouvel emplacement</button></p></form>` +
+        // P3 : la mémoire, l'environnement et l'assistant IA du dossier sont
+        // montés ici (module dédié, chargement différé) ; le travailleur B y
+        // ajoute sa propre section « Dépôts détectés » sans conflit.
+        `<div data-folder-setup="${esc(item.workspace_id)}"><p role="status">Chargement de la configuration du dossier…</p></div>` : "") + `</li>`;
   }).join("")}</ul>`;
 }
 
@@ -178,6 +182,13 @@ export async function renderWorkspaces(root: HTMLElement, platform: Platform = g
         state.outcome = picked; paint(); return undefined;
       });
     }));
+    // Branchement P3 minimal : la configuration par dossier (mémoire,
+    // environnement, harnais) vit dans son propre module.
+    const setupHost = state.editing ? root.querySelector<HTMLElement>(`[data-folder-setup="${state.editing}"]`) : null;
+    if (setupHost && state.editing) {
+      const workspaceId = state.editing;
+      void import("./workspaceFolderSetup").then((module) => module.renderFolderSetup(setupHost, platform, workspaceId));
+    }
   };
   const refresh = async (): Promise<void> => {
     const result = await listWorkspaces(platform);

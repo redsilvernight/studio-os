@@ -4,6 +4,7 @@ import {
   clearOnboardingState,
   INITIAL_ONBOARDING_STATE,
   loadOnboardingState,
+  migrateStepId,
   onboardingRedirect,
   ONBOARDING_STORAGE_KEY,
   saveOnboardingState,
@@ -36,13 +37,12 @@ describe("onboarding state", () => {
     expect(loadOnboardingState(memStore())).toEqual(INITIAL_ONBOARDING_STATE);
   });
 
-  it("round-trips the chosen identifiers, never a full path", () => {
+  it("round-trips the persisted identifiers, never a full path", () => {
     const store = memStore();
     const state: OnboardingState = {
       schema: 1,
       status: "in_progress",
-      current: "memoire",
-      projectId: "22222222-2222-4222-8222-222222222222",
+      current: "final",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       folderName: "Mon jeu",
     };
@@ -51,6 +51,21 @@ describe("onboarding state", () => {
     expect(loaded.workspaceId).toBe("11111111-1111-4111-8111-111111111111");
     expect(JSON.stringify(loaded)).not.toContain("C:");
     expect(JSON.stringify(loaded)).not.toContain("token");
+  });
+
+  it("resumes a persisted legacy step on the next valid step, without error", () => {
+    for (const legacy of ["projet", "dossier", "memoire", "environnement", "assistant"]) {
+      expect(migrateStepId(legacy)).toBe("final");
+      const store = memStore();
+      store.setItem(
+        ONBOARDING_STORAGE_KEY,
+        JSON.stringify({ schema: 1, status: "in_progress", current: legacy, workspaceId: "11111111-1111-4111-8111-111111111111" }),
+      );
+      const loaded = loadOnboardingState(store);
+      expect(loaded.status).toBe("in_progress");
+      expect(loaded.current).toBe("final");
+      expect(loaded.workspaceId).toBe("11111111-1111-4111-8111-111111111111");
+    }
   });
 
   it("falls back to not_started on corrupt or foreign data", () => {
