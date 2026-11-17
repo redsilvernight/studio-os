@@ -1037,7 +1037,7 @@ async function associateFolder(
     session.notice = "Dossier déjà associé à ce projet.";
     persist(session);
     go(session, nextStep("dossier") ?? "memoire");
-    return;
+    return again();
   }
   const roots = { workspace_root: path, repo_roots: [] as { name: string; path: string }[] };
   // Le pont exige une confirmation liée à ces racines exactes : l'identifiant

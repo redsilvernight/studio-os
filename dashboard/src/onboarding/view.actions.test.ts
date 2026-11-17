@@ -215,6 +215,31 @@ describe("step « Dossier »", () => {
     expect(session.state.folderName).toBe("jeu");
   });
 
+  it("moves on to the next screen when the folder is already linked to the project", async () => {
+    const platform = fakeDesktop({
+      request: (async (command: string) => {
+        if (command === "identity.get_view") {
+          return ok({ profile: { profile_id: "main", server_origin: "https://studio.example" }, secrets: [{ status: "present" }] });
+        }
+        if (command === "workspace.list") {
+          return ok({ items: [{ workspace_id: WS, config: { project_id: PROJECT, roots: { workspace_root: "C:\\Projets\\jeu\\" } } }] });
+        }
+        return refused("not_supported");
+      }) as never,
+    });
+    const session = emptySession({ schema: 1, status: "in_progress", current: "dossier", projectId: PROJECT });
+    session.folder = { kind: "selected", path: "C:\\Projets\\jeu", displayName: "jeu" };
+    const root = mount();
+    await renderOnboarding(root, platform, session);
+    root.querySelector<HTMLButtonElement>("[data-action=associate]")!.click();
+    await tick(20);
+    expect(session.state.workspaceId).toBe(WS);
+    expect(session.state.current).toBe("memoire");
+    // The screen must be repainted, not left on a locked « Association en cours… » button.
+    expect(root.querySelector("[data-action=associate]")).toBeNull();
+    expect(root.textContent).toContain("Dossier déjà associé");
+  });
+
   it("surfaces a refused association and lets the user try again", async () => {
     const platform = fakeDesktop({
       request: (async (command: string) => {
