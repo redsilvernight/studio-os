@@ -1552,6 +1552,25 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         return await fetch_skill_projections(client, None, limit=args.library_limit)
 
     try:
+        if args.skills_command == "revert":
+            from studio_client.daemon.skills_bridge import revert_override
+
+            result = _run(
+                config,
+                lambda client: revert_override(
+                    client,
+                    Path(args.home),
+                    args.kind,
+                    args.stable_key,
+                    include_opencode=not args.no_opencode,
+                    limit=args.library_limit,
+                ),
+            )
+            print(
+                f"reverted {args.kind} {args.stable_key} to the common version; "
+                f"wrote {len(result.written)} files; backups restorable with `library restore`"
+            )
+            return
         projections = _run(config, action)
         plan = plan_skill_sync(Path(args.home), projections, include_opencode=not args.no_opencode)
         if args.skills_command == "diff":
@@ -1626,16 +1645,23 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
         plan_hook_sync,
     )
 
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+
     async def action(client: StudioApiClient) -> Any:
-        return await fetch_hook_projections(client, None, limit=args.library_limit)
+        return await fetch_hook_projections(client, project_id, limit=args.library_limit)
 
     try:
         projections = _run(config, action)
+        if project_id is not None:
+            # Studio and user hooks are installed once in the home; the project
+            # checkout only carries its own project-scope hooks.
+            projections = tuple(p for p in projections if p.scope == "project")
         plan = plan_hook_sync(
-            Path(args.home),
+            Path(args.project_dir if project_id is not None else args.home),
             projections,
             consent=args.consent or (),
             disable=args.disable or (),
+            project=project_id is not None,
         )
         if args.hooks_command == "diff":
             print(diff_hook_plan(plan), end="")
@@ -2137,6 +2163,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ("check", "Report missing or drifted local skill projections."),
         ("diff", "Show the changes needed to synchronize local skills."),
         ("sync", "Write local skill projections and their manifest."),
+        ("revert", "Abandon your override of one skill and return to the common version."),
     ):
         skills_command = skills_sub.add_parser(command, help=help_text)
         skills_command.add_argument(
@@ -2150,6 +2177,11 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Skip the OpenCode copy in ~/.config/opencode/skills.",
         )
+        if command == "revert":
+            skills_command.add_argument(
+                "--kind", choices=("skill", "rule", "agent_definition"), default="skill"
+            )
+            skills_command.add_argument("stable_key", help="Item whose override is dropped.")
         if command == "sync":
             skills_command.add_argument(
                 "--overwrite",
@@ -2174,6 +2206,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "--home",
             default=str(Path.home()),
             help="User home receiving .claude, .config/opencode and .studio.",
+        )
+        hooks_command.add_argument(
+            "--project-id",
+            help="Project mode: install this project's own (scope project) hooks "
+            "into --project-dir/.claude instead of the home.",
+        )
+        hooks_command.add_argument(
+            "--project-dir",
+            default=".",
+            help="Project checkout receiving .claude in project mode.",
         )
         hooks_command.add_argument("--library-limit", type=int, default=100)
         hooks_command.add_argument(

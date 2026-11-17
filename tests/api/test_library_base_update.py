@@ -63,6 +63,8 @@ async def test_owner_is_alerted_when_common_moves_without_any_auto_apply(
     override = await _override(client, admin_auth_headers, common_id, "shared-base")
     assert override["base_update_available"] is False
     assert override["base_active_version"] is None
+    preview_path = f"/api/v1/library/{override['id']}/merge-preview"
+    assert (await client.get(preview_path, headers=admin_auth_headers)).status_code == 404
 
     # The common gains v2 and activates it: the override's base is now stale.
     second = await client.post(
@@ -87,6 +89,24 @@ async def test_owner_is_alerted_when_common_moves_without_any_auto_apply(
     ).json()
     assert detail["base_update_available"] is True
     assert detail["base_active_version"] == 2
+    preview = await client.get(preview_path, headers=admin_auth_headers)
+    assert preview.status_code == 200, preview.text
+    assert preview.headers["cache-control"] == "private, no-store"
+    comparison = preview.json()
+    assert comparison["inputs"] == {"base": "base", "ours": "my override", "theirs": "new base"}
+    assert comparison["result"]["content"] == (
+        "<<<<<<< ours\nmy override\n=======\nnew base\n>>>>>>> theirs\n"
+    )
+    assert comparison["result"]["conflicts"] == [
+        {
+            "start_line": 1,
+            "base_start": 0,
+            "base_end": 1,
+            "base": "base",
+            "ours": "my override",
+            "theirs": "new base",
+        }
+    ]
 
     listed = (
         await client.get("/api/v1/library", headers=admin_auth_headers, params={"scope": "user"})
@@ -110,6 +130,26 @@ async def test_owner_is_alerted_when_common_moves_without_any_auto_apply(
     assert len(versions) == 1
     assert versions[0]["content"]["text"] == "my override"
     assert versions[0]["derived_from"] == {"resource_id": common_id, "version": 1}
+
+    third = await client.post(
+        f"/api/v1/library/{common_id}/versions",
+        headers=admin_auth_headers,
+        json={
+            "title": "common v3",
+            "content": {"content_schema": "studio.library.rule/v1", "text": "line\r\n" * 1001},
+        },
+    )
+    assert third.status_code == 201
+    current = (await client.get(f"/api/v1/library/{common_id}", headers=admin_auth_headers)).json()
+    activated = await client.post(
+        f"/api/v1/library/{common_id}/activate",
+        headers=admin_auth_headers,
+        json={"version": 3, "expected_resource_version": current["version"]},
+    )
+    assert activated.status_code == 200
+    oversized = await client.get(preview_path, headers=admin_auth_headers)
+    assert oversized.status_code == 422
+    assert oversized.json()["detail"]["error_code"] == "merge_preview_too_many_lines"
 
 
 async def test_other_user_is_never_alerted_about_someone_elses_override(
@@ -138,6 +178,10 @@ async def test_other_user_is_never_alerted_about_someone_elses_override(
     ).status_code == 404
     listed = (await client.get("/api/v1/library", headers=other_auth_headers)).json()
     assert all(item["id"] != override["id"] for item in listed)
+    preview = await client.get(
+        f"/api/v1/library/{override['id']}/merge-preview", headers=other_auth_headers
+    )
+    assert preview.status_code == 404
 
 
 async def test_current_base_raises_no_alert(

@@ -8,7 +8,7 @@
  */
 
 export const ONBOARDING_STORAGE_KEY = "studio-os.onboarding.v1";
-export const ONBOARDING_SCHEMA_VERSION = 1;
+const ONBOARDING_SCHEMA_VERSION = 1;
 
 export type OnboardingStatus = "not_started" | "in_progress" | "completed" | "skipped";
 

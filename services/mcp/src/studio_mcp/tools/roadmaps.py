@@ -26,6 +26,7 @@ from uuid import UUID
 from mcp.server.mcpserver import Context
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.services import decision_review as decision_review_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import roadmap_support
 from studio_api.services.authz import Principal
@@ -496,7 +497,19 @@ async def studio_update_roadmap_step(
         )
         if updated is None:
             return {"error_code": "not_found", "message": f"unknown step: {step_key!r}"}
-        return _compact_step(updated, DEFAULT_MAX_CHARS)
+        compact = _compact_step(updated, DEFAULT_MAX_CHARS)
+        if override is not None and override == StepStateOverride.DONE:
+            # DEC-0363: closing a step re-surfaces the linked tasks whose AI
+            # work carries no decision review — a read-only warning, never a
+            # second gate and no stop-check hookup.
+            compact[
+                "decision_review_warnings"
+            ] = await decision_review_service.tasks_missing_decision_review(
+                session,
+                principal,
+                [link.task_id for link in updated.linked_tasks],
+            )
+        return compact
 
     return await run_tool(ctx, _handler)
 

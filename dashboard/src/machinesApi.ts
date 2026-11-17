@@ -22,14 +22,14 @@ export type WorkSession = components["schemas"]["WorkSession"];
 export type EventEnvelope = components["schemas"]["EventEnvelope"];
 
 /** Mirrors settings.heartbeat_interval_seconds / heartbeat_offline_after_seconds. */
-export const HEARTBEAT_INTERVAL_SECONDS = 30;
-export const HEARTBEAT_OFFLINE_AFTER_SECONDS = 90;
+const HEARTBEAT_INTERVAL_SECONDS = 30;
+const HEARTBEAT_OFFLINE_AFTER_SECONDS = 90;
 
 /** Derived fallback thresholds, deliberately looser than the canonical 30s/90s
  * heartbeat: events are sparse, so the canonical window would paint almost
  * every machine offline. Clearly surfaced as Derived in the UI. */
-export const DERIVED_ONLINE_MS = 5 * 60 * 1000;
-export const DERIVED_IDLE_MS = 30 * 60 * 1000;
+const DERIVED_ONLINE_MS = 5 * 60 * 1000;
+const DERIVED_IDLE_MS = 30 * 60 * 1000;
 
 /** Event types the Machines screen reacts to (the shell's SSE refetch). */
 export const MACHINE_PRESENCE_EVENT_TYPES = [

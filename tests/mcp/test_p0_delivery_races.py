@@ -5,12 +5,11 @@ from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.project import ProjectModel
 from studio_mcp.tools.coordination import studio_coordinate
 from studio_mcp.tools.handoff import studio_handoff
-from studio_mcp.tools.sessions import studio_start_session
 from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.sync import studio_sync
 from studio_mcp.tools.tasks import studio_create_task
 
-from tests.mcp.conftest import FakeContext
+from tests.mcp.conftest import FakeContext, start_test_session
 from tests.mcp.test_p0_delivery import dump, signals
 
 
@@ -24,9 +23,9 @@ async def test_live_peer_ack_cannot_hide_a_directed_signal_from_successor(
 ) -> None:
     task = await studio_create_task(str(project.id), "shared recipient", auth_ctx)
     sender_task = await studio_create_task(str(project.id), "separate sender", auth_ctx)
-    a = await studio_start_session(task["id"], auth_ctx)
-    b = await studio_start_session(task["id"], other_auth_ctx)
-    sender = await studio_start_session(sender_task["id"], auth_ctx)
+    a = await start_test_session(task["id"], auth_ctx)
+    b = await start_test_session(task["id"], other_auth_ctx)
+    sender = await start_test_session(sender_task["id"], auth_ctx)
     directed = dump(
         await studio_coordinate(
             b["id"] if self_emitted else sender["id"],
@@ -71,8 +70,8 @@ async def test_target_ack_releases_the_live_peer_cursor(
     project: ProjectModel,
 ) -> None:
     task = await studio_create_task(str(project.id), "live target ack", auth_ctx)
-    a = await studio_start_session(task["id"], auth_ctx)
-    b = await studio_start_session(task["id"], other_auth_ctx)
+    a = await start_test_session(task["id"], auth_ctx)
+    b = await start_test_session(task["id"], other_auth_ctx)
     sent = dump(
         await studio_coordinate(
             b["id"],

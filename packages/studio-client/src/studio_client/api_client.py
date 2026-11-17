@@ -35,6 +35,7 @@ from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.library import (
     DependencyUpdates,
     LibraryActivate,
+    LibraryDeprecate,
     LibraryProjectLock,
     LibraryResource,
     LibraryResourceCreate,
@@ -55,18 +56,19 @@ from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
-    TransferConsumption,
     TransferCreate,
     UploadCompleteRequest,
     UploadInitiateResponse,
     UploadPartsRefreshRequest,
     UploadPartsRefreshResponse,
 )
+from studio_contracts.usage import UsagePriceList
 from studio_contracts.version import VersionInfo
 from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfilePackRequest
 
 from studio_client.config import ClientConfig
 from studio_client.errors import (
+    NotFoundError,
     RateLimitError,
     StudioApiError,
     TransportError,
@@ -508,6 +510,19 @@ class StudioApiClient:
         response = await self._request("GET", "/api/v1/decisions", params=params)
         return [Decision.model_validate(item) for item in response.json()]
 
+    async def get_effective_price_list(self, project_id: UUID) -> UsagePriceList | None:
+        """Price list in force for the project (DEC-0362); None when none is
+        published yet, so the caller keeps its local default."""
+        try:
+            response = await self._request(
+                "GET",
+                "/api/v1/usage/price-lists/effective",
+                params={"project_id": str(project_id)},
+            )
+        except NotFoundError:
+            return None
+        return UsagePriceList.model_validate(response.json())
+
     async def list_events(
         self,
         *,
@@ -515,6 +530,7 @@ class StudioApiClient:
         task_id: UUID | None = None,
         since: datetime | None = None,
         limit: int = 100,
+        include_global: bool = False,
     ) -> list[EventEnvelope]:
         params: dict[str, Any] = {"limit": limit}
         if project_id is not None:
@@ -523,6 +539,8 @@ class StudioApiClient:
             params["task"] = str(task_id)
         if since is not None:
             params["since"] = since.isoformat()
+        if include_global:
+            params["include_global"] = "true"
         response = await self._request("GET", "/api/v1/events", params=params)
         return [EventEnvelope.model_validate(item) for item in response.json()]
 
@@ -568,15 +586,6 @@ class StudioApiClient:
         )
         return ProducerJob.model_validate(response.json())
 
-    async def list_producer_jobs(
-        self, *, project_id: UUID | None = None, limit: int = 100
-    ) -> list[ProducerJob]:
-        params: dict[str, Any] = {"limit": limit}
-        if project_id is not None:
-            params["project_id"] = str(project_id)
-        response = await self._request("GET", "/api/v1/producer-jobs", params=params)
-        return [ProducerJob.model_validate(item) for item in response.json()]
-
     async def get_timeline(
         self,
         project_id: UUID,
@@ -604,25 +613,9 @@ class StudioApiClient:
         )
         return Transfer.model_validate(response.json())
 
-    async def list_transfers(self, *, project_id: UUID | None = None) -> list[Transfer]:
-        params: dict[str, Any] = {}
-        if project_id is not None:
-            params["project_id"] = str(project_id)
-        response = await self._request("GET", "/api/v1/transfers", params=params)
-        return [Transfer.model_validate(item) for item in response.json()]
-
     async def get_transfer(self, transfer_id: UUID) -> Transfer:
         response = await self._request("GET", f"/api/v1/transfers/{transfer_id}")
         return Transfer.model_validate(response.json())
-
-    async def get_transfer_consumption(
-        self, *, project_id: UUID | None = None
-    ) -> TransferConsumption:
-        params: dict[str, Any] = {}
-        if project_id is not None:
-            params["project_id"] = str(project_id)
-        response = await self._request("GET", "/api/v1/transfers/consumption", params=params)
-        return TransferConsumption.model_validate(response.json())
 
     async def initiate_upload(
         self, transfer_id: UUID, *, content_md5: str | None = None
@@ -685,6 +678,20 @@ class StudioApiClient:
     async def get_download_url(self, transfer_id: UUID) -> DownloadUrlResponse:
         response = await self._request("POST", f"/api/v1/transfers/{transfer_id}/download-url")
         return DownloadUrlResponse.model_validate(response.json())
+
+    async def acknowledge_download(self, transfer_id: UUID) -> Transfer:
+        """Record receipt of a transfer after its bytes were downloaded and
+        hash-verified (`POST /api/v1/transfers/{id}/downloaded`). Inherently
+        idempotent server-side: replaying an acknowledged transfer returns it
+        unchanged with its original `downloaded_at` — marked retryable so a
+        transient failure can be retried, and queued in the outbox by
+        `TransferClient` when the network itself is down."""
+        response = await self._request(
+            "POST",
+            f"/api/v1/transfers/{transfer_id}/downloaded",
+            idempotent=True,
+        )
+        return Transfer.model_validate(response.json())
 
     async def delete_transfer(self, transfer_id: UUID) -> None:
         await self._request("DELETE", f"/api/v1/transfers/{transfer_id}")
@@ -796,6 +803,18 @@ class StudioApiClient:
             "POST",
             f"/api/v1/library/{resource_id}/activate",
             json=activate_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
+    async def deprecate_library_resource(
+        self, resource_id: UUID, deprecate_in: LibraryDeprecate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/deprecate",
+            json=deprecate_in.model_dump(mode="json"),
             extra_headers={"Idempotency-Key": idempotency_key},
             idempotent=True,
         )

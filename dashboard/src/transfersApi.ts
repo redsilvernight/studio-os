@@ -25,13 +25,16 @@ export type Transfer = components["schemas"]["Transfer"];
 export type TransferCreate = components["schemas"]["TransferCreate"];
 export type TransferCategory = components["schemas"]["TransferCategory"];
 export type TransferConsumption = components["schemas"]["TransferConsumption"];
-export type UploadInitiateResponse = components["schemas"]["UploadInitiateResponse"];
-export type UploadCompleteRequest = components["schemas"]["UploadCompleteRequest"];
+type UploadInitiateResponse = components["schemas"]["UploadInitiateResponse"];
+type UploadCompleteRequest = components["schemas"]["UploadCompleteRequest"];
 
-/** Server constants (`services/transfers.py`), mirrored for progress display. */
+/**
+ * Server constants (`services/transfers.py`), mirrored for progress display.
+ * @public PC0 à vérifier : miroir de la constante serveur (DEC-0033), sans lecture.
+ */
 export const MULTIPART_THRESHOLD_BYTES = 128 * 1024 * 1024;
-export const PART_SIZE_BYTES = 64 * 1024 * 1024;
-export const PART_CONCURRENCY = 4;
+const PART_SIZE_BYTES = 64 * 1024 * 1024;
+const PART_CONCURRENCY = 4;
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const result = await promise;
@@ -80,7 +83,7 @@ export function getConsumption(client: StudioClient, projectId?: string): Promis
   );
 }
 
-export function initiateUpload(
+function initiateUpload(
   client: StudioClient,
   transferId: string,
   contentMd5?: string,
@@ -93,7 +96,7 @@ export function initiateUpload(
   );
 }
 
-export function completeUpload(
+function completeUpload(
   client: StudioClient,
   transferId: string,
   body: UploadCompleteRequest,
@@ -109,6 +112,24 @@ export function completeUpload(
 export function downloadUrl(client: StudioClient, transferId: string): Promise<{ download_url: string }> {
   return unwrap(
     client.POST("/api/v1/transfers/{transfer_id}/download-url", {
+      params: { path: { transfer_id: transferId } },
+    }),
+  );
+}
+
+/**
+ * Totale réception d'un transfert (`POST .../downloaded`) : le serveur
+ * renseigne `downloaded_at` (inchangé en cas de rejeu). Idempotent côté
+ * serveur. Le dashboard ne l'appelle pas après `window.open` — le
+ * navigateur télécharge sans vérification d'empreinte, il n'y a donc pas
+ * de « téléchargement vérifié » à accuser ici ; seul le client Python
+ * (`TransferClient`), qui contrôle les octets et le hash, accuse
+ * réception. Exposé pour les surfaces qui vérifieraient un jour les
+ * octets elles-mêmes.
+ */
+export function acknowledgeDownload(client: StudioClient, transferId: string): Promise<Transfer> {
+  return unwrap(
+    client.POST("/api/v1/transfers/{transfer_id}/downloaded", {
       params: { path: { transfer_id: transferId } },
     }),
   );

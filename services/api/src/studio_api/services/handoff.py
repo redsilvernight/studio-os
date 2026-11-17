@@ -30,6 +30,7 @@ from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import claims as claims_service
 from studio_api.services import coordination as coordination_service
+from studio_api.services import decision_review as decision_review_service
 from studio_api.services import sessions as sessions_service
 from studio_api.services import sync as sync_service
 from studio_api.services import tasks as tasks_service
@@ -96,10 +97,24 @@ async def handoff(
     ):
         raise HTTPException(409, detail={"error_code": "already_claimed"})
     summary = request.summary
+    if (
+        request.task_status is not None
+        and request.task_status.status == TaskStatus.ABANDONED
+        and not (request.summary or "").strip()
+    ):
+        # Abandoning needs no delivery evidence, but always its reason.
+        raise HTTPException(422, detail={"error_code": "abandon_reason_required"})
     if request.completion is not None:
         if request.agent_id is None or request.summary is None:
             raise HTTPException(422, detail={"error_code": "completion_log_required"})
         report = check_completion(request.completion)
+        if request.completion.decisions is not None:
+            # DEC-0363: every id must exist, belong to this project and be
+            # visible — one generic 422, no existence oracle. A `proposed`
+            # decision is a valid reference and is never auto-accepted here.
+            await decision_review_service.validate_decision_refs(
+                session, request.project_id, request.completion.decisions.decision_ids
+            )
         if (
             request.task_status is not None
             and request.task_status.status == TaskStatus.COMPLETED
@@ -261,6 +276,16 @@ async def handoff(
     if work_session.sync_cursor_seq is not None:
         await sessions_service.ack_handoff_cursor(session, task.id, work_session.sync_cursor_seq)
 
+    warnings: list[str] = []
+    if (
+        request.completion is not None
+        and request.completion.format == "studio.completion/v1"
+        and request.completion.decisions is None
+    ):
+        # DEC-0363: v1 without a decision review stays non-blocking — the
+        # missing review is surfaced as a warning, never a gate.
+        warnings.append(decision_review_service.DECISION_REVIEW_MISSING)
+
     return HandoffResult(
         task_id=task.id,
         task_status=TaskStatus(task.status),
@@ -271,4 +296,5 @@ async def handoff(
         sync=last_sync,
         handoff_cursor_seq=task.handoff_cursor_seq,
         coordination_event_id=coordination_event_id,
+        warnings=warnings,
     )

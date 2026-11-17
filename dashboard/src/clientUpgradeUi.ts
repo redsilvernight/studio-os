@@ -19,13 +19,6 @@ export function showClientUpdateAdvisory(latest: string | null): void {
   banner.hidden = false;
 }
 
-export function resetClientUpdateAdvisory(): void {
-  const banner = document.getElementById(ADVISORY_ID);
-  if (banner === null) return;
-  banner.hidden = true;
-  banner.textContent = "";
-}
-
 /**
  * The server refused this build: show a blocking, non-dismissable screen. It
  * never offers a retry (retrying the same build is pointless) and never claims

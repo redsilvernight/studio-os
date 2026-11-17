@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -10,6 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 from studio_contracts.auth import Role
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.library import (
@@ -19,6 +21,11 @@ from studio_contracts.library import (
     DependencyUpdates,
     LibraryKind,
     LibraryLockCreate,
+    LibraryMergeApply,
+    LibraryMergeChoice,
+    LibraryMergeInputs,
+    LibraryMergePreview,
+    LibraryMergeResult,
     LibraryProjectLock,
     LibraryResolution,
     LibraryResourceCreate,
@@ -35,6 +42,13 @@ from studio_contracts.library import (
     content_validation_errors,
     hook_validation_errors,
     workflow_validation_errors,
+)
+from studio_contracts.library_merge import (
+    CONFLICT_END,
+    CONFLICT_SEPARATOR,
+    CONFLICT_START,
+    MergeResult,
+    merge_texts,
 )
 
 from studio_api.db.models.library import (
@@ -280,6 +294,175 @@ async def get_version(
     return await _version_row(session, resource_id, version)
 
 
+@dataclass(frozen=True)
+class _MergeSources:
+    override: LibraryResourceModel
+    ours: LibraryResourceVersionModel
+    common: LibraryResourceModel
+    base_text: str
+    our_text: str
+    their_text: str
+
+
+async def _merge_sources(
+    session: AsyncSession, principal: Principal, resource_id: UUID
+) -> _MergeSources:
+    override = await find_readable_resource(session, principal, resource_id)
+    if (
+        override is None
+        or override.scope != LibraryScope.USER.value
+        or override.owner_user_id != principal.user.id
+        or override.status != LibraryStatus.ACTIVE.value
+    ):
+        raise _not_found()
+    ours = await get_version(session, override.id, override.active_version)
+    if ours is None or ours.derived_from_resource_id is None or ours.derived_from_version is None:
+        raise _not_found()
+    common = await find_readable_resource(session, principal, ours.derived_from_resource_id)
+    if (
+        common is None
+        or common.status != LibraryStatus.ACTIVE.value
+        or common.active_version == ours.derived_from_version
+    ):
+        raise _not_found()
+    base = await get_version(session, common.id, ours.derived_from_version)
+    theirs = await get_version(session, common.id, common.active_version)
+    if base is None or theirs is None:
+        raise _not_found()
+    base_text, our_text, their_text = (
+        version.content.get("text") for version in (base, ours, theirs)
+    )
+    if not (
+        isinstance(base_text, str) and isinstance(our_text, str) and isinstance(their_text, str)
+    ):
+        raise _not_found()
+    return _MergeSources(override, ours, common, base_text, our_text, their_text)
+
+
+async def _merge(sources: _MergeSources) -> MergeResult:
+    texts = (sources.base_text, sources.our_text, sources.their_text)
+    if any(text.count("\n") + text.count("\r") - text.count("\r\n") > 1_000 for text in texts):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "merge_preview_too_many_lines"},
+        )
+    return await run_in_threadpool(merge_texts, *texts)
+
+
+async def preview_merge(
+    session: AsyncSession, principal: Principal, resource_id: UUID
+) -> LibraryMergePreview:
+    sources = await _merge_sources(session, principal, resource_id)
+    result = await _merge(sources)
+    return LibraryMergePreview(
+        inputs=LibraryMergeInputs(
+            base=sources.base_text, ours=sources.our_text, theirs=sources.their_text
+        ),
+        result=LibraryMergeResult.model_validate(asdict(result)),
+    )
+
+
+def _has_conflict_marker(text: str) -> bool:
+    markers = (CONFLICT_START, CONFLICT_SEPARATOR, CONFLICT_END)
+    return any(line.startswith(markers) for line in text.splitlines())
+
+
+async def apply_merge(
+    session: AsyncSession, principal: Principal, resource_id: UUID, data: LibraryMergeApply
+) -> LibraryResourceModel:
+    """Keep the override, merge it with the moved common, or revert to the
+    common. Nothing is written while a merge conflict is unresolved; the
+    previous override version stays in history and can be reactivated."""
+    sources = await _merge_sources(session, principal, resource_id)
+    common = sources.common
+    authorize_mutation(principal, sources.override)
+    override = (
+        await session.execute(
+            select(LibraryResourceModel)
+            .where(LibraryResourceModel.id == sources.override.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    if override.version != data.expected_resource_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "version_conflict", "server_version": override.version},
+        )
+    if common.active_version != data.base_active_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "base_moved", "base_active_version": common.active_version},
+        )
+    if data.choice == LibraryMergeChoice.REVERT_TO_COMMON:
+        return await deprecate_resource(session, principal, override, override.version)
+    if data.choice == LibraryMergeChoice.KEEP_OVERRIDE:
+        text = sources.our_text
+    elif data.content is not None:
+        if _has_conflict_marker(data.content):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "unresolved_merge_conflict"},
+            )
+        text = data.content
+    else:
+        result = await _merge(sources)
+        if result.conflicts:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={"error_code": "merge_conflict", "conflicts": len(result.conflicts)},
+            )
+        text = result.content
+    ours = await version_detail(session, sources.ours)
+    max_version = (
+        await session.execute(
+            select(func.max(LibraryResourceVersionModel.version)).where(
+                LibraryResourceVersionModel.resource_id == override.id
+            )
+        )
+    ).scalar_one()
+    next_version = int(max_version or 0) + 1
+    try:
+        await _create_version_row(
+            session,
+            principal,
+            override,
+            next_version,
+            ours.title,
+            ours.description,
+            {**ours.content, "text": text},
+            ours.dependencies,
+            LibraryVersionRef(resource_id=common.id, version=common.active_version),
+        )
+    except HTTPException:
+        await session.rollback()
+        raise
+    override.active_version = next_version
+    override.status = LibraryStatus.ACTIVE.value
+    override.version += 1
+    await session.commit()
+    await session.refresh(override)
+    await _emit_library_event(
+        session,
+        principal,
+        EventType.LIBRARY_VERSION_CREATED,
+        override,
+        f"v{next_version}",
+        {"version": next_version},
+    )
+    await _emit_library_event(
+        session,
+        principal,
+        EventType.LIBRARY_VERSION_ACTIVATED,
+        override,
+        f"v{next_version}",
+        {"version": next_version},
+        occurrence=override.version,
+    )
+    await annotate_base_updates(session, [override])
+    return override
+
+
 def _invalid_binding(reason: str) -> HTTPException:
     """422 for a structurally invalid Library Binding (P5/DEC-0067).
 
@@ -431,12 +614,11 @@ async def _emit_library_event(
     ref: str,
     extra: dict[str, object] | None = None,
     occurrence: int | None = None,
-    only_project: UUID | None = None,
 ) -> None:
-    """Server-internal traceability: `events` require a non-null `project_id`.
-    A project resource emits to its project; a Studio resource, shared by every
-    project, emits one event per active project (or only to `only_project` for
-    a lock, which belongs to one project); User resources stay private and emit
+    """Server-internal traceability (contract v2): a project resource emits
+    to its project (`project_id` set); a Studio resource, shared by every
+    project, emits ONE project-less event (`project_id=None`, visible to
+    every authenticated principal); User resources stay private and emit
     nothing, auditable through the immutable version rows.
 
     `ref` makes the deterministic `event_id` unique per action: a
@@ -448,50 +630,34 @@ async def _emit_library_event(
     identity = f"{resource.id}:{event_type.value}:{ref}"
     if occurrence is not None:
         identity = f"{identity}:{occurrence}"
-    project_ids: Sequence[UUID]
     if resource.project_id is not None:
-        project_ids = [resource.project_id]
+        project_id: UUID | None = resource.project_id
     elif resource.scope == LibraryScope.STUDIO.value:
-        project_ids = (
-            [only_project]
-            if only_project is not None
-            else list(
-                (
-                    await session.execute(
-                        select(ProjectModel.id).where(ProjectModel.archived.is_(False))
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        )
+        project_id = None
     else:
         return
-    for project_id in project_ids:
-        await events_service.create_event(
-            session,
-            EventCreate(
-                event_id=uuid.uuid5(
-                    _LIBRARY_EVENT_NAMESPACE,
-                    identity if resource.project_id else f"{identity}:{project_id}",
-                ),
-                event_type=event_type,
-                project_id=project_id,
-                task_id=None,
-                machine_id=principal.machine.id,
-                actor_type="user",
-                actor_id=principal.user.id,
-                client_timestamp=datetime.now(UTC),
-                payload={
-                    "resource_id": str(resource.id),
-                    "kind": resource.kind,
-                    "stable_key": resource.stable_key,
-                    "scope": resource.scope,
-                    "ref": ref,
-                    **(extra or {}),
-                },
-            ),
-        )
+    await events_service.create_event(
+        session,
+        EventCreate(
+            event_id=uuid.uuid5(_LIBRARY_EVENT_NAMESPACE, identity),
+            event_type=event_type,
+            project_id=project_id,
+            task_id=None,
+            machine_id=principal.machine.id,
+            actor_type="user",
+            actor_id=principal.user.id,
+            client_timestamp=datetime.now(UTC),
+            payload={
+                "resource_id": str(resource.id),
+                "kind": resource.kind,
+                "stable_key": resource.stable_key,
+                "scope": resource.scope,
+                "ref": ref,
+                **(extra or {}),
+            },
+            schema_version=2 if project_id is None else 1,
+        ),
+    )
 
 
 def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
@@ -988,7 +1154,6 @@ async def set_lock(
             "project_id": str(data.project_id),
             "locked_version": data.locked_version,
         },
-        only_project=data.project_id,
     )
     return lock
 
@@ -1029,7 +1194,6 @@ async def release_lock(
                 "project_id": str(lock_project_id),
                 "locked_version": locked_version,
             },
-            only_project=lock_project_id,
         )
     return released
 

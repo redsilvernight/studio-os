@@ -30,10 +30,3 @@ export function selectProject(projectId: string | null): void {
     notify();
   }
 }
-
-export function selectTask(taskId: string | null): void {
-  if (uiState.selectedTaskId !== taskId) {
-    uiState.selectedTaskId = taskId;
-    notify();
-  }
-}

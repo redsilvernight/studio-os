@@ -58,6 +58,7 @@ const t2 = task("t2", "in_progress", "Optimiser les éclairages", {
 });
 const t3 = task("t3", "blocked", "Corriger le build", { project_id: P2 });
 const t4 = task("t4", "completed", "Livrer la démo");
+const t5 = task("t5", "abandoned", "Ancienne piste écartée");
 const all = [t1, t2, t3] as never[];
 const names = { [P1]: "Jeu Phare", [P2]: "Digue" };
 const blank: TasksPageState = initialTasksState();
@@ -103,9 +104,9 @@ describe("tasksScopeRequests (filtres serveur DEC-0185)", () => {
     ]);
   });
 
-  it("Toutes : priorise les actives, garde À faire, terminées sur demande", () => {
+  it("Toutes : priorise les actives + abandonnées, garde À faire, terminées sur demande", () => {
     expect(tasksScopeRequests("all", 100)).toEqual([
-      { status: ["in_progress", "blocked"], limit: 100 },
+      { status: ["in_progress", "blocked", "abandoned"], limit: 100 },
       { status: ["created"], limit: 100 },
     ]);
   });
@@ -116,10 +117,10 @@ describe("filterTasks (client-side, données déjà chargées)", () => {
     expect(filterTasks(all, blank, names)).toEqual(all);
   });
 
-  it("garde-fou : Maintenant écarte les terminées, Toutes les garde", () => {
-    const loaded = [...all, t4] as never[];
+  it("garde-fou : Maintenant écarte les terminées et les abandonnées, Toutes les garde", () => {
+    const loaded = [...all, t4, t5] as never[];
     expect(filterTasks(loaded, blank, names).map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
-    expect(filterTasks(loaded, everything, names).map((t) => t.id)).toEqual(["t1", "t2", "t3", "t4"]);
+    expect(filterTasks(loaded, everything, names).map((t) => t.id)).toEqual(["t1", "t2", "t3", "t4", "t5"]);
   });
 
   it("garde-fou : Mon travail écarte les tâches non prises", () => {
@@ -233,8 +234,19 @@ describe("tasksListHtml (vue par défaut)", () => {
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).not.toContain("Terminées");
+    expect(html).not.toContain("Abandonnées");
     expect(html).toContain('aria-labelledby="tasks-group-blocked"');
     expect(tasksListHtml([...all, t4] as never[], { authed: true, showProject: true })).toContain("Terminées");
+    expect(tasksListHtml([...all, t5] as never[], { authed: true, showProject: true })).toContain("Abandonnées");
+  });
+
+  it("abandonnée : badge neutre « Abandonnée », pas de fusion avec Terminées", () => {
+    const text = tasksListHtml([t5] as never[], { authed: true, showProject: false });
+    expect(text).toContain("Abandonnées");
+    expect(text).toContain("Abandonnée");
+    expect(text).not.toContain("Terminée");
+    const row = tasksListHtml([...all, t4, t5] as never[], { authed: true, showProject: false }).replace(/<[^>]*>/g, " ");
+    expect(row.indexOf("Terminées")).toBeLessThan(row.indexOf("Abandonnées"));
   });
 
   it("n'affiche ni priorité ni assigné inventés", () => {
@@ -246,18 +258,29 @@ describe("tasksListHtml (vue par défaut)", () => {
 describe("tasksBoardHtml", () => {
   const html = tasksBoardHtml(all, { authed: true, showProject: false, projectNames: names });
 
-  it("quatre colonnes FR avec comptes, cartes épurées", () => {
+  it("cinq colonnes FR avec comptes, cartes épurées", () => {
     expect(html).toContain("À faire");
     expect(html).toContain("En cours");
     expect(html).toContain("Bloqué");
     expect(html).toContain("Terminé");
+    expect(html).toContain("Abandonnée");
     expect(html).toContain('data-column="TODO"');
     expect(html).toContain('data-column="IN PROGRESS"');
+    expect(html).toContain('data-column="ABANDONED"');
     expect(html).toContain('class="kanban tasks-board"');
     expect(html).not.toContain(">TODO<");
     expect(html).not.toContain(">IN PROGRESS<");
     expect(html).not.toContain(">BLOCKED<");
     expect(html).not.toContain(">DONE<");
+    expect(html).not.toContain(">ABANDONED<");
+  });
+
+  it("colonne ABANDONED : carte au bon statut courant, navigation clavier inchangée", () => {
+    const board = tasksBoardHtml([...all, t5] as never[], { authed: true, showProject: false, projectNames: names });
+    expect(board).toContain('data-card="t5"');
+    expect(board).toContain('data-status-current="abandoned"');
+    expect(board).toContain("Déplacer vers…");
+    expect(board).toContain('<option value="abandoned"');
   });
 
   it("cartes : titre + contexte utile, activation vers le détail", () => {
@@ -279,6 +302,7 @@ describe("taskMoveControlHtml (alternative clavier au drag & drop)", () => {
     expect(html).toContain("Déplacer vers…");
     expect(html).toContain('for="move-t2"');
     expect(html).toContain('<option value="in_progress" selected>En cours</option>');
+    expect(html).toContain('<option value="abandoned">Abandonnée</option>');
     expect(html).toContain(">Déplacer</button>");
   });
 

@@ -71,7 +71,7 @@ export function toolEnv(extra = {}) {
 }
 
 /** Run a command to completion, streaming its output. Resolves with the exit code. */
-export function run(command, args, options = {}) {
+function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {
       stdio: "inherit",
@@ -105,13 +105,6 @@ export function capture(command, args, options = {}) {
 /** The local Tauri CLI (a devDependency), run through Node so no shell is involved. */
 export const tauriCli = () => join(desktopDir, "node_modules", "@tauri-apps", "cli", "tauri.js");
 export const viteCli = () => join(dashboardDir, "node_modules", "vite", "bin", "vite.js");
-
-export function hostTriple() {
-  const r = capture("rustc", ["-vV"]);
-  const host = r.stdout.split(/\r?\n/).find((l) => l.startsWith("host:"));
-  if (!r.ok || !host) throw new Error("rustc not found: install Rust (see desktop/README.md)");
-  return host.slice(5).trim();
-}
 
 export function arg(name, fallback) {
   const i = process.argv.indexOf(name);

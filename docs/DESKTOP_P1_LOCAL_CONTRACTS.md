@@ -174,7 +174,7 @@ un test échoue si l'export diverge des builders Python.
   `skills.preview` (y compris la valeur `null`) et refuse un apply ciblé avec
   `capability_missing`. Un ancien Desktop strict conserve sa réponse connue.
   `SkillsApplyRequest.resolutions`, optionnel, contient de 1 à 500 choix
-  `{stable_key, choice: local|library, preview_hash}` ; les clés sont uniques
+  `{stable_key, choice: local|library|publish, preview_hash}` ; les clés sont uniques
   et ce mode exclut `overwrite: true`. Le daemon résout lui-même les chemins,
   compare chaque token au plan actuel avant toute écriture et refuse une clé
   inconnue ou une comparaison périmée avec `invalid_request`. Un choix
@@ -182,7 +182,11 @@ un test échoue si l'export diverge des builders Python.
   non sélectionnées et les copies dépréciées restent intactes. Un choix
   `local` conserve toutes ses copies pour ce cycle, sans acquittement durable :
   une personnalisation reste signalée aux vérifications suivantes. Les choix
-  uniquement `local` ne modifient aucun fichier ni manifeste. Les anciennes
+  uniquement `local` ne modifient aucun fichier ni manifeste. Un choix
+  `publish` publie la copie locale comme override en scope `user` (visible de
+  son seul auteur), puis l'applique comme `library` ; il exige la capacité
+  optionnelle `skills.publish` et sinon le daemon répond `capability_missing`.
+  Une résolution `publish` ne s'émet qu'à un daemon qui l'a négociée. Les anciennes
   requêtes sans `resolutions` gardent leur comportement global strict.
   Extension additive aux définitions : la capacité optionnelle
   `skills.definitions` ajoute à `skills.preview` les rules et agents globaux

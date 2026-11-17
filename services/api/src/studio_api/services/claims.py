@@ -12,6 +12,7 @@ from studio_contracts.events import EventCreate, EventType
 
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.task import TaskModel
+from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import events as events_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
@@ -124,6 +125,36 @@ def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     ensure_can_write(principal, "claim")
 
 
+async def _open_session_task_id(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    machine_id: uuid.UUID,
+    agent_id: uuid.UUID | None,
+) -> uuid.UUID | None:
+    """Task of the caller's open session in this project, if any (task
+    2817382b): a claim made without `task_id` while the machine (and the agent,
+    when the caller names one) has a live session on a task of the same project
+    is the work in progress, so it is attached to that task and `studio_handoff`
+    / `end_session` release it instead of leaving it until its TTL.
+
+    Newest open session wins; no open session, or sessions only on other
+    projects, leaves the claim task-less. A named agent only matches its own
+    sessions, so one agent never inherits another's task."""
+    stmt = (
+        select(WorkSessionModel.task_id)
+        .join(TaskModel, WorkSessionModel.task_id == TaskModel.id)
+        .where(
+            WorkSessionModel.machine_id == machine_id,
+            WorkSessionModel.ended_at.is_(None),
+            TaskModel.project_id == project_id,
+        )
+        .order_by(WorkSessionModel.started_at.desc(), WorkSessionModel.id.desc())
+    )
+    if agent_id is not None:
+        stmt = stmt.where(WorkSessionModel.agent_id == agent_id)
+    return (await session.execute(stmt)).scalars().first()
+
+
 async def create_claim(
     session: AsyncSession,
     principal: Principal,
@@ -133,12 +164,16 @@ async def create_claim(
 ) -> ResourceClaimModel:
     """Soft lock: a conflict is surfaced (`resource.conflict` event, left to the
     router) but never blocks the write here — see AI/01_AI_OPERATING_REFERENCE.md
-    interdiction on blocking locks."""
+    interdiction on blocking locks. A claim made without `task_id` is attached to
+    the caller's open session's task when there is one in the same project."""
     authorize_create(principal, claim_in.project_id)
+    task_id = claim_in.task_id
+    if task_id is None:
+        task_id = await _open_session_task_id(session, claim_in.project_id, machine_id, agent_id)
     now = datetime.now(UTC)
     claim = ResourceClaimModel(
         project_id=claim_in.project_id,
-        task_id=claim_in.task_id,
+        task_id=task_id,
         resource_path=claim_in.resource_path,
         resource_type=claim_in.resource_type.value,
         claimed_by_machine_id=machine_id,
@@ -257,7 +292,9 @@ async def release_task_claims_by_task(
     agent_id: uuid.UUID | None,
 ) -> list[ResourceClaimModel]:
     """Release the session agent's active claims for a task. Used by L3 handoff and
-    the `end_session` fallback. Each release goes through `release_claim`
+    the `end_session` fallback. Claims made without a `task_id` during the
+    session are attached to that task at creation (`create_claim`), so they are
+    released here too. Each release goes through `release_claim`
     so a `resource.released` event is emitted per claim, exactly like a
     single release. Idempotent: already-released claims are skipped
     without error; another machine or agent's claims are never touched.

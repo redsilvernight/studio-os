@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Identity
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,8 +20,8 @@ class EventModel(UUIDPKMixin, Base):
     __tablename__ = "events"
 
     event_type: Mapped[str] = mapped_column(index=True)
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id"), index=True
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id"), index=True, nullable=True
     )
     task_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tasks.id"), default=None
@@ -36,6 +36,13 @@ class EventModel(UUIDPKMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     schema_version: Mapped[int] = mapped_column(default=1)
     seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), unique=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "(project_id IS NOT NULL) OR (event_type LIKE 'library.%')",
+            name="ck_events_project_scope",
+        ),
+    )
 
     @property
     def event_id(self) -> uuid.UUID:

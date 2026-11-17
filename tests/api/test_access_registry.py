@@ -355,6 +355,56 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("GET", "/api/v1/usage/configuration-history"): (
         Probe("/api/v1/usage/configuration-history?project_id={pid}"),
     ),
+    ("GET", "/api/v1/usage/subscriptions"): (
+        Probe("/api/v1/usage/subscriptions?project_id={pid}"),
+    ),
+    ("POST", "/api/v1/usage/subscriptions"): (
+        Probe(
+            "/api/v1/usage/subscriptions",
+            {
+                "project_id": "{pid}",
+                "label": "outsider",
+                "monthly_price": "1.00",
+                "currency": "USD",
+                "harnesses": ["claude-code"],
+                "starts_on": "2026-10-01",
+            },
+        ),
+    ),
+    ("PUT", "/api/v1/usage/subscriptions/{subscription_id}"): (
+        Probe(
+            "/api/v1/usage/subscriptions/{subscription}",
+            {
+                "label": "outsider",
+                "monthly_price": "1.00",
+                "currency": "USD",
+                "harnesses": ["claude-code"],
+                "starts_on": "2026-10-01",
+                "expected_version": 1,
+            },
+        ),
+    ),
+    ("DELETE", "/api/v1/usage/subscriptions/{subscription_id}"): (
+        Probe("/api/v1/usage/subscriptions/{subscription}?expected_version=1"),
+    ),
+    ("GET", "/api/v1/usage/price-lists"): (Probe("/api/v1/usage/price-lists?project_id={pid}"),),
+    ("GET", "/api/v1/usage/price-lists/effective"): (
+        Probe("/api/v1/usage/price-lists/effective?project_id={pid}"),
+    ),
+    ("POST", "/api/v1/usage/price-lists"): (
+        Probe(
+            "/api/v1/usage/price-lists",
+            {
+                "project_id": "{pid}",
+                "price_list_id": "outsider-grid",
+                "currency": "USD",
+                "effective_from": "2026-10-01T00:00:00Z",
+                "models": {
+                    "m": {"input": "1", "output": "1", "cache_read": "0", "cache_write": "0"}
+                },
+            },
+        ),
+    ),
     ("POST", "/api/v1/usage"): (
         Probe(
             "/api/v1/usage",
@@ -475,6 +525,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe(_TR + "/upload/complete", {"size_bytes": 1, "sha256": "0" * 64}),
     ),
     ("POST", "/api/v1/transfers/{transfer_id}/download-url"): (Probe(_TR + "/download-url"),),
+    ("POST", "/api/v1/transfers/{transfer_id}/downloaded"): (Probe(_TR + "/downloaded"),),
     ("GET", "/api/v1/projects/{project_id}/roadmaps"): (Probe("/api/v1/projects/{pid}/roadmaps"),),
     ("POST", "/api/v1/roadmaps"): (
         Probe("/api/v1/roadmaps", {"project_id": "{pid}", "title": "x"}),
@@ -711,6 +762,19 @@ async def _build_world(
             "period_end": "2026-10-11T10:00:05Z",
         },
     )
+    subscription = await _post(
+        client,
+        member,
+        "/api/v1/usage/subscriptions",
+        {
+            "project_id": pid,
+            "label": "Plan",
+            "monthly_price": "10.00",
+            "currency": "USD",
+            "harnesses": ["claude-code"],
+            "starts_on": "2026-10-01",
+        },
+    )
     outsider_agent = await _post(client, outsider, "/api/v1/agents", {"display_name": "o"})
     await _post(
         client,
@@ -777,6 +841,7 @@ async def _build_world(
         "job": job["id"],
         "transfer": transfer["id"],
         "roadmap": rid,
+        "subscription": subscription["id"],
         "outsider_machine": str(outsider_machine.id),
         "outsider_user": str(outsider_machine.owner_user_id),
         "outsider_agent": outsider_agent["id"],

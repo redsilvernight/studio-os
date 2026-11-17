@@ -8,10 +8,10 @@
  */
 import type { VaultNoteStatus, VaultNoteType, VaultScope } from "../vaultApi";
 
-export type AtlasLinkKind = "links_to" | "relates_to" | "derived_from" | "supersedes";
+type AtlasLinkKind = "links_to" | "relates_to" | "derived_from" | "supersedes";
 
 /** Arête « anchor » : note → satellite (tâche ou chemin ancré). */
-export type AtlasEdgeKind = AtlasLinkKind | "anchor";
+type AtlasEdgeKind = AtlasLinkKind | "anchor";
 
 export type AtlasProjection = "2d" | "3d";
 

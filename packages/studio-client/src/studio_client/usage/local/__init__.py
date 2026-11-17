@@ -1,8 +1,8 @@
 """Read-only local usage collection for interactive desktop sessions.
 
 Public surface of the `usage.local` package: the three certified readers, the
-dated EUR price table, and the scanner that turns their output into ledger
-entries per (session, task, model, UTC day) bucket.
+dated price tables (central per project, bundled fallback), and the scanner
+that turns their output into ledger entries per (session, task, model, UTC day) bucket.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from studio_client.usage.local.codex import CodexLocalReader
 from studio_client.usage.local.opencode import OpenCodeLocalReader
 from studio_client.usage.local.pricing import (
     BUNDLED_PRICE_LIST_ID,
+    CentralPriceTables,
     PriceTable,
     load_price_table,
 )
@@ -32,6 +33,7 @@ from studio_client.usage.local.scanner import (
 __all__ = [
     "BUNDLED_PRICE_LIST_ID",
     "BilledTokens",
+    "CentralPriceTables",
     "ClaudeCodeLocalReader",
     "CodexLocalReader",
     "LocalSession",

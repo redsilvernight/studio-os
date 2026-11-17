@@ -103,15 +103,3 @@ def test_the_agent_adapter_reads_only_in_scope(tmp_path: Path) -> None:
     with pytest.raises(KnowledgeError) as error:
         adapter.read("conventions/style.md")
     assert error.value.reason == KnowledgeError.OUT_OF_SCOPE
-
-
-def test_the_agent_adapter_refuses_writes(tmp_path: Path) -> None:
-    config = make_config(tmp_path)
-    service = knowledge_service_from_workspace(
-        config, cache_dir=tmp_path / "cache", obsidian=NO_OBSIDIAN
-    )
-    assert service is not None
-    adapter = service.memory_provider()
-    with pytest.raises(KnowledgeError) as error:
-        adapter.propose({})
-    assert error.value.reason == KnowledgeError.WRITE_UNSUPPORTED

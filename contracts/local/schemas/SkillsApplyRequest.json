@@ -15,7 +15,8 @@
         "choice": {
           "enum": [
             "local",
-            "library"
+            "library",
+            "publish"
           ],
           "title": "Choice",
           "type": "string"

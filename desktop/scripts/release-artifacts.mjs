@@ -35,7 +35,7 @@ export function collectArtifacts(bundleDir) {
     .sort((a, b) => a.file.localeCompare(b.file));
 }
 
-export function gitSource() {
+function gitSource() {
   const commit = capture("git", ["rev-parse", "HEAD"], { cwd: repoRoot });
   const tag = capture("git", ["describe", "--tags", "--exact-match"], { cwd: repoRoot });
   const dirty = capture("git", ["status", "--porcelain"], { cwd: repoRoot });
@@ -46,7 +46,7 @@ export function gitSource() {
   };
 }
 
-export function daemonVersion() {
+function daemonVersion() {
   const source = readFileSync(
     join(repoRoot, "packages", "studio-client", "src", "studio_client", "daemon", "service.py"),
     "utf8",

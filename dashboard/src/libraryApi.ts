@@ -16,6 +16,8 @@ export type LibraryResource = components["schemas"]["LibraryResource"];
 export type LibraryResourceCreate = components["schemas"]["LibraryResourceCreate"];
 export type LibraryVersion = components["schemas"]["LibraryVersion"];
 export type LibraryVersionCreate = components["schemas"]["LibraryVersionCreate"];
+export type LibraryMergePreview = components["schemas"]["LibraryMergePreview"];
+export type LibraryMergeApply = components["schemas"]["LibraryMergeApply"];
 export type DependencyUpdates = components["schemas"]["DependencyUpdates"];
 export type WorkProfilePackPreview = components["schemas"]["WorkProfilePackPreview"];
 export type WorkProfilePackRequest = components["schemas"]["WorkProfilePackRequest"];
@@ -58,6 +60,26 @@ export function getLibraryResource(client: StudioClient, resourceId: string): Pr
 export function listLibraryVersions(client: StudioClient, resourceId: string): Promise<LibraryVersion[]> {
   return unwrap(
     client.GET("/api/v1/library/{resource_id}/versions", { params: { path: { resource_id: resourceId } } }),
+  );
+}
+
+export function getLibraryMergePreview(client: StudioClient, resourceId: string): Promise<LibraryMergePreview> {
+  return unwrap(client.GET("/api/v1/library/{resource_id}/merge-preview", {
+    params: { path: { resource_id: resourceId } },
+  }));
+}
+
+export function applyLibraryMerge(
+  client: StudioClient,
+  resourceId: string,
+  input: LibraryMergeApply,
+  key: string = newIdempotencyKey(),
+): Promise<LibraryResource> {
+  return unwrap(
+    client.POST("/api/v1/library/{resource_id}/merge-apply", {
+      params: { path: { resource_id: resourceId }, header: { "Idempotency-Key": key } },
+      body: input,
+    }),
   );
 }
 

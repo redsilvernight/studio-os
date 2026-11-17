@@ -44,7 +44,7 @@ export interface AgentOption {
 }
 
 /** Session liée à un lancement, réduite à ce que l'UI affiche (état, handoff). */
-export interface LaunchSession {
+interface LaunchSession {
   id: string;
   ended_at?: string | null;
 }
@@ -278,7 +278,7 @@ function harnessOptions(state: LaunchPanelState, machine: MachineEligibility | n
 }
 
 /** Nom lisible d'un modèle d'agent : la clé technique (`review-helper`) devient « Review helper ». */
-export function agentDisplayName(stableKey: string): string {
+function agentDisplayName(stableKey: string): string {
   const spaced = stableKey.replace(/[-_.]+/g, " ").trim();
   return spaced === "" ? stableKey : spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
@@ -301,7 +301,7 @@ export function launchTtlOptions(state: LaunchPanelState): string {
   ).join("");
 }
 
-export const LAUNCH_PROFILES = [
+const LAUNCH_PROFILES = [
   { key: "coding", label: "Développement", permissions: "lecture, écriture, commandes, lancement" },
   { key: "architecture-read-only", label: "Architecture en lecture seule", permissions: "lecture" },
 ] as const;
@@ -606,12 +606,12 @@ const CAPTURE_STATUS_FR: Record<string, string> = {
   failed: "capture échouée",
 };
 
-export function captureStatusLabel(status: string): string {
+function captureStatusLabel(status: string): string {
   return CAPTURE_STATUS_FR[status] ?? status;
 }
 
 /** `ok` décrit la capture, pas le travail rendu : le badge reste neutre. */
-export function captureStatusTone(status: string): DsTone {
+function captureStatusTone(status: string): DsTone {
   if (status === "failed") return "danger";
   if (status === "partial") return "warning";
   return "neutral";

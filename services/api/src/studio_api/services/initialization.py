@@ -33,7 +33,6 @@ from studio_contracts.initialization import (
     InitializationResourceRef,
     InitializationResult,
     InitializationSection,
-    InitializationSummary,
     InitializationTask,
     ProjectInitializationPlan,
     blocking_problems,
@@ -495,11 +494,6 @@ def _planned_create(recon: _Recon, section: InitializationSection, key: str) -> 
         and action.action is InitializationActionKind.CREATE
         for action in recon.actions
     )
-
-
-def summarize(result: InitializationPreview | InitializationResult) -> InitializationSummary:
-    """Single roll-up accessor shared by preview/apply callers (MCP, HTTP)."""
-    return result.summary
 
 
 class StudioServicesInitializationTarget:

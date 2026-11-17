@@ -386,11 +386,41 @@ def get_download_url(
 
 
 async def mark_downloaded(session: AsyncSession, transfer: TransferModel) -> TransferModel:
+    """Stamp the first receipt: `downloaded_at` and `status` are written
+    once and never overwritten, so a replay keeps the original timestamp
+    (DEC-0354 keeps this field; the acknowledgement endpoint is its only
+    caller)."""
+    if transfer.downloaded_at is not None:
+        return transfer
     transfer.downloaded_at = datetime.now(UTC)
     transfer.status = "downloaded"
     await session.commit()
     await session.refresh(transfer)
     return transfer
+
+
+async def acknowledge_download(
+    session: AsyncSession, principal: Principal, transfer: TransferModel
+) -> tuple[TransferModel, bool]:
+    """Receipt of a transfer, wired by the client's download acknowledgement
+    (PC0 `mark_downloaded` wiring): the transfer must be readable by the
+    caller (sender, recipient, broadcast reader, or a privileged role) and
+    the caller must hold a writer role — `readonly` never writes shared
+    state. Idempotent: replaying an already-acknowledged transfer returns it
+    unchanged with its original `downloaded_at` and `True` as the second
+    element. A deleted transfer is refused with `409 transfer_deleted`: an
+    acknowledgement never resurrects it."""
+    ensure_transfer_scope(principal, transfer.project_id)
+    ensure_transfer_access(principal, transfer, "read")
+    ensure_can_write(principal, "transfer")
+    if transfer.status == "deleted":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "transfer_deleted"},
+        )
+    if transfer.downloaded_at is not None:
+        return transfer, True
+    return await mark_downloaded(session, transfer), False
 
 
 async def _abort_dangling_multipart_uploads(storage: StorageProvider, object_key: str) -> None:

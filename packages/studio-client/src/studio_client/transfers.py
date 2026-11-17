@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import NAMESPACE_URL, uuid5
 
 import httpx
 from studio_contracts.transfers import Transfer, TransferStatus
@@ -13,6 +15,9 @@ from studio_client.api_client import StudioApiClient
 from studio_client.errors import StudioApiError, TransferError
 from studio_client.outbox.models import MultipartUploadState
 from studio_client.outbox.store import OutboxStore, transaction
+from studio_client.retry import is_retryable
+
+logger = logging.getLogger(__name__)
 
 _EXPIRY_SAFETY_MARGIN = timedelta(seconds=60)
 
@@ -328,6 +333,39 @@ class TransferClient:
                 f"expected {transfer.size_bytes}"
             )
         self._verify_sha256(transfer, dest_path)
+        await self._acknowledge_download(transfer)
+
+    async def _acknowledge_download(self, transfer: Transfer) -> None:
+        """Tell the API the bytes landed verified (`POST .../downloaded`, so
+        `downloaded_at` is stamped server-side). The file itself is already
+        complete and hash-verified at this point, so a *transient* failure
+        (offline transport, 5xx/429 past the client's own retries) must not
+        fail the download: the ack is queued in `pending_mutations` under a
+        key derived from the transfer id and drained later by
+        `OutboxReplayer`. The endpoint is idempotent server-side and the key
+        is stable, so a repeated download reuses the same row (`INSERT OR
+        IGNORE`) and a replay never stamps a second `downloaded_at`. A
+        definitive business error (403/404/409 `transfer_deleted`) is not a
+        network problem — it propagates to the caller."""
+        try:
+            await self._api.acknowledge_download(transfer.id)
+        except StudioApiError as exc:
+            if not is_retryable(exc):
+                raise
+            key = str(uuid5(NAMESPACE_URL, f"studio:transfer-downloaded:{transfer.id}"))
+            with transaction(self._store.connection):
+                self._store.enqueue_mutation(
+                    key,
+                    "transfer.downloaded",
+                    "POST",
+                    f"/api/v1/transfers/{transfer.id}/downloaded",
+                    {},
+                )
+            logger.warning(
+                "download ack queued offline for transfer %s: %s",
+                transfer.id,
+                exc,
+            )
 
     def _verify_sha256(self, transfer: Transfer, dest_path: Path) -> None:
         """`transfer.sha256` is the sender's own declared hash, never

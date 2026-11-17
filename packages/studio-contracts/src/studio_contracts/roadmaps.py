@@ -27,7 +27,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, Field, ValidationError, model_validator
+from pydantic import AfterValidator, Field, model_validator
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
@@ -127,6 +127,7 @@ class TaskStatusValue(StrEnum):
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
     COMPLETED = "completed"
+    ABANDONED = "abandoned"
 
 
 class RevisionKind(StrEnum):
@@ -433,21 +434,16 @@ def roadmap_document_errors(document: RoadmapDocument) -> list[dict[str, str]]:
     return []
 
 
-def parse_roadmap_document(raw: dict[str, object]) -> tuple[RoadmapDocument | None, list[str]]:
-    """Import helper: `(document, [])` or `(None, [json paths that failed])`."""
-    try:
-        return RoadmapDocument.model_validate(raw), []
-    except ValidationError as error:
-        return None, [".".join(str(part) for part in item["loc"]) for item in error.errors()]
-
-
 # --- derived state and progress (P0.4, DEC-0084 §4) ---------------------------
 def derive_step_state(
     override: StepStateOverride | None, task_statuses: list[TaskStatusValue]
 ) -> StepState:
     """The single derivation of a step's state. Override wins; otherwise from
     linked Task statuses: all `completed` -> done, any `blocked` -> blocked,
-    any `in_progress` -> in_progress, else not_started (also when no Task)."""
+    any `in_progress` -> in_progress, else not_started (also when no Task).
+    `abandoned` Tasks are ignored: they never block nor complete a step, so a
+    step whose Tasks are all abandoned stays not_started (skip it explicitly)."""
+    task_statuses = [s for s in task_statuses if s is not TaskStatusValue.ABANDONED]
     if override is StepStateOverride.SKIPPED:
         return StepState.SKIPPED
     if override is StepStateOverride.DONE:

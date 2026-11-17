@@ -29,6 +29,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from studio_contracts.usage import (
     CacheTokenScope,
+    CostBasis,
     CostMeasurement,
     DurationMeasurement,
     MeasurementCoverage,
@@ -113,7 +114,7 @@ class LocalUsageScanner:
         machine_id: UUID,
         readers: Sequence[LocalUsageReader],
         workspace_roots: Callable[[], Sequence[WorkspaceRoot]],
-        price_table: PriceTable,
+        price_table: Callable[[UUID], PriceTable],
         *,
         lookback: timedelta = DEFAULT_LOOKBACK,
         clock: Callable[[], datetime] | None = None,
@@ -252,17 +253,19 @@ class LocalUsageScanner:
                 cache_read=tokens_cached,
                 cache_write=_as_opt_int(bucket.get("write")),
             )
-            cost_value = self._price_table.estimate(bucket.get("model"), billed)
+            price_table = self._price_table(UUID(bucket["project_id"]))
+            cost_value = price_table.estimate(bucket.get("model"), billed)
             cost = (
                 CostMeasurement(
                     value=cost_value,
                     coverage=MeasurementCoverage.ESTIMATED,
-                    currency="EUR",
+                    currency=price_table.currency,
+                    basis=CostBasis.API_EQUIVALENT,
                 )
                 if cost_value is not None
                 else CostMeasurement()
             )
-            pricing = self._price_table.pricing_ref() if cost_value is not None else None
+            pricing = price_table.pricing_ref() if cost_value is not None else None
             duration = _duration(start, end)
             tokens_in_measure = _token(tokens_in)
             tokens_out_measure = _token(tokens_out)

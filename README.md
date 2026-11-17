@@ -77,6 +77,9 @@ La CLI nécessite ensuite l'identité de la machine et la configuration de son
 serveur pour travailler sur un projet. Le mode Desktop supervise son propre
 daemon ; consulter son guide avant de lancer plusieurs instances.
 
+Pour configurer les agents sur ce dépôt, suivre le [guide de synchronisation
+de la Library et de reprise hors ligne](docs/library/P46-self-hosting.md).
+
 ## Provisioning et accès
 
 Le premier administrateur est créé hors bande via `studio-admin` :

@@ -4,14 +4,12 @@ never the real AI-Memory vault, on the explicit model of
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 import yaml
 from studio_client.knowledge import (
     KnowledgeError,
-    MemoryProposal,
     ScopePolicy,
     VaultMemoryProvider,
 )
@@ -214,23 +212,6 @@ def test_default_scope_denies_everything(tmp_path: Path) -> None:
     with pytest.raises(KnowledgeError) as exc_info:
         _provider(tmp_path, prefixes=()).read("projects/demo/alpha.md")
     assert exc_info.value.reason == KnowledgeError.OUT_OF_SCOPE
-
-
-def test_write_methods_are_declared_but_unsupported(tmp_path: Path) -> None:
-    _seed(tmp_path)
-    provider = _provider(tmp_path)
-    before = (tmp_path / "projects" / "demo" / "alpha.md").read_bytes()
-    calls: tuple[Callable[[], object], ...] = (
-        lambda: provider.propose(MemoryProposal(title="x")),
-        lambda: provider.write_if_authorized(MemoryProposal(title="x")),
-        lambda: provider.append_task_log({"text": "x"}),
-        lambda: provider.create_decision_note({"title": "x"}),
-    )
-    for call in calls:
-        with pytest.raises(KnowledgeError) as exc_info:
-            call()
-        assert exc_info.value.reason == KnowledgeError.WRITE_UNSUPPORTED
-    assert (tmp_path / "projects" / "demo" / "alpha.md").read_bytes() == before
 
 
 def test_broken_symlink_in_scope_does_not_crash_search(tmp_path: Path) -> None:

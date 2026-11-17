@@ -803,7 +803,7 @@ export interface paths {
         put?: never;
         /**
          * Handoff
-         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
+         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. A v1 completion evidence without a decision review closes with a non-blocking `decision_review_missing` warning; v2 requires the review (`409 completion_incomplete` otherwise). Referenced decision ids must exist in the project (`422 decision_reference_invalid`). Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
          */
         post: operations["handoff_api_v1_handoff_post"];
         delete?: never;
@@ -1039,6 +1039,46 @@ export interface paths {
          * @description Add draft version N+1 to a library definition. Never moves `active_version` — activation is a separate explicit call. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_library_version_api_v1_library__resource_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/{resource_id}/merge-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Library Merge Preview
+         * @description Preview a three-way merge for the owner's active text override against its original and current common versions. This endpoint never writes.
+         */
+        get: operations["get_library_merge_preview_api_v1_library__resource_id__merge_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/{resource_id}/merge-apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Library Merge
+         * @description Apply one choice to the owner's active text override whose common base moved: `keep_override` (new version, same text, rebased on the current common), `merge` (new version with the clean three-way merge or the caller-resolved `content`) or `revert_to_common` (deprecates the override). A conflicting merge without resolved `content` answers 409 `merge_conflict` and writes nothing. The previous version stays in history and can be reactivated. Accepts `Idempotency-Key`.
+         */
+        post: operations["apply_library_merge_api_v1_library__resource_id__merge_apply_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1453,6 +1493,98 @@ export interface paths {
         patch: operations["update_ai_work_api_v1_ai_work__work_id__patch"];
         trace?: never;
     };
+    "/api/v1/usage/price-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Price Lists
+         * @description List the global price lists, plus the project's own when project_id is given, newest effective_from first.
+         */
+        get: operations["list_price_lists_api_v1_usage_price_lists_get"];
+        put?: never;
+        /**
+         * Create Price List
+         * @description Publish an immutable, dated price list (per million tokens). A global list (project_id null) is admin-only; a project list needs an admin or a developer with write access. Agents and launch credentials never publish. Supports Idempotency-Key.
+         */
+        post: operations["create_price_list_api_v1_usage_price_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/price-lists/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Effective Price List
+         * @description The price list in force at `at` (default now): the project's own latest list with effective_from <= at, otherwise the global one. Daemons price local usage with it and record its price_list_id in PricingRef.
+         */
+        get: operations["effective_price_list_api_v1_usage_price_lists_effective_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subscriptions
+         * @description List the subscriptions declared for a project, by start date.
+         */
+        get: operations["list_subscriptions_api_v1_usage_subscriptions_get"];
+        put?: never;
+        /**
+         * Create Subscription
+         * @description Declare a flat-rate subscription (monthly price, currency, covered harnesses and/or providers, period). Its price is spread over the covered usage at read time in /usage/summary (subscription_share); nothing is stored per entry. Launch-scoped credentials cannot manage subscriptions. Supports Idempotency-Key.
+         */
+        post: operations["create_subscription_api_v1_usage_subscriptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/subscriptions/{subscription_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Subscription
+         * @description Replace a subscription's terms. A stale expected_version fails with version_conflict and server_version.
+         */
+        put: operations["update_subscription_api_v1_usage_subscriptions__subscription_id__put"];
+        post?: never;
+        /**
+         * Delete Subscription
+         * @description Delete a subscription; summaries stop allocating it. A stale expected_version fails with version_conflict and server_version.
+         */
+        delete: operations["delete_subscription_api_v1_usage_subscriptions__subscription_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage": {
         parameters: {
             query?: never;
@@ -1858,13 +1990,13 @@ export interface paths {
         };
         /**
          * Get Events
-         * @description Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
+         * @description Read recent events, optionally filtered by project and task and `since` timestamp. Without a `project` filter, the listing is restricted to the caller's accessible projects — plus every project-less Studio `library.*` event (contract v2: a single Studio-wide event with `project_id` null, visible to every authenticated principal, never leaking another project's rows). With a `project` filter, only that project's events are returned by default — deployed readers parse `project_id` as a non-null UUID — and the project-less Studio events join in only with `include_global=true` (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
          */
         get: operations["get_events_api_v1_events_get"];
         put?: never;
         /**
          * Post Event
-         * @description Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported — use `user` or `system`.
+         * @description Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). A project is always required here (`project_id` null answers `422 project_required` — project-less `library.*` events are emitted by the server only, contract v2). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported — use `user` or `system`.
          */
         post: operations["post_event_api_v1_events_post"];
         delete?: never;
@@ -1882,7 +2014,7 @@ export interface paths {
         };
         /**
          * Stream Events
-         * @description Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required — there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
+         * @description Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) — there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
          */
         get: operations["stream_events_api_v1_events_stream_get"];
         put?: never;
@@ -2035,6 +2167,26 @@ export interface paths {
          * @description Get a short-lived presigned download URL (minutes, never the file bytes). Only the sender, the recipient, broadcast recipients, or a privileged role may obtain it. Downloads support HTTP `Range`, so a partial download resumes where it stopped.
          */
         post: operations["get_download_url_api_v1_transfers__transfer_id__download_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{transfer_id}/downloaded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Download
+         * @description Record receipt of a transfer after the client downloaded its bytes through the presigned URL (bytes never pass through this API). Any reader of the transfer with a writer role may acknowledge it — sender, recipient, broadcast readers, or a privileged role; a writer-less role gets 403. Unknown ids fail with 404. Idempotent: replaying an acknowledged transfer returns it unchanged with its original downloaded_at. A deleted transfer fails with 409 transfer_deleted instead of being resurrected.
+         */
+        post: operations["acknowledge_download_api_v1_transfers__transfer_id__downloaded_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3338,7 +3490,7 @@ export interface components {
          * @description Deterministic, listed in this declaration order.
          * @enum {string}
          */
-        AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
+        AdmissionExclusionReason: "roadmap_not_active" | "dependency_pending" | "task_data_missing" | "task_completed" | "task_blocked" | "task_abandoned" | "review_pending" | "launch_active" | "task_claimed_elsewhere" | "claims_held_elsewhere" | "no_eligible_machine";
         /**
          * Agent
          * @description Provenance identity owned by a user, or by one machine for legacy rows.
@@ -4119,9 +4271,9 @@ export interface components {
             /**
              * Format
              * @default studio.completion/v1
-             * @constant
+             * @enum {string}
              */
-            format: "studio.completion/v1";
+            format: "studio.completion/v1" | "studio.completion/v2";
             /**
              * Kind
              * @enum {string}
@@ -4170,6 +4322,7 @@ export interface components {
              * @default false
              */
             deployed: boolean;
+            decisions?: components["schemas"]["DecisionReview"] | null;
         };
         /**
          * ConfigurationHistory
@@ -4451,10 +4604,24 @@ export interface components {
             from_session_id?: string | null;
         };
         /**
+         * CostBasis
+         * @description What a cost amount stands for, so an API-equivalent figure is
+         *     never shown as a bill. `measured_billed`: the amount actually invoiced for
+         *     the run (pay-as-you-go API key). `api_equivalent`: what the tokens would
+         *     cost at public API list prices — the runtime's own reported figure or a
+         *     local estimate; not what a subscription user pays.
+         *     `subscription_share`: a declared subscription's monthly price spread over
+         *     the month's entries; computed at read time, never stored on an entry.
+         * @enum {string}
+         */
+        CostBasis: "measured_billed" | "api_equivalent" | "subscription_share";
+        /**
          * CostMeasurement
          * @description Monetary cost. The currency travels with the value: a cost without a
          *     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
-         *     and an unpriced one are not the same fact.
+         *     and an unpriced one are not the same fact. A known cost carries its
+         *     `basis`; a payload without one (older collector) is read as
+         *     `api_equivalent`, the only basis any collector produced before it.
          */
         "CostMeasurement-Input": {
             /** Value */
@@ -4469,12 +4636,15 @@ export interface components {
             unit: "currency";
             /** Currency */
             currency?: string | null;
+            basis?: components["schemas"]["CostBasis"] | null;
         };
         /**
          * CostMeasurement
          * @description Monetary cost. The currency travels with the value: a cost without a
          *     currency is not a cost. Absent cost is `unknown`, never `0` — a free run
-         *     and an unpriced one are not the same fact.
+         *     and an unpriced one are not the same fact. A known cost carries its
+         *     `basis`; a payload without one (older collector) is read as
+         *     `api_equivalent`, the only basis any collector produced before it.
          */
         "CostMeasurement-Output": {
             /** Value */
@@ -4489,6 +4659,7 @@ export interface components {
             unit: "currency";
             /** Currency */
             currency?: string | null;
+            basis?: components["schemas"]["CostBasis"] | null;
         };
         /**
          * Decision
@@ -4546,6 +4717,29 @@ export interface components {
         };
         DecisionItem: {
             [key: string]: unknown;
+        };
+        /**
+         * DecisionReview
+         * @description Structured review of the project decisions at handoff
+         *     (additive): which decisions this work produced (`new`), reused
+         *     (`existing`), or why none was needed (`none`). `decision_ids` names
+         *     internal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves
+         *     each one and rejects unknown, foreign or invisible ids with
+         *     `422 decision_reference_invalid`. A `proposed` decision is a valid
+         *     reference and is never auto-accepted by the handoff. `reason` is
+         *     required (non-empty) when `outcome` is `none` — enforced for v2 by
+         *     `check_completion` (`decision_reason_missing`).
+         */
+        DecisionReview: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "new" | "existing" | "none";
+            /** Decision Ids */
+            decision_ids?: string[];
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * DecisionStatus
@@ -4757,6 +4951,11 @@ export interface components {
          *     across retries — it IS the idempotency key for events: replaying the
          *     same event_id returns the original stored event rather than creating a
          *     duplicate.
+         *
+         *     Contract v2: `project_id` is nullable in the type so server-internal
+         *     issuers (`_emit_library_event` for Studio scope) can share this model,
+         *     but the public creation path (`POST /events`, `studio_emit_event`)
+         *     always requires a project — a `None` there answers `422`.
          */
         EventCreate: {
             /**
@@ -4765,11 +4964,8 @@ export interface components {
              */
             event_id: string;
             event_type: components["schemas"]["EventType"];
-            /**
-             * Project Id
-             * Format: uuid
-             */
-            project_id: string;
+            /** Project Id */
+            project_id: string | null;
             /** Task Id */
             task_id?: string | null;
             /** Machine Id */
@@ -4807,6 +5003,11 @@ export interface components {
          * @description Fixed envelope — only `payload` grows across `schema_version` bumps;
          *     every other field keeps its shape. Unknown event types or extra payload
          *     fields must be tolerated, never rejected.
+         *
+         *     Contract v2 (`EVENT_SCHEMA_VERSION = 2`): `project_id` may be `None`,
+         *     but only for `library.*` events of Studio scope — a single Studio-wide
+         *     event with no project, visible to every authenticated principal.
+         *     All other event types always carry a non-null `project_id`.
          */
         EventEnvelope: {
             /**
@@ -4815,11 +5016,8 @@ export interface components {
              */
             event_id: string;
             event_type: components["schemas"]["EventType"];
-            /**
-             * Project Id
-             * Format: uuid
-             */
-            project_id: string;
+            /** Project Id */
+            project_id: string | null;
             /** Task Id */
             task_id?: string | null;
             /** Machine Id */
@@ -5074,6 +5272,8 @@ export interface components {
          *     `sync` (last bounded `studio_sync` answer, not acknowledged), the task's
          *     `handoff_cursor_seq` that the next session inherits, and the emitted
          *     `coordination_event_id` when a `coordination` signal was requested.
+         *     `warnings` carries non-blocking hints (`decision_review_missing`
+         *     when a v1 evidence closes without a decision review) — never a gate.
          */
         HandoffResult: {
             /**
@@ -5098,6 +5298,8 @@ export interface components {
             handoff_cursor_seq?: number | null;
             /** Coordination Event Id */
             coordination_event_id?: string | null;
+            /** Warnings */
+            warnings?: string[];
         };
         /**
          * HarnessReport
@@ -5562,6 +5764,63 @@ export interface components {
             resource_id: string;
             /** Locked Version */
             locked_version: number;
+        };
+        /**
+         * LibraryMergeApply
+         * @description Applies one choice to an override whose common base moved.
+         *     `base_active_version` is the common version the caller previewed (409
+         *     `base_moved` if it changed); `content` is the caller-resolved text, only
+         *     with `merge`.
+         */
+        LibraryMergeApply: {
+            choice: components["schemas"]["LibraryMergeChoice"];
+            /** Expected Resource Version */
+            expected_resource_version: number;
+            /** Base Active Version */
+            base_active_version: number;
+            /** Content */
+            content?: string | null;
+        };
+        /**
+         * LibraryMergeChoice
+         * @enum {string}
+         */
+        LibraryMergeChoice: "keep_override" | "merge" | "revert_to_common";
+        /** LibraryMergeConflict */
+        LibraryMergeConflict: {
+            /** Base */
+            base: string;
+            /** Ours */
+            ours: string;
+            /** Theirs */
+            theirs: string;
+            /** Start Line */
+            start_line: number;
+            /** Base Start */
+            base_start: number;
+            /** Base End */
+            base_end: number;
+        };
+        /** LibraryMergeInputs */
+        LibraryMergeInputs: {
+            /** Base */
+            base: string;
+            /** Ours */
+            ours: string;
+            /** Theirs */
+            theirs: string;
+        };
+        /** LibraryMergePreview */
+        LibraryMergePreview: {
+            inputs: components["schemas"]["LibraryMergeInputs"];
+            result: components["schemas"]["LibraryMergeResult"];
+        };
+        /** LibraryMergeResult */
+        LibraryMergeResult: {
+            /** Content */
+            content: string;
+            /** Conflicts */
+            conflicts: components["schemas"]["LibraryMergeConflict"][];
         };
         /**
          * LibraryProjectLock
@@ -9238,7 +9497,7 @@ export interface components {
          *     clears the holder without changing the status.
          * @enum {string}
          */
-        TaskStatus: "created" | "in_progress" | "blocked" | "completed";
+        TaskStatus: "created" | "in_progress" | "blocked" | "completed" | "abandoned";
         /** TaskUpdate */
         TaskUpdate: {
             /** Title */
@@ -9594,13 +9853,16 @@ export interface components {
             duration: components["schemas"]["UsageDurationTotal"];
             /** Sources */
             sources?: components["schemas"]["UsageSourceCount"][];
+            subscription_share?: components["schemas"]["UsageSubscriptionShare"] | null;
         };
         /**
          * UsageCostTotal
          * @description Cost summed per currency. `known_sum`/`currency` are set only when every
          *     known cost shares one currency; with several currencies `status` is
          *     `mixed_currency`, `known_sum` is `None` and `by_currency` lists each sum
-         *     apart. An unknown cost is never counted as zero.
+         *     apart. An unknown cost is never counted as zero. `bases` lists the cost
+         *     bases of the known amounts (sorted): a client labels the sum with them and
+         *     never presents an `api_equivalent` total as a bill.
          */
         UsageCostTotal: {
             /**
@@ -9625,6 +9887,8 @@ export interface components {
             currency?: string | null;
             /** By Currency */
             by_currency?: components["schemas"]["UsageCurrencyAmount"][];
+            /** Bases */
+            bases?: components["schemas"]["CostBasis"][];
         };
         /** UsageCurrencyAmount */
         UsageCurrencyAmount: {
@@ -9840,6 +10104,80 @@ export interface components {
             pricing?: components["schemas"]["PricingRef"] | null;
         };
         /**
+         * UsageModelRate
+         * @description Price per million tokens, in the list currency, per billing bucket.
+         */
+        "UsageModelRate-Input": {
+            /** Input */
+            input: number | string;
+            /** Output */
+            output: number | string;
+            /** Cache Read */
+            cache_read: number | string;
+            /** Cache Write */
+            cache_write: number | string;
+        };
+        /**
+         * UsageModelRate
+         * @description Price per million tokens, in the list currency, per billing bucket.
+         */
+        "UsageModelRate-Output": {
+            /** Input */
+            input: string;
+            /** Output */
+            output: string;
+            /** Cache Read */
+            cache_read: string;
+            /** Cache Write */
+            cache_write: string;
+        };
+        /** UsagePriceList */
+        UsagePriceList: {
+            /** Price List Id */
+            price_list_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Models */
+            models: {
+                [key: string]: components["schemas"]["UsageModelRate-Output"];
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** UsagePriceListCreate */
+        UsagePriceListCreate: {
+            /** Price List Id */
+            price_list_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Models */
+            models: {
+                [key: string]: components["schemas"]["UsageModelRate-Input"];
+            };
+        };
+        /**
          * UsageProvenance
          * @description Who produced the measure. `collector`/`collector_version` name the tool
          *     that emitted the entry, `harness`/`harness_version` the agent runtime it ran:
@@ -9870,6 +10208,147 @@ export interface components {
             collector: string;
             /** Entries */
             entries: number;
+        };
+        /** UsageSubscription */
+        UsageSubscription: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** Label */
+            label: string;
+            /** Monthly Price */
+            monthly_price: string;
+            /** Currency */
+            currency: string;
+            /** Harnesses */
+            harnesses?: string[];
+            /** Providers */
+            providers?: string[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
+        /** UsageSubscriptionCreate */
+        UsageSubscriptionCreate: {
+            /** Label */
+            label: string;
+            /** Monthly Price */
+            monthly_price: number | string;
+            /** Currency */
+            currency: string;
+            /** Harnesses */
+            harnesses?: string[];
+            /** Providers */
+            providers?: string[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
+        /**
+         * UsageSubscriptionShare
+         * @description Part of the declared subscriptions attributed to an aggregate,
+         *     computed at read time and never stored. For each subscription and each UTC
+         *     month it is active, the monthly price is spread over the covered entries of
+         *     that month — every machine, every task — pro rata of their API-equivalent
+         *     cost; an aggregate gets the shares of its own entries. `estimated_entries`
+         *     counts covered entries that received a share, `unknown_entries` covered
+         *     entries that could not (no cost, or a month whose covered costs are in
+         *     several currencies or sum to zero), once per covering subscription.
+         *     Limits: a lightly used subscription yields a high cost per task;
+         *     `provisional` is true when a share comes from the current, unfinished
+         *     month, whose split still moves.
+         */
+        UsageSubscriptionShare: {
+            /**
+             * Measured Entries
+             * @default 0
+             */
+            measured_entries: number;
+            /**
+             * Estimated Entries
+             * @default 0
+             */
+            estimated_entries: number;
+            /**
+             * Unknown Entries
+             * @default 0
+             */
+            unknown_entries: number;
+            /**
+             * Basis
+             * @default subscription_share
+             * @constant
+             */
+            basis: "subscription_share";
+            status: components["schemas"]["UsageTotalStatus"];
+            /** Known Sum */
+            known_sum?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** By Currency */
+            by_currency?: components["schemas"]["UsageCurrencyAmount"][];
+            /**
+             * Provisional
+             * @default false
+             */
+            provisional: boolean;
+        };
+        /**
+         * UsageSubscriptionUpdate
+         * @description Whole replacement of a subscription's terms, refused on a stale version.
+         */
+        UsageSubscriptionUpdate: {
+            /** Label */
+            label: string;
+            /** Monthly Price */
+            monthly_price: number | string;
+            /** Currency */
+            currency: string;
+            /** Harnesses */
+            harnesses?: string[];
+            /** Providers */
+            providers?: string[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Expected Version */
+            expected_version: number;
         };
         /**
          * UsageSummary
@@ -15133,6 +15612,144 @@ export interface operations {
             };
         };
     };
+    get_library_merge_preview_api_v1_library__resource_id__merge_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryMergePreview"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid resource ID or merge_preview_too_many_lines. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    apply_library_merge_api_v1_library__resource_id__merge_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                resource_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryMergeApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryResource"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid body, unresolved_merge_conflict, invalid_content or merge_preview_too_many_lines. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     dependency_updates_api_v1_library__resource_id__versions__version__dependency_updates_get: {
         parameters: {
             query?: {
@@ -17125,6 +17742,602 @@ export interface operations {
             };
         };
     };
+    list_price_lists_api_v1_usage_price_lists_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsagePriceList"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_price_list_api_v1_usage_price_lists_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsagePriceListCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsagePriceList"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "price_list_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description price_list_id already exists (price_list_conflict). Lists are immutable: publish a correction under a new id. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "price_list_conflict"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    effective_price_list_api_v1_usage_price_lists_effective_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                at?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsagePriceList"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No price list in force (price_list_not_found): the daemon keeps its cached or bundled grid. A project-scoped publish on an unknown project also answers 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "price_list_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_subscriptions_api_v1_usage_subscriptions_get: {
+        parameters: {
+            query: {
+                project_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSubscription"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_subscription_api_v1_usage_subscriptions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsageSubscriptionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSubscription"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_subscription_api_v1_usage_subscriptions__subscription_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsageSubscriptionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSubscription"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_subscription_api_v1_usage_subscriptions__subscription_id__delete: {
+        parameters: {
+            query: {
+                expected_version: number;
+            };
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_usage_api_v1_usage_get: {
         parameters: {
             query?: {
@@ -18933,6 +20146,8 @@ export interface operations {
                 task?: string | null;
                 since?: string | null;
                 limit?: number;
+                /** @description With a `project` filter, also return the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID. */
+                include_global?: boolean;
             };
             header?: never;
             path?: never;
@@ -19076,9 +20291,11 @@ export interface operations {
     };
     stream_events_api_v1_events_stream_get: {
         parameters: {
-            query: {
-                /** @description Project to subscribe to (UUID). No global stream exists. */
-                project: string;
+            query?: {
+                /** @description Project to subscribe to (UUID). Without it, the stream carries only the project-less Studio `library.*` events; with it, that project's events (plus the project-less Studio events only with `include_global=true`). */
+                project?: string | null;
+                /** @description With a `project` subscription, also deliver the project-less Studio `library.*` events (contract v2). Off by default so deployed readers keep parsing `project_id` as a non-null UUID. */
+                include_global?: boolean;
                 /** @description Explicit resume cursor: last `seq` already seen. Ignored when `Last-Event-ID` is present. */
                 since_seq?: number | null;
             };
@@ -19894,6 +21111,99 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_download_api_v1_transfers__transfer_id__downloaded_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transfer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transfer"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description The transfer is deleted (`transfer_deleted`): a download acknowledgement never resurrects a deleted transfer. Re-read the transfer if another client may have removed it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "transfer_deleted"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import uuid
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from botocore.exceptions import ClientError
+from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.transfer import TransferModel
 from studio_api.storage.provider import StorageProvider
 from studio_mcp.tools.transfers import (
+    studio_acknowledge_transfer_download,
     studio_create_transfer_metadata,
     studio_delete_transfer,
     studio_get_transfer,
@@ -198,3 +203,33 @@ async def test_delete_transfer_reports_storage_failure(
 
 async def test_delete_transfer_validates_id(auth_ctx: FakeContext) -> None:
     assert (await studio_delete_transfer("invalid", auth_ctx))["error_code"] == "invalid_argument"
+
+
+async def test_acknowledge_transfer_download_is_idempotent(
+    auth_ctx: FakeContext,
+    other_auth_ctx: FakeContext,
+    admin_machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    created = await studio_create_transfer_metadata(
+        "report.bin",
+        "application/octet-stream",
+        1024,
+        "temporary",
+        auth_ctx,
+        content_md5=_DUMMY_CONTENT_MD5,
+    )
+    first = await studio_acknowledge_transfer_download(created["id"], auth_ctx)
+    assert first["status"] == "downloaded"
+    assert first["downloaded_at"] is not None
+    assert first["already_acknowledged"] is False
+    replay = await studio_acknowledge_transfer_download(created["id"], auth_ctx)
+    assert replay["already_acknowledged"] is True
+    assert replay["downloaded_at"] == first["downloaded_at"]
+
+    transfer = await db_session.get(TransferModel, uuid.UUID(created["id"]))
+    assert transfer is not None
+    transfer.recipient_user_id = admin_machine[0].owner_user_id
+    await db_session.commit()
+    refused = await studio_acknowledge_transfer_download(created["id"], other_auth_ctx)
+    assert refused["error_code"] == "forbidden"

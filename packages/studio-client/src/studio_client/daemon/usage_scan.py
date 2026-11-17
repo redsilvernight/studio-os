@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from studio_client.usage.local.scanner import LocalUsageScanner
 
@@ -26,11 +26,13 @@ class UsageScanLoop:
         stop_event: asyncio.Event,
         stopped: Callable[[], bool] | None = None,
         initial_delay_seconds: float | None = None,
+        before_scan: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self._scanner = scanner
         self._interval = max(1.0, interval_seconds)
         self._stop_event = stop_event
         self._stopped = stopped or (lambda: False)
+        self._before_scan = before_scan
         self._initial_delay = (
             min(self._interval, 15.0)
             if initial_delay_seconds is None
@@ -45,6 +47,13 @@ class UsageScanLoop:
                 return
             except TimeoutError:
                 pass
+            if self._before_scan is not None:
+                try:
+                    await self._before_scan()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001
+                    logger.warning("usage pre-scan hook failed", exc_info=True)
             try:
                 report = await self._scanner.scan()
             except asyncio.CancelledError:

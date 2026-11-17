@@ -219,6 +219,52 @@ class LibraryVersion(ContractModel):
     created_at: datetime
 
 
+class LibraryMergeInputs(ContractModel):
+    base: str
+    ours: str
+    theirs: str
+
+
+class LibraryMergeConflict(LibraryMergeInputs):
+    start_line: int
+    base_start: int
+    base_end: int
+
+
+class LibraryMergeResult(ContractModel):
+    content: str
+    conflicts: list[LibraryMergeConflict]
+
+
+class LibraryMergePreview(ContractModel):
+    inputs: LibraryMergeInputs
+    result: LibraryMergeResult
+
+
+class LibraryMergeChoice(StrEnum):
+    KEEP_OVERRIDE = "keep_override"
+    MERGE = "merge"
+    REVERT_TO_COMMON = "revert_to_common"
+
+
+class LibraryMergeApply(ContractModel):
+    """Applies one choice to an override whose common base moved.
+    `base_active_version` is the common version the caller previewed (409
+    `base_moved` if it changed); `content` is the caller-resolved text, only
+    with `merge`."""
+
+    choice: LibraryMergeChoice
+    expected_resource_version: int
+    base_active_version: int = Field(ge=1)
+    content: str | None = None
+
+    @model_validator(mode="after")
+    def _content_only_for_merge(self) -> LibraryMergeApply:
+        if self.content is not None and self.choice != LibraryMergeChoice.MERGE:
+            raise ValueError("content is only accepted with choice=merge")
+        return self
+
+
 LIBRARY_VERSION_BATCH_MAX = 500
 
 

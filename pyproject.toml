@@ -17,7 +17,6 @@ studio-workspaces = { workspace = true }
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["docs/audits"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -27,13 +26,49 @@ select = ["E", "F", "I", "UP", "B"]
 # idiom, not the mutable-default footgun B008 flags.
 extend-immutable-calls = ["fastapi.Query", "fastapi.Header", "fastapi.Depends", "fastapi.Body"]
 
+[tool.vulture]
+# Contrôle de code mort (PC5) : `uv run python -m scripts.deadcode_check`, procédure dans
+# docs/library/roadmap-pc/PC5-guard.md. Exceptions non structurelles : scripts/deadcode_whitelist.py.
+paths = [
+    "services/api/src",
+    "services/mcp/src",
+    "packages/studio-client/src",
+    "packages/studio-code-graph/src",
+    "packages/studio-contracts/src",
+    "packages/studio-workspaces/src",
+    "scripts/deadcode_whitelist.py",
+]
+min_confidence = 60
+# Appelés par FastAPI (routes) ou par Pydantic (validateurs, sérialiseurs), jamais par nom.
+ignore_decorators = [
+    "@router.*",
+    "@*_router.*",
+    "@field_validator",
+    "@model_validator",
+    "@model_serializer",
+]
+# Noms imposés par un protocole : BaseHTTPMiddleware.dispatch, Pydantic (model_config,
+# settings_customise_sources), sqlite3 (row_factory), PEP 562 (__getattr__/__dir__ de module),
+# arguments de __exit__/__aexit__.
+ignore_names = [
+    "dispatch",
+    "model_config",
+    "settings_customise_sources",
+    "row_factory",
+    "__getattr__",
+    "__dir__",
+    "exc_type",
+    "exc_value",
+    "traceback",
+]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
 warn_unused_ignores = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "services/api/tests"]
+testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
@@ -50,4 +85,6 @@ dev = [
     "mypy>=2.3.1",
     "ruff>=0.16.7",
     "types-pyyaml>=6.0",
+    # Épinglé : une nouvelle version peut changer les signalements (PC5-guard.md).
+    "vulture==2.16",
 ]

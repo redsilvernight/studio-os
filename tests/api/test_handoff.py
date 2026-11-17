@@ -14,6 +14,7 @@ from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services import provisioning as provisioning_service
 
 
 async def _task(
@@ -57,6 +58,36 @@ async def _resource_claim(
     )
     assert created.status_code == 201
     return created.json()["id"]  # type: ignore[no-any-return]
+
+
+async def _taskless_claim(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel, path: str
+) -> str:
+    """A claim posed with no task_id — the shape an agent uses when it does not
+    wire the task explicitly (task 2817382b)."""
+    created = await client.post(
+        "/api/v1/claims",
+        headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "project_id": str(project.id),
+            "resource_path": path,
+            "resource_type": "file",
+            "ttl_seconds": 600,
+        },
+    )
+    assert created.status_code == 201, created.text
+    return created.json()["id"]  # type: ignore[no-any-return]
+
+
+async def _second_machine(
+    db_session: AsyncSession, machine: tuple[MachineModel, str]
+) -> tuple[MachineModel, str]:
+    """Another machine of the same user: same project access, distinct machine
+    identity — its claims must never be released by this machine's handoff."""
+    model, _ = machine
+    return await provisioning_service.create_machine(
+        db_session, model.owner_user_id, "second-machine"
+    )
 
 
 async def _session(
@@ -503,3 +534,98 @@ async def test_session_delete_nulls_linked_ai_work_session_id(
     work = await db_session.get(AIWorkLogModel, uuid.UUID(work_id))
     assert work is not None
     assert work.session_id is None
+
+
+async def test_handoff_releases_claim_made_without_task_id_in_session(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+) -> None:
+    """Task 2817382b: a claim posed without `task_id` while the machine's
+    session is open is attached to that session's task, so the closing handoff
+    releases it (`released_claims`) instead of leaving it until its TTL."""
+    task = await _task(client, auth_headers, project)
+    await _claim_task(client, auth_headers, str(task["id"]))
+    session_id = await _session(client, auth_headers, machine, agent, str(task["id"]))
+    claim_id = await _taskless_claim(client, auth_headers, project, "scenes/level_02.tscn")
+    version = await _task_version(client, auth_headers, str(task["id"]))
+
+    handoff = await client.post(
+        "/api/v1/handoff",
+        headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "project_id": str(project.id),
+            "session_id": session_id,
+            "expected_version": version,
+            "task_status": {"status": "completed"},
+            "agent_id": str(agent.id),
+            "summary": "Close the session claim",
+        },
+    )
+    assert handoff.status_code == 200, handoff.text
+    assert handoff.json()["released_claims"] == [claim_id]
+
+    claims = await client.get(
+        "/api/v1/claims", headers=auth_headers, params={"project_id": str(project.id)}
+    )
+    released = next(c for c in claims.json() if c["id"] == claim_id)
+    assert released["status"] == "released"
+    assert released["task_id"] == str(task["id"])
+
+    released_events = [
+        e
+        for e in await _events(client, auth_headers, project)
+        if e["event_type"] == "resource.released"
+    ]
+    assert {e["payload"]["claim_id"] for e in released_events} >= {claim_id}
+
+
+async def test_handoff_keeps_another_machines_session_claim_active(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    """The same shape from another machine stays out of reach: a task-less
+    claim it posed inside its own session is not released by this machine's
+    handoff (nor is its session's claim even seen as this machine's)."""
+    second = await _second_machine(db_session, machine)
+    second_headers = {"Authorization": f"Bearer {second[1]}"}
+    task = await _task(client, auth_headers, project)
+    await _claim_task(client, auth_headers, str(task["id"]))
+    session_id = await _session(client, auth_headers, machine, agent, str(task["id"]))
+    mine_id = await _taskless_claim(client, auth_headers, project, "scenes/level_02.tscn")
+    theirs_session = await client.post(
+        "/api/v1/sessions",
+        headers={**second_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={"task_id": str(task["id"]), "machine_id": str(second[0].id)},
+    )
+    assert theirs_session.status_code == 201, theirs_session.text
+    theirs_id = await _taskless_claim(client, second_headers, project, "scenes/level_03.tscn")
+    version = await _task_version(client, auth_headers, str(task["id"]))
+
+    handoff = await client.post(
+        "/api/v1/handoff",
+        headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "project_id": str(project.id),
+            "session_id": session_id,
+            "expected_version": version,
+            "task_status": {"status": "completed"},
+            "agent_id": str(agent.id),
+            "summary": "Close only my claims",
+        },
+    )
+    assert handoff.status_code == 200, handoff.text
+    assert handoff.json()["released_claims"] == [mine_id]
+
+    claims = await client.get(
+        "/api/v1/claims", headers=auth_headers, params={"project_id": str(project.id)}
+    )
+    by_id = {c["id"]: c for c in claims.json()}
+    assert by_id[theirs_id]["status"] == "active"
+    assert by_id[theirs_id]["claimed_by_machine_id"] == str(second[0].id)

@@ -15,7 +15,7 @@ import { esc } from "../ui";
 import { isDashboardIdentity } from "../machinesApi";
 
 export type RuntimeRegistrationCreate = components["schemas"]["RuntimeRegistrationCreate"];
-export type RuntimeRegistrationUpdate = components["schemas"]["RuntimeRegistrationUpdate"];
+type RuntimeRegistrationUpdate = components["schemas"]["RuntimeRegistrationUpdate"];
 export type RuntimeRegistrationUpdateRequest = components["schemas"]["RuntimeRegistrationUpdateRequest"];
 export type RuntimeBindingCreate = components["schemas"]["RuntimeBindingCreate"];
 export type RuntimeTarget = components["schemas"]["RuntimeTarget"];
@@ -23,7 +23,7 @@ export type RuntimeTarget = components["schemas"]["RuntimeTarget"];
 /** Builder result; `field` names the input to mark invalid and focus. */
 export type ConfigBuildResult<T> = { ok: true; value: T } | { ok: false; error: string; field?: string };
 
-export const HARNESS_SUGGESTIONS: readonly string[] = ["claude-code", "opencode", "codex"];
+const HARNESS_SUGGESTIONS: readonly string[] = ["claude-code", "opencode", "codex"];
 
 export const ANCHOR_REQUIRED_ERROR = "au moins un ancrage est requis : poste, outil (harness), fournisseur ou modèle";
 

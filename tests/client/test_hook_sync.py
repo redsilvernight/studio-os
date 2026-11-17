@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -389,3 +389,35 @@ def test_cli_check_reports_exact_pending_consent_count(
     with pytest.raises(SystemExit, match="1"):
         cli.main(["hooks-library", "check", "--home", str(tmp_path)])
     assert "1 pending consent" in capsys.readouterr().out
+
+
+def test_project_mode_writes_machine_neutral_settings_and_ignored_consent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    provider = _Provider()
+    provider.publish("guard", 1, _content())
+    provider.publish("home-only", 1, _content("echo home\n"))
+    projections = tuple(
+        replace(p, scope="project") if p.stable_key == "guard" else p
+        for p in provider.projections()
+    )
+    monkeypatch.setattr(cli, "_load_config", lambda: object())
+    monkeypatch.setattr(cli, "_run", lambda _config, _action: projections)
+    project_id = str(uuid4())
+    argv = ["hooks-library", "sync", "--project-id", project_id, "--project-dir", str(tmp_path)]
+
+    cli.main([*argv, "--consent", "guard", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert [row["stable_key"] for row in payload["hooks"]] == ["guard"]
+    assert "opencode:project_not_supported" in payload["hooks"][0]["reports"]
+    command = _settings(tmp_path)["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    assert command == 'bash "$CLAUDE_PROJECT_DIR/.claude/studio-hooks/guard.sh"'
+    assert str(tmp_path) not in (tmp_path / ".claude" / "settings.json").read_text("utf-8")
+    assert _script(tmp_path).read_text(encoding="utf-8") == "echo guard\n"
+    assert (tmp_path / ".studio-os" / "hook-consent.json").is_file()
+    assert not (tmp_path / ".studio").exists()
+    assert not (tmp_path / ".config").exists()
+
+    cli.main(["hooks-library", "check", "--project-id", project_id, "--project-dir", str(tmp_path)])
+    assert "failures 0" in capsys.readouterr().out

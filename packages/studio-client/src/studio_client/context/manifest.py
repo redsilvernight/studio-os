@@ -96,7 +96,3 @@ class ContextPackageManifest:
 
     def to_json(self, indent: int | None = None) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
-
-    def package_size_bytes(self) -> int:
-        """Rough serialized size of the manifest itself."""
-        return len(self.to_json().encode("utf-8"))

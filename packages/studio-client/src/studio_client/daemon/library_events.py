@@ -15,6 +15,9 @@ from studio_client.watchers.base import PollingWatcher, SleepFn
 DEFAULT_LIBRARY_EVENT_POLL_SECONDS = 30.0
 CURSOR_FILE_NAME = "library-events-cursor.json"
 EVENTS_PAGE_LIMIT = 500
+GLOBAL_CURSOR_KEY = "studio"
+"""Reserved cursor key of the project-less Studio flux. It can never collide
+with a per-project cursor: those are keyed by `str(UUID)`."""
 LIBRARY_TRIGGER_TYPES = frozenset(
     {EventType.LIBRARY_VERSION_ACTIVATED, EventType.LIBRARY_RESOURCE_DEPRECATED}
 )
@@ -23,11 +26,20 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class LibraryEventWatcher(PollingWatcher):
-    """Polls `GET /events` for each followed project and calls `on_library_change`
-    once per poll when a library activation or deprecation was published.
+    """Polls `GET /events` for each followed project, plus the project-less
+    Studio flux (`GET /events` without `project_id`, contract v2), and calls
+    `on_library_change` once per poll when a library activation or
+    deprecation was published.
 
-    The per-project cursor (last `server_timestamp` plus the event ids already
-    seen at that instant, since `since` is inclusive) only advances after the
+    The Studio scope no longer depends on the workspace projects: a daemon
+    with no followed project still sees a Studio activation through the
+    global flux, under its own persistent cursor (`GLOBAL_CURSOR_KEY`,
+    which can never collide with a `str(UUID)` project key). The
+    project-less listing also carries other projects' rows, so only
+    `project_id is None` events feed the trigger.
+
+    Each cursor (last `server_timestamp` plus the event ids already seen at
+    that instant, since `since` is inclusive) only advances after the
     callback succeeded, so a network cut replays the same events on the next
     poll instead of losing them."""
 
@@ -69,6 +81,21 @@ class LibraryEventWatcher(PollingWatcher):
                 event.event_type in LIBRARY_TRIGGER_TYPES for event in fresh
             )
             updated[key] = _advance(cursor, events)
+        cursor = updated.get(GLOBAL_CURSOR_KEY)
+        if cursor is None:
+            latest = await self._client.list_events(limit=1)
+            updated[GLOBAL_CURSOR_KEY] = _advance(None, latest)
+        else:
+            since, seen = cursor
+            events = await self._client.list_events(since=since, limit=EVENTS_PAGE_LIMIT)
+            fresh = [
+                event for event in events if event.event_id not in seen and event.project_id is None
+            ]
+            if fresh:
+                triggered = triggered or any(
+                    event.event_type in LIBRARY_TRIGGER_TYPES for event in fresh
+                )
+                updated[GLOBAL_CURSOR_KEY] = _advance(cursor, events)
         if triggered:
             await asyncio.to_thread(self._on_library_change)
         if updated != cursors:

@@ -877,6 +877,20 @@ class BridgeService:
                 LocalErrorCode.CAPABILITY_MISSING,
                 "Rule and agent resolutions require the skills.definitions capability.",
             )
+        if (
+            request.command is BridgeCommand.SKILLS_APPLY
+            and any(
+                isinstance(resolution, dict) and resolution.get("choice") == "publish"
+                for resolution in request.payload.get("resolutions") or []
+            )
+            and "skills.publish" not in self._granted_capabilities
+        ):
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.CAPABILITY_MISSING,
+                "The publish choice requires the skills.publish capability.",
+            )
         if request.command in _LOCAL_FEATURE_COMMANDS and self.controller.local_features is None:
             return self._error(
                 request,
@@ -981,6 +995,7 @@ class BridgeService:
                             "skills.apply",
                             "skills.resolve",
                             "skills.definitions",
+                            "skills.publish",
                             "setup.plan",
                             "setup.apply",
                             "launch.settings",

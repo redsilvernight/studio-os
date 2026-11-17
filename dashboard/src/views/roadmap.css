@@ -399,6 +399,10 @@
   display: none;
 }
 
+.roadmap-export-error:empty {
+  display: none;
+}
+
 .roadmap-editor-overlay {
   z-index: 1000;
 }
@@ -480,9 +484,27 @@
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html,
+  body,
+  #app {
+    height: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: #fff;
+  }
+  .app-shell {
+    display: block !important;
+  }
   .app-sidebar,
   .app-topbar,
   .workspace-head,
+  .workspace-nav,
   .workspace > .ds-tabs,
   .roadmap-no-print,
   .roadmap-fixture-note,
@@ -509,6 +531,7 @@
   }
   .roadmap-print-document {
     display: block !important;
+    max-width: none !important;
     color: #172434;
     font-size: 10pt;
     line-height: 1.45;

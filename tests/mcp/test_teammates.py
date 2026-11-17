@@ -1,20 +1,25 @@
 from __future__ import annotations
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
-from studio_mcp.tools.claims import studio_claim_resource
-from studio_mcp.tools.tasks import studio_claim_task, studio_create_task
+from studio_mcp.tools.claims import studio_claim_resources
+from studio_mcp.tools.start_work import studio_start_work
+from studio_mcp.tools.tasks import studio_create_task
 from studio_mcp.tools.teammates import studio_get_teammate_activity
 
 from tests.mcp.conftest import FakeContext
 
 
 async def test_teammate_activity_lists_machine_with_claimed_task(
-    auth_ctx: FakeContext, project: ProjectModel, machine: tuple[MachineModel, str]
+    auth_ctx: FakeContext,
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
 ) -> None:
     machine_model, _ = machine
     task = await studio_create_task(str(project.id), "Claimed task", auth_ctx)
-    await studio_claim_task(task["id"], auth_ctx)
+    await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
 
     result = await studio_get_teammate_activity(str(project.id), auth_ctx)
     teammate = next(t for t in result["teammates"] if t["machine_id"] == str(machine_model.id))
@@ -25,7 +30,7 @@ async def test_teammate_activity_lists_machine_with_active_claim(
     auth_ctx: FakeContext, project: ProjectModel, machine: tuple[MachineModel, str]
 ) -> None:
     machine_model, _ = machine
-    await studio_claim_resource(str(project.id), "docs/plan.md", "file", 600, auth_ctx)
+    await studio_claim_resources(str(project.id), ["docs/plan.md"], "file", 600, auth_ctx)
 
     result = await studio_get_teammate_activity(str(project.id), auth_ctx)
     teammate = next(t for t in result["teammates"] if t["machine_id"] == str(machine_model.id))

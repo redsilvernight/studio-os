@@ -257,7 +257,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
     await expect(board).toBeVisible();
-    await expect(board.locator(".task-col")).toHaveCount(4);
+    await expect(board.locator(".task-col")).toHaveCount(5);
     await expect(board.locator(".task-move select").first()).toBeVisible();
     await expectNoOverflow(page, "board 1440");
     await page.setViewportSize({ width: 375, height: 812 });

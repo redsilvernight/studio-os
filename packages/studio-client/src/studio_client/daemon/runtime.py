@@ -87,6 +87,7 @@ from studio_client.retry import RetryPolicy
 from studio_client.tokens import KeyringTokenStore, TokenStore
 from studio_client.usage import UsageWriteQueue
 from studio_client.usage.local import (
+    CentralPriceTables,
     ClaudeCodeLocalReader,
     CodexLocalReader,
     LocalUsageScanner,
@@ -471,7 +472,9 @@ class DaemonRuntime:
             for path in watch.plan.repo_paths
         )
 
-    def _build_usage_scan(self, store: OutboxStore) -> UsageScanLoop | None:
+    def _build_usage_scan(
+        self, store: OutboxStore, client: StudioApiClient
+    ) -> UsageScanLoop | None:
         """Background scanner of the desktop harness stores; disabled, it
         returns None and the daemon runs exactly as before."""
         if not self.config.usage_scan_enabled or self.config.usage_scan_lookback_days <= 0:
@@ -479,12 +482,17 @@ class DaemonRuntime:
         stop_event = self._stop_event
         if stop_event is None:
             return None
+        prices = CentralPriceTables(
+            lambda project_id: client.get_effective_price_list(project_id),
+            self.data_root / "pricing-cache",
+            load_price_table(self.data_root / "pricing.json"),
+        )
         scanner = LocalUsageScanner(
             store=store,
             machine_id=self.binding.machine_id,
             readers=(ClaudeCodeLocalReader(), CodexLocalReader(), OpenCodeLocalReader()),
             workspace_roots=self._usage_roots,
-            price_table=load_price_table(self.data_root / "pricing.json"),
+            price_table=prices.table_for,
             lookback=timedelta(days=self.config.usage_scan_lookback_days),
         )
         return UsageScanLoop(
@@ -492,6 +500,7 @@ class DaemonRuntime:
             self.config.usage_scan_interval_seconds,
             stop_event=stop_event,
             stopped=lambda: self._stop_requested,
+            before_scan=lambda: prices.refresh(root.project_id for root in self._usage_roots()),
         )
 
     async def _workspace_sync_loop(self) -> None:
@@ -582,7 +591,7 @@ class DaemonRuntime:
                     interval_seconds=self.config.git_watch_interval_seconds,
                     change_listener=self._git_change_listener,
                 )
-                usage_loop = self._build_usage_scan(store)
+                usage_loop = self._build_usage_scan(store, client)
                 if not self._stop_requested:
                     await self.refresh_workspace_watchers()
                 if self._stop_requested:
