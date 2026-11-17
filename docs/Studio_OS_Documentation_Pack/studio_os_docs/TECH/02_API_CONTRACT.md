@@ -1452,6 +1452,13 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   Slug deja pris par un autre projet (meme invisible de l'appelant) ->
   `409 {"detail": {"error_code": "conflict", "message", "slug"}}` via le point
   commun `create_project` (oracle accepte, slugs non secrets, DEC-0105).
+- `project.repository` (additif, optionnel, 512 car. max) : remote enregistre avec le projet
+  cree, comme `POST /projects` (`ensure_remote_available` avant ecriture puis `link_repository`).
+  `preview` et `apply` creant le projet : `422 invalid_repository_url` ou
+  `409 {"detail": {"error_code": "repository_already_linked"}}`, aucun projet cree. Projet
+  reutilise (slug existant) : champ ignore, aucun depot lie. Le manifeste
+  `studio.bootstrap/v1` reutilise le modele : la cle `project.repository` n'y figure que si
+  renseignee (remote `origin` lu par `studio-client bootstrap init`), `format` inchange.
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.

@@ -23798,6 +23798,18 @@
        }
       ],
       "title": "Description"
+     },
+     "repository": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 512
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repository"
      }
     },
     "additionalProperties": false,

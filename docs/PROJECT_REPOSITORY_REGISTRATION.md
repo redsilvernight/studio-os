@@ -19,8 +19,15 @@ l'enregistre avec le projet dans le meme appel ; la reponse (`201`) est un
 
 Le dashboard expose ce champ dans la modale « Nouveau projet » (« Adresse du
 depot (facultative) »). Un plan d'initialisation (`studio.initialization/v1`)
-ne porte pas ce champ (contrat fige) : un projet cree par `apply` est lie
-juste apres par la route du §2, avec les memes codes d'erreur.
+porte le meme champ optionnel `project.repository` (512 caracteres max, ajout
+non cassant) : `preview` et `apply` creant le projet verifient le remote avant
+toute ecriture (`422 invalid_repository_url`, `409 repository_already_linked`,
+aucun projet cree), puis `apply` le lie. Projet deja existant (slug reutilise) :
+le champ est ignore, aucun depot n'est lie ni deplace (route du §2 pour l'ajouter).
+`studio-client bootstrap init` renseigne `project.repository` du manifeste
+`.studio/bootstrap.json` (`studio.bootstrap/v1`, inchange) avec le remote `origin`
+du depot, identifiants retires ; sans remote la cle est omise et le depot reste
+ajoutable plus tard.
 
 ## 2. Apres coup : ajouter un depot a un projet existant
 

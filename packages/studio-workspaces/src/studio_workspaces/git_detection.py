@@ -158,6 +158,18 @@ def detect_git(
     )
 
 
+def origin_remote(
+    path: str, *, runner: Runner = _default_runner, timeout: float = 10.0
+) -> str | None:
+    exe = _find_git()
+    if exe is None or not os.path.isdir(path):
+        return None
+    try:
+        return _git_text(runner([exe, "-C", path, "remote", "get-url", "origin"], timeout))
+    except (OSError, TimeoutError):
+        return None
+
+
 def main_repo_root(info: GitRepoInfo) -> str | None:
     """The checkout a repository belongs to: a linked worktree reports the
     main checkout's `.git` as its common directory, so both spellings of the

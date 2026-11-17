@@ -939,7 +939,12 @@ def _registered_workspace(
 def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Write the `.studio/bootstrap.json` manifest (P3, offline)."""
     from studio_client.adapters import list_adapters
-    from studio_client.bootstrap import BootstrapError, make_manifest, write_manifest
+    from studio_client.bootstrap import (
+        BootstrapError,
+        make_manifest,
+        origin_repository,
+        write_manifest,
+    )
 
     known = set(list_adapters())
     harnesses = args.harness
@@ -968,6 +973,7 @@ def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> No
         args.project_name,
         harnesses,
         description=args.description,
+        repository=origin_repository(args.repo_root),
         on_modified=OnModified(args.on_modified),
     )
     try:

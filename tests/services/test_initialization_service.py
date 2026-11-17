@@ -73,6 +73,9 @@ class FakeTarget:
     async def project_id_for_slug(self, slug: str) -> UUID | None:
         return self.projects.get(slug)
 
+    async def ensure_repository_available(self, repository: str | None) -> None:
+        return None
+
     async def create_project(self, spec: object) -> UUID:
         self.create_project_calls += 1
         return self.add_project(spec.slug)  # type: ignore[attr-defined]

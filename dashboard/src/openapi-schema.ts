@@ -5570,6 +5570,8 @@ export interface components {
             name: string;
             /** Description */
             description?: string | null;
+            /** Repository */
+            repository?: string | null;
         };
         /**
          * InitializationReason
@@ -11750,7 +11752,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description `repository` refused (`invalid_repository_url`), nothing stored. */
+            /** @description Nothing stored: `repository` was refused (`invalid_repository_url`) or the body itself is invalid (framework `HTTPValidationError`, e.g. an over-long URL). */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11764,7 +11766,7 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

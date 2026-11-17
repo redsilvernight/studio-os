@@ -704,3 +704,27 @@ def test_unmanaged_file_is_never_overwritten_without_explicit_overwrite(
     )
     assert skill.path in written
     assert target.read_bytes() != before
+
+
+def _git_repo(path: Path, remote: str | None) -> Path:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    if remote is not None:
+        subprocess.run(["git", "-C", str(path), "remote", "add", "origin", remote], check=True)
+    return path
+
+
+def test_init_records_origin_without_credentials(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path, "https://user:secret@github.com/Studio-OS/Demo.git")
+    _init(repo)
+    text = (repo / Path(*MANIFEST_RELATIVE_PATH.split("/"))).read_text(encoding="utf-8")
+    assert "secret" not in text
+    assert load_manifest(repo).project.repository == "github.com/studio-os/demo"
+
+
+def test_init_omits_repository_without_origin(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path, None)
+    _init(repo)
+    text = (repo / Path(*MANIFEST_RELATIVE_PATH.split("/"))).read_text(encoding="utf-8")
+    assert "repository" not in json.loads(text)["project"]
