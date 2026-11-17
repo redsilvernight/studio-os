@@ -73,6 +73,7 @@ from uuid import UUID
 
 from studio_contracts.local.identity import ProfileRef
 from studio_contracts.projects import ResolveRepositoryResponse
+from studio_contracts.repositories import normalize_remote_url
 from studio_mcp.local_server import create_local_server
 from studio_mcp.workspace_attach import WorkspaceAttachConfig
 
@@ -82,7 +83,7 @@ class MapResolver:
         self.mapping = mapping
 
     async def resolve_repository(self, remotes):
-        project = self.mapping.get(remotes[0]) if remotes else None
+        project = self.mapping.get(normalize_remote_url(remotes[0])) if remotes else None
         if project is None:
             return ResolveRepositoryResponse(status="not_found")
         return ResolveRepositoryResponse(
@@ -138,7 +139,7 @@ class FakeResolver:
         self.mapping = mapping
 
     async def resolve_repository(self, remotes: Sequence[str]) -> ResolveRepositoryResponse:
-        project = self.mapping.get(remotes[0]) if remotes else None
+        project = self.mapping.get(normalize_remote_url(remotes[0])) if remotes else None
         if project is None:
             return ResolveRepositoryResponse(status="not_found")
         return ResolveRepositoryResponse(

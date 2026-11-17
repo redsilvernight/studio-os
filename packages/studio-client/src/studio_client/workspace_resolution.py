@@ -333,7 +333,11 @@ def _create_workspace(
 
 async def _call_server(resolver: RepositoryResolver, remotes: Sequence[str]) -> _ServerOutcome:
     try:
-        response = await resolver.resolve_repository(list(remotes[:MAX_REMOTES]))
+        # The route accepts URL forms, not canonical keys; `https://<key>`
+        # normalizes back to the key and never carries a raw remote credential.
+        response = await resolver.resolve_repository(
+            [f"https://{key}" for key in remotes[:MAX_REMOTES]]
+        )
     except ConflictError as exc:
         if exc.error_code == "ambiguous":
             return _ServerOutcome(reason=ResolutionReason.AMBIGUOUS, detail=exc.message)
