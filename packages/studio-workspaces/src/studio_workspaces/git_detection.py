@@ -5,6 +5,7 @@ import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 
 class GitStatus(StrEnum):
@@ -24,6 +25,8 @@ class GitRepoInfo:
     detached: bool = False
     commit: str | None = None
     remote: str | None = None
+    common_dir: str | None = None
+    remotes: tuple[str, ...] = ()
 
 
 Runner = Callable[..., "CompletedLike"]
@@ -55,6 +58,23 @@ def _git_text(result: CompletedLike) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout.strip() or None
+
+
+def _fetch_remotes(result: CompletedLike) -> tuple[str, ...]:
+    if result.returncode != 0:
+        return ()
+    remotes: list[str] = []
+    for line in result.stdout.splitlines():
+        _name, separator, rest = line.partition("\t")
+        if not separator:
+            continue
+        url, space, kind = rest.rpartition(" ")
+        if not space or kind.strip() != "(fetch)":
+            continue
+        url = url.strip()
+        if url and url not in remotes:
+            remotes.append(url)
+    return tuple(remotes)
 
 
 def _find_git() -> str | None:
@@ -116,6 +136,8 @@ def detect_git(
         head_ref = runner([exe, "-C", path, "rev-parse", "--abbrev-ref", "HEAD"], timeout)
         head_sha = runner([exe, "-C", path, "rev-parse", "HEAD"], timeout)
         origin = runner([exe, "-C", path, "remote", "get-url", "origin"], timeout)
+        common_dir = runner([exe, "-C", path, "rev-parse", "--git-common-dir"], timeout)
+        remote_list = runner([exe, "-C", path, "remote", "-v"], timeout)
     except (OSError, TimeoutError):
         return GitRepoInfo(GitStatus.INVALID_REPO, path, repo_root=root)
     ref = _git_text(head_ref)
@@ -131,4 +153,26 @@ def detect_git(
         detached=detached,
         commit=sha,
         remote=_git_text(origin),
+        common_dir=_git_text(common_dir),
+        remotes=_fetch_remotes(remote_list),
     )
+
+
+def main_repo_root(info: GitRepoInfo) -> str | None:
+    """The checkout a repository belongs to: a linked worktree reports the
+    main checkout's `.git` as its common directory, so both spellings of the
+    same repository resolve to one root."""
+    if info.status is not GitStatus.VALID or info.repo_root is None:
+        return None
+    if not info.common_dir:
+        return info.repo_root
+    common = Path(info.common_dir)
+    if not common.is_absolute():
+        common = Path(info.repo_root) / common
+    try:
+        common = common.resolve()
+    except OSError:
+        return info.repo_root
+    if common.name != ".git":
+        return info.repo_root
+    return str(common.parent)
