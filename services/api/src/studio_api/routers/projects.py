@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from pydantic import Field
 from studio_contracts.auth import Role
 from studio_contracts.claims import ResourceClaim
 from studio_contracts.project_state import ProjectState
@@ -28,14 +29,28 @@ from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
-    RESP_409_IDEMPOTENCY,
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import project_repositories as project_repositories_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services.authz import with_created_project
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
+
+
+class ProjectCreateRequest(ProjectCreate):
+    """`POST /projects` payload: the canonical `ProjectCreate` fields plus an
+    optional `repository` (any URL form, normalized server-side like
+    `ProjectRepositoryCreate.url`, 512 characters max), registered with the
+    project in the same call so `resolve-repository` finds it immediately.
+
+    Router-local on purpose: the frozen `studio_contracts` shape is reused
+    unchanged, so this is an additive *input* field of this route only — a
+    client sending the canonical fields alone behaves exactly as before.
+    Absent, the project is created alone and its remotes are linked later."""
+
+    repository: str | None = Field(default=None, max_length=512)
 
 
 @router.get(
@@ -61,12 +76,67 @@ async def list_projects(session: DbSession, principal: CurrentPrincipal) -> list
         "Create a project. Requires a privileged role (admin or "
         "developer); other roles receive `403 forbidden`. Slugs are "
         "unique: reusing one fails with 409. The creator becomes a member "
-        "of the new project. Accepts `Idempotency-Key` for safe retries."
+        "of the new project. The optional `repository` is registered with "
+        "the project in the same call (`resolve-repository` finds it "
+        "immediately); a URL already linked to another project fails with "
+        "`409 repository_already_linked` and an invalid one with `422 "
+        "invalid_repository_url`, both before the project is written. "
+        "Accepts `Idempotency-Key` for safe retries."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_409_IDEMPOTENCY},
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "Nothing created: the slug is already used (`conflict`), "
+                "`repository` is already linked to another project "
+                "(`repository_already_linked`), or the replay key is wrong "
+                "(`idempotency_key_payload_mismatch` / "
+                "`idempotency_key_in_progress`)."
+            ),
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "repository_already_linked": {
+                            "value": {
+                                "detail": {
+                                    "error_code": "repository_already_linked",
+                                    "message": (
+                                        "repository is already linked to another project"
+                                    ),
+                                    "url": "github.com/org/repo",
+                                }
+                            }
+                        },
+                        "idempotency_key_payload_mismatch": {
+                            "value": {"detail": {"error_code": "idempotency_key_payload_mismatch"}}
+                        },
+                    }
+                }
+            },
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": (
+                "Nothing stored: `repository` was refused "
+                "(`invalid_repository_url`) or the body itself is invalid "
+                "(framework `HTTPValidationError`, e.g. an over-long URL)."
+            ),
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/HTTPValidationError"},
+                    "example": {
+                        "detail": {
+                            "error_code": "invalid_repository_url",
+                            "message": "invalid repository url: 'not-a-url'",
+                        }
+                    },
+                }
+            },
+        },
+    },
 )
 async def create_project(
-    project_in: ProjectCreate,
+    project_in: ProjectCreateRequest,
     request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
@@ -76,15 +146,29 @@ async def create_project(
     ),
 ) -> Project:
     async def _create() -> Project:
-        return Project.model_validate(
-            await projects_service.create_project(
-                session,
-                project_in.slug,
-                project_in.name,
-                project_in.description,
-                creator=principal.user,
+        # The remote is validated before the project is written, so a refused
+        # URL leaves nothing behind (same codes as the standalone link route).
+        # The link itself goes through `link_repository`, which normalizes the
+        # raw URL; `ensure_remote_available` only checks it first.
+        if project_in.repository is not None:
+            await project_repositories_service.ensure_remote_available(
+                session, project_in.repository
             )
+        project = await projects_service.create_project(
+            session,
+            project_in.slug,
+            project_in.name,
+            project_in.description,
+            creator=principal.user,
         )
+        if project_in.repository is not None:
+            await project_repositories_service.link_repository(
+                session,
+                with_created_project(principal, project.id),
+                project.id,
+                project_in.repository,
+            )
+        return await project_repositories_service.project_read(session, project)
 
     return await idempotency_service.run_idempotent(
         session,

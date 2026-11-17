@@ -95,6 +95,23 @@ async def projects_read(session: AsyncSession, projects: list[ProjectModel]) -> 
     ]
 
 
+async def ensure_remote_available(session: AsyncSession, url: str) -> None:
+    """Validate a remote that a *new* project is about to own, before that
+    project is written. Raises the exact error the standalone link route
+    would give later (`422 invalid_repository_url`, `409
+    repository_already_linked`). Checking first keeps a refused creation from
+    leaving a project behind; the caller then links the original `url` through
+    `link_repository` (which normalizes it), and the unique constraint stays
+    the arbiter of a concurrent race."""
+    try:
+        normalized = normalize_remote_url(url)
+    except ValueError as exc:
+        raise _invalid_url(url, exc) from None
+    existing = await _by_url(session, normalized)
+    if existing is not None:
+        raise _already_linked(normalized)
+
+
 async def link_repository(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID, url: str
 ) -> tuple[ProjectRepositoryModel, bool]:
