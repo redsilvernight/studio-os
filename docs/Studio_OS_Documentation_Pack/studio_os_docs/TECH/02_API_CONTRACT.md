@@ -1,5 +1,12 @@
 # API Contract v1
 
+Version contractuelle 6 — depots lies au projet (additif) : `ProjectRead`
+expose `repositories: list[str]` (cle normalisee, vide par defaut) ;
+nouveaux endpoints `POST|DELETE /projects/{id}/repositories` et
+`POST /projects/resolve-repository` (section Depots lies au projet).
+Aucun champ existant modifie, aucun statut modifie : un client N-1 ignore
+`repositories` et n'appelle pas les nouvelles routes.
+
 Version contractuelle 5 — révision sémantique P0 livraison (2026-11-04),
 `studio_contracts.API_CONTRACT_VERSION=5`, transport `/api/v1` conservé :
 le bloc sync de handoff cesse d'être auto-acquitté. Ce changement de sens est
@@ -38,7 +45,7 @@ contourne ni le profil lecture seule ni les permissions du poste. Une opération
 nécessitant une commande en mode protégé exige `studio_handoff(task_status=blocked)`
 avec commande et cible ; une nouvelle demande humaine est nécessaire.
 
-Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 5`.
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 6`.
 
 Version 4 : un claim protege le couple machine/agent. Une autre identite
 d'agent (y compris `null`) ne remplace plus silencieusement le detenteur sur
@@ -206,6 +213,42 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   (idempotent, `204`) ; les flux SSE ouverts de cet utilisateur sur ce projet
   sont fermes.
 - Non-admin : `403`. Projet ou utilisateur inexistant : `404`.
+
+### Depots lies au projet (additif)
+`ProjectRead` expose `repositories: list[str]` (cles normalisees du
+projet, `[]` par defaut ; un client N-1 l'ignore).
+- POST /projects/{project_id}/repositories (roles `admin|developer`) —
+  body `{url: str}` : normalise puis lie le depot au projet (profondeur
+  `host/owner/repo` exactement). `201` a la creation, `200` idempotent si
+  le meme depot est deja lie a ce projet. URL invalide ->
+  `422 {"detail": {"error_code": "invalid_repository_url"}}` ; depot lie a
+  un autre projet ->
+  `409 {"detail": {"error_code": "repository_already_linked", "url"}}` ;
+  projet inexistant -> `404`.
+- DELETE /projects/{project_id}/repositories/{normalized_url}
+  (roles `admin|developer`) — `204` une fois le lien retire ; `404` si le
+  depot n'est pas lie au projet ou si le projet n'existe pas. La valeur du
+  chemin est re-normalisee (graphies equivalentes acceptees).
+- POST /projects/resolve-repository — body `{remotes: [str]}` (1 a 10
+  URLs de 512 caracteres max, sinon `422`) : normalise chaque remote
+  (les invalides sont ignores ; aucun valide ->
+  `422 invalid_repository_url`), puis cherche les projets non archives
+  dont l'appelant est **membre** (l'admin non membre n'est pas special).
+  Un seul projet -> `200 {status: "resolved", project_id, slug, name}` ;
+  aucun -> `200 {status: "not_found"}`, **corps et statut strictement
+  identiques** au cas d'un depot connu mais sans acces (jamais d'oracle).
+  Des remotes designant deux projets distincts ->
+  `409 {"detail": {"error_code": "ambiguous"}}`.
+- Acces : projet inaccessible ou inexistant -> `403 resource=project`
+  (DEC-0103) ; `readonly` -> `403 forbidden` sur les ecritures.
+  Le `403` precede tout lookup pour un non-admin ; le `404` projet
+  inexistant n'est donc observable que par un admin.
+- Limite connue : un `developer` apprend par le `409
+  repository_already_linked` qu'une URL qu'il fournit est deja liee a un
+  autre projet (aucun autre champ n'est divulgue).
+- Compatibilite : `Project.repositories` est additif cote serveur, mais les
+  modeles etant `extra="forbid"`, un `studio-client` N-1 doit etre livre avec
+  le serveur v6 (matrice N/N-1 par release train).
 
 ### Machines et Users (provisioning, DEC-0011/DEC-0012)
 - GET /machines (DEC-0082, additif) — liste des machines dont le credential

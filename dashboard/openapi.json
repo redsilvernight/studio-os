@@ -614,7 +614,7 @@
      "projects"
     ],
     "summary": "List Projects",
-    "description": "List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise.",
+    "description": "List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise. Each entry carries its linked repository URLs (`repositories`).",
     "operationId": "list_projects_api_v1_projects_get",
     "security": [
      {
@@ -629,7 +629,7 @@
         "schema": {
          "type": "array",
          "items": {
-          "$ref": "#/components/schemas/Project"
+          "$ref": "#/components/schemas/ProjectRead"
          },
          "title": "Response List Projects Api V1 Projects Get"
         }
@@ -756,7 +756,7 @@
      "projects"
     ],
     "summary": "Get Project",
-    "description": "Get one project by id. A project the caller may not access \u2014 nonexistent included \u2014 answers `403 forbidden`.",
+    "description": "Get one project by id, with its linked repository URLs (`repositories`). A project the caller may not access \u2014 nonexistent included \u2014 answers `403 forbidden`.",
     "operationId": "get_project_api_v1_projects__project_id__get",
     "security": [
      {
@@ -781,7 +781,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/Project"
+         "$ref": "#/components/schemas/ProjectRead"
         }
        }
       }
@@ -1126,6 +1126,258 @@
        "type": "string",
        "format": "uuid",
        "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/resolve-repository": {
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Resolve Repository",
+    "description": "Resolve the project linked to the remotes of a local Git repository (1 to 10 remotes, any URL form). Only projects the caller is a member of are considered: an unknown repository and one the caller has no access to both answer `200 {status: not_found}`, identical in status and body. Remotes matching two projects: `409 ambiguous`. No valid remote: `422 invalid_repository_url`.",
+    "operationId": "resolve_repository_api_v1_projects_resolve_repository_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResolveRepositoryRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResolveRepositoryResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
+  "/api/v1/projects/{project_id}/repositories": {
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Link Project Repository",
+    "description": "Link a remote repository to a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The URL is normalized server-side (invalid URL: `422 invalid_repository_url`). A remote belongs to at most one project: linking one owned by another project fails with `409 repository_already_linked`. Re-linking the same URL to the same project is a no-op answering `200`. Unknown project: 404.",
+    "operationId": "link_project_repository_api_v1_projects__project_id__repositories_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProjectRepositoryCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectRepository"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Remote already linked to another project.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "repository_already_linked",
+          "message": "repository is already linked to another project",
+          "url": "https://github.com/org/repo"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Repository URL refused, nothing stored (`invalid_repository_url`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_repository_url",
+          "message": "invalid repository url: 'not-a-url'"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/repositories/{normalized_url}": {
+   "delete": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Unlink Project Repository",
+    "description": "Unlink a remote repository from a project. Role `admin` or `developer` with project access; any other role gets `403 forbidden`. The path value is re-normalized, so equivalent spellings match. `204` once removed; a remote that is not linked to the project answers `404`. Unknown project: 404.",
+    "operationId": "unlink_project_repository_api_v1_projects__project_id__repositories__normalized_url__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "normalized_url",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Normalized Url"
       }
      }
     ],
@@ -19730,7 +19982,8 @@
      "limit": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -19740,10 +19993,12 @@
      },
      "consumed": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Consumed"
      },
      "held": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Held"
      },
      "unknown_entries": {
@@ -19823,7 +20078,8 @@
      "cost_limit": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
        },
        {
         "type": "null"
@@ -19860,7 +20116,8 @@
      "reservation_cost": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
        },
        {
         "type": "null"
@@ -20012,7 +20269,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
        },
        {
         "type": "null"
@@ -20054,7 +20312,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
        },
        {
         "type": "null"
@@ -20133,7 +20392,8 @@
      "reserved_cost": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -21407,7 +21667,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -21458,7 +21719,8 @@
      "value": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -21678,7 +21940,7 @@
      "outcome"
     ],
     "title": "DecisionReview",
-    "description": "Structured review of the project decisions at handoff (DEC-0363,\nadditive): which decisions this work produced (`new`), reused\n(`existing`), or why none was needed (`none`). `decision_ids` names\ninternal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves\neach one and rejects unknown, foreign or invisible ids with\n`422 decision_reference_invalid`. A `proposed` decision is a valid\nreference and is never auto-accepted by the handoff. `reason` is\nrequired (non-empty) when `outcome` is `none` \u2014 enforced for v2 by\n`check_completion` (`decision_reason_missing`)."
+    "description": "Structured review of the project decisions at handoff\n(additive): which decisions this work produced (`new`), reused\n(`existing`), or why none was needed (`none`). `decision_ids` names\ninternal UUIDs or `DEC-NNNN` readable ids (<=20); the server resolves\neach one and rejects unknown, foreign or invisible ids with\n`422 decision_reference_invalid`. A `proposed` decision is a valid\nreference and is never auto-accepted by the handoff. `reason` is\nrequired (non-empty) when `outcome` is `none` \u2014 enforced for v2 by\n`check_completion` (`decision_reason_missing`)."
    },
    "DecisionStatus": {
     "type": "string",
@@ -21980,7 +22242,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -22009,7 +22272,8 @@
      "value": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -22927,7 +23191,7 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested.\n`warnings` carries non-blocking hints (DEC-0363: `decision_review_missing`\nwhen a v1 evidence closes without a decision review) \u2014 never a gate."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, not acknowledged), the task's\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested.\n`warnings` carries non-blocking hints (`decision_review_missing`\nwhen a v1 evidence closes without a decision review) \u2014 never a gate."
    },
    "HarnessReport": {
     "properties": {
@@ -26363,6 +26627,13 @@
       "type": "boolean",
       "title": "Archived",
       "default": false
+     },
+     "repositories": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Repositories"
      }
     },
     "additionalProperties": false,
@@ -26624,6 +26895,72 @@
     ],
     "title": "ProjectMission"
    },
+   "ProjectRead": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+     },
+     "repositories": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Repositories"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "slug",
+     "name"
+    ],
+    "title": "ProjectRead",
+    "description": "Read shape of a project: `Project` plus the normalized remote URLs\nlinked to it (`project_repositories`, Bloc A). Empty when none linked."
+   },
    "ProjectRef": {
     "properties": {
      "id": {
@@ -26663,6 +27000,60 @@
      "name"
     ],
     "title": "ProjectRef"
+   },
+   "ProjectRepository": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "created_by": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "url",
+     "created_at"
+    ],
+    "title": "ProjectRepository",
+    "description": "One normalized remote URL linked to a project. `url` is the canonical\nform (globally unique: one URL belongs to at most one project)."
+   },
+   "ProjectRepositoryCreate": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "url"
+    ],
+    "title": "ProjectRepositoryCreate",
+    "description": "Link a remote repository to a project: any URL form is accepted, the\nserver normalizes it via `studio_contracts.repositories.normalize_remote_url`\n(invalid URL: 422)."
    },
    "ProjectState": {
     "properties": {
@@ -27075,6 +27466,81 @@
      "new_password"
     ],
     "title": "ResetPasswordRequest"
+   },
+   "ResolveRepositoryRequest": {
+    "properties": {
+     "remotes": {
+      "items": {
+       "type": "string",
+       "maxLength": 512,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Remotes"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "remotes"
+    ],
+    "title": "ResolveRepositoryRequest",
+    "description": "Remotes of a local Git repository (any URL form, 1 to 10, each at most\n512 characters); the server normalizes them."
+   },
+   "ResolveRepositoryResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "resolved",
+       "not_found"
+      ],
+      "title": "Status"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "slug": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slug"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "ResolveRepositoryResponse",
+    "description": "`resolved` carries the project the caller is a member of; `not_found`\nis the single answer for an unknown repository and for one the caller\nhas no access to (no existence oracle)."
    },
    "ResolvedAgent": {
     "properties": {
@@ -33114,7 +33580,8 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -33166,6 +33633,7 @@
      },
      "known_sum": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
       "title": "Known Sum"
      },
      "entries": {
@@ -33209,7 +33677,8 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -33666,7 +34135,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
        }
       ],
       "title": "Input"
@@ -33678,7 +34148,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
        }
       ],
       "title": "Output"
@@ -33690,7 +34161,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
        }
       ],
       "title": "Cache Read"
@@ -33702,7 +34174,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)"
        }
       ],
       "title": "Cache Write"
@@ -33723,18 +34196,22 @@
     "properties": {
      "input": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Input"
      },
      "output": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Output"
      },
      "cache_read": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Cache Read"
      },
      "cache_write": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,13}0*$)\\d{0,6}\\.\\d{0,6}0*$)",
       "title": "Cache Write"
      }
     },
@@ -34011,6 +34488,7 @@
      },
      "monthly_price": {
       "type": "string",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
       "title": "Monthly Price"
      },
      "currency": {
@@ -34098,7 +34576,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
        }
       ],
       "title": "Monthly Price"
@@ -34196,7 +34675,8 @@
      "known_sum": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
        },
        {
         "type": "null"
@@ -34252,7 +34732,8 @@
         "minimum": 0.0
        },
        {
-        "type": "string"
+        "type": "string",
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
        }
       ],
       "title": "Monthly Price"

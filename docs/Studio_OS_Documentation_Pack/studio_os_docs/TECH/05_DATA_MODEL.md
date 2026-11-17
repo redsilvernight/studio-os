@@ -178,6 +178,21 @@ une membership, sauf ressource propre (Transfer emetteur/destinataire,
 Library User, runtimes, bindings User) dont la regle existante s'applique
 seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 
+## ProjectRepository (additif — migration Alembic reversible)
+Table `project_repositories` : `id`, `project_id` (FK Project,
+`ON DELETE CASCADE`), `normalized_url` (texte, cle normalisee du depot),
+`created_at`, `created_by` (FK User, nullable,
+`ON DELETE SET NULL`). Cle primaire `id` ; contrainte unique globale sur
+`normalized_url` (un depot n'est lie qu'a un seul projet, serveur-wide) ;
+index `(project_id)`. Pas de `version` : un lien est ajoute ou retire,
+jamais modifie.
+
+Forme normalisee `host/owner/repo` : minuscules ; `SSH` et `HTTPS`
+unifies (meme cle) ; suffixe `.git` retire ; slash final retire ;
+identifiants (`user@`, token) et port supprimes ; chemin reduit a
+`owner/repo` (sous-groupes et chemins supplementaires refuses en `422`).
+Exemples : `git@github.com:Org/Repo.git` et
+`https://github.com/org/repo` -> `github.com/org/repo`.
 
 ## MachineLaunchGrant (AIB-J, additif — migration Alembic reversible)
 Table `machine_launch_grants` : `machine_id` (FK Machine, `ON DELETE CASCADE`), `user_id`

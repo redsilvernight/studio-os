@@ -286,7 +286,9 @@ l'ensemble (section « Profils d'outils MCP » ci-dessous, DEC-0183).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047 superseded par DEC-0191) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
-`studio_memory_read`, `studio_graph_query`.
+`studio_memory_read`, `studio_graph_query`. S'y ajoute
+`studio_resolve_workspace` (resolution workspace locale, DEC-0364 —
+voir section dediee ci-dessous).
 `studio_generate_context_package` n'est **pas** un outil MCP : il est
 reclassé en capacité locale du Bloc B par DEC-0057 (voir section
 « Context Package (8.3b, DEC-0057) » ci-dessous).
@@ -892,3 +894,24 @@ Surface volontairement partielle : pas d'arbre (`tree`), pas d'historique de
 versions, pas de suppression (l'archivage est un `status`, et l'outil ne le
 propose pas) — ces lectures-la restent HTTP. Les trois outils sont exposes
 dans le profil `session` (avec `studio_get_decisions` / `studio_add_decision`).
+
+## Resolution workspace locale (additif, DEC-0364/DEC-0366)
+
+`studio_resolve_workspace` — **non implemente** (livre par P2-mcp-local ;
+contrat cible) — outil **local**, lecture seule, expose par le
+serveur MCP local `studio-os-local` (stdio, sans DB ni `Principal`
+serveur) : il lit les remotes git du workspace courant, les normalise
+(`TECH/05_DATA_MODEL.md`) et appelle `POST /projects/resolve-repository`.
+Reponse `{project_id: UUID|null, reason, repository_key}` (`repository_key`
+= cle normalisee du premier remote utilisable, `null` si aucun ;
+`reason` = motif machine-readable : `resolved`, `not_found`,
+`ambiguous`, `no_git_remote`, ...). Jamais d'ecriture, jamais de secret.
+
+Instructions MCP a l'initialisation du serveur local : `studio-os-local`
+resout le workspace au demarrage et annonce le `project_id` (ou
+`not_found`) dans ses instructions serveur ; les outils locaux composent
+ensuite avec ce `project_id` explicite.
+
+Le MCP distant (VPS) reste **sans etat workspace** : chaque appel porte un
+`project_id` explicite et la membership est re-verifiee a chaque appel
+(DEC-0366, DEC-0364) — aucune resolution implicite cote serveur.

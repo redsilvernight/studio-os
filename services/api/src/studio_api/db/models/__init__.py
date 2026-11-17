@@ -22,6 +22,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.machine_launch_grant import MachineLaunchGrantModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
+from studio_api.db.models.project_repository import ProjectRepositoryModel
 from studio_api.db.models.refresh_token import RefreshTokenModel
 from studio_api.db.models.roadmap import (
     RoadmapModel,
@@ -55,6 +56,7 @@ __all__ = [
     "ProjectModel",
     "MachineLaunchGrantModel",
     "ProjectMembershipModel",
+    "ProjectRepositoryModel",
     "TaskModel",
     "TaskLaunchModel",
     "WorkSessionModel",
