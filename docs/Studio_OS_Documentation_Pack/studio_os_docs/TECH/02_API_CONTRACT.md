@@ -6,6 +6,12 @@ nouveaux endpoints `POST|DELETE /projects/{id}/repositories` et
 `POST /projects/resolve-repository` (section Depots lies au projet).
 Aucun champ existant modifie, aucun statut modifie : un client N-1 ignore
 `repositories` et n'appelle pas les nouvelles routes.
+Extension additive de v6 (pas de bump) : `POST /projects` accepte un champ
+**optionnel** `repository` dans son modèle de requete (`ProjectCreateRequest`
+= champs canoniques de `ProjectCreate` + ce champ) ; un client N-1 envoie le
+corps canonique inchange et un serveur N-1 refuse le champ inconnu
+(`extra=forbid`). Aucun champ de `studio_contracts` n'est modifie.
+Le schema OpenAPI de ce corps s'appelle desormais `ProjectCreateRequest` (ancien nom `ProjectCreate`).
 
 Version contractuelle 5 — révision sémantique P0 livraison (2026-11-04),
 `studio_contracts.API_CONTRACT_VERSION=5`, transport `/api/v1` conservé :
@@ -217,6 +223,18 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
 ### Depots lies au projet (additif)
 `ProjectRead` expose `repositories: list[str]` (cles normalisees du
 projet, `[]` par defaut ; un client N-1 l'ignore).
+- POST /projects — corps `ProjectCreateRequest` : les champs canoniques de
+  `ProjectCreate` (`slug`, `name`, `description`) plus un champ **optionnel**
+  `repository` (meme normalisation que `ProjectRepositoryCreate.url`,
+  512 caracteres max). Present, le depot est enregistre avec le projet dans
+  le meme appel, si bien que `POST /projects/resolve-repository` le trouve
+  immediatement (`201`, reponse `Project` avec `repositories` rempli). Le
+  champ est valide **avant** l'ecriture du projet : URL invalide ->
+  `422 invalid_repository_url`, depot deja lie a un autre projet ->
+  `409 repository_already_linked` (`url` normalisee) ; dans les deux cas
+  aucun projet n'est cree, le slug reste libre. Absent : projet cree sans
+  depot, un ou plusieurs depots restent ajoutables par la route de lien.
+  Un rejeu `Idempotency-Key` rend la reponse d'origine (aucun lien double).
 - POST /projects/{project_id}/repositories (roles `admin|developer`) —
   body `{url: str}` : normalise puis lie le depot au projet (profondeur
   `host/owner/repo` exactement). `201` a la creation, `200` idempotent si
@@ -1435,6 +1453,15 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   Slug deja pris par un autre projet (meme invisible de l'appelant) ->
   `409 {"detail": {"error_code": "conflict", "message", "slug"}}` via le point
   commun `create_project` (oracle accepte, slugs non secrets, DEC-0105).
+- `project.repository` (additif, optionnel, 512 car. max) : remote enregistre avec le projet
+  cree, comme `POST /projects` (`ensure_remote_available` avant ecriture puis `link_repository`).
+  `preview` et `apply` creant le projet : `422 invalid_repository_url` ou
+  `409 {"detail": {"error_code": "repository_already_linked"}}`, aucun projet cree. Projet
+  reutilise (slug existant) : champ ignore, aucun depot lie. Le manifeste
+  `studio.bootstrap/v1` reutilise le modele : la cle `project.repository` n'y figure que si
+  renseignee (remote `origin` lu par `studio-client bootstrap init`), `format` inchange.
+  Un `studio-client` anterieur refuse un manifeste portant cette cle (`extra=forbid`, DEC-0181) :
+  mettre les clients a jour avant de regenerer les manifestes de depots ayant un `origin`.
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.

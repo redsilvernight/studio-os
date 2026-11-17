@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from types import TracebackType
@@ -46,7 +47,7 @@ from studio_contracts.library import (
     LibraryVersionRef,
 )
 from studio_contracts.project_state import ProjectState
-from studio_contracts.projects import Project
+from studio_contracts.projects import Project, ResolveRepositoryRequest, ResolveRepositoryResponse
 from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
 from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
@@ -215,6 +216,19 @@ class StudioApiClient:
     async def list_projects(self) -> list[Project]:
         response = await self._request("GET", "/api/v1/projects")
         return [Project.model_validate(item) for item in response.json()]
+
+    async def resolve_repository(self, remotes: Sequence[str]) -> ResolveRepositoryResponse:
+        """The project whose linked repository matches one of `remotes`, for
+        the active machine's membership. Read-only, so a transport retry is
+        safe even though the verb is POST."""
+        payload = ResolveRepositoryRequest(remotes=list(remotes))
+        response = await self._request(
+            "POST",
+            "/api/v1/projects/resolve-repository",
+            json=payload.model_dump(),
+            idempotent=True,
+        )
+        return ResolveRepositoryResponse.model_validate(response.json())
 
     async def get_project_state(self, project_id: UUID) -> ProjectState:
         response = await self._request("GET", f"/api/v1/projects/{project_id}/state")

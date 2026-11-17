@@ -259,7 +259,7 @@ export interface paths {
         put?: never;
         /**
          * Create Project
-         * @description Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. Accepts `Idempotency-Key` for safe retries.
+         * @description Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. The optional `repository` is registered with the project in the same call (`resolve-repository` finds it immediately); a URL already linked to another project fails with `409 repository_already_linked` and an invalid one with `422 invalid_repository_url`, both before the project is written. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_project_api_v1_projects_post"];
         delete?: never;
@@ -5570,6 +5570,8 @@ export interface components {
             name: string;
             /** Description */
             description?: string | null;
+            /** Repository */
+            repository?: string | null;
         };
         /**
          * InitializationReason
@@ -6865,14 +6867,27 @@ export interface components {
             checked_at: string;
             summary: components["schemas"]["BootstrapFileSummary"];
         };
-        /** ProjectCreate */
-        ProjectCreate: {
+        /**
+         * ProjectCreateRequest
+         * @description `POST /projects` payload: the canonical `ProjectCreate` fields plus an
+         *     optional `repository` (any URL form, normalized server-side like
+         *     `ProjectRepositoryCreate.url`, 512 characters max), registered with the
+         *     project in the same call so `resolve-repository` finds it immediately.
+         *
+         *     Router-local on purpose: the frozen `studio_contracts` shape is reused
+         *     unchanged, so this is an additive *input* field of this route only — a
+         *     client sending the canonical fields alone behaves exactly as before.
+         *     Absent, the project is created alone and its remotes are linked later.
+         */
+        ProjectCreateRequest: {
             /** Slug */
             slug: string;
             /** Name */
             name: string;
             /** Description */
             description?: string | null;
+            /** Repository */
+            repository?: string | null;
         };
         /**
          * ProjectInitializationPlan
@@ -11683,7 +11698,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectCreate"];
+                "application/json": components["schemas"]["ProjectCreateRequest"];
             };
         };
         responses: {
@@ -11728,8 +11743,17 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Nothing created: the slug is already used (`conflict`), `repository` is already linked to another project (`repository_already_linked`), or the replay key is wrong (`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Nothing stored: `repository` was refused (`invalid_repository_url`) or the body itself is invalid (framework `HTTPValidationError`, e.g. an over-long URL). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11737,19 +11761,11 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *         "error_code": "invalid_repository_url",
+                     *         "message": "invalid repository url: 'not-a-url'"
                      *       }
                      *     }
                      */
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };

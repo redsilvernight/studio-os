@@ -14,8 +14,6 @@ from studio_contracts.local.harness import (
 )
 from studio_contracts.local.identity import ProfileRef
 from studio_contracts.local.workspace import LocalWorkspaceConfig, WorkspaceScope
-from studio_workspaces import RootConfirmationService, WorkspaceStore
-from studio_workspaces.path_safety import workspace_binding_key
 
 from studio_client.harness.backup import BackupStore
 from studio_client.harness.base import MCP_PATH, system_env
@@ -31,6 +29,7 @@ from studio_client.harness.service import (
     McpProbe,
     WorkspaceInfo,
 )
+from studio_client.workspace_resolution import resolve_workspace_sync
 
 
 class WorkspaceBootstrapError(Exception):
@@ -48,15 +47,15 @@ class McpWiring:
 def find_workspace(
     registry_dir: Path, profile: ProfileRef, repo_root: Path | str
 ) -> LocalWorkspaceConfig:
-    """The registered workspace whose root is `repo_root`, from the machine-local registry."""
-    store = WorkspaceStore(registry_dir, RootConfirmationService())
-    wanted = workspace_binding_key(str(Path(repo_root).resolve()))
-    for config in store.list_workspaces(profile):
-        if workspace_binding_key(config.roots.workspace_root) == wanted:
-            return config
-    raise WorkspaceBootstrapError(
-        "this folder is not a registered workspace; run `workspaces register` first"
-    )
+    """The workspace of `repo_root`: the registered main checkout of its
+    repository, a worktree of it, or a workspace the server just recognised
+    from the repository's remotes."""
+    resolution = resolve_workspace_sync(repo_root, profile, registry_dir=registry_dir)
+    if resolution.workspace is None:
+        raise WorkspaceBootstrapError(
+            "this folder is not a registered workspace; run `workspaces register` first"
+        )
+    return resolution.workspace
 
 
 def build_harness_service(

@@ -213,14 +213,18 @@ class WorkspaceStore:
         return config
 
     def list_workspaces(self, profile: ProfileRef) -> Sequence[LocalWorkspaceConfig]:
+        return [config for config in self.all_workspaces() if config.profile == profile]
+
+    def all_workspaces(self) -> Sequence[LocalWorkspaceConfig]:
+        """Every readable config, whatever its profile: callers that must not
+        attach a folder already followed by another server origin need to see
+        those entries too."""
         configs: list[LocalWorkspaceConfig] = []
         for path in sorted(self._registry_dir.glob("workspaces/*.json")):
             try:
-                config = self._parse(_read_json(path))
+                configs.append(self._parse(_read_json(path)))
             except WorkspaceStoreError:
                 continue
-            if config.profile == profile:
-                configs.append(config)
         return configs
 
     def migrate(self, workspace_id: UUID) -> LocalWorkspaceConfig:

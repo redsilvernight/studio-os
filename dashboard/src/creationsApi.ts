@@ -4,7 +4,8 @@
  * Every replayable creation sends a fresh client-generated `Idempotency-Key`
  * (one per logical attempt, never reused) and the caller refetches afterwards:
  * the server stays the only writer, the dashboard never fabricates a result.
- * - `POST /projects` (admin/developer) — `ProjectCreate`
+ * - `POST /projects` (admin/developer) — `ProjectCreate`, whose optional
+ *   `repository` registers the project's remote in the same call
  * - `POST /tasks` (writer) — `TaskCreate`, server picks the readable id
  */
 import type { StudioClient } from "./api";
@@ -13,7 +14,9 @@ import { newIdempotencyKey } from "./claimsApi";
 import type { components } from "./openapi-schema";
 
 export type Project = components["schemas"]["Project"];
-export type ProjectCreate = components["schemas"]["ProjectCreate"];
+// Le corps de création = `ProjectCreate` canonique + le champ optionnel
+// `repository` (modèle de requête de la route, additif côté serveur).
+export type ProjectCreate = components["schemas"]["ProjectCreateRequest"];
 export type Task = components["schemas"]["Task"];
 export type TaskCreate = components["schemas"]["TaskCreate"];
 

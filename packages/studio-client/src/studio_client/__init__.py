@@ -32,6 +32,13 @@ if TYPE_CHECKING:
         TokenStore,
     )
     from studio_client.transfers import TransferClient
+    from studio_client.workspace_resolution import (
+        ResolutionReason,
+        ResolutionStatus,
+        WorkspaceResolution,
+        resolve_workspace,
+        resolve_workspace_sync,
+    )
 
 # Lazy re-exports (PEP 562): importing a lightweight submodule such as
 # `studio_client.knowledge` must not drag in the token stores, the HTTP client
@@ -60,6 +67,11 @@ _MODULE_BY_NAME = {
     "VaultMemoryProvider": "studio_client.knowledge",
     "GraphProvider": "studio_client.knowledge",
     "GraphifyGraphProvider": "studio_client.knowledge",
+    "WorkspaceResolution": "studio_client.workspace_resolution",
+    "ResolutionReason": "studio_client.workspace_resolution",
+    "ResolutionStatus": "studio_client.workspace_resolution",
+    "resolve_workspace": "studio_client.workspace_resolution",
+    "resolve_workspace_sync": "studio_client.workspace_resolution",
 }
 
 __all__ = [
@@ -85,6 +97,11 @@ __all__ = [
     "VaultMemoryProvider",
     "GraphProvider",
     "GraphifyGraphProvider",
+    "WorkspaceResolution",
+    "ResolutionReason",
+    "ResolutionStatus",
+    "resolve_workspace",
+    "resolve_workspace_sync",
 ]
 
 

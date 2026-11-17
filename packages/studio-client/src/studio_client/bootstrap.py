@@ -43,6 +43,8 @@ from studio_contracts.bootstrap import (
     build_dry_run_report,
 )
 from studio_contracts.initialization import InitializationProjectSpec
+from studio_contracts.repositories import normalize_remote_url
+from studio_workspaces.git_detection import origin_remote
 
 from studio_client.adapters import (
     MANAGED_MARKER,
@@ -148,17 +150,28 @@ def manifest_path(repo_root: Path | str) -> Path:
     return legacy if not current.is_file() and legacy.is_file() else current
 
 
+def origin_repository(repo_root: Path | str) -> str | None:
+    remote = origin_remote(str(repo_root))
+    if remote is None:
+        return None
+    try:
+        return normalize_remote_url(remote)
+    except ValueError:
+        return None
+
+
 def make_manifest(
     project_slug: str,
     project_name: str,
     harnesses: list[str],
     *,
     description: str | None = None,
+    repository: str | None = None,
     on_modified: OnModified = OnModified.REFUSE,
 ) -> BootstrapManifest:
     return BootstrapManifest(
         project=InitializationProjectSpec(
-            slug=project_slug, name=project_name, description=description
+            slug=project_slug, name=project_name, description=description, repository=repository
         ),
         harnesses=[BootstrapHarnessRef(id=harness) for harness in harnesses],
         policy=BootstrapPolicy(on_modified=on_modified),
@@ -201,7 +214,10 @@ def write_manifest(
     repo_root: Path | str, manifest: BootstrapManifest, *, overwrite: bool = False
 ) -> Path:
     path = Path(repo_root) / Path(*MANIFEST_RELATIVE_PATH.split("/"))
-    text = json.dumps(manifest.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"
+    data = manifest.model_dump(mode="json")
+    if manifest.project.repository is None:
+        del data["project"]["repository"]
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     _write_text(path, text, overwrite=overwrite)
     return path
 
