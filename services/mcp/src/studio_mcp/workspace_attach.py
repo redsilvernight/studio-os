@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import warnings
@@ -132,6 +133,9 @@ class WorkspaceAttachment:
 
     def __init__(self, config: WorkspaceAttachConfig) -> None:
         self._config = config
+        # Serializes refreshes: a tools/call racing the refresh of
+        # notifications/initialized must not resolve (and create) twice.
+        self._lock = asyncio.Lock()
         self._state: dict[str, Any] = {
             "status": "unresolved",
             "reason": _NOT_INITIALIZED,
@@ -198,25 +202,32 @@ class WorkspaceAttachment:
             detail=resolution.detail,
         )
 
-    async def refresh(self, session: Any) -> None:
-        """Re-resolve the attachment for one connection, never raising."""
-        try:
-            await self._refresh(session)
-        except Exception as exc:  # last-resort guard for the middleware chain
-            self._state = {
-                "status": "unresolved",
-                "reason": "server_error",
-                "source": None,
-                "path": None,
-                "repo_root": None,
-                "repository_key": None,
-                "project_id": None,
-                "project_slug": None,
-                "created": False,
-                "cached": False,
-                "detail": f"workspace attachment failed: {type(exc).__name__}: {exc}",
-                "roots": [],
-            }
+    async def refresh(self, session: Any, *, if_needed: bool = False) -> None:
+        """Re-resolve the attachment for one connection, never raising.
+
+        `if_needed` re-checks `needs_refresh` once the lock is held, so a
+        caller that waited behind an in-flight refresh does not repeat it.
+        """
+        async with self._lock:
+            if if_needed and not self.needs_refresh:
+                return
+            try:
+                await self._refresh(session)
+            except Exception as exc:  # last-resort guard for the middleware chain
+                self._state = {
+                    "status": "unresolved",
+                    "reason": "server_error",
+                    "source": None,
+                    "path": None,
+                    "repo_root": None,
+                    "repository_key": None,
+                    "project_id": None,
+                    "project_slug": None,
+                    "created": False,
+                    "cached": False,
+                    "detail": f"workspace attachment failed: {type(exc).__name__}: {exc}",
+                    "roots": [],
+                }
 
     async def _refresh(self, session: Any) -> None:
         try:
@@ -328,7 +339,7 @@ def make_resolve_workspace(
             # without a connection): no live session to refresh from.
             session = None
         if session is not None and attachment.needs_refresh:
-            await attachment.refresh(session)
+            await attachment.refresh(session, if_needed=True)
         return attachment.payload()
 
     return studio_resolve_workspace

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -103,10 +104,10 @@ class WorkspaceBridge:
                         root=entry.root,
                         remotes=remotes,
                         reason=entry.reason,
-                        last_seen_at=entry.last_seen_at,
+                        last_seen_at=datetime.fromisoformat(entry.last_seen_at),
                     )
                 )
-            except ValidationError:
+            except (ValidationError, ValueError):
                 continue
         return DetectedRepositoryListResult(items=items)
 
