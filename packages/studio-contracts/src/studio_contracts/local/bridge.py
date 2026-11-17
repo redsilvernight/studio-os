@@ -106,6 +106,7 @@ from studio_contracts.local.skills import (
     SkillsSyncStatus,
 )
 from studio_contracts.local.workspace import (
+    DetectedRepositoryListResult,
     LocalWorkspaceConfig,
     WorkspaceConfirmRootsRequest,
     WorkspaceConfirmRootsResult,
@@ -160,6 +161,7 @@ class BridgeCommand(StrEnum):
     IDENTITY_FORGET = "identity.forget"
     WORKSPACE_VALIDATE = "workspace.validate"
     WORKSPACE_LIST = "workspace.list"
+    WORKSPACE_LIST_DETECTED = "workspace.list_detected"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
     WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
     WORKSPACE_GIT_STATUS = "workspace.git_status"
@@ -289,6 +291,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             BridgeCommand.WORKSPACE_LIST,
             EmptyPayload,
             WorkspaceListResult,
+            "workspace.config",
+        ),
+        _spec(
+            BridgeCommand.WORKSPACE_LIST_DETECTED,
+            EmptyPayload,
+            DetectedRepositoryListResult,
             "workspace.config",
         ),
         _spec(

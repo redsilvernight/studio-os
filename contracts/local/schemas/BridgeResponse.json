@@ -15,6 +15,7 @@
         "identity.forget",
         "workspace.validate",
         "workspace.list",
+        "workspace.list_detected",
         "workspace.get_config",
         "workspace.confirm_roots",
         "workspace.git_status",

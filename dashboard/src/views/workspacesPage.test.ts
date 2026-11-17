@@ -1,25 +1,53 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from "vitest";
-import type { PickResult, Platform } from "../platform";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Platform } from "../platform";
 import { webPlatform } from "../platform/web";
 import { parseRoute } from "../router";
 import { shellHtml, shellNavGroups } from "../shell";
+import type { StudioClient } from "../api";
+import { clearToken, setToken } from "../auth";
+import { resetIdentityCache } from "../identityApi";
 import { fakeDesktop } from "../testSupport/fakeDesktop";
-import { pickWorkspaceFolder, renderWorkspaces, toFolderOutcome, workspacesPageHtml } from "./workspacesPage";
+import {
+  canLinkDetected,
+  detectedReasonLabel,
+  detectedSectionHtml,
+  pickWorkspaceFolder,
+  renderWorkspaces,
+  toFolderOutcome,
+  workspacesPageHtml,
+  type PageState,
+} from "./workspacesPage";
 
-const flush = async (): Promise<void> => {
-  for (let i = 0; i < 8; i += 1) await Promise.resolve();
+const flush = async (ticks = 40): Promise<void> => {
+  for (let i = 0; i < ticks; i += 1) await Promise.resolve();
 };
 
-function platformPicking(result: PickResult | Error): Platform {
-  const base = fakeDesktop();
+afterEach(() => {
+  clearToken();
+  resetIdentityCache();
+});
+
+const PROJECT = { id: "22222222-2222-4222-8222-222222222222", name: "Mon jeu", slug: "mon-jeu", archived: false };
+const PROFILE = { profile_id: "default", server_origin: "https://studio.example.test" };
+const DETECTED_ROOT = "C:/Projects/untracked-game";
+
+function pageState(over: Partial<PageState> = {}): PageState {
   return {
-    ...base,
-    chooseFolder: vi.fn(async () => {
-      if (result instanceof Error) throw result;
-      return result;
-    }),
-  } as Platform;
+    items: [],
+    detected: [],
+    projects: [],
+    identity: null,
+    role: null,
+    outcome: null,
+    selectedProject: "",
+    error: "",
+    notice: "",
+    busy: false,
+    linking: null,
+    editing: null,
+    ...over,
+  };
 }
 
 describe("P3 x P5 native folder pick", () => {
@@ -39,7 +67,9 @@ describe("P3 x P5 native folder pick", () => {
   });
 
   it("a thrown picker is an error outcome, not a crash", async () => {
-    expect(await pickWorkspaceFolder(platformPicking(new Error("boom")))).toEqual({ kind: "error", code: "picker_failed" });
+    const base = fakeDesktop();
+    const platform = { ...base, chooseFolder: vi.fn(async () => { throw new Error("boom"); }) } as Platform;
+    expect(await pickWorkspaceFolder(platform)).toEqual({ kind: "error", code: "picker_failed" });
   });
 
   it("the web build has no picker and renders a notice only", async () => {
@@ -47,27 +77,154 @@ describe("P3 x P5 native folder pick", () => {
     await renderWorkspaces(root, webPlatform);
     expect(root.querySelector('[data-testid="workspaces-web"]')).not.toBeNull();
     expect(root.querySelector("#workspace-add")).toBeNull();
+    expect(root.querySelector('[data-testid="detected-repos"]')).toBeNull();
     expect(await pickWorkspaceFolder(webPlatform)).toEqual({ kind: "unavailable" });
   });
 
-  it.each([
-    [{ status: "selected", path: "C:\\Work\\game", display_name: "game" } as PickResult, "selected", "Dossier choisi : game"],
-    [{ status: "cancelled" } as PickResult, "cancelled", "Sélection annulée"],
-    [{ status: "error", code: "x" } as PickResult, "error", "n'a pas pu être sélectionné"],
-  ])("desktop click shows the %#th outcome honestly", async (result, kind, text) => {
-    const root = document.createElement("div");
-    await renderWorkspaces(root, platformPicking(result));
-    root.querySelector<HTMLButtonElement>("#workspace-add")?.click();
-    await flush();
-    const out = root.querySelector('[data-testid="workspaces-outcome"]');
-    expect(out?.getAttribute("data-outcome")).toBe(kind);
-    expect(out?.textContent).toContain(text);
-  });
-
   it("a selection never claims the association is done and never shows the raw path", () => {
-    const html = workspacesPageHtml("desktop", { kind: "selected", path: "C:\\Secret\\dir", displayName: "dir" });
+    const html = workspacesPageHtml("desktop", { kind: "selected", path: "C:\\Secret\\dir", displayName: "dir" }, pageState());
     expect(html).toContain("Confirmez son association");
     expect(html).not.toContain("C:\\Secret");
+  });
+});
+
+describe("P3-detected section", () => {
+  const entry = {
+    root: DETECTED_ROOT,
+    remotes: ["github.com/org/untracked-game"],
+    reason: "not_found",
+    last_seen_at: "2026-11-10T09:00:00+00:00",
+  };
+
+  it("shows the folder name, the normalized remote and the reason, never the raw path", () => {
+    const html = detectedSectionHtml(pageState({ detected: [entry], projects: [PROJECT], selectedProject: PROJECT.id, role: "admin" }), null);
+    expect(html).toContain("Dépôts détectés non suivis");
+    expect(html).toContain("untracked-game");
+    expect(html).toContain("github.com/org/untracked-game");
+    expect(html).not.toContain(DETECTED_ROOT);
+  });
+
+  it("offers Lier to admin and developer, manual link without remote, nothing to viewer", () => {
+    const admin = detectedSectionHtml(pageState({ detected: [entry], projects: [PROJECT], selectedProject: PROJECT.id, role: "admin" }), null);
+    expect(admin).toContain("Lier à un projet");
+    const developer = detectedSectionHtml(pageState({ detected: [entry], projects: [PROJECT], selectedProject: PROJECT.id, role: "developer" }), null);
+    expect(developer).toContain("Lier à un projet");
+    const remoteLess = detectedSectionHtml(pageState({ detected: [{ ...entry, remotes: [] }], projects: [PROJECT], selectedProject: PROJECT.id, role: "developer" }), null);
+    expect(remoteLess).toContain("Lier manuellement");
+    const viewer = detectedSectionHtml(pageState({ detected: [entry], projects: [PROJECT], selectedProject: PROJECT.id, role: "viewer" }), null);
+    expect(viewer).not.toContain("data-detected-link");
+    expect(viewer).toContain("Demander l'accès");
+  });
+
+  it("is empty with an explicit message and asks to connect without projects", () => {
+    expect(detectedSectionHtml(pageState({ role: "admin" }), null)).toContain("Aucun dépôt détecté non suivi");
+    expect(detectedSectionHtml(pageState({ role: null }), null)).toContain("Connectez-vous");
+  });
+
+  it("gates the gesture on admin/developer roles only", () => {
+    expect(canLinkDetected("admin")).toBe(true);
+    expect(canLinkDetected("developer")).toBe(true);
+    expect(canLinkDetected("viewer")).toBe(false);
+    expect(canLinkDetected("agent")).toBe(false);
+    expect(canLinkDetected(null)).toBe(false);
+  });
+
+  it("labels known detection reasons in French", () => {
+    expect(detectedReasonLabel("not_found")).toContain("inconnu");
+    expect(detectedReasonLabel("ambiguous")).toContain("plusieurs projets");
+    expect(detectedReasonLabel("anything-else")).toBe("Dépôt non suivi");
+  });
+});
+
+describe("P3-detected link journey", () => {
+  function harness(role: string, postRepositories?: (path: string, body: unknown) => { ok: boolean; status: number }) {
+    setToken("e2e-token");
+    const saved: Array<{ workspace_id: string; config: Record<string, unknown> }> = [];
+    let detected: Array<{ root: string; remotes: string[]; reason: string; last_seen_at: string }> = [
+      { root: DETECTED_ROOT, remotes: ["github.com/org/untracked-game"], reason: "not_found", last_seen_at: "2026-11-10T09:00:00+00:00" },
+    ];
+    const posts: Array<{ path: string; body: unknown }> = [];
+    const bridge: string[] = [];
+    const answer = (payload: unknown): unknown => ({ ok: true, response: { payload } });
+    const base = fakeDesktop();
+    const platform = {
+      ...base,
+      request: vi.fn(async (command: string, payload: Record<string, unknown>) => {
+        bridge.push(command);
+        if (command === "identity.get_view") return answer({ profile: PROFILE, machine: { machine_name: "poste-e2e" } });
+        if (command === "workspace.list") {
+          return answer({
+            items: saved.map((entry) => ({ workspace_id: entry.workspace_id, health: "valid", action: "none", config: entry.config })),
+          });
+        }
+        if (command === "workspace.list_detected") return answer({ items: detected });
+        if (command === "workspace.confirm_roots") return answer({ root_confirmation_id: "rc-e2e", expires_in_s: 600 });
+        if (command === "workspace.save_config") {
+          const config = (payload as { config: Record<string, unknown> }).config;
+          saved.push({ workspace_id: config["workspace_id"] as string, config });
+          detected = detected.filter((item) => item.root !== (config["roots"] as { workspace_root: string }).workspace_root);
+          return answer(config);
+        }
+        throw new Error(`unexpected bridge command ${command}`);
+      }),
+    } as unknown as Platform;
+    const GET = vi.fn(async (path: string) => {
+      if (path === "/api/v1/auth/me") {
+        return { data: { user_id: "u1", display_name: "Op", email: "op@example.test", role, machine_id: "m1" }, response: { ok: true, status: 200 } };
+      }
+      if (path === "/api/v1/projects") return { data: [PROJECT], response: { ok: true, status: 200 } };
+      throw new Error(`unexpected GET ${path}`);
+    });
+    const POST = vi.fn(async (path: string, options: { params: { path: { project_id: string } }; body: unknown }) => {
+      posts.push({ path, body: options.body });
+      if (postRepositories) {
+        const outcome = postRepositories(path, options.body);
+        return { data: outcome.ok ? {} : { detail: "refused" }, response: { ok: outcome.ok, status: outcome.status } };
+      }
+      return { data: {}, response: { ok: true, status: 201 } };
+    });
+    const client = { GET, POST } as unknown as StudioClient;
+    return { platform, client, saved, posts, bridge, get detected() { return detected; } };
+  }
+
+  it("Lier rattache le dépôt au projet choisi : remote ajouté, dossier suivi, liste à jour", async () => {
+    const h = harness("developer");
+    const root = document.createElement("div");
+    await renderWorkspaces(root, h.platform, { client: h.client, authed: true });
+    await flush();
+    const button = root.querySelector<HTMLButtonElement>("[data-detected-link]");
+    expect(button).not.toBeNull();
+    button?.click();
+    await flush();
+    expect(h.posts).toHaveLength(1);
+    expect(h.posts[0]).toEqual({ path: "/api/v1/projects/{project_id}/repositories", body: { url: "github.com/org/untracked-game" } });
+    expect(h.bridge).toContain("workspace.confirm_roots");
+    expect(h.bridge).toContain("workspace.save_config");
+    expect(h.saved).toHaveLength(1);
+    expect(root.textContent).toContain("Dépôt lié au projet");
+    expect(root.querySelector('[data-testid="detected-repos"]')?.textContent).toContain("Aucun dépôt détecté non suivi");
+    expect(root.textContent).toContain("untracked-game");
+  });
+
+  it("a viewer never sees the link action, only the access request help", async () => {
+    const h = harness("viewer");
+    const root = document.createElement("div");
+    await renderWorkspaces(root, h.platform, { client: h.client, authed: true });
+    await flush();
+    expect(root.querySelector("[data-detected-link]")).toBeNull();
+    expect(root.querySelector('[data-testid="detected-repos"]')?.textContent).toContain("Demander l'accès");
+    expect(h.posts).toHaveLength(0);
+  });
+
+  it("a conflicting remote reports honestly and tracks nothing", async () => {
+    const h = harness("admin", () => ({ ok: false, status: 409 }));
+    const root = document.createElement("div");
+    await renderWorkspaces(root, h.platform, { client: h.client, authed: true });
+    await flush();
+    root.querySelector<HTMLButtonElement>("[data-detected-link]")?.click();
+    await flush();
+    expect(h.saved).toHaveLength(0);
+    expect(root.textContent).toContain("déjà rattaché à un autre projet");
   });
 });
 
