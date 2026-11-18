@@ -1,46 +1,29 @@
 /**
- * P11 — assistant de configuration (first-run) de Studi'OS Desktop.
+ * P3 — assistant de premier lancement de Studi'OS Desktop.
  *
- * Orchestration UX au-dessus des capacités P0→P10 : chaque étape réutilise la
- * surface existante (origine serveur, login, pont `workspace.*`, mémoire,
- * harnais) et revalide l'état réel au lieu de recopier un booléen du wizard.
- * Vocabulaire utilisateur, aucune saisie d'UUID, aucun secret affiché ou
- * stocké, aucun chemin complet conservé.
+ * Le premier lancement ne configure que le poste (connexion au serveur,
+ * vérification locale), sans projet ni dossier. La mémoire, l'environnement
+ * (Git, analyse du code) et l'assistant IA se configurent ensuite par
+ * dossier depuis « Espaces de travail » (voir `views/workspaceFolderSetup`).
+ * Vocabulaire utilisateur, aucun secret affiché ou stocké.
  */
-import { ApiError, apiBaseUrl, createApiClient, type StudioClient } from "../api";
+import { apiBaseUrl, createApiClient, type StudioClient } from "../api";
 import { getToken, hasToken } from "../auth";
 import { joinUrl } from "../config";
 import { isDashboardIdentity } from "../machinesApi";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
 import { dsBadge, dsPageHeader, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
-import {
-  applyHarness,
-  CHANGE_LABELS,
-  detectHarnesses,
-  harnessErrorMessage,
-  previewHarness,
-  STATE_LABELS,
-  STATE_TONES,
-  type HarnessPlan,
-  type HarnessStatus,
-} from "../harnessApi";
 import { loginOverlayHtml, renderLogin } from "../login";
 import { fetchIdentity } from "../identityApi";
 import { renderPublicAccount, type PublicAccountDeps, type PublicScreen } from "../views/publicAccount";
 import { getPlatform, type Platform } from "../platform";
 import type {
   IdentityView,
-  KnowledgeStatus,
   LocalError,
 } from "../platform/generated/local-contracts.generated";
 import { esc } from "../ui";
 import { originRefusalMessage } from "../originRefusal";
-import { toWorkspaceViewModel } from "../workspaces/workspaces";
-import { findLinkedWorkspaceId } from "../workspaces/api";
-import { pickWorkspaceFolder, type FolderPickOutcome } from "../views/workspacesPage";
-import { createProject, type Project } from "../creationsApi";
-import { newIdempotencyKey } from "../claimsApi";
 import { daemonGrantsEnroll } from "./enrollGrant";
 import { ONBOARDING_STEPS, nextStep, previousStep, stepById, type OnboardingStep } from "./steps";
 import {
@@ -49,15 +32,6 @@ import {
   type OnboardingState,
   type OnboardingStepId,
 } from "./state";
-import {
-  confirmRoots,
-  gitStatusMessage,
-  saveWorkspaceConfig,
-  validateWorkspace,
-  workspaceErrorMessage,
-  workspaceGitStatus,
-  workspaceHealthMessage,
-} from "./workspaceApi";
 
 export function onboardingWebHtml(): string {
   return (
@@ -67,42 +41,11 @@ export function onboardingWebHtml(): string {
       "empty",
       {
         title: "Disponible dans Studi'OS Desktop",
-        message: "La configuration locale (dossier, mémoire, assistant IA) se fait sur le poste, depuis l'application Studi'OS Desktop. Ce tableau de bord web reste autonome.",
+        message: "La configuration du poste se fait sur le poste, depuis l'application Studi'OS Desktop. Ce tableau de bord web reste autonome.",
       },
     ) +
     `</section>`
   );
-}
-
-/** UUID local frais pour un dossier jamais associé (identifiant, pas un secret). */
-export function newWorkspaceId(): string {
-  try {
-    const random = globalThis.crypto?.randomUUID?.();
-    if (typeof random === "string" && random.length > 0) return random;
-  } catch {
-    // Repli ci-dessous : l'identifiant reste unique par session.
-  }
-  const part = (): string => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, "0");
-  const raw = `${part()}${part()}`;
-  return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-4${raw.slice(13, 16)}-8${raw.slice(17, 20)}-${raw.slice(20, 32)}`;
-}
-
-/**
- * Slug machine dérivé du nom saisi : `ProjectCreate` l'exige et le pont local
- * n'accepte `project_slug` que sous la forme `^[a-z][a-z0-9_.-]{0,63}$`.
- */
-export function projectSlugFromName(name: string): string {
-  const base = name
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  // Rien d'exploitable (ponctuation seule, écriture non latine) : pas de slug
-  // de repli partagé, qui produirait un conflit trompeur au projet suivant.
-  if (!base) return "";
-  const slug = /^[a-z]/.test(base) ? base : `projet-${base}`;
-  return slug.slice(0, 64).replace(/[-.]+$/, "");
 }
 
 /**
@@ -138,8 +81,8 @@ function progressHtml(current: OnboardingStepId): string {
 }
 
 /**
- * Contexte : état réel du poste, consignes de repli, puis les blocs propres
- * à l'étape (accès en attente). Aucune information technique par défaut.
+ * Contexte : état réel du poste, consignes de repli. Aucune information
+ * technique par défaut.
  */
 function contextAside(session: SessionData, extra = ""): string {
   const server =
@@ -148,23 +91,13 @@ function contextAside(session: SessionData, extra = ""): string {
       : session.serverProbe.ok
         ? dsStatus("success", "Serveur joint")
         : dsStatus("warning", "Serveur injoignable");
-  const harness =
-    session.harnesses === null
-      ? dsStatus("idle", "Non vérifié")
-      : session.harnesses.length === 0
-        ? dsStatus("warning", "Aucun détecté")
-        : dsStatus("success", `${session.harnesses.length} disponible(s)`);
-  const folder =
-    session.state.folderName === undefined || session.state.folderName === ""
-      ? dsStatus("idle", "Aucun choisi")
-      : dsStatus("success", session.state.folderName);
   const rows = (label: string, value: string): string => `<div><dt>${esc(label)}</dt><dd>${value}</dd></div>`;
   return (
     `<aside class="ds-card tool-context" aria-label="Contexte">` +
-    `<div><h2>Ce poste, à l'instant</h2><dl class="context-list">${rows("Serveur", server)}${rows("Assistant local", harness)}${rows("Dossier", folder)}</dl></div>` +
+    `<div><h2>Ce poste, à l'instant</h2><dl class="context-list">${rows("Serveur", server)}</dl></div>` +
     extra +
     `<div><h2>Sans serveur ?</h2><p>L'application démarre quand même. La suite attend un serveur joint.</p></div>` +
-    `<div><h2>Sur le web</h2><p>La configuration locale se fait dans Studi'OS Desktop, pas ici.</p></div>` +
+    `<div><h2>Sur le web</h2><p>La configuration du poste se fait dans Studi'OS Desktop, pas ici.</p></div>` +
     `</aside>`
   );
 }
@@ -172,7 +105,7 @@ function contextAside(session: SessionData, extra = ""): string {
 function layout(session: SessionData, step: OnboardingStep, current: OnboardingStepId, body: string, context = ""): string {
   return (
     `<p class="ds-eyebrow">Premier lancement · Desktop uniquement</p>` +
-    dsPageHeader("Assistant de configuration", "9 étapes guidées, reprise revalidée à l'instant.") +
+    dsPageHeader("Assistant de configuration", "4 étapes guidées, poste seul.") +
     progressHtml(current) +
     `<div class="tool-columns"><div class="tool-main"><section class="settings-domain" data-testid="onboarding-step" data-step="${esc(step.id)}">` +
     `<h2>${esc(step.heading)}</h2><p class="settings-intro">${esc(step.intro)}</p>${body}</section></div>` +
@@ -202,21 +135,9 @@ export interface SessionData {
   serverProbe: { ok: boolean; detail: string } | null;
   identity: IdentityView | null;
   identityError: string | null;
-  projects: Project[] | null;
-  projectsError: string | null;
-  folder: FolderPickOutcome | null;
-  statusText: string | null;
-  gitText: string | null;
-  knowledgeText: string | null;
-  codeText: string | null;
-  harnesses: HarnessStatus[] | null;
-  harnessError: string | null;
-  plan: HarnessPlan | null;
   error: string | null;
   notice: string | null;
   restartRequired: boolean;
-  /** Clé d'idempotence de la création de projet en cours, par slug. */
-  createAttempt?: { slug: string; key: string };
 }
 
 async function probeServer(): Promise<{ ok: boolean; detail: string }> {
@@ -242,7 +163,7 @@ async function probeServer(): Promise<{ ok: boolean; detail: string }> {
 
 async function readIdentity(platform: Platform): Promise<{ view: IdentityView | null; error: string | null }> {
   const answer = await platform.request("identity.get_view", {});
-  if (!answer.ok) return { view: null, error: workspaceErrorMessage(answer.error) };
+  if (!answer.ok) return { view: null, error: "État du poste illisible." };
   const view = answer.response.payload as unknown as IdentityView;
   const secret = view.secrets?.[0];
   if (!secret) return { view, error: "État du poste illisible." };
@@ -261,83 +182,13 @@ function go(data: SessionData, step: OnboardingStepId): void {
   persist(data);
 }
 
-/** Revalide l'état réel à la reprise : un booléen du wizard ne vaut jamais une preuve. */
-export async function revalidate(data: SessionData, platform: Platform): Promise<void> {
-  data.error = null;
-  const id = data.state.workspaceId;
-  if (!id) return;
-  const checked = await validateWorkspace(platform, id);
-  if (!checked.ok && checked.error.code !== "workspace_config_missing") {
-    // Refus transitoire (assistant local encore en démarrage, pont muet) : ce
-    // n'est pas une preuve que le dossier a disparu, on garde l'association.
-    data.error = `État du dossier non vérifiable pour l'instant : ${workspaceErrorMessage(checked.error)} Réessayez dans un instant.`;
-    return;
-  }
-  if (!checked.ok) {
-    data.state = { ...data.state, workspaceId: undefined, folderName: undefined, current: "dossier" };
-    data.error = "Le dossier associé n'est plus valide : choisissez-le à nouveau.";
-    persist(data);
-    return;
-  }
-  if (checked.value.health !== "valid") {
-    data.state = { ...data.state, current: "dossier" };
-    data.error = `Le dossier associé demande une action : ${workspaceHealthMessage(checked.value)}`;
-    persist(data);
-  }
-}
-
-function knowledgeMessage(status: KnowledgeStatus | null, error: LocalError | null): string {
-  if (error) {
-    if (error.code === "workspace_config_missing") return "Aucun dossier associé : la mémoire sera proposée après l'association.";
-    return "Mémoire indisponible pour l'instant.";
-  }
-  if (!status) return "État de la mémoire inconnu.";
-  const index = status.index?.state;
-  switch (status.state) {
-    case "ready":
-      if (index === "ready") return "Mémoire prête.";
-      if (index === "absent") return "Mémoire vide : aucun document indexé pour l'instant.";
-      if (index === "indexing") return "Mémoire en cours d'indexation…";
-      if (index === "corrupt") return "Index illisible : relancez l'indexation depuis les graphes.";
-      return "Mémoire prête.";
-    case "disabled":
-      return "Mémoire désactivée pour ce dossier.";
-    case "indexing":
-      return "Mémoire en cours d'indexation…";
-    case "unavailable":
-      return "Mémoire indisponible : vérifiez le dossier de la mémoire.";
-    default:
-      return "Mémoire indisponible pour l'instant.";
-  }
-}
-
-async function readKnowledge(platform: Platform, workspaceId: string): Promise<{ text: string; raw: KnowledgeStatus | null }> {
-  const answer = await platform.request("knowledge.status", { workspace_id: workspaceId });
-  if (!answer.ok) return { text: knowledgeMessage(null, answer.error), raw: null };
-  const raw = answer.response.payload as unknown as KnowledgeStatus;
-  return { text: knowledgeMessage(raw, null), raw };
-}
-
-async function readCodeGraph(platform: Platform, workspaceId: string): Promise<string> {
-  return (await readCodeGraphStatus(platform, workspaceId)).text;
-}
-
-async function readCodeGraphStatus(platform: Platform, workspaceId: string): Promise<{ text: string; disabled: boolean }> {
-  const answer = await platform.request("code_graph.status", { workspace_id: workspaceId });
-  if (!answer.ok) {
-    if (answer.error.code === "not_supported" || answer.error.code === "capability_missing") {
-      return { text: "Analyse avancée du code indisponible.", disabled: false };
-    }
-    return { text: "Analyse du code indisponible pour l'instant.", disabled: false };
-  }
-  const raw = answer.response.payload as { state?: string; provider?: { provider_id?: string } | null };
-  if (raw.state === "ready") return { text: "Analyse du code prête.", disabled: false };
-  if (raw.state === "not_installed") {
-    return { text: "Analyse avancée du code indisponible (composant non installé).", disabled: false };
-  }
-  if (raw.state === "indexing") return { text: "Analyse du code en cours d'indexation…", disabled: false };
-  if (raw.state === "disabled") return { text: "Analyse du code désactivée pour ce dossier.", disabled: true };
-  return { text: "Analyse du code indisponible pour l'instant.", disabled: false };
+/**
+ * P3 : le parcours ne retient que le poste ; un état hérité (dossier déjà
+ * associé) n'a rien à revalider ici. Conservé pour la reprise après
+ * redémarrage : ne détourne plus jamais l'utilisateur.
+ */
+export async function revalidate(_data: SessionData, _platform: Platform): Promise<void> {
+  return undefined;
 }
 
 export async function renderOnboarding(
@@ -354,16 +205,6 @@ export async function renderOnboarding(
     serverProbe: null,
     identity: null,
     identityError: null,
-    projects: null,
-    projectsError: null,
-    folder: null,
-    statusText: null,
-    gitText: null,
-    knowledgeText: null,
-    codeText: null,
-    harnesses: null,
-    harnessError: null,
-    plan: null,
     error: null,
     notice: null,
     restartRequired: false,
@@ -379,16 +220,6 @@ export async function renderOnboarding(
       return paintConnexion(root, platform, session, again);
     case "verification":
       return paintVerification(root, platform, session, again);
-    case "projet":
-      return paintProjet(root, platform, session, again);
-    case "dossier":
-      return paintDossier(root, platform, session, again);
-    case "memoire":
-      return paintMemoire(root, platform, session, again);
-    case "environnement":
-      return paintEnvironnement(root, platform, session, again);
-    case "assistant":
-      return paintAssistant(root, platform, session, again);
     case "final":
       return paintFinal(root, platform, session, again);
     case "termine":
@@ -404,16 +235,6 @@ export function emptySession(state: OnboardingState): SessionData {
     serverProbe: null,
     identity: null,
     identityError: null,
-    projects: null,
-    projectsError: null,
-    folder: null,
-    statusText: null,
-    gitText: null,
-    knowledgeText: null,
-    codeText: null,
-    harnesses: null,
-    harnessError: null,
-    plan: null,
     error: null,
     notice: null,
     restartRequired: false,
@@ -422,43 +243,24 @@ export function emptySession(state: OnboardingState): SessionData {
 
 async function paintBienvenue(
   root: HTMLElement,
-  platform: Platform,
+  _platform: Platform,
   session: SessionData,
   again: () => Promise<void>,
 ): Promise<void> {
+  void _platform;
   const step = stepById("bienvenue");
-  let detected = false;
-  try {
-    const origin = await platform.serverOrigin();
-    const id = session.state.workspaceId;
-    if (origin?.applied && id) {
-      const checked = await validateWorkspace(platform, id);
-      detected = checked.ok && checked.value.health === "valid";
-    }
-  } catch {
-    detected = false;
-  }
-  const detectedBody =
-    detected && session.state.status !== "not_started"
-      ? `<section class="ds-hero" aria-label="Bienvenue">` +
-        `<p class="ds-hero-eyebrow">Bienvenue dans Studi'OS</p>` +
-        `<h2>Votre configuration est déjà détectée</h2>` +
-        `<p class="ds-hero-body">Ouvrez le tableau de bord, ou revoyez la configuration pas à pas.</p>` +
-        `<div class="ds-hero-actions">` +
-        `<button class="ds-btn ds-btn--primary" type="button" data-action="finish-detected">Ouvrir le tableau de bord</button>` +
-        `<button class="ds-btn ds-btn--ghost" type="button" data-action="review">Revoir la configuration</button>` +
-        `</div></section>`
-      : `<section class="ds-hero" aria-label="Bienvenue">` +
-        `<p class="ds-hero-eyebrow">Bienvenue dans Studi'OS</p>` +
-        `<h2>Reliez vos projets et vos assistants IA</h2>` +
-        `<p class="ds-hero-body">Quelques étapes, sans jargon ni identifiant à saisir.</p>` +
-        `<div class="ds-hero-actions">` +
-        `<button class="ds-btn ds-btn--primary" type="button" data-action="start">Commencer la configuration</button>` +
-        (session.state.status === "in_progress"
-          ? `<button class="ds-btn ds-btn--ghost" type="button" data-action="resume">Reprendre où j'en étais</button>`
-          : "") +
-        `</div></section>`;
-  const body = errorHtml(session.error) + detectedBody;
+  const body =
+    errorHtml(session.error) +
+    `<section class="ds-hero" aria-label="Bienvenue">` +
+    `<p class="ds-hero-eyebrow">Bienvenue dans Studi'OS</p>` +
+    `<h2>Configurez ce poste en quelques étapes</h2>` +
+    `<p class="ds-hero-body">Sans projet ni dossier : ils se configureront ensuite depuis « Espaces de travail », sans obligation.</p>` +
+    `<div class="ds-hero-actions">` +
+    `<button class="ds-btn ds-btn--primary" type="button" data-action="start">Commencer la configuration</button>` +
+    (session.state.status === "in_progress"
+      ? `<button class="ds-btn ds-btn--ghost" type="button" data-action="resume">Reprendre où j'en étais</button>`
+      : "") +
+    `</div></section>`;
   root.innerHTML = layout(session, step, "bienvenue", body);
   root.querySelector("[data-action=start]")?.addEventListener("click", () => {
     go(session, "connexion");
@@ -466,15 +268,6 @@ async function paintBienvenue(
   });
   root.querySelector("[data-action=resume]")?.addEventListener("click", () => {
     go(session, session.state.current);
-    void again();
-  });
-  root.querySelector("[data-action=finish-detected]")?.addEventListener("click", () => {
-    session.state = { ...session.state, status: "completed", current: "termine", completedAt: utcNow() };
-    persist(session);
-    location.hash = "#/";
-  });
-  root.querySelector("[data-action=review]")?.addEventListener("click", () => {
-    go(session, "connexion");
     void again();
   });
 }
@@ -794,726 +587,9 @@ async function paintVerification(
     void again();
   });
   root.querySelector("[data-action=next]")?.addEventListener("click", () => {
-    go(session, nextStep("verification") ?? "projet");
+    go(session, nextStep("verification") ?? "final");
     void again();
   });
-}
-
-async function paintProjet(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const step = stepById("projet");
-  void platform;
-  if (!hasToken()) {
-    root.innerHTML = layout(
-      session,
-      step,
-      "projet",
-      `<p class="ds-field-error" role="alert">Connectez-vous d'abord (étape « Connexion »).</p>` +
-        navButtons({ prev: previousStep("projet") }),
-    );
-    root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-      go(session, previousStep("projet") ?? "verification");
-      void again();
-    });
-    return;
-  }
-  if (session.projects === null && session.projectsError === null) {
-    try {
-      const client = createApiClient(apiBaseUrl());
-      const result = await client.GET("/api/v1/projects");
-      if (result.response.ok && result.data !== undefined) {
-        session.projects = result.data as Project[];
-      } else {
-        session.projectsError = "La liste des projets est indisponible.";
-      }
-    } catch {
-      session.projectsError = "La liste des projets est indisponible. Vérifiez la connexion.";
-    }
-  }
-  const list = session.projects ?? [];
-  // A5 : seuls admin et developer créent un projet (POST /projects). Un compte
-  // auto-inscrit (readonly) sans projet attend qu'un administrateur l'ajoute.
-  // Rôle lu seulement quand la liste est vide : sinon rien ne change.
-  const role =
-    session.projectsError === null && list.length === 0
-      ? (await fetchIdentity(createApiClient(apiBaseUrl())))?.role
-      : undefined;
-  const canCreate = typeof role !== "string" || role === "admin" || role === "developer";
-  const awaiting = !canCreate;
-  const cards = list
-    .map(
-      (project) =>
-        `<li><label class="ds-radio"><input type="radio" name="project" value="${esc(project.id)}" ${session.state.projectId === project.id ? "checked" : ""} />` +
-        `<span><strong>${esc(project.name ?? project.slug ?? "Projet")}</strong></span></label></li>`,
-    )
-    .join("");
-  const awaitingBlock =
-    awaiting && session.projectsError === null
-      ? `<div data-testid="onboarding-awaiting-access"><h2>En attente d'accès</h2><p>Votre compte est actif, mais aucun projet ne vous est encore attribué : un administrateur de votre studio doit vous ajouter comme membre.</p>` +
-        `<div class="ds-state-actions"><button class="ds-btn" type="button" data-action="reload-projects">Vérifier à nouveau</button></div></div>`
-      : "";
-  const body =
-    errorHtml(session.error ?? session.projectsError) +
-    noticeHtml(session.notice) +
-    (session.projectsError
-      ? `<div class="settings-actions"><button class="ds-btn" type="button" data-action="reload-projects">Recharger la liste</button></div>`
-      : awaiting
-        ? `<p class="settings-intro">Choisissez un projet, ou attendez qu'un administrateur vous en attribue un.</p>`
-        : list.length === 0
-          ? `<p class="settings-intro">Aucun projet sur le serveur : créez-le ci-dessous.</p>`
-          : `<ul class="ds-list" data-testid="project-list">${cards}</ul>`) +
-    (canCreate
-      ? `<form class="settings-server-form" data-testid="project-create-form">` +
-        `<label class="settings-field">Nom du nouveau projet<input id="project-name-input" name="project_name" type="text" autocomplete="off" maxlength="80" /></label>` +
-        `<div class="settings-actions"><button class="ds-btn" type="submit">Créer</button></div></form>`
-      : "") +
-    navButtons({
-      prev: previousStep("projet"),
-      extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="next" ${session.state.projectId ? "" : "disabled"}>Continuer</button>`,
-    });
-  root.innerHTML = layout(session, step, "projet", body, awaitingBlock);
-  session.notice = null;
-  root.querySelectorAll<HTMLInputElement>('input[name=project]')?.forEach((input) => {
-    input.addEventListener("change", () => {
-      const chosen = list.find((project) => project.id === input.value);
-      session.state = {
-        ...session.state,
-        projectId: input.value,
-        projectName: chosen?.name ?? chosen?.slug ?? undefined,
-        projectSlug: chosen?.slug ?? undefined,
-      };
-      persist(session);
-      const next = root.querySelector<HTMLButtonElement>('[data-action=next]');
-      if (next) next.disabled = false;
-    });
-  });
-  root.querySelector("[data-action=reload-projects]")?.addEventListener("click", () => {
-    session.projects = null;
-    session.projectsError = null;
-    session.error = null;
-    void again();
-  });
-  root.querySelector<HTMLFormElement>("[data-testid=project-create-form]")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const name = (root.querySelector<HTMLInputElement>("#project-name-input")?.value ?? "").trim();
-    const slug = projectSlugFromName(name);
-    if (!name || !slug) {
-      session.error = "Indiquez un nom de projet contenant au moins une lettre (a à z) ou un chiffre.";
-      void again();
-      return;
-    }
-    if (!lockButton(form.querySelector<HTMLButtonElement>("button[type=submit]"), "Création en cours…")) return;
-    try {
-      const client = createApiClient(apiBaseUrl());
-      // Même nom = même tentative : la clé est réutilisée, une relance après une
-      // réponse perdue rejoue la création au lieu de heurter le slug (409).
-      if (session.createAttempt?.slug !== slug) session.createAttempt = { slug, key: newIdempotencyKey() };
-      void createProject(client, { slug, name }, session.createAttempt.key).then(
-        (created: Project) => {
-          session.projects = [...(session.projects ?? []), created];
-          session.state = {
-            ...session.state,
-            projectId: created.id,
-            projectName: created.name ?? undefined,
-            projectSlug: created.slug ?? undefined,
-          };
-          session.error = null;
-          session.notice = "Projet créé.";
-          session.createAttempt = undefined;
-          persist(session);
-          void again();
-        },
-        (error: unknown) => {
-          session.error =
-            error instanceof ApiError && error.status === 409
-              ? "Un projet utilise déjà ce nom : sélectionnez-le dans la liste ou choisissez un autre nom."
-              : "La création a échoué. Vérifiez vos droits puis réessayez.";
-          if (error instanceof ApiError && error.status === 409) {
-            session.projects = null;
-            session.projectsError = null;
-          }
-          void again();
-        },
-      );
-    } catch {
-      session.error = "La création a échoué. Vérifiez vos droits puis réessayez.";
-      void again();
-    }
-  });
-  root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-    go(session, previousStep("projet") ?? "verification");
-    void again();
-  });
-  root.querySelector("[data-action=next]")?.addEventListener("click", () => {
-    go(session, nextStep("projet") ?? "dossier");
-    void again();
-  });
-}
-
-async function paintDossier(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const step = stepById("dossier");
-  const outcome = session.folder;
-  const picked = outcome?.kind === "selected" ? outcome : null;
-  let statusLine = session.statusText ?? "";
-  if (!statusLine && session.state.workspaceId) {
-    const checked = await validateWorkspace(platform, session.state.workspaceId);
-    statusLine = checked.ok ? workspaceHealthMessage(checked.value) : workspaceErrorMessage(checked.error);
-    session.statusText = statusLine;
-  }
-  const body =
-    errorHtml(session.error) +
-    noticeHtml(session.notice) +
-    (picked
-      ? `<dl class="settings-rows"><div class="settings-row"><dt>Dossier choisi</dt><dd>${esc(picked.displayName)}</dd></div>` +
-        `<div class="settings-row"><dt>État</dt><dd>${esc(statusLine || "Prêt à associer.")}</dd></div></dl>`
-      : `<p class="settings-intro">Aucun dossier choisi pour l'instant.</p>`) +
-    `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="button" data-action="pick">Choisir un dossier…</button></div>` +
-    // Étape obligatoire : « Terminer » exige un dossier, donc pas de « Passer ».
-    navButtons({
-      prev: previousStep("dossier"),
-      extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="associate" ${picked ? "" : "disabled"}>Associer ce dossier</button>`,
-    });
-  root.innerHTML = layout(session, step, "dossier", body);
-  session.notice = null;
-  root.querySelector<HTMLButtonElement>("[data-action=pick]")?.addEventListener("click", (event) => {
-    // Une seule fenêtre de sélection à la fois.
-    if (!lockButton(event.currentTarget as HTMLButtonElement, "Sélection en cours…")) return;
-    void pickWorkspaceFolder(platform).then((next) => {
-      session.folder = next;
-      session.statusText = null;
-      session.error = next.kind === "error" ? "Le dossier n'a pas pu être sélectionné." : null;
-      void again();
-    });
-  });
-  root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-    go(session, previousStep("dossier") ?? "projet");
-    void again();
-  });
-  root.querySelector<HTMLButtonElement>("[data-action=associate]")?.addEventListener("click", (event) => {
-    if (!picked) return;
-    if (!lockButton(event.currentTarget as HTMLButtonElement, "Association en cours…")) return;
-    associateFolder(root, platform, session, picked.path, picked.displayName, again).catch(() => {
-      session.error = "L'opération a échoué. Aucune modification n'a été confirmée.";
-      void again();
-    });
-  });
-}
-
-async function associateFolder(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  path: string,
-  displayName: string,
-  again: () => Promise<void>,
-): Promise<void> {
-  session.error = null;
-  const projectId = session.state.projectId;
-  if (!projectId) {
-    session.error = "Choisissez d'abord un projet.";
-    return again();
-  }
-  const identity = session.identity ?? (await readIdentity(platform)).view;
-  const profile = identity?.profile;
-  if (!profile) {
-    session.error = "Ce poste n'est pas reconnu. Revenez à l'étape « Vérification ».";
-    return again();
-  }
-  const linkedId = session.state.workspaceId ? undefined : await findLinkedWorkspaceId(platform, projectId, path);
-  if (linkedId) {
-    session.state = { ...session.state, workspaceId: linkedId, folderName: displayName };
-    session.folder = null;
-    session.statusText = null;
-    session.notice = "Dossier déjà associé à ce projet.";
-    persist(session);
-    go(session, nextStep("dossier") ?? "memoire");
-    return;
-  }
-  const roots = { workspace_root: path, repo_roots: [] as { name: string; path: string }[] };
-  // Le pont exige une confirmation liée à ces racines exactes : l'identifiant
-  // est émis par le démon après le choix natif, jamais inventé ici.
-  const confirmed = await confirmRoots(platform, roots);
-  if (!confirmed.ok) {
-    session.error = workspaceErrorMessage(confirmed.error);
-    return again();
-  }
-  const now = utcNow();
-  const existingId = session.state.workspaceId;
-  let currentRoots: Record<string, unknown> | null = null;
-  let workspaceId = existingId ?? newWorkspaceId();
-  let expectedUpdatedAt: string | undefined;
-  if (existingId) {
-    const answer = await platform.request("workspace.get_config", { workspace_id: existingId });
-    if (answer.ok) {
-      const stored = answer.response.payload as { roots?: Record<string, unknown>; updated_at?: string };
-      currentRoots = (stored.roots as Record<string, unknown>) ?? null;
-      expectedUpdatedAt = stored.updated_at;
-    } else {
-      currentRoots = null;
-      workspaceId = newWorkspaceId();
-    }
-  }
-  const saved = await saveWorkspaceConfig(platform, {
-    config: {
-      schema_version: 1,
-      workspace_id: workspaceId,
-      profile,
-      project_id: projectId,
-      ...(session.state.projectSlug ? { project_slug: session.state.projectSlug } : {}),
-      roots,
-      created_at: now,
-      updated_at: now,
-    },
-    current_roots: currentRoots,
-    root_confirmation_id: confirmed.value.root_confirmation_id,
-    ...(expectedUpdatedAt ? { expected_updated_at: expectedUpdatedAt } : {}),
-  });
-  if (!saved.ok) {
-    session.error = workspaceErrorMessage(saved.error);
-    return again();
-  }
-  session.state = { ...session.state, workspaceId, folderName: displayName };
-  session.folder = null;
-  session.statusText = null;
-  session.notice = "Dossier associé.";
-  persist(session);
-  go(session, nextStep("dossier") ?? "memoire");
-  return again();
-}
-
-const DEFAULT_MEMORY_FOLDER = "vault";
-
-async function paintMemoire(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const step = stepById("memoire");
-  const workspaceId = session.state.workspaceId;
-  if (!workspaceId) {
-    root.innerHTML = layout(
-      session,
-      step,
-      "memoire",
-      `<p class="settings-intro">Associez d'abord un dossier : la mémoire vit dans le dossier du projet.</p>` +
-        navButtons({ prev: previousStep("memoire"), extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="skip">Passer</button>` }),
-    );
-    root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
-      go(session, nextStep("memoire") ?? "environnement");
-      void again();
-    });
-    root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-      go(session, previousStep("memoire") ?? "dossier");
-      void again();
-    });
-    return;
-  }
-  const { text } = await readKnowledge(platform, workspaceId);
-  session.knowledgeText = text;
-  const body =
-    errorHtml(session.error) +
-    noticeHtml(session.notice) +
-    `<dl class="settings-rows"><div class="settings-row"><dt>Mémoire du projet</dt><dd>${esc(text)}</dd></div></dl>` +
-    `<p class="settings-intro">La mémoire est rangée dans le dossier du projet, sans rien à choisir. Vous pourrez l'ouvrir dans Obsidian ou tout autre éditeur Markdown : Obsidian n'est jamais requis.</p>` +
-    `<form class="settings-server-form" data-testid="memory-folder-form">` +
-    `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="submit">Activer la mémoire</button></div></form>` +
-    navButtons({
-      prev: previousStep("memoire"),
-      extra:
-        `<button class="ds-btn" type="button" data-action="skip">Passer cette étape</button>` +
-        `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
-    });
-  root.innerHTML = layout(session, step, "memoire", body);
-  session.notice = null;
-  root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
-    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
-    if (submit?.disabled) return;
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Activation en cours…";
-    }
-    form.setAttribute("aria-busy", "true");
-    enableKnowledge(root, platform, session, again).catch(() => {
-      session.error = "L'activation de la mémoire a échoué. Réessayez ou passez cette étape.";
-      void again();
-    });
-  });
-  root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
-    go(session, nextStep("memoire") ?? "environnement");
-    void again();
-  });
-  root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-    go(session, previousStep("memoire") ?? "dossier");
-    void again();
-  });
-  root.querySelector("[data-action=next]")?.addEventListener("click", () => {
-    go(session, nextStep("memoire") ?? "environnement");
-    void again();
-  });
-}
-
-async function enableKnowledge(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const workspaceId = session.state.workspaceId;
-  if (!workspaceId) {
-    session.error = "Associez d'abord un dossier.";
-    return again();
-  }
-  const answer = await platform.request("workspace.get_config", { workspace_id: workspaceId });
-  if (!answer.ok) {
-    session.error = workspaceErrorMessage(answer.error);
-    return again();
-  }
-  const stored = answer.response.payload as Record<string, unknown>;
-  const storedRoots = stored.roots as Record<string, unknown>;
-  const storedKnowledge = (stored.knowledge as Record<string, unknown> | undefined) ?? {};
-  const contentRoot =
-    typeof storedKnowledge.content_root === "string" && storedKnowledge.content_root.trim()
-      ? storedKnowledge.content_root
-      : DEFAULT_MEMORY_FOLDER;
-  const config = {
-    ...(stored as object),
-    features: { ...((stored.features as Record<string, unknown>) ?? {}), knowledge: true },
-    knowledge: {
-      provider_id: "markdown-files",
-      content_root: contentRoot,
-      index: { scope: "workspace_cache", directory_name: "knowledge-index" },
-    },
-    updated_at: utcNow(),
-  };
-  // Pas de transition de racines : aucune confirmation à consommer.
-  const saved = await saveWorkspaceConfig(platform, {
-    config,
-    current_roots: storedRoots,
-    ...(typeof stored.updated_at === "string" ? { expected_updated_at: stored.updated_at } : {}),
-  });
-  if (!saved.ok) {
-    session.error = workspaceErrorMessage(saved.error);
-    return again();
-  }
-  const initialized = await platform.request("knowledge.init_vault", {
-    workspace_id: workspaceId,
-    confirmed: true,
-  });
-  if (!initialized.ok) {
-    session.error = workspaceErrorMessage(initialized.error);
-    return again();
-  }
-  const indexed = await platform.request("knowledge.reindex", {
-    workspace_id: workspaceId,
-    mode: "full_rebuild",
-  });
-  if (!indexed.ok) {
-    session.error = workspaceErrorMessage(indexed.error);
-    return again();
-  }
-  const { text } = await readKnowledge(platform, workspaceId);
-  session.knowledgeText = text;
-  session.notice = "Mémoire activée et préparée dans le dossier du projet.";
-  session.error = null;
-  void root;
-  return again();
-}
-
-async function paintEnvironnement(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const step = stepById("environnement");
-  const workspaceId = session.state.workspaceId;
-  let git = "Aucun dossier associé pour l'instant.";
-  let code = "Aucun dossier associé pour l'instant.";
-  let codeDisabled = false;
-  if (workspaceId) {
-    const probed = await workspaceGitStatus(platform, workspaceId);
-    git = probed.ok ? gitStatusMessage(probed.value) : workspaceErrorMessage(probed.error);
-    session.gitText = git;
-    const codeStatus = await readCodeGraphStatus(platform, workspaceId);
-    code = codeStatus.text;
-    codeDisabled = codeStatus.disabled;
-    session.codeText = code;
-  }
-  const detected = await detectHarnessesSafe(platform, workspaceId);
-  const harnessRows = detected
-    .map((harness) => `<div class="settings-row"><dt>${esc(harness.display_name)}</dt><dd>${esc(harness.detected_version ? `Détecté (${harness.detected_version})` : STATE_LABELS[harness.state])}</dd></div>`)
-    .join("");
-  const body =
-    errorHtml(session.error) +
-    noticeHtml(session.notice) +
-    `<dl class="settings-rows">` +
-    `<div class="settings-row"><dt>Git</dt><dd>${esc(git)}</dd></div>` +
-    `<div class="settings-row"><dt>Mémoire projet</dt><dd>${esc(session.knowledgeText ?? "Non configurée.")}</dd></div>` +
-    `<div class="settings-row"><dt>Analyse du code</dt><dd>${esc(code)}</dd></div>` +
-    (harnessRows || `<div class="settings-row"><dt>Assistants IA</dt><dd>Aucun détecté.</dd></div>`) +
-    `</dl>` +
-    (codeDisabled
-      ? `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="button" data-action="enable-code">Activer l'analyse du code</button></div>`
-      : "") +
-    navButtons({
-      prev: previousStep("environnement"),
-      extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
-    });
-  root.innerHTML = layout(session, step, "environnement", body);
-  session.notice = null;
-  root.querySelector<HTMLButtonElement>("[data-action=enable-code]")?.addEventListener("click", (event) => {
-    const button = event.currentTarget as HTMLButtonElement;
-    if (button.disabled) return;
-    button.disabled = true;
-    button.textContent = "Activation en cours…";
-    enableCodeGraph(platform, session, again).catch(() => {
-      session.error = "L'activation de l'analyse du code a échoué. Réessayez ou continuez sans.";
-      void again();
-    });
-  });
-  root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-    go(session, previousStep("environnement") ?? "memoire");
-    void again();
-  });
-  root.querySelector("[data-action=next]")?.addEventListener("click", () => {
-    go(session, nextStep("environnement") ?? "assistant");
-    void again();
-  });
-}
-
-const CODE_GRAPH_REPO_NAME = "main";
-
-async function enableCodeGraph(
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const workspaceId = session.state.workspaceId;
-  if (!workspaceId) {
-    session.error = "Associez d'abord un dossier.";
-    return again();
-  }
-  const answer = await platform.request("workspace.get_config", { workspace_id: workspaceId });
-  if (!answer.ok) {
-    session.error = workspaceErrorMessage(answer.error);
-    return again();
-  }
-  const stored = answer.response.payload as Record<string, unknown>;
-  const storedRoots = stored.roots as { workspace_root: string; repo_roots?: { name: string; path: string }[] };
-  const repoRoots = storedRoots.repo_roots ?? [];
-  // Sans dépôt déclaré, l'analyse n'aurait rien à indexer : le dossier associé devient le dépôt.
-  const roots = repoRoots.length
-    ? { workspace_root: storedRoots.workspace_root, repo_roots: repoRoots }
-    : { workspace_root: storedRoots.workspace_root, repo_roots: [{ name: CODE_GRAPH_REPO_NAME, path: storedRoots.workspace_root }] };
-  let rootConfirmationId: string | undefined;
-  if (!repoRoots.length) {
-    const confirmed = await confirmRoots(platform, roots);
-    if (!confirmed.ok) {
-      session.error = workspaceErrorMessage(confirmed.error);
-      return again();
-    }
-    rootConfirmationId = confirmed.value.root_confirmation_id;
-  }
-  const config = {
-    ...(stored as object),
-    roots,
-    features: { ...((stored.features as Record<string, unknown>) ?? {}), code_graph: true },
-    code_graph: {
-      provider_id: "graphify",
-      index: { scope: "workspace_cache", directory_name: "code-graph-index" },
-    },
-    updated_at: utcNow(),
-  };
-  const saved = await saveWorkspaceConfig(platform, {
-    config,
-    current_roots: storedRoots,
-    ...(rootConfirmationId ? { root_confirmation_id: rootConfirmationId } : {}),
-    ...(typeof stored.updated_at === "string" ? { expected_updated_at: stored.updated_at } : {}),
-  });
-  if (!saved.ok) {
-    session.error = workspaceErrorMessage(saved.error);
-    return again();
-  }
-  const indexed = await platform.request("code_graph.reindex", { workspace_id: workspaceId, mode: "full_rebuild" });
-  const status = await readCodeGraphStatus(platform, workspaceId);
-  session.codeText = status.text;
-  session.error = null;
-  session.notice =
-    indexed.ok && (indexed.response.payload as { accepted?: boolean }).accepted
-      ? "Analyse du code activée : l'indexation se poursuit en arrière-plan."
-      : "Analyse du code activée. L'indexation démarrera dès que le composant d'analyse sera disponible.";
-  return again();
-}
-
-async function detectHarnessesSafe(platform: Platform, workspaceId: string | undefined): Promise<HarnessStatus[]> {
-  if (!workspaceId) return [];
-  const detected = await detectHarnesses(platform, workspaceId);
-  return detected.ok ? (detected.value.harnesses ?? []) : [];
-}
-
-async function paintAssistant(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  again: () => Promise<void>,
-): Promise<void> {
-  const step = stepById("assistant");
-  const workspaceId = session.state.workspaceId;
-  if (!workspaceId) {
-    root.innerHTML = layout(
-      session,
-      step,
-      "assistant",
-      `<p class="settings-intro">Associez d'abord un dossier : la connexion se fait par projet.</p>` +
-        navButtons({ prev: previousStep("assistant"), extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="skip">Passer</button>` }),
-    );
-    root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
-      go(session, nextStep("assistant") ?? "final");
-      void again();
-    });
-    root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-      go(session, previousStep("assistant") ?? "environnement");
-      void again();
-    });
-    return;
-  }
-  const detected = await detectHarnesses(platform, workspaceId);
-  const harnesses = detected.ok ? (detected.value.harnesses ?? []) : [];
-  session.harnesses = harnesses;
-  session.harnessError = detected.ok ? null : harnessErrorMessage(detected.error);
-  const cards =
-    harnesses.length === 0
-      ? dsStateHtml("empty", { title: "Aucun assistant détecté", message: "Studi'OS fonctionne sans assistant IA. Vous pourrez terminer et connecter un assistant plus tard." })
-      : harnesses.map((harness) => harnessCard(harness, session.plan)).join("");
-  const body =
-    errorHtml(session.error ?? session.harnessError) +
-    noticeHtml(session.notice) +
-    `<p class="settings-intro">Le jeton Studi'OS n'est jamais écrit dans les fichiers, seulement référencé. Lancez ensuite votre assistant depuis Studi'OS pour activer la connexion.</p>` +
-    `<div class="integrations-list">${cards}</div>` +
-    navButtons({
-      prev: previousStep("assistant"),
-      extra:
-        `<button class="ds-btn" type="button" data-action="skip">Passer cette étape</button>` +
-        `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
-    });
-  root.innerHTML = layout(session, step, "assistant", body);
-  session.notice = null;
-  bindHarnessCards(root, platform, session, workspaceId, again);
-  root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
-    go(session, nextStep("assistant") ?? "final");
-    void again();
-  });
-  root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-    go(session, previousStep("assistant") ?? "environnement");
-    void again();
-  });
-  root.querySelector("[data-action=next]")?.addEventListener("click", () => {
-    go(session, nextStep("assistant") ?? "final");
-    void again();
-  });
-}
-
-function harnessCard(harness: HarnessStatus, plan: HarnessPlan | null): string {
-  const configured = harness.state === "configured";
-  const installed = configured || harness.state === "detected";
-  const shown = plan && plan.adapter_id === harness.adapter_id ? planHtml(plan) : "";
-  const actions = installed
-    ? `<div class="integration-actions">` +
-      `<button class="ds-btn ds-btn--primary" type="button" data-action="preview" data-harness="${esc(harness.adapter_id)}">${configured ? "Reconfigurer" : "Connecter à Studi'OS"}</button></div>`
-    : "";
-  return (
-    `<article class="ds-card integration" data-harness="${esc(harness.adapter_id)}" data-state="${esc(harness.state)}">` +
-    `<header class="integration-head"><h3>${esc(harness.display_name)}</h3>${dsBadge(STATE_LABELS[harness.state], STATE_TONES[harness.state])}</header>` +
-    `<dl class="settings-rows"><div class="settings-row"><dt>Version</dt><dd>${esc(harness.detected_version ?? "—")}</dd></div>` +
-    `<div class="settings-row"><dt>MCP Studi'OS</dt><dd>${configured ? "Configuré" : installed ? "Non configuré" : "—"}</dd></div></dl>` +
-    actions +
-    shown +
-    `</article>`
-  );
-}
-
-function planHtml(plan: HarnessPlan): string {
-  const rows = (plan.changes ?? [])
-    .map(
-      (change) =>
-        `<li><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(change.target)}</code></li>`,
-    )
-    .join("");
-  if ((plan.changes ?? []).length === 0) {
-    return `<div class="integration-plan" role="status"><p>Déjà à jour : aucune modification à appliquer.</p>` +
-      `<button class="ds-btn" type="button" data-action="cancel-plan">Fermer</button></div>`;
-  }
-  return (
-    `<div class="integration-plan" role="region" aria-label="Aperçu des modifications">` +
-    `<h4>Aperçu — rien n'est écrit tant que vous n'appliquez pas</h4><ul>${rows}</ul>` +
-    `<p class="settings-intro">Une sauvegarde locale est créée avant toute écriture.</p>` +
-    `<button class="ds-btn ds-btn--primary" type="button" data-action="apply-plan">Appliquer</button> ` +
-    `<button class="ds-btn" type="button" data-action="cancel-plan">Annuler</button></div>`
-  );
-}
-
-function bindHarnessCards(
-  root: HTMLElement,
-  platform: Platform,
-  session: SessionData,
-  workspaceId: string,
-  again: () => Promise<void>,
-): void {
-  for (const card of root.querySelectorAll<HTMLElement>("[data-harness]")) {
-    const adapterId = card.dataset["harness"] ?? "";
-    const failed = (): Promise<void> => {
-      session.error = harnessErrorMessage(null);
-      return again();
-    };
-    card.querySelector<HTMLButtonElement>("[data-action=preview]")?.addEventListener("click", (event) => {
-      if (!lockButton(event.currentTarget as HTMLButtonElement, "Préparation…")) return;
-      void previewHarness(platform, workspaceId, adapterId).then((outcome) => {
-        if (!outcome.ok) {
-          session.error = harnessErrorMessage(outcome.error);
-          return again();
-        }
-        session.plan = outcome.value;
-        session.error = null;
-        return again();
-      }, failed);
-    });
-    card.querySelector("[data-action=cancel-plan]")?.addEventListener("click", () => {
-      session.plan = null;
-      void again();
-    });
-    card.querySelector<HTMLButtonElement>("[data-action=apply-plan]")?.addEventListener("click", (event) => {
-      const plan = session.plan;
-      if (!plan || plan.adapter_id !== adapterId) return;
-      if (!lockButton(event.currentTarget as HTMLButtonElement, "Application…")) return;
-      void applyHarness(platform, plan).then((outcome) => {
-        if (!outcome.ok) {
-          session.error = harnessErrorMessage(outcome.error);
-          return again();
-        }
-        if (outcome.value.error || outcome.value.state !== "configured") {
-          session.error = harnessErrorMessage(outcome.value.error);
-          return again();
-        }
-        session.plan = null;
-        session.notice = "Configuration appliquée. Une sauvegarde locale permet de la restaurer.";
-        session.error = null;
-        return again();
-      }, failed);
-    });
-  }
 }
 
 async function paintFinal(
@@ -1523,40 +599,9 @@ async function paintFinal(
   again: () => Promise<void>,
 ): Promise<void> {
   const step = stepById("final");
-  const workspaceId = session.state.workspaceId;
-  const shell = getDesktopShell();
   const serverOk = (await probeServer()).ok;
-  let folder = "Non associé";
-  let memory = "Non configurée";
-  let git = "—";
-  let code = "—";
-  if (workspaceId) {
-    const checked = await validateWorkspace(platform, workspaceId);
-    if (checked.ok) {
-      const view = toWorkspaceViewModel(checked.value);
-      folder = view ? `${session.state.folderName ?? "Dossier"} — ${workspaceHealthMessage(checked.value)}` : workspaceHealthMessage(checked.value);
-    } else {
-      folder = workspaceErrorMessage(checked.error);
-    }
-    const known = await readKnowledge(platform, workspaceId);
-    memory = known.text;
-    const probed = await workspaceGitStatus(platform, workspaceId);
-    git = probed.ok ? gitStatusMessage(probed.value) : workspaceErrorMessage(probed.error);
-    code = await readCodeGraph(platform, workspaceId);
-  }
-  const harnesses = await detectHarnessesSafe(platform, workspaceId);
-  const harnessLine =
-    harnesses.length === 0
-      ? "Non configuré"
-      : harnesses.map((harness) => `${harness.display_name} : ${harness.state === "configured" ? "connecté" : STATE_LABELS[harness.state]}`).join(" · ");
   const machine = (await readIdentity(platform)).error === null ? "Reconnu" : "À vérifier";
   const rows: Array<[string, string]> = [
-    ["Projet", session.state.projectName ?? "Non choisi"],
-    ["Dossier", folder],
-    ["Mémoire", memory],
-    ["Git", git],
-    ["Analyse du code", code],
-    ["Assistants IA", harnessLine],
     ["Ce poste", machine],
     ["Serveur Studi'OS", serverOk ? "Connecté" : "Injoignable (réessayez ou modifiez l'adresse)"],
   ];
@@ -1565,22 +610,18 @@ async function paintFinal(
     `<dl class="settings-rows">` +
     rows.map(([label, value]) => `<div class="settings-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("") +
     `</dl>` +
+    `<p class="settings-intro">Vos dossiers se configureront ensuite depuis « Espaces de travail » : mémoire, environnement et assistant IA, par dossier, sans obligation.</p>` +
+    `<p class="settings-actions"><a class="ds-btn" href="#/workspaces" data-testid="onboarding-to-workspaces">Configurer un dossier</a></p>` +
     navButtons({
       prev: previousStep("final"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="finish">Terminer</button>`,
     });
   root.innerHTML = layout(session, step, "final", body);
-  void shell;
   root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
-    go(session, previousStep("final") ?? "assistant");
+    go(session, previousStep("final") ?? "verification");
     void again();
   });
   root.querySelector("[data-action=finish]")?.addEventListener("click", () => {
-    if (!workspaceId) {
-      session.error = "Associez un dossier avant de terminer (étape « Dossier »).";
-      void again();
-      return;
-    }
     session.state = { ...session.state, status: "completed", current: "termine", completedAt: utcNow() };
     persist(session);
     location.hash = "#/";
@@ -1600,7 +641,8 @@ async function paintTermine(
     session,
     step,
     "termine",
-    `<p class="settings-notice" role="status">Votre projet « ${esc(session.state.projectName ?? "Studi'OS")} » est prêt.</p>` +
-      `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/">Ouvrir le tableau de bord</a></div>`,
+    `<p class="settings-notice" role="status">Votre poste est prêt. Les dossiers se configurent depuis « Espaces de travail », sans obligation.</p>` +
+      `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/">Ouvrir le tableau de bord</a> ` +
+      `<a class="ds-btn" href="#/workspaces">Aller aux espaces de travail</a></div>`,
   );
 }

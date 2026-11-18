@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "description": "One Git repository seen on this machine that no workspace follows yet.\n\nRecorded by `resolve_workspace` when the server of the active profile\ndoes not recognise the repository (`unresolved` outcome); the dashboard\noffers it for a one-gesture link. Machine-local only: the root may be an\nabsolute local path, and the remotes are normalised `host/org/repo`\nidentifiers, never credential-shaped URLs.",
+  "properties": {
+    "last_seen_at": {
+      "format": "date-time",
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "remotes": {
+      "default": [],
+      "items": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Remotes",
+      "type": "array"
+    },
+    "root": {
+      "title": "Root",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root",
+    "reason",
+    "last_seen_at"
+  ],
+  "title": "DetectedRepositoryView",
+  "type": "object"
+}
