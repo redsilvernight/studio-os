@@ -1,17 +1,16 @@
-# Studio OS v0.13.0 — 18/11/2026
+# Studio OS v0.14.0 — 18/11/2026
 
 ## Nouveautés
 
-- Résolution du workspace par le MCP via les roots MCP ou le cwd (P2-mcp-local).
-- Dépôts détectés non suivis listés dans Workspaces (P3-detected).
-- Assistant de configuration du dashboard réduit au poste (P3-onboarding).
-- Suivi par dépôt : membre, non-membre et fork (P4-e2e) ; le client envoie des URL à `resolve-repository`.
+- Mesures d'infrastructure (M-instrumentation) : table `infra_measurements` et collecteur périodique (tailles des tables, stockage par projet, connexions SSE, mémoire, volume des sauvegardes), sans aucun contenu client.
 
 ## Corrections
 
-- Liste des dépôts détectés dégradée mais fonctionnelle avec un ancien démon ; contrat MCP précisant le registre local.
-- CI : course au rattachement MCP, typage `last_seen_at`, export mort, compteur de commandes pont.
+- Aucune.
 
 ## Notes de mise à jour (contrats, migrations, config)
 
-- Aucune migration. Le client envoie des URL à `resolve-repository` : mettre à jour studio-client avec le serveur.
+- Migration 0045 (additive, réversible) : table `infra_measurements`.
+- Config : `STUDIO_INFRA_MEASURE_INTERVAL_SECONDS` (900 par défaut, 0 désactive), `STUDIO_INFRA_MEASURE_RETENTION_DAYS` (180), `STUDIO_INFRA_BACKUP_DIR`.
+- Compose : `/home/ubuntu/studio-backups` monté en lecture seule dans `api` (`STUDIO_BACKUP_HOST_DIR` pour changer).
+- Aucun changement de contrat d'API.
