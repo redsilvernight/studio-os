@@ -1,7 +1,7 @@
 /**
- * P11 — étapes de l'assistant de configuration (vocabulaire utilisateur, sans
- * jargon : ni MCP, ni démon, ni Graphify, ni Vault, ni token dans le parcours
- * principal).
+ * P3 — étapes du premier lancement : le poste seul, sans projet ni dossier.
+ * La mémoire, l'environnement (Git, analyse du code) et l'assistant IA se
+ * configurent ensuite par dossier depuis « Espaces de travail ».
  */
 import type { OnboardingStepId } from "./state";
 
@@ -40,45 +40,10 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     required: true,
   },
   {
-    id: "projet",
-    title: "Projet",
-    heading: "Choisir un projet",
-    intro: "Sélectionnez le projet à relier à ce poste, ou créez-le s'il n'existe pas encore.",
-    required: true,
-  },
-  {
-    id: "dossier",
-    title: "Dossier",
-    heading: "Associer un dossier",
-    intro: "Choisissez le dossier de travail sur ce poste. Vos fichiers restent en place : seul un repère local est ajouté.",
-    required: true,
-  },
-  {
-    id: "memoire",
-    title: "Mémoire",
-    heading: "Activer la mémoire du projet",
-    intro: "Studi'OS peut utiliser des fichiers Markdown locaux pour conserver et retrouver les connaissances de ce projet.",
-    required: false,
-  },
-  {
-    id: "environnement",
-    title: "Environnement",
-    heading: "Environnement local",
-    intro: "Tour d'horizon de ce que Studi'OS détecte sur ce poste. Rien ici ne bloque la suite.",
-    required: false,
-  },
-  {
-    id: "assistant",
-    title: "Assistant IA",
-    heading: "Connecter votre assistant IA",
-    intro: "Si un assistant IA est installé (Claude Code, OpenCode), Studi'OS peut le relier à ce projet. Rien n'est modifié sans votre confirmation.",
-    required: false,
-  },
-  {
     id: "final",
     title: "Prêt",
-    heading: "Votre projet est prêt",
-    intro: "Contrôlez le résumé avant de terminer. Chaque point est revalidé à l'instant, pas recopié d'une étape précédente.",
+    heading: "Votre poste est prêt",
+    intro: "Contrôlez le résumé avant de terminer. Vos dossiers se configureront ensuite depuis « Espaces de travail », sans obligation.",
     required: true,
   },
   {

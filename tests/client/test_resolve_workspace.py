@@ -92,7 +92,7 @@ async def test_worktree_and_main_checkout_share_one_workspace(tmp_path: Path) ->
     assert main.workspace.project_slug == "demo"
     assert main.project_id == PROJECT
     assert main.repository_key == KEY
-    assert resolver.calls == [[KEY]]
+    assert resolver.calls == [[f"https://{KEY}"]]
 
     linked = await resolve_workspace(worktree, PROFILE, registry_dir=registry, client=resolver)
 

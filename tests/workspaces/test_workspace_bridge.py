@@ -8,6 +8,7 @@ config, unknown workspace).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -28,7 +29,7 @@ from studio_workspaces.root_confirmation import (
 from studio_workspaces.store import WorkspaceStoreError
 from studio_workspaces.workspace_bridge import WorkspaceBridge
 
-from .factories import PROFILE, PROJECT_ID, make_config, make_roots
+from .factories import OTHER_PROFILE, PROFILE, PROJECT_ID, make_config, make_roots
 
 WS = UUID("11111111-1111-4111-8111-111111111111")
 
@@ -270,3 +271,73 @@ def test_git_status_unknown_workspace(tmp_path) -> None:
     with pytest.raises(WorkspaceStoreError) as exc:
         bridge.git_status(WorkspaceScope(workspace_id=WS), PROFILE)
     assert exc.value.code is LocalErrorCode.WORKSPACE_CONFIG_MISSING
+
+
+def _record(registry, profile, root: str, remotes, reason: str = "not_found") -> None:
+    from studio_workspaces.detected import record_detected_repository
+
+    record_detected_repository(registry, profile, root, remotes, "github.com/org/demo", reason)
+
+
+def test_list_detected_returns_unresolved_with_normalized_remotes(tmp_path) -> None:
+    from studio_workspaces.detected import record_detected_repository
+
+    bridge = _bridge(tmp_path)
+    registry = tmp_path / "registry"
+    record_detected_repository(
+        registry,
+        PROFILE,
+        str(tmp_path / "repo-a"),
+        ["https://github.com/org/repo-a.git"],
+        "key-a",
+        "not_found",
+        now=lambda: datetime(2026, 11, 10, 9, 0, tzinfo=UTC),
+    )
+    record_detected_repository(
+        registry,
+        PROFILE,
+        str(tmp_path / "repo-b"),
+        ["git@github.com:org/repo-b.git"],
+        "key-b",
+        "ambiguous",
+        now=lambda: datetime(2026, 11, 10, 10, 0, tzinfo=UTC),
+    )
+    result = bridge.list_detected(PROFILE)
+    assert [item.root for item in result.items] == [
+        str(tmp_path / "repo-b"),
+        str(tmp_path / "repo-a"),
+    ]
+    assert result.items[0].remotes == ["github.com/org/repo-b"]
+    assert result.items[0].reason == "ambiguous"
+    assert result.items[1].remotes == ["github.com/org/repo-a"]
+
+
+def test_list_detected_hides_followed_and_foreign_origins(tmp_path) -> None:
+    folder = tmp_path / "repo-a"
+    folder.mkdir()
+    bridge = _bridge(tmp_path)
+    registry = tmp_path / "registry"
+    _record(registry, PROFILE, str(folder), ["https://github.com/org/repo-a.git"])
+    _record(registry, PROFILE, str(tmp_path / "repo-b"), ["https://github.com/org/repo-b.git"])
+    _record(
+        registry, OTHER_PROFILE, str(tmp_path / "repo-c"), ["https://github.com/org/repo-c.git"]
+    )
+
+    _save_first(bridge, folder)
+    result = bridge.list_detected(PROFILE)
+    assert [item.root for item in result.items] == [str(tmp_path / "repo-b")]
+
+    other = bridge.list_detected(OTHER_PROFILE)
+    assert [item.root for item in other.items] == [str(tmp_path / "repo-c")]
+
+
+def test_save_forgets_the_detected_entry(tmp_path) -> None:
+    folder = tmp_path / "repo-a"
+    folder.mkdir()
+    bridge = _bridge(tmp_path)
+    registry = tmp_path / "registry"
+    _record(registry, PROFILE, str(folder), ["https://github.com/org/repo-a.git"])
+    assert len(bridge.list_detected(PROFILE).items) == 1
+
+    _save_first(bridge, folder)
+    assert bridge.list_detected(PROFILE).items == []

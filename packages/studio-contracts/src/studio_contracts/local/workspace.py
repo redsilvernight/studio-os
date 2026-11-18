@@ -231,6 +231,28 @@ class WorkspaceListResult(LocalContractModel):
     items: list[WorkspaceStatus] = Field(default_factory=list)
 
 
+class DetectedRepositoryView(LocalContractModel):
+    """One Git repository seen on this machine that no workspace follows yet.
+
+    Recorded by `resolve_workspace` when the server of the active profile
+    does not recognise the repository (`unresolved` outcome); the dashboard
+    offers it for a one-gesture link. Machine-local only: the root may be an
+    absolute local path, and the remotes are normalised `host/org/repo`
+    identifiers, never credential-shaped URLs."""
+
+    root: WorkspaceRootPath
+    remotes: list[ShortText] = Field(default=[], max_length=10)
+    reason: ShortText
+    last_seen_at: UtcDatetime
+
+
+class DetectedRepositoryListResult(LocalContractModel):
+    """Repositories of the active server origin that no workspace follows,
+    most recently seen first."""
+
+    items: list[DetectedRepositoryView] = Field(default_factory=list)
+
+
 class WorkspaceValidateRequest(LocalContractModel):
     workspace_id: UUID
 

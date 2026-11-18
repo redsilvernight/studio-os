@@ -151,6 +151,8 @@ from studio_contracts.local.skills import (
 )
 from studio_contracts.local.workspace import (
     CodeGraphConfig,
+    DetectedRepositoryListResult,
+    DetectedRepositoryView,
     GitState,
     IndexLocation,
     KnowledgeConfig,
@@ -1226,6 +1228,17 @@ def build_fixtures() -> list[LocalFixture]:
         WorkspaceAction.DETACH_WORKSPACE,
         LocalErrorCode.PROJECT_UNAVAILABLE,
     )
+    fixtures["workspace.detected.list"] = DetectedRepositoryListResult(
+        items=[
+            DetectedRepositoryView(
+                root="C:/Work/untracked-game",
+                remotes=["github.com/org/untracked-game"],
+                reason="not_found",
+                last_seen_at=NOW,
+            )
+        ]
+    )
+    fixtures["workspace.detected.empty"] = DetectedRepositoryListResult(items=[])
 
     fixtures["identity.view.ok"] = _identity_view(_secret_status(SecretStatus.PRESENT, None))
     fixtures["identity.view.secret_absent"] = _identity_view(

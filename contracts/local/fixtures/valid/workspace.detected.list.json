@@ -1,0 +1,15 @@
+{
+  "data": {
+    "items": [
+      {
+        "last_seen_at": "2026-01-15T12:00:00Z",
+        "reason": "not_found",
+        "remotes": [
+          "github.com/org/untracked-game"
+        ],
+        "root": "C:/Work/untracked-game"
+      }
+    ]
+  },
+  "model": "DetectedRepositoryListResult"
+}
