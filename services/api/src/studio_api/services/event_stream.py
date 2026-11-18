@@ -55,6 +55,12 @@ StreamSignal = StreamEvent | AccessRevoked | UserRevalidation
 
 _subscribers: set[asyncio.Queue[object]] = set()
 
+
+def subscriber_count() -> int:
+    """Open realtime streams in this process (infrastructure measurement)."""
+    return len(_subscribers)
+
+
 _RECENT_SEQS_MAX = 4096
 """How many published `seq` are remembered to drop the second copy of an
 event: this process publishes its own events right after commit, and the

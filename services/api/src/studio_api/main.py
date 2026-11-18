@@ -214,22 +214,26 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from studio_api.services import infra_measurements
     from studio_api.services.event_listener import EventListener
     from studio_api.settings import get_settings
 
     settings = get_settings()
-    if not settings.realtime_listener_enabled:
-        yield
-        return
-    listener = EventListener(settings.database_url)
-    app.state.event_listener = listener
-    task = asyncio.create_task(listener.run())
+    tasks: list[asyncio.Task[None]] = []
+    if settings.realtime_listener_enabled:
+        listener = EventListener(settings.database_url)
+        app.state.event_listener = listener
+        tasks.append(asyncio.create_task(listener.run()))
+    if settings.infra_measure_interval_seconds > 0:
+        tasks.append(asyncio.create_task(infra_measurements.run_forever(settings)))
     try:
         yield
     finally:
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 def create_app() -> FastAPI:
