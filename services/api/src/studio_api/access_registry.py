@@ -54,6 +54,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("GET", "/redoc"): "public",
     # Instance: role-guarded provisioning, no existing project's data.
     ("POST", "/api/v1/projects"): "instance",
+    ("GET", "/api/v1/internal/infra-measurements"): "instance",
     ("GET", "/api/v1/users"): "instance",
     ("POST", "/api/v1/users"): "instance",
     ("POST", "/api/v1/users/{user_id}/disable"): "instance",

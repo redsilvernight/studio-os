@@ -22,7 +22,7 @@ function snapshot(): AdminOverviewData {
 afterEach(() => { vi.clearAllMocks(); document.body.innerHTML = ""; });
 
 describe("adminOverviewHtml (P05-admin)", () => {
-  it("mène aux 6 familles en 1 clic, sans identifiant visible", () => {
+  it("mène aux 7 familles en 1 clic, sans identifiant visible", () => {
     expect(ADMIN_FAMILIES.map((f) => f.href)).toEqual([
       "#/machines",
       "#/accounts",
@@ -30,6 +30,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
       "#/library",
       "#/configuration/runtimes",
       "#/workspaces",
+      "#/administration/mesures",
     ]);
     const html = adminOverviewHtml();
     expect(html).toContain("<h1>Administration</h1>");

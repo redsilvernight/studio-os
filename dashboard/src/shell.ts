@@ -79,7 +79,7 @@ export function shellNavGroups(route: Route, desktop = false, mode: NavMode = "s
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
   void desktop;
   const admin: ShellNavItem[] = [
-    { href: "#/administration", label: "Vue d'ensemble", short: "Admin", icon: "shield", active: is("admin") },
+    { href: "#/administration", label: "Vue d'ensemble", short: "Admin", icon: "shield", active: is("admin", "adminMeasures") },
     { href: "#/machines", label: "Postes", icon: "machines", active: is("machines") },
     { href: "#/accounts", label: "Comptes", icon: "person", active: is("accounts") },
     { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },

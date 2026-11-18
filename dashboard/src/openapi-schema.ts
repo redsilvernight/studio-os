@@ -1537,6 +1537,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/infra-measurements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Infra Measurements
+         * @description Infrastructure cost measurements of the instance, as series over the last `days` (default 7): table sizes, per-project storage, SSE connections, process memory, backup volume. Numbers and timestamps only, never a title, file name or content. Requires the admin role: any other role gets `403 forbidden`.
+         */
+        get: operations["get_infra_measurements_api_v1_internal_infra_measurements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/subscriptions": {
         parameters: {
             query?: never;
@@ -5464,6 +5484,48 @@ export interface components {
          * @enum {string}
          */
         IneligibilityReason: "offline" | "no_capabilities_report" | "capabilities_stale" | "owner_no_project_access" | "project_not_registered" | "launches_not_accepted" | "launch_safety_unsupported" | "harness_incompatible" | "at_capacity";
+        /** InfraMeasurementsReport */
+        InfraMeasurementsReport: {
+            /** Window Days */
+            window_days: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Series */
+            series: components["schemas"]["InfraSeries"][];
+        };
+        /** InfraPoint */
+        InfraPoint: {
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Value */
+            value: number;
+        };
+        /**
+         * InfraSeries
+         * @description One measured fact over the window, oldest point first. `subject` is a
+         *     table name (empty for an instance-wide fact); `project_id` is set only for
+         *     per-project facts.
+         */
+        InfraSeries: {
+            /** Metric */
+            metric: string;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /** Project Id */
+            project_id?: string | null;
+            latest: components["schemas"]["InfraPoint"];
+            /** Points */
+            points: components["schemas"]["InfraPoint"][];
+        };
         /** InitializationAction */
         InitializationAction: {
             section: components["schemas"]["InitializationSection"];
@@ -17984,6 +18046,69 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "price_list_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_infra_measurements_api_v1_internal_infra_measurements_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InfraMeasurementsReport"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
                      *       }
                      *     }
                      */

@@ -7,6 +7,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models import InfraMeasurementModel, ProjectModel, TransferModel
@@ -82,3 +83,39 @@ async def test_purge_removes_only_rows_past_retention(db_session: AsyncSession) 
 def test_no_content_column() -> None:
     columns = {c.name for c in InfraMeasurementModel.__table__.columns}
     assert columns == {"id", "metric", "subject", "project_id", "value", "measured_at"}
+
+
+async def test_report_series_are_numbers_only(db_session: AsyncSession) -> None:
+    tag = uuid.uuid4().hex
+    for offset, value in ((2, 10), (1, 30)):
+        db_session.add(
+            InfraMeasurementModel(
+                metric="pg_table_bytes",
+                subject=tag,
+                value=value,
+                measured_at=NOW - timedelta(days=offset),
+            )
+        )
+    db_session.add(
+        InfraMeasurementModel(
+            metric="pg_table_bytes", subject=tag, value=99, measured_at=NOW - timedelta(days=40)
+        )
+    )
+    await db_session.flush()
+    out = await infra_measurements.report(db_session, 7, now=NOW)
+    [series] = [s for s in out.series if s.subject == tag]
+    assert [p.value for p in series.points] == [10, 30]
+    assert series.latest.value == 30
+
+
+async def test_endpoint_is_admin_only(
+    client: AsyncClient, admin_auth_headers: dict[str, str], auth_headers: dict[str, str]
+) -> None:
+    url = "/api/v1/internal/infra-measurements"
+    assert (await client.get(url, headers=auth_headers)).status_code == 403
+    assert (await client.get(url)).status_code == 401
+    ok = await client.get(url, headers=admin_auth_headers)
+    assert ok.status_code == 200 and set(ok.json()) == {"window_days", "generated_at", "series"}
+    assert (
+        await client.get(url, params={"days": 91}, headers=admin_auth_headers)
+    ).status_code == 422
