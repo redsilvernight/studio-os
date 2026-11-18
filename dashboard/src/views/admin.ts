@@ -28,6 +28,7 @@ export const ADMIN_FAMILIES: readonly AdminFamily[] = [
   { href: "#/library", title: "Bibliothèque", hint: "Règles, savoir-faire et configurations", icon: "book" },
   { href: "#/configuration/runtimes", title: "Configuration", hint: "Runtimes, liaisons, projet, appli, IA", icon: "settings" },
   { href: "#/workspaces", title: "Espaces de travail", hint: "Dossiers suivis sur ce poste", icon: "folder" },
+  { href: "#/administration/mesures", title: "Mesures d'infrastructure", hint: "Tailles et comptes de l'instance", icon: "settings" },
 ];
 
 function familyCardHtml(family: AdminFamily): string {

@@ -149,6 +149,9 @@ async function renderRoute(
     case "admin":
       await (await load(() => import("./views/admin"))).renderAdmin(staging, { client, authed });
       break;
+    case "adminMeasures":
+      await (await load(() => import("./views/infraMeasures"))).renderInfraMeasures(staging, { client, authed });
+      break;
     case "decisions":
       await (await load(() => import("./views/decisionsV2"))).renderDecisionsV2(staging, { client, authed });
       break;

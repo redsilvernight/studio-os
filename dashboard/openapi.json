@@ -8399,6 +8399,81 @@
     }
    }
   },
+  "/api/v1/internal/infra-measurements": {
+   "get": {
+    "tags": [
+     "infra"
+    ],
+    "summary": "Get Infra Measurements",
+    "description": "Infrastructure cost measurements of the instance, as series over the last `days` (default 7): table sizes, per-project storage, SSE connections, process memory, backup volume. Numbers and timestamps only, never a title, file name or content. Requires the admin role: any other role gets `403 forbidden`.",
+    "operationId": "get_infra_measurements_api_v1_internal_infra_measurements_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "days",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 90,
+       "minimum": 1,
+       "default": 7,
+       "title": "Days"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InfraMeasurementsReport"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/usage/subscriptions": {
    "get": {
     "tags": [
@@ -23551,6 +23626,99 @@
     "title": "IneligibilityReason",
     "description": "Deterministic, evaluated in this declaration order."
    },
+   "InfraMeasurementsReport": {
+    "properties": {
+     "window_days": {
+      "type": "integer",
+      "title": "Window Days"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "series": {
+      "items": {
+       "$ref": "#/components/schemas/InfraSeries"
+      },
+      "type": "array",
+      "title": "Series"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "window_days",
+     "generated_at",
+     "series"
+    ],
+    "title": "InfraMeasurementsReport"
+   },
+   "InfraPoint": {
+    "properties": {
+     "measured_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Measured At"
+     },
+     "value": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Value"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "measured_at",
+     "value"
+    ],
+    "title": "InfraPoint"
+   },
+   "InfraSeries": {
+    "properties": {
+     "metric": {
+      "type": "string",
+      "title": "Metric"
+     },
+     "subject": {
+      "type": "string",
+      "title": "Subject",
+      "default": ""
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "latest": {
+      "$ref": "#/components/schemas/InfraPoint"
+     },
+     "points": {
+      "items": {
+       "$ref": "#/components/schemas/InfraPoint"
+      },
+      "type": "array",
+      "title": "Points"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "metric",
+     "latest",
+     "points"
+    ],
+    "title": "InfraSeries",
+    "description": "One measured fact over the window, oldest point first. `subject` is a\ntable name (empty for an instance-wide fact); `project_id` is set only for\nper-project facts."
+   },
    "InitializationAction": {
     "properties": {
      "section": {
@@ -36589,6 +36757,10 @@
   {
    "name": "usage",
    "description": "Measured usage ledger with per-metric coverage, source-event deduplication and versioned whole-block corrections. Writes belong to the authenticated machine."
+  },
+  {
+   "name": "infra",
+   "description": "Internal infrastructure cost measurements (sizes and counts, never content). Admin only."
   },
   {
    "name": "budgets",

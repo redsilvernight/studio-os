@@ -17,6 +17,7 @@ from pathlib import Path
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_contracts.infra import InfraMeasurementsReport, InfraPoint, InfraSeries
 
 from studio_api.db.models.infra_measurement import InfraMeasurementModel
 from studio_api.db.models.transfer import TransferModel
@@ -135,3 +136,32 @@ async def run_forever(settings: Settings) -> None:
         except Exception as exc:  # noqa: BLE001 - the loop must survive any failure
             logger.warning("infra measurement run failed: %s", type(exc).__name__)
         await asyncio.sleep(interval)
+
+
+async def report(
+    session: AsyncSession, window_days: int, *, now: datetime | None = None
+) -> InfraMeasurementsReport:
+    """Series per (metric, subject, project) over the window: numbers only."""
+    generated_at = now or datetime.now(UTC)
+    since = generated_at - timedelta(days=window_days)
+    rows = await session.execute(
+        select(InfraMeasurementModel)
+        .where(InfraMeasurementModel.measured_at >= since)
+        .order_by(InfraMeasurementModel.measured_at)
+    )
+    grouped: dict[tuple[str, str, uuid.UUID | None], list[InfraPoint]] = {}
+    for row in rows.scalars():
+        grouped.setdefault((row.metric, row.subject, row.project_id), []).append(
+            InfraPoint(measured_at=row.measured_at, value=row.value)
+        )
+    series = [
+        InfraSeries(
+            metric=metric, subject=subject, project_id=project_id, latest=points[-1], points=points
+        )
+        for (metric, subject, project_id), points in sorted(
+            grouped.items(), key=lambda item: (item[0][0], item[0][1], str(item[0][2] or ""))
+        )
+    ]
+    return InfraMeasurementsReport(
+        window_days=window_days, generated_at=generated_at, series=series
+    )
