@@ -11,6 +11,7 @@ from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.execution_snapshot import ExecutionSnapshotModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel
+from studio_api.db.models.infra_measurement import InfraMeasurementModel
 from studio_api.db.models.launch_credential import LaunchCredentialModel
 from studio_api.db.models.library import (
     LibraryProjectLockModel,
@@ -90,4 +91,5 @@ __all__ = [
     "RoadmapRevisionModel",
     "TransferModel",
     "IdempotencyKeyModel",
+    "InfraMeasurementModel",
 ]

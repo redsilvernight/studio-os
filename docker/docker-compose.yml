@@ -60,6 +60,10 @@ services:
       # api publishes no port: its only peers are containers of this compose
       # network (Caddy), so X-Forwarded-For is trusted from private ranges only.
       STUDIO_TRUSTED_PROXIES: ${STUDIO_TRUSTED_PROXIES:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
+      # Backup size measurement (phase M): the host backup root, read-only.
+      STUDIO_INFRA_BACKUP_DIR: /backups
+    volumes:
+      - ${STUDIO_BACKUP_HOST_DIR:-/home/ubuntu/studio-backups}:/backups:ro
     depends_on:
       postgres:
         condition: service_healthy
