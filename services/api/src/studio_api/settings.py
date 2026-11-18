@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     # committed by other processes (mcp, workers) and relays them over SSE.
     realtime_listener_enabled: bool = True
 
+    # Infrastructure cost measurements (phase M): sizes and counts only, never
+    # content. 0 disables the collector; retention bounds the table.
+    infra_measure_interval_seconds: int = Field(default=900, ge=0, le=86400)
+    infra_measure_retention_days: int = Field(default=180, ge=90, le=3650)
+    # Directory holding the database backups, when the host has one (optional).
+    infra_backup_dir: str | None = None
+
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
 
