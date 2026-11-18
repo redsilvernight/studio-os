@@ -743,6 +743,8 @@ async def pull_pending(
         .order_by(TaskLaunchModel.created_at.asc(), TaskLaunchModel.id)
         .limit(LAUNCH_POLL_MAX + 1)
     )
+    if (visible := project_visibility_clause(principal, TaskLaunchModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     result = await session.execute(stmt)
     launches = list(result.scalars().all())
     extended = False
