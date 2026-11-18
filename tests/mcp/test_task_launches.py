@@ -9,6 +9,7 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services import projects as projects_service
 from studio_mcp.tools.task_launches import (
     studio_get_task_launch,
     studio_list_task_launches,
@@ -101,7 +102,10 @@ async def test_pull_pending_returns_own_launches_only(
     db_session: AsyncSession,
 ) -> None:
     machine[0].capabilities = {"launch_safety": True}
-    await db_session.flush()
+    # pull_pending ne renvoie que les projets accessibles (PR 285) : le propriétaire en est membre.
+    await projects_service.grant_member(
+        db_session, project.id, machine[0].owner_user_id, granted_by_user_id=None
+    )
     mine = await _row(db_session, project, machine)
     await _row(db_session, project, other_machine)
     result = await studio_pull_pending_launches(auth_ctx)
