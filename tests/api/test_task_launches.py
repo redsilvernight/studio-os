@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services.authz import load_principal
+from studio_api.services.task_launches import pull_pending
 from studio_contracts.task_launch import TaskLaunch, TaskLaunchPull
 
 
@@ -420,6 +423,21 @@ async def test_pull_pending_oldest_first_side_effect_free(
     assert [i["id"] for i in items] == [first["id"], second["id"]]
     events = await _events(client, auth_headers, task_id)
     assert len(events) == 2
+
+
+async def test_pull_pending_hides_launches_of_a_project_the_owner_left(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    principal = await load_principal(db_session, machine[0])
+    kept = await pull_pending(db_session, principal, machine[0].id)
+    assert [i.id for i in kept.items] == [uuid.UUID(launch["id"])]
+    left = replace(principal, project_scope=frozenset())
+    assert (await pull_pending(db_session, left, machine[0].id)).items == []
 
 
 async def test_pull_by_other_machine_is_403(
