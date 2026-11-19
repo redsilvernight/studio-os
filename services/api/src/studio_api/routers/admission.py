@@ -96,4 +96,5 @@ async def admit_roadmap_batch(
         AdmissionBatchResult,
         _admit,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )

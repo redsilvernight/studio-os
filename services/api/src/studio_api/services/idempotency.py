@@ -23,14 +23,18 @@ def hash_request(body: bytes) -> str:
     return hashlib.sha256(body).hexdigest()
 
 
-def _scoped_endpoint(endpoint: str, studio_id: uuid.UUID | None) -> str:
+INSTANCE_SCOPE = uuid.UUID(int=0)
+"""Idempotency scope of instance-level operations that have no studio (account
+sign-up, e-mail verification, password reset): not a tenant, never the same
+namespace as any studio's keys."""
+
+
+def _scoped_endpoint(endpoint: str, studio_id: uuid.UUID) -> str:
     """`idempotency_keys` carries no `studio_id` (0046), so the tenant is
     part of the reserved key: the same `Idempotency-Key` used in two studios
     reserves two independent rows and can never replay the other studio's
-    stored response (DEC-0382). The HTTP/MCP namespace rule is unchanged for
-    a single studio."""
-    if studio_id is None:
-        return endpoint
+    stored response (DEC-0382). Required for every caller: an unscoped key
+    would be a global namespace."""
     return f"{studio_id}:{endpoint}"
 
 
@@ -188,7 +192,7 @@ async def run_idempotent_dict(
     create: Callable[[], Awaitable[dict[str, Any]]],
     response_status: int = 200,
     *,
-    studio_id: uuid.UUID | None = None,
+    studio_id: uuid.UUID,
 ) -> dict[str, Any]:
     """Core reservation/replay logic, independent of FastAPI's `Request` and
     of any particular Pydantic response model — the piece `run_idempotent`
@@ -238,7 +242,7 @@ async def run_idempotent[ModelT](
     create: Callable[[], Awaitable[ModelT]],
     status_code: int,
     *,
-    studio_id: uuid.UUID | None = None,
+    studio_id: uuid.UUID,
 ) -> ModelT:
     """Shared replay logic for a POST that supports the `Idempotency-Key`
     header (.claude/rules/contracts.md) — used by tasks/claims/decisions/

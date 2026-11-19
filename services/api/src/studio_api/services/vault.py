@@ -41,7 +41,9 @@ from studio_api.services.authz import (
     Principal,
     StudioWide,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     forbidden,
     project_in_active_studio,
     studio_clause,
@@ -178,6 +180,7 @@ async def authorize_update(
         raise note_not_found()
     target_status = note_in.status.value if note_in.status is not None else note.status
     _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
+    await ensure_optional_project_in_studio(session, principal, note.project_id, "write")
 
 
 def _authorize_scope_write(
@@ -291,6 +294,7 @@ async def create_note(
     author_type: VaultActorType = VaultActorType.USER,
 ) -> VaultNoteModel:
     authorize_create(principal, note_in)
+    await ensure_optional_project_in_studio(session, principal, note_in.project_id, "write")
     project_id = note_in.project_id
     if note_in.scope is VaultScope.PROJECT and (
         project_id is None or not await project_in_active_studio(session, principal, project_id)
@@ -347,6 +351,7 @@ async def read_note(
     if note is None:
         raise note_not_found()
     _authorize_read(principal, note)
+    await ensure_optional_project_in_studio(session, principal, note.project_id, "read")
     return note
 
 
@@ -379,6 +384,7 @@ async def update_note(
     note = await _lock_note(session, principal, note_id)
     target_status = note_in.status.value if note_in.status is not None else note.status
     _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
+    await ensure_optional_project_in_studio(session, principal, note.project_id, "write")
     if note.version != note_in.expected_version:
         raise _version_conflict(note.version)
 
@@ -587,13 +593,13 @@ async def list_tree(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "missing_project_id"},
             )
-        ensure_project_access(principal, project_id, "read")
+        await ensure_project_in_studio(session, principal, project_id, "read")
         stmt = stmt.where(
             VaultNoteModel.scope == VaultScope.PROJECT.value,
             VaultNoteModel.project_id == project_id,
         )
     elif project_id is not None:
-        ensure_project_access(principal, project_id, "read")
+        await ensure_project_in_studio(session, principal, project_id, "read")
         stmt = stmt.where(
             VaultNoteModel.scope == VaultScope.PROJECT.value,
             VaultNoteModel.project_id == project_id,

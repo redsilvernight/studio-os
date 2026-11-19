@@ -46,7 +46,9 @@ from studio_api.services.authz import (
     StudioWide,
     ensure_can_provision,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     ensure_shared_access,
     forbidden,
     has_any_project,
@@ -286,6 +288,7 @@ async def create_binding(
     """Stores one runtime choice. The owner is always the caller
     (server-derived, never client-supplied)."""
     authorize_create(principal, data.level, data.project_id)
+    await ensure_optional_project_in_studio(session, principal, data.project_id, "write")
     if data.level not in _STORED_LEVELS:
         raise _invalid_runtime_binding("ephemeral_level_not_stored")
     if data.target_kind not in _BINDABLE_KINDS:
@@ -341,6 +344,7 @@ async def get_binding(
         # Another studio's binding answers exactly like an unknown id.
         return None
     _ensure_level_scope(principal, binding.level, binding.project_id, "read")
+    await ensure_optional_project_in_studio(session, principal, binding.project_id, "read")
     if not _is_visible(principal, binding):
         return None
     return binding
@@ -360,7 +364,7 @@ async def list_bindings(
     if level is not None:
         conditions.append(RuntimeBindingModel.level == level.value)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         conditions.append(RuntimeBindingModel.project_id == project_id)
     if kind is not None:
         conditions.append(RuntimeBindingModel.target_kind == kind.value)
@@ -381,6 +385,7 @@ async def delete_binding(
     shared project levels by creator-or-admin, studio default by provision
     roles. The response is snapshotted before deletion."""
     _ensure_level_scope(principal, binding.level, binding.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, binding.project_id, "write")
     if binding.level == RuntimeLevel.USER.value:
         ensure_can_write(principal, "runtime_binding")
         if principal.role != Role.ADMIN and binding.owner_user_id != principal.user.id:
@@ -457,7 +462,7 @@ async def load_candidates(
     non-live, never a hard error). Pure selection happens downstream via
     `select_runtime` — this function only loads."""
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
     overrides = dict(session_overrides or {})
     candidates: list[RuntimeCandidate] = []
     for key_kind, key_name in keys:
@@ -535,7 +540,7 @@ async def resolve_runtime(
     always reported, never silenced. Pure read, no LLM, no provider call.
     An inaccessible `project_id` answers 403 before any read (DEC-0103 §10)."""
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
 
     def _library_failure() -> HTTPException:
         return HTTPException(

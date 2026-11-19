@@ -40,7 +40,7 @@ from studio_contracts.tasks import TaskCreate
 
 from studio_api.db.models.roadmap import RoadmapModel, RoadmapStepModel, RoadmapStepTaskLinkModel
 from studio_api.services import tasks as tasks_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_api.services.roadmap_support import (
     PendingEvent,
     RoadmapTree,
@@ -143,6 +143,7 @@ async def apply_hydration(
 ) -> HydrationResult:
     roadmap = await lock_roadmap(session, roadmap_id)
     guard_write(principal, roadmap, WriteKind.HYDRATION_APPLY, payload.provenance)
+    await ensure_optional_project_in_studio(session, principal, roadmap.project_id, "write")
     prov = await resolve_provenance(session, principal, payload.provenance)
     check_version(roadmap.version, payload.expected_version)
     tree = await load_tree(session, roadmap)

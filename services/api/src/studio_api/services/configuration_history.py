@@ -49,7 +49,7 @@ from studio_contracts.usage import (
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.usage import UsageLedgerEntryModel
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 from studio_api.services.usage import _AggregateAccumulator, _MetricAccumulator
 
 _CONFIGURATION_HISTORY_DEFAULT_DAYS = 30
@@ -247,7 +247,7 @@ async def configuration_history(
     until: datetime | None = None,
     max_groups: int = CONFIGURATION_HISTORY_MAX_GROUPS,
 ) -> ConfigurationHistory:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     if until is None:
         until = datetime.now(UTC)
     if since is None:

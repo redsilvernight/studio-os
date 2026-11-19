@@ -16,6 +16,7 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.usage import UsagePriceListModel
 from studio_api.services.authz import (
     Principal,
+    ensure_optional_project_in_studio,
     ensure_project_access,
     ensure_shared_access,
     forbidden,
@@ -69,6 +70,7 @@ async def list_price_lists(
     """Global lists, plus the project's own when `project_id` is given,
     newest `effective_from` first."""
     _ensure_reader(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "read")
     stmt = select(UsagePriceListModel).where(_scope(principal, project_id))
     stmt = stmt.order_by(
         UsagePriceListModel.effective_from.desc(), UsagePriceListModel.created_at.desc()
@@ -82,6 +84,7 @@ async def effective_price_list(
     """The list in force at `at`: the project's own when it has one,
     otherwise the global one."""
     _ensure_reader(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "read")
     stmt = (
         select(UsagePriceListModel)
         .where(_scope(principal, project_id), UsagePriceListModel.effective_from <= at)
@@ -112,6 +115,7 @@ async def create_price_list(
     commit: bool = True,
 ) -> UsagePriceListModel:
     _ensure_publisher(principal, payload.project_id)
+    await ensure_optional_project_in_studio(session, principal, payload.project_id, "write")
     if payload.project_id is not None and not await project_in_active_studio(
         session, principal, payload.project_id
     ):

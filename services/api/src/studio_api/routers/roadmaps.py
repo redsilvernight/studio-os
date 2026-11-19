@@ -57,6 +57,7 @@ from studio_api.services import roadmap_hydration as hydration_service
 from studio_api.services import roadmap_structure as structure_service
 from studio_api.services import roadmap_support
 from studio_api.services import roadmaps as roadmaps_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1", tags=["roadmaps"])
 
@@ -183,6 +184,7 @@ async def create_roadmap(
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
     roadmap_support.authorize_roadmap_create(principal, payload.project_id)
+    await ensure_optional_project_in_studio(session, principal, payload.project_id, "write")
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -191,6 +193,7 @@ async def create_roadmap(
         Roadmap,
         lambda: roadmaps_service.create_roadmap(session, principal, payload),
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -214,6 +217,7 @@ async def import_roadmap(
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
     roadmap_support.authorize_roadmap_create(principal, payload.project_id)
+    await ensure_optional_project_in_studio(session, principal, payload.project_id, "write")
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -222,6 +226,7 @@ async def import_roadmap(
         Roadmap,
         lambda: roadmaps_service.import_roadmap(session, principal, payload),
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -384,6 +389,7 @@ async def create_proposal(
         RoadmapRevision,
         lambda: roadmaps_service.create_proposal(session, principal, roadmap_id, payload),
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -456,6 +462,7 @@ async def create_phase(
         Roadmap,
         lambda: structure_service.create_phase(session, principal, roadmap_id, payload),
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -564,6 +571,7 @@ async def create_step(
         Roadmap,
         lambda: structure_service.create_step(session, principal, roadmap_id, phase_key, payload),
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -696,6 +704,7 @@ async def link_task(
         Roadmap,
         lambda: structure_service.link_task(session, principal, roadmap_id, step_key, payload),
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -762,4 +771,5 @@ async def apply_hydration(
         HydrationResult,
         lambda: hydration_service.apply_hydration(session, principal, roadmap_id, payload),
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )

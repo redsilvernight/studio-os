@@ -19,6 +19,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_machine_owned,
+    ensure_optional_project_in_studio,
     ensure_project_access,
     ensure_project_in_studio,
     forbidden,
@@ -78,7 +79,7 @@ async def list_ai_work(
 ) -> list[AIWorkLogModel]:
     stmt = select(AIWorkLogModel)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(AIWorkLogModel.project_id == project_id)
         visible = project_visibility_clause(principal, AIWorkLogModel.project_id)
         if visible is not None:
@@ -141,6 +142,7 @@ async def create_ai_work(
     session: AsyncSession, principal: Principal, work_in: AIWorkLogCreate
 ) -> AIWorkLogModel:
     authorize_create(principal, work_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, work_in.project_id, "write")
     await ensure_project_in_studio(session, principal, work_in.project_id, "write")
     agent = await session.get(AgentModel, work_in.agent_id)
     if not owns_agent(agent, principal.machine):

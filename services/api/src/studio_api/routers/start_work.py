@@ -77,4 +77,5 @@ async def start_work(
         StartWorkResult,
         _run,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )

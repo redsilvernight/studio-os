@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 from studio_contracts.transfers import TransferCategory, TransferCreate
@@ -100,6 +100,7 @@ async def studio_create_transfer_metadata(
             parsed_task_id = parsed
 
         transfers_service.authorize_create(principal, parsed_project_id)
+        await ensure_optional_project_in_studio(session, principal, parsed_project_id, "write")
         if parsed_project_id is None:
             project_slug = "unscoped"
         else:

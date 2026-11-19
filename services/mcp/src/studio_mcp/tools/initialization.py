@@ -88,7 +88,12 @@ async def studio_apply_project_initialization(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, _HASH_ENDPOINT, request_hash, _apply
+            session,
+            idempotency_key,
+            _HASH_ENDPOINT,
+            request_hash,
+            _apply,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

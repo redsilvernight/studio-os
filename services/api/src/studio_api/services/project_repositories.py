@@ -15,6 +15,7 @@ from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.project_repository import ProjectRepositoryModel
 from studio_api.services.authz import (
     Principal,
+    ensure_optional_project_in_studio,
     ensure_project_access,
     forbidden,
     project_not_found,
@@ -122,6 +123,7 @@ async def link_repository(
     `grant_member`), while a URL owned by another project is a 409
     `repository_already_linked` — never silently moved."""
     authorize_repositories_write(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
     await _ensure_project(session, principal, project_id)
     try:
         normalized = normalize_remote_url(url)
@@ -157,6 +159,7 @@ async def unlink_repository(
     removed. The path value is re-normalized when possible so equivalent
     spellings of the same remote resolve to the stored canonical URL."""
     authorize_repositories_write(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
     await _ensure_project(session, principal, project_id)
     try:
         target = normalize_remote_url(normalized_url)

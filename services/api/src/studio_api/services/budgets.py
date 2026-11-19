@@ -53,7 +53,9 @@ from studio_api.db.models.usage import UsageLedgerEntryModel
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     forbidden,
     get_launch_scope,
     project_in_active_studio,
@@ -182,6 +184,7 @@ async def put_policy(
     """Create or replace the project's policy. Any write of an `enforce`
     policy clears its approval: the stored mode only applies once approved."""
     _ensure_policy_writer(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
     if not await project_in_active_studio(session, principal, project_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     values = update.model_dump(exclude={"expected_version"}, mode="python")
@@ -237,6 +240,7 @@ async def approve_policy(
     """An explicit admin approval is what turns a stored `enforce` policy
     into an effective one — never the write that proposed it."""
     _ensure_policy_writer(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
     if principal.role != Role.ADMIN:
         raise forbidden("budget_policy", "approve")
     row = await _get_policy(session, project_id, lock=True, studio_id=principal.studio_id)
@@ -670,7 +674,7 @@ async def build_status(session: AsyncSession, project_id: uuid.UUID, now: dateti
 async def get_status(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID
 ) -> BudgetStatus:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     if not await project_in_active_studio(session, principal, project_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     return await build_status(session, project_id, datetime.now(UTC))
@@ -682,6 +686,7 @@ async def reconcile_project(
     """Explicit reconciliation (crash recovery without waiting for the next
     admission). Same lock and rules as an admission."""
     _ensure_policy_writer(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
     now = datetime.now(UTC)
     policy = await _get_policy(session, project_id, lock=True, studio_id=principal.studio_id)
     if policy is None:

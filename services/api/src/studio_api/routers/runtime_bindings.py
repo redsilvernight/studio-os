@@ -21,6 +21,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import runtime_bindings as bindings_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/runtime-bindings", tags=["runtime-bindings"])
 
@@ -87,6 +88,7 @@ async def create_runtime_binding(
     ),
 ) -> RuntimeBinding:
     bindings_service.authorize_create(principal, binding_in.level, binding_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, binding_in.project_id, "write")
 
     async def _create() -> RuntimeBinding:
         binding = await bindings_service.create_binding(session, principal, binding_in)
@@ -100,6 +102,7 @@ async def create_runtime_binding(
         RuntimeBinding,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

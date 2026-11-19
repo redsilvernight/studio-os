@@ -20,7 +20,7 @@ from studio_api.db.models.task import TaskModel
 from studio_api.services import project_context_roadmap
 from studio_api.services.authz import (
     Principal,
-    ensure_project_access,
+    ensure_project_in_studio,
     project_in_active_studio,
 )
 
@@ -54,7 +54,7 @@ async def list_candidate_tasks(
     roadmap tier keeps the facade's deterministic order; the project tier is
     most recently updated first. A dangling or foreign linked id is skipped,
     never leaked."""
-    ensure_project_access(principal, project_id, "read")
+    await ensure_project_in_studio(session, principal, project_id, "read")
     if limit <= 0:
         return []
     if not await project_in_active_studio(session, principal, project_id):

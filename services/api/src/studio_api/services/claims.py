@@ -19,6 +19,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_machine_owned,
+    ensure_optional_project_in_studio,
     ensure_project_access,
     ensure_project_in_studio,
     project_visibility_clause,
@@ -171,6 +172,7 @@ async def create_claim(
     interdiction on blocking locks. A claim made without `task_id` is attached to
     the caller's open session's task when there is one in the same project."""
     authorize_create(principal, claim_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, claim_in.project_id, "write")
     await ensure_project_in_studio(session, principal, claim_in.project_id, "write")
     task_id = claim_in.task_id
     if task_id is None:

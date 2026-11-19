@@ -39,6 +39,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import library as library_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 locks_router = APIRouter(prefix="/api/v1/library-locks", tags=["library"])
@@ -113,6 +114,7 @@ async def create_library_resource(
     ),
 ) -> LibraryResource:
     library_service.authorize_create(principal, resource_in.scope.value, resource_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, resource_in.project_id, "write")
 
     async def _create() -> LibraryResource:
         resource, _ = await library_service.create_resource(session, principal, resource_in)
@@ -477,6 +479,7 @@ async def set_library_lock(
     ),
 ) -> LibraryProjectLock:
     library_service.authorize_lock(principal, lock_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, lock_in.project_id, "write")
 
     async def _create() -> LibraryProjectLock:
         return LibraryProjectLock.model_validate(

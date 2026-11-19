@@ -42,7 +42,7 @@ from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
-    ensure_project_access,
+    ensure_project_in_studio,
     forbidden,
     get_launch_scope,
     owns_agent,
@@ -96,7 +96,7 @@ async def validate_identity(
     session: AsyncSession, principal: Principal, entry: UsageEntryFields
 ) -> None:
     _ensure_launch_scope(principal, entry)
-    ensure_project_access(principal, entry.project_id, "write")
+    await ensure_project_in_studio(session, principal, entry.project_id, "write")
     _ensure_own_machine(principal, entry.machine_id)
     validate_measurements(entry)
     if not await project_in_active_studio(session, principal, entry.project_id):
@@ -336,7 +336,7 @@ async def list_usage(
 ) -> list[UsageLedgerEntryModel]:
     stmt = select(UsageLedgerEntryModel)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(UsageLedgerEntryModel.project_id == project_id)
     if (
         visible := project_visibility_clause(principal, UsageLedgerEntryModel.project_id)
@@ -354,9 +354,9 @@ async def list_usage(
             if isinstance(linked, WorkSessionModel):
                 task = await session.get(TaskModel, linked.task_id)
                 if task is not None:
-                    ensure_project_access(principal, task.project_id)
+                    await ensure_project_in_studio(session, principal, task.project_id)
             elif isinstance(linked, TaskModel | TaskLaunchModel):
-                ensure_project_access(principal, linked.project_id)
+                await ensure_project_in_studio(session, principal, linked.project_id)
         stmt = stmt.where(column == value)
     if since is not None:
         stmt = stmt.where(UsageLedgerEntryModel.updated_at >= since)
@@ -588,7 +588,7 @@ async def summarize_usage(
     until: datetime | None = None,
     max_groups: int = USAGE_SUMMARY_MAX_GROUPS,
 ) -> UsageSummary:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     if since is not None and until is not None and until < since:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"error_code": "invalid_usage_period"}

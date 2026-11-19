@@ -24,7 +24,9 @@ from studio_api.services.authz import (
     Principal,
     ProjectAction,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     ensure_shared_access,
     ensure_transfer_access,
     project_in_active_studio,
@@ -134,6 +136,7 @@ async def create_transfer(
     project_slug: str,
 ) -> TransferModel:
     authorize_create(principal, transfer_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer_in.project_id, "write")
     if transfer_in.project_id is not None and not await project_in_active_studio(
         session, principal, transfer_in.project_id
     ):
@@ -203,6 +206,7 @@ async def get_transfer(
     if transfer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "transfer not found")
     ensure_transfer_scope(principal, transfer.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "read")
     ensure_transfer_access(principal, transfer, "read")
     return transfer
 
@@ -212,7 +216,7 @@ async def list_transfers(
 ) -> list[TransferModel]:
     stmt = select(TransferModel)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(TransferModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, TransferModel.project_id)) is not None:
         stmt = stmt.where(visible)
@@ -232,6 +236,7 @@ async def initiate_upload(
     content_md5: str | None,
 ) -> UploadInitiateResponse:
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
@@ -283,6 +288,7 @@ async def refresh_upload_parts(
     table: this server deliberately never persists in-progress multipart
     state, TECH/06_STORAGE_TRANSFER_SPEC.md)."""
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
@@ -349,6 +355,7 @@ async def complete_upload(
     A client-declared `size_bytes` that disagrees with the reservation is
     therefore rejected the same way a storage-side mismatch is."""
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if size_bytes != transfer.size_bytes:
         raise HTTPException(
@@ -443,6 +450,7 @@ async def acknowledge_download(
     element. A deleted transfer is refused with `409 transfer_deleted`: an
     acknowledgement never resurrects it."""
     ensure_transfer_scope(principal, transfer.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "read")
     ensure_transfer_access(principal, transfer, "read")
     ensure_can_write(principal, "transfer")
     if transfer.status == "deleted":
@@ -496,6 +504,7 @@ async def delete_transfer(
     server-internal and bypasses this check the same way `create_event`
     bypasses `resolve_event_identity` for its own internal callers)."""
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     await _do_delete(session, storage, transfer)
 

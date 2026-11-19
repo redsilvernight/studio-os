@@ -19,7 +19,9 @@ from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     project_visibility_clause,
 )
 
@@ -184,7 +186,7 @@ async def list_producer_jobs(
 ) -> list[ProducerJobModel]:
     stmt = select(ProducerJobModel).order_by(ProducerJobModel.created_at.desc()).limit(limit)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(ProducerJobModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, ProducerJobModel.project_id)) is not None:
         stmt = stmt.where(visible)
@@ -197,7 +199,7 @@ async def get_producer_job(
 ) -> ProducerJobModel | None:
     job = await session.get(ProducerJobModel, job_id)
     if job is not None:
-        ensure_project_access(principal, job.project_id)
+        await ensure_project_in_studio(session, principal, job.project_id)
     return job
 
 
@@ -220,6 +222,7 @@ async def request_producer_job(
     `Task`/`ResourceClaim`: a `decomposition` result is a proposal the
     caller materializes via `POST /tasks`."""
     authorize_request(principal, job_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, job_in.project_id, "write")
     if job_in.kind == ProducerJobKind.DECOMPOSITION and job_in.task_id is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

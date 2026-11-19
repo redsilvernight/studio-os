@@ -348,12 +348,28 @@ async def ensure_project_in_studio(
     action: ProjectAction = "read",
 ) -> None:
     """`ensure_project_access` plus the tenant check a bare project id cannot
-    carry: the project must belong to the active studio. Access runs first, so
-    a caller with no access at all keeps its 403; a project of another studio
-    then answers like an unknown one."""
+    carry: a project owned by ANOTHER studio answers like an unknown one (404).
+    Access runs first, so a caller with no access at all keeps its 403. An id
+    that does not exist at all passes, exactly as it always did: the caller's
+    own lookup then answers its usual not-found (or an empty collection)."""
     ensure_project_access(principal, project_id, action)
-    if not await project_in_active_studio(session, principal, project_id):
+    studio_id = await session.scalar(
+        select(ProjectModel.studio_id).where(ProjectModel.id == project_id)
+    )
+    if studio_id is not None and studio_id != principal.studio_id:
         raise project_not_found(project_id)
+
+
+async def ensure_optional_project_in_studio(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID | None,
+    action: ProjectAction = "read",
+) -> None:
+    """`ensure_project_in_studio` for a project that may be absent (shared,
+    project-less data): nothing to check then."""
+    if project_id is not None:
+        await ensure_project_in_studio(session, principal, project_id, action)
 
 
 def studio_clause(

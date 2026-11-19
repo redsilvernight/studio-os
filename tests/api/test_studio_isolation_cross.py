@@ -212,3 +212,67 @@ async def test_a_live_stream_is_bound_to_its_own_studio(
         finally:
             await poster
     assert body["event_id"] == str(my_event)
+
+
+def _project_scoped_get_routes() -> list[tuple[str, str]]:
+    """Every GET route addressed by a project id, found from the OpenAPI
+    document so a route added later is covered without editing this test:
+    `(path, query_name)`, where `query_name` is empty for a `{project_id}` path
+    parameter and the query parameter's name for a `project_id`/`project`
+    filter."""
+    from studio_api.main import app
+
+    routes: list[tuple[str, str]] = []
+    for path, operations in app.openapi()["paths"].items():
+        operation = operations.get("get")
+        if operation is None:
+            continue
+        if "{project_id}" in path:
+            routes.append((path, ""))
+            continue
+        if "{" in path:
+            continue
+        for parameter in operation.get("parameters", []):
+            if parameter.get("in") == "query" and parameter.get("name") in (
+                "project_id",
+                "project",
+            ):
+                routes.append((path, parameter["name"]))
+    return sorted(routes)
+
+
+@pytest.mark.isolation
+@pytest.mark.parametrize(("path", "query_name"), _project_scoped_get_routes())
+async def test_no_project_route_reads_another_studios_project(
+    client: AsyncClient, db_session: AsyncSession, path: str, query_name: str
+) -> None:
+    """A studio owner/admin asking for another studio's project, on any GET
+    route addressed by a project id, never gets its content: refused, unknown,
+    or an empty collection."""
+    if path.endswith("/stream"):
+        pytest.skip("open-ended SSE stream: covered by the live stream test")
+    owner = await _actor(db_session, "owner")
+    foreign = await _actor(db_session, "owner")
+    foreign_project = await _create_project(client, foreign)
+
+    if query_name:
+        response = await client.get(
+            path, headers=owner.headers, params={query_name: foreign_project}
+        )
+    else:
+        response = await client.get(
+            path.replace("{project_id}", foreign_project), headers=owner.headers
+        )
+    if response.status_code == 200:
+        body = response.json()
+        # Empty: a bare empty collection, or an object whose values are all
+        # empty collections/zero (the requested project id echoed back is not
+        # content).
+        assert body in ([], {}, None) or (
+            isinstance(body, dict)
+            and all(v in ([], {}, None, 0, foreign_project) for v in body.values())
+        ), f"{path} returned content of another studio's project: {response.text[:200]}"
+    else:
+        assert response.status_code in (403, 404, 405, 409, 422), (
+            f"{path} -> {response.status_code}: {response.text[:200]}"
+        )

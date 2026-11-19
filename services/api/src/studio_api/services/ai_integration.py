@@ -21,7 +21,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.services import bootstrap_plan as bootstrap_plan_service
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import provisioning as provisioning_service
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 from studio_api.settings import Settings
 
 _UNKNOWN_ERROR = "plan_unavailable"
@@ -92,7 +92,7 @@ async def _desired(
 async def ai_integration_status(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID, settings: Settings
 ) -> AiIntegrationStatus:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     desired, desired_error = await _desired(session, principal, project_id)
     owner = None if principal.role == Role.ADMIN else principal.user.id
     machines = await provisioning_service.list_active_machines(session, owner)

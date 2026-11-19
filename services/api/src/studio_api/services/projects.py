@@ -19,7 +19,6 @@ from studio_api.services import event_stream
 from studio_api.services.authz import (
     Principal,
     ProjectAction,
-    ensure_project_access,
     ensure_project_in_studio,
     forbidden,
     project_not_found,
@@ -43,7 +42,7 @@ async def get_project(
     """403 before the lookup: inaccessible and nonexistent look the same to a
     non-member; 404 only for a caller entitled to the id (an admin). A project
     of another studio answers that same 404: it does not exist here."""
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     project = await session.get(ProjectModel, project_id)
     if project is None or project.studio_id != principal.studio_id:
         raise project_not_found(project_id)

@@ -17,7 +17,9 @@ from studio_api.services.authz import (
     Principal,
     ProjectAction,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     ensure_shared_access,
     forbidden,
     project_in_active_studio,
@@ -64,7 +66,7 @@ async def list_decisions(
     project (DEC-0103 §4/§7). Always bounded by the active studio (DEC-0382)."""
     stmt = select(DecisionModel).where(studio_clause(principal, DecisionModel.studio_id))
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(DecisionModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, DecisionModel.project_id)) is not None:
         stmt = stmt.where(visible)
@@ -92,6 +94,7 @@ async def create_decision(
     session: AsyncSession, principal: Principal, decision_in: DecisionCreate
 ) -> DecisionModel:
     authorize_create(principal, decision_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, decision_in.project_id, "write")
     if decision_in.project_id is not None and not await project_in_active_studio(
         session, principal, decision_in.project_id
     ):
@@ -188,6 +191,7 @@ async def _replacement(
     if replacement is None or replacement.studio_id != principal.studio_id:
         raise decision_not_found()
     _ensure_decision_scope(principal, replacement.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, replacement.project_id, "write")
     return replacement
 
 
@@ -208,6 +212,7 @@ async def _transition_decision(
         raise forbidden("decision", target.value)
     decision = await _lock_decision(session, principal, decision_id)
     _ensure_decision_scope(principal, decision.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, decision.project_id, "write")
     current = DecisionStatus(decision.status)
     if current not in _ALLOWED_TRANSITIONS[target]:
         raise invalid_decision_transition(decision.status, target.value)

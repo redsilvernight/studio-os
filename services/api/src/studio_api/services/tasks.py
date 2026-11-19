@@ -19,6 +19,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_machine_owned,
+    ensure_optional_project_in_studio,
     ensure_project_access,
     ensure_project_in_studio,
     owns_agent,
@@ -82,7 +83,7 @@ async def read_task(
     project answers like an unknown task."""
     task = await session.get(TaskModel, task_id)
     if task is not None:
-        ensure_project_access(principal, task.project_id)
+        await ensure_project_in_studio(session, principal, task.project_id)
         if not await project_in_active_studio(session, principal, task.project_id):
             return None
     return task
@@ -144,6 +145,7 @@ async def add_task(session: AsyncSession, principal: Principal, task_in: TaskCre
     flushes so its id exists, leaving the transaction to the caller — used by
     units of work (Roadmap hydration) that must create several Tasks atomically."""
     authorize_create(principal, task_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, task_in.project_id, "write")
     await ensure_project_in_studio(session, principal, task_in.project_id, "write")
     task = TaskModel(
         project_id=task_in.project_id, title=task_in.title, description=task_in.description
@@ -233,6 +235,7 @@ async def claim_task(
     completed task with the same holder is a real (re)claim
     (version bump + `task.started`)."""
     authorize_claim(principal, task)
+    await ensure_optional_project_in_studio(session, principal, task.project_id, "write")
     await ensure_project_in_studio(session, principal, task.project_id, "write")
     await session.refresh(task, with_for_update=True)
     if task.claimed_by_machine_id is not None and (
