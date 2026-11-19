@@ -38,7 +38,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_machine_owned,
-    ensure_project_access,
+    ensure_project_in_studio,
     owns_agent,
 )
 
@@ -52,7 +52,7 @@ async def authorize_handoff(
 ) -> None:
     """Project then role check, plus agent ownership when agent_id is
     provided. Run ahead of the idempotency replay short-circuit."""
-    ensure_project_access(principal, request.project_id, "write")
+    await ensure_project_in_studio(session, principal, request.project_id, "write")
     ensure_can_write(principal, "handoff")
     if request.agent_id is not None:
         agent = await session.get(AgentModel, request.agent_id)

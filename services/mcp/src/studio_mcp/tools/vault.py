@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.vault import VaultNoteModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import vault as vault_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_contracts.vault import (
     VAULT_BODY_MAX,
     VAULT_SEARCH_LIMIT_DEFAULT,
@@ -256,6 +256,7 @@ async def studio_vault_write(
             # Ahead of `run_idempotent_dict`'s replay short-circuit — see
             # `routers/vault.py::create_note` for why (DEC-0036).
             vault_service.authorize_create(principal, note_in)
+            await ensure_optional_project_in_studio(session, principal, note_in.project_id, "write")
 
             async def _create() -> dict[str, Any]:
                 note = await vault_service.create_note(
@@ -267,7 +268,12 @@ async def studio_vault_write(
                 json.dumps(note_in.model_dump(mode="json"), sort_keys=True).encode()
             )
             return await idempotency_service.run_idempotent_dict(
-                session, idempotency_key, "MCP studio_vault_write", request_hash, _create
+                session,
+                idempotency_key,
+                "MCP studio_vault_write",
+                request_hash,
+                _create,
+                studio_id=principal.studio_id,
             )
 
         parsed_note_id = parse_uuid(note_id, "note_id")

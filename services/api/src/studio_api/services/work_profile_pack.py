@@ -10,14 +10,14 @@ from studio_contracts.work_profile_pack import WorkProfilePackPreview, WorkProfi
 
 from studio_api.services import library as library_service
 from studio_api.services import resolution as resolution_service
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 
 
 async def preview_work_profile_pack(
     session: AsyncSession, principal: Principal, request: WorkProfilePackRequest
 ) -> WorkProfilePackPreview:
     if request.project_id is not None:
-        ensure_project_access(principal, request.project_id, "read")
+        await ensure_project_in_studio(session, principal, request.project_id, "read")
     refs = [request.pack.base, *request.pack.adaptations]
     for index, ref in enumerate(refs):
         row = await library_service.get_resource(session, principal, ref.resource_id)

@@ -26,7 +26,7 @@ from studio_contracts.resolution import (
 
 from studio_api.services import library as library_service
 from studio_api.services import resolution as resolution_service
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 
 _KIND_ORDER = {
     LibraryKind.AGENT_DEFINITION: 0,
@@ -217,7 +217,7 @@ async def build_bootstrap_plan(
     or invisible definition, incompatible stored runtime) fails the whole plan
     with the same public error `POST /resolutions` gives."""
 
-    ensure_project_access(principal, request.project_id)
+    await ensure_project_in_studio(session, principal, request.project_id)
     if request.agent_keys:
         agent_keys = sorted(set(request.agent_keys))
     else:

@@ -18,6 +18,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import tasks as tasks_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -76,12 +77,20 @@ async def create_task(
     ),
 ) -> Task:
     tasks_service.authorize_create(principal, task_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, task_in.project_id, "write")
 
     async def _create() -> Task:
         return Task.model_validate(await tasks_service.create_task(session, principal, task_in))
 
     return await idempotency_service.run_idempotent(
-        session, request, idempotency_key, "POST /tasks", Task, _create, status.HTTP_201_CREATED
+        session,
+        request,
+        idempotency_key,
+        "POST /tasks",
+        Task,
+        _create,
+        status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -167,6 +176,7 @@ async def claim_task(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
     # Ahead of the idempotency replay short-circuit (DEC-0036).
     tasks_service.authorize_claim(principal, task)
+    await ensure_optional_project_in_studio(session, principal, task.project_id, "write")
 
     async def _claim() -> Task:
         return Task.model_validate(
@@ -183,6 +193,7 @@ async def claim_task(
         Task,
         _claim,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 

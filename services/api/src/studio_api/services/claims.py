@@ -19,7 +19,9 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_machine_owned,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     project_visibility_clause,
 )
 
@@ -68,6 +70,9 @@ async def list_claims(
     if project_id is not None:
         ensure_project_access(principal, project_id)
         stmt = stmt.where(ResourceClaimModel.project_id == project_id)
+        visible = project_visibility_clause(principal, ResourceClaimModel.project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     elif (
         visible := project_visibility_clause(principal, ResourceClaimModel.project_id)
     ) is not None:
@@ -114,7 +119,7 @@ async def _commit_with_event(
     await session.commit()
     await session.refresh(claim)
     await session.refresh(event)
-    events_service.publish_event(event)
+    await events_service.publish_event(session, event)
     return claim
 
 
@@ -167,6 +172,8 @@ async def create_claim(
     interdiction on blocking locks. A claim made without `task_id` is attached to
     the caller's open session's task when there is one in the same project."""
     authorize_create(principal, claim_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, claim_in.project_id, "write")
+    await ensure_project_in_studio(session, principal, claim_in.project_id, "write")
     task_id = claim_in.task_id
     if task_id is None:
         task_id = await _open_session_task_id(session, claim_in.project_id, machine_id, agent_id)
@@ -200,7 +207,7 @@ async def has_conflict(session: AsyncSession, claim: ResourceClaimModel) -> bool
 async def renew_claim(
     session: AsyncSession, principal: Principal, claim: ResourceClaimModel
 ) -> ResourceClaimModel:
-    ensure_project_access(principal, claim.project_id, "write")
+    await ensure_project_in_studio(session, principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "renew")
     if claim.status == "released":
         # A released claim stays released: no write, no `resource.renewed`.
@@ -214,7 +221,7 @@ async def renew_claim(
 async def release_claim(
     session: AsyncSession, principal: Principal, claim: ResourceClaimModel
 ) -> ResourceClaimModel:
-    ensure_project_access(principal, claim.project_id, "write")
+    await ensure_project_in_studio(session, principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "release")
     if claim.status == "released":
         # Releasing twice is harmless: no second write, no second event.
@@ -299,7 +306,7 @@ async def release_task_claims_by_task(
     single release. Idempotent: already-released claims are skipped
     without error; another machine or agent's claims are never touched.
     Unattributed claims follow the task holder when no different agent holds it."""
-    ensure_project_access(principal, task.project_id, "write")
+    await ensure_project_in_studio(session, principal, task.project_id, "write")
     result = await session.execute(
         select(ResourceClaimModel).where(
             ResourceClaimModel.task_id == task.id,

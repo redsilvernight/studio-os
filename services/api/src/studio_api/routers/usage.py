@@ -204,6 +204,7 @@ async def create_usage(
         UsageLedgerEntry,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
     await usage_service.validate_identity(session, principal, result)
     return result
@@ -251,6 +252,7 @@ async def correct_usage(
         UsageLedgerEntry,
         _correct,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
     await usage_service.authorize_correction(session, principal, correction)
     return result

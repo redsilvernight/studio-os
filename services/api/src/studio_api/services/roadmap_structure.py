@@ -50,7 +50,7 @@ from studio_api.db.models.roadmap import (
     RoadmapStepTaskLinkModel,
 )
 from studio_api.db.models.task import TaskModel
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_api.services.roadmap_support import (
     ResolvedProvenance,
     RoadmapTree,
@@ -81,6 +81,7 @@ async def _open(
 ) -> tuple[RoadmapModel, ResolvedProvenance, RoadmapTree]:
     roadmap = await lock_roadmap(session, roadmap_id)
     guard_write(principal, roadmap, kind, declared)
+    await ensure_optional_project_in_studio(session, principal, roadmap.project_id, "write")
     prov = await resolve_provenance(session, principal, declared)
     if expected_roadmap_version is not None:
         check_version(roadmap.version, expected_roadmap_version)

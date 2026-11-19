@@ -290,6 +290,19 @@ def scope_contains(scope: ProjectScope, project_id: uuid.UUID) -> bool:
     return isinstance(scope, StudioWide) or project_id in scope
 
 
+async def project_in_active_studio(
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID
+) -> bool:
+    """Whether `project_id` belongs to the active studio. A manager's
+    `StudioWide` scope holds any id, so every service that accepts a project id
+    from a caller verifies the project row here; a foreign project is then
+    answered by the caller exactly like a missing one (DEC-0382)."""
+    studio_id = await session.scalar(
+        select(ProjectModel.studio_id).where(ProjectModel.id == project_id)
+    )
+    return studio_id == principal.studio_id
+
+
 def has_any_project(principal: Principal) -> bool:
     """Shared data without a project (global decisions, Studio Library and
     bindings, project-less transfers) is readable only by a studio manager or a
@@ -316,6 +329,47 @@ def ensure_shared_access(principal: Principal, action: ProjectAction = "read") -
     """Guard for project-less shared data (see `has_any_project`)."""
     if not has_any_project(principal):
         raise forbidden("project", action)
+
+
+def project_not_found(project_id: uuid.UUID) -> HTTPException:
+    """The lookup answer of a project id: identical for an unknown id and for
+    an id owned by another studio, which does not exist from the active
+    studio (DEC-0382)."""
+    return HTTPException(
+        status.HTTP_404_NOT_FOUND,
+        detail={"error_code": "not_found", "message": f"project {project_id} not found"},
+    )
+
+
+async def ensure_project_in_studio(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    action: ProjectAction = "read",
+) -> None:
+    """`ensure_project_access` plus the tenant check a bare project id cannot
+    carry: a project owned by ANOTHER studio answers like an unknown one (404).
+    Access runs first, so a caller with no access at all keeps its 403. An id
+    that does not exist at all passes, exactly as it always did: the caller's
+    own lookup then answers its usual not-found (or an empty collection)."""
+    ensure_project_access(principal, project_id, action)
+    studio_id = await session.scalar(
+        select(ProjectModel.studio_id).where(ProjectModel.id == project_id)
+    )
+    if studio_id is not None and studio_id != principal.studio_id:
+        raise project_not_found(project_id)
+
+
+async def ensure_optional_project_in_studio(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID | None,
+    action: ProjectAction = "read",
+) -> None:
+    """`ensure_project_in_studio` for a project that may be absent (shared,
+    project-less data): nothing to check then."""
+    if project_id is not None:
+        await ensure_project_in_studio(session, principal, project_id, action)
 
 
 def studio_clause(

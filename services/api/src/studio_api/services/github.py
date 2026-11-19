@@ -27,7 +27,9 @@ from studio_api.services.authz import (
     Principal,
     ProjectAction,
     ensure_can_provision,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     project_visibility_clause,
 )
 
@@ -365,7 +367,7 @@ async def get_integration_for(
 ) -> GitHubIntegrationModel | None:
     """`get_integration_by_project` behind the project check, so an
     inaccessible project never reveals whether it is wired (DEC-0103 §8)."""
-    ensure_project_access(principal, project_id, action)
+    await ensure_project_in_studio(session, principal, project_id, action)
     return await get_integration_by_project(session, project_id)
 
 
@@ -380,6 +382,7 @@ async def create_integration(
     session: AsyncSession, principal: Principal, integration_in: GitHubIntegrationCreate
 ) -> GitHubIntegrationModel:
     authorize_integration_write(principal, integration_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, integration_in.project_id, "write")
     project = await session.get(ProjectModel, integration_in.project_id)
     if project is None:
         raise HTTPException(
@@ -414,6 +417,7 @@ async def update_integration(
     integration_in: GitHubIntegrationUpdate,
 ) -> GitHubIntegrationModel:
     authorize_integration_write(principal, integration.project_id)
+    await ensure_optional_project_in_studio(session, principal, integration.project_id, "write")
     if integration_in.repo_full_name is not None:
         integration.repo_full_name = integration_in.repo_full_name
     if integration_in.default_branch is not None:
@@ -434,7 +438,7 @@ async def list_builds(
 ) -> list[BuildModel]:
     stmt = select(BuildModel).order_by(BuildModel.created_at.desc()).limit(limit)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(BuildModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, BuildModel.project_id)) is not None:
         stmt = stmt.where(visible)
@@ -449,7 +453,7 @@ async def get_build(
 ) -> BuildModel | None:
     build = await session.get(BuildModel, build_id)
     if build is not None:
-        ensure_project_access(principal, build.project_id)
+        await ensure_project_in_studio(session, principal, build.project_id)
     return build
 
 

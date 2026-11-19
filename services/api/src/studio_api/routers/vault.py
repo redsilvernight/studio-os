@@ -35,6 +35,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import vault as vault_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/vault", tags=["vault"])
 
@@ -67,6 +68,7 @@ async def create_note(
     ),
 ) -> VaultNote:
     vault_service.authorize_create(principal, note_in)
+    await ensure_optional_project_in_studio(session, principal, note_in.project_id, "write")
 
     async def _create() -> VaultNote:
         note = await vault_service.create_note(session, principal, note_in)
@@ -80,6 +82,7 @@ async def create_note(
         VaultNote,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -140,6 +143,7 @@ async def update_note(
         VaultNote,
         _update,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 

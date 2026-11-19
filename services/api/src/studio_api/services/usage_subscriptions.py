@@ -29,7 +29,9 @@ from studio_api.db.models.usage import UsageLedgerEntryModel, UsageSubscriptionM
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     forbidden,
     get_launch_scope,
 )
@@ -235,7 +237,7 @@ def _terms(payload: UsageSubscriptionFields) -> dict[str, Any]:
 async def list_subscriptions(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID
 ) -> list[UsageSubscriptionModel]:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     stmt = (
         select(UsageSubscriptionModel)
         .where(UsageSubscriptionModel.project_id == project_id)
@@ -252,6 +254,7 @@ async def create_subscription(
     commit: bool = True,
 ) -> UsageSubscriptionModel:
     _ensure_manager(principal, payload.project_id)
+    await ensure_optional_project_in_studio(session, principal, payload.project_id, "write")
     if await session.get(ProjectModel, payload.project_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     row = UsageSubscriptionModel(project_id=payload.project_id, **_terms(payload))
@@ -270,6 +273,7 @@ async def _locked(
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "subscription not found")
     _ensure_manager(principal, row.project_id)
+    await ensure_optional_project_in_studio(session, principal, row.project_id, "write")
     if row.version != expected_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,

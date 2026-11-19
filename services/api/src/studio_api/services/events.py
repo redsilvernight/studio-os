@@ -11,7 +11,9 @@ from studio_contracts.events import EventCreate, EventEnvelope, EventType
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.event import EventModel
+from studio_api.db.models.library import LibraryResourceModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
 from studio_api.services import event_stream
@@ -20,10 +22,12 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_project_access,
+    ensure_project_in_studio,
     has_any_project,
     owns_agent,
     project_access_for_user,
     project_visibility_clause,
+    studio_role_for_user,
 )
 
 
@@ -63,7 +67,7 @@ async def resolve_event_identity(
                 "project-less library.* events are emitted by the server only",
             },
         )
-    ensure_project_access(principal, event_in.project_id, "write")
+    await ensure_project_in_studio(session, principal, event_in.project_id, "write")
     ensure_can_write(principal, "event")
     if event_in.event_type.value.startswith(COORDINATION_EVENT_PREFIX):
         raise HTTPException(
@@ -138,12 +142,83 @@ def _new_event_row(event_in: EventCreate) -> EventModel:
     )
 
 
-def publish_event(event: EventModel) -> None:
-    """Realtime fan-out of a *committed* event (`seq` is assigned by then)."""
+def _library_resource_id(event: EventModel) -> UUID | None:
+    """The library resource a project-less Studio `library.*` event is about
+    (its payload's `resource_id`), or `None` when it cannot be parsed."""
+    raw = (event.payload or {}).get("resource_id")
+    if not isinstance(raw, str):
+        return None
+    try:
+        return UUID(raw)
+    except ValueError:
+        return None
+
+
+async def event_studio_id(session: AsyncSession, event: EventModel) -> UUID | None:
+    """The studio an event belongs to (DEC-0382). Events carry no `studio_id`
+    of their own: a project event borrows its project's, a project-less Studio
+    `library.*` event its library resource's. `None` means unresolved — such an
+    event is never delivered to a stream (fail-closed)."""
+    if event.project_id is not None:
+        project_studio: UUID | None = await session.scalar(
+            select(ProjectModel.studio_id).where(ProjectModel.id == event.project_id)
+        )
+        return project_studio
+    resource_id = _library_resource_id(event)
+    if resource_id is None:
+        return None
+    resource_studio: UUID | None = await session.scalar(
+        select(LibraryResourceModel.studio_id).where(LibraryResourceModel.id == resource_id)
+    )
+    return resource_studio
+
+
+async def events_in_studio(
+    session: AsyncSession, events: list[EventModel], studio_id: UUID
+) -> list[EventModel]:
+    """The subset of `events` owned by `studio_id`, resolved in two batched
+    lookups (projects then library resources) so a replay backlog or a listing
+    never pays one query per row. Events whose studio cannot be resolved are
+    dropped (fail-closed), never broadcast."""
+    project_ids = {event.project_id for event in events if event.project_id is not None}
+    resource_ids = {
+        resource_id
+        for event in events
+        if event.project_id is None and (resource_id := _library_resource_id(event)) is not None
+    }
+    studios: dict[UUID, UUID] = {}
+    if project_ids:
+        rows = await session.execute(
+            select(ProjectModel.id, ProjectModel.studio_id).where(ProjectModel.id.in_(project_ids))
+        )
+        studios.update({row.id: row.studio_id for row in rows})
+    if resource_ids:
+        rows = await session.execute(
+            select(LibraryResourceModel.id, LibraryResourceModel.studio_id).where(
+                LibraryResourceModel.id.in_(resource_ids)
+            )
+        )
+        studios.update({row.id: row.studio_id for row in rows})
+
+    def _owner(event: EventModel) -> UUID | None:
+        key = event.project_id if event.project_id is not None else _library_resource_id(event)
+        return None if key is None else studios.get(key)
+
+    return [event for event in events if _owner(event) == studio_id]
+
+
+async def publish_event(
+    session: AsyncSession, event: EventModel, studio_id: UUID | None = None
+) -> None:
+    """Realtime fan-out of a *committed* event (`seq` is assigned by then).
+    The event's studio is resolved from its project (or library resource) so
+    every open stream can drop the events of another studio (DEC-0382)."""
+    resolved = studio_id if studio_id is not None else await event_studio_id(session, event)
     event_stream.publish(
         event_stream.StreamEvent(
             seq=event.seq,
             project_id=event.project_id,
+            studio_id=resolved,
             envelope=EventEnvelope.model_validate(event),
         )
     )
@@ -187,7 +262,7 @@ async def create_event(session: AsyncSession, event_in: EventCreate) -> EventMod
     event = await _insert_and_notify(session, event_in)
     await session.commit()
     await session.refresh(event)
-    publish_event(event)
+    await publish_event(session, event)
     return event
 
 
@@ -217,6 +292,7 @@ async def list_events_after(
     stmt = select(EventModel).order_by(EventModel.seq.asc()).limit(limit)
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
+        visible = project_visibility_clause(principal, EventModel.project_id)
         if include_global:
             stmt = stmt.where(
                 or_(
@@ -226,6 +302,8 @@ async def list_events_after(
             )
         else:
             stmt = stmt.where(EventModel.project_id == project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     else:
         stmt = stmt.where(EventModel.project_id.is_(None))
     if after_seq is not None:
@@ -263,6 +341,9 @@ async def list_events(
             )
         else:
             stmt = stmt.where(EventModel.project_id == project_id)
+        visible = project_visibility_clause(principal, EventModel.project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     elif (visible := project_visibility_clause(principal, EventModel.project_id)) is not None:
         # `project_visibility_clause` already keeps project-less rows for a
         # principal with at least one membership; contract v2 goes one step
@@ -287,26 +368,38 @@ async def list_events(
     if event_type is not None:
         stmt = stmt.where(EventModel.event_type == event_type.value)
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    events = list(result.scalars().all())
+    if any(event.project_id is None for event in events):
+        # A project-less row is a Studio `library.*` event (ck_events_project_scope):
+        # it belongs to the studio of its library resource, so another studio's
+        # rows never join this listing (DEC-0382).
+        events = await events_in_studio(session, events, principal.studio_id)
+    return events
 
 
-def authorize_stream(principal: Principal, project_id: UUID | None) -> None:
+async def authorize_stream(
+    session: AsyncSession, principal: Principal, project_id: UUID | None
+) -> None:
     """Opening check of `GET /events/stream`, run before the response starts
     so an inaccessible project is a plain 403 (DEC-0103 §9). A project-less
     (global, Studio `library.*` only) stream needs no project check — any
-    authenticated principal may open it."""
+    authenticated principal may open it. A project of another studio answers
+    like an unknown one."""
     if project_id is None:
         return
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
 
 
 async def stream_global_access_still_valid(
-    machine_id: UUID, jwt_auth_version: int | None = None
+    machine_id: UUID,
+    jwt_auth_version: int | None = None,
+    studio_id: UUID | None = None,
 ) -> bool:
     """Periodic revalidation of a project-less (global) stream: same
     credential/state checks as `stream_access_still_valid`, but no project
-    membership — Studio `library.*` events stay visible to every
-    authenticated principal for as long as its credential is valid."""
+    membership — Studio `library.*` events stay visible for as long as its
+    credential is valid and, when `studio_id` is given, the user is still a
+    member of that studio (losing it ends the stream, DEC-0382)."""
     async with get_session_factory()() as session:
         machine = await session.get(MachineModel, machine_id)
         if machine is None or machine.credential_revoked_at is not None:
@@ -316,6 +409,8 @@ async def stream_global_access_still_valid(
             return False
         if jwt_auth_version is not None and user.auth_version != jwt_auth_version:
             return False
+        if studio_id is not None:
+            return await studio_role_for_user(session, user.id, studio_id) is not None
     return True
 
 

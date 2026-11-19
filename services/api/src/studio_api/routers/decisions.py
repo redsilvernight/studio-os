@@ -17,6 +17,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/decisions", tags=["decisions"])
 
@@ -81,6 +82,7 @@ async def create_decision(
     ),
 ) -> Decision:
     decisions_service.authorize_create(principal, decision_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, decision_in.project_id, "write")
 
     async def _create() -> Decision:
         return Decision.model_validate(
@@ -95,6 +97,7 @@ async def create_decision(
         Decision,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

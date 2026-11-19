@@ -152,7 +152,12 @@ async def studio_handoff(
             ).encode()
         )
         result = await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_handoff", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_handoff",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
         return result
 

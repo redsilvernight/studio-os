@@ -24,9 +24,12 @@ from studio_api.services.authz import (
     Principal,
     ProjectAction,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     ensure_shared_access,
     ensure_transfer_access,
+    project_in_active_studio,
     project_visibility_clause,
 )
 from studio_api.services.authz import transfer_visibility_clause as _visibility_clause
@@ -46,28 +49,41 @@ def _generate_transfer_code() -> str:
     return f"TRF-{secrets.token_hex(4).upper()}"
 
 
-async def compute_consumption(session: AsyncSession, project_id: uuid.UUID | None) -> int:
+async def compute_consumption(
+    session: AsyncSession, project_id: uuid.UUID | None, studio_id: uuid.UUID | None = None
+) -> int:
     """Sum of size_bytes for every non-deleted transfer in the quota bucket -
-    project-scoped, or the shared unscoped bucket when project_id is None."""
+    project-scoped, or the shared unscoped bucket when project_id is None.
+    With a `studio_id`, the unscoped bucket is per studio: one tenant's
+    project-less transfers never count against another's quota."""
     stmt = select(func.coalesce(func.sum(TransferModel.size_bytes), 0)).where(
         TransferModel.status != "deleted"
     )
     stmt = stmt.where(TransferModel.project_id == project_id)
+    if studio_id is not None:
+        stmt = stmt.where(TransferModel.studio_id == studio_id)
     result = await session.execute(stmt)
     return int(result.scalar_one())
 
 
-async def _lock_quota_bucket(session: AsyncSession, project_id: uuid.UUID | None) -> None:
+async def _lock_quota_bucket(
+    session: AsyncSession, project_id: uuid.UUID | None, studio_id: uuid.UUID | None = None
+) -> None:
     """Postgres advisory lock scoped to the current transaction: held until
     this session's commit/rollback, so a concurrent request for the same
     bucket blocks here instead of both readers seeing the same stale
-    consumption and both passing the check (same race class as DEC-0015)."""
-    bucket_key = str(project_id) if project_id else "unscoped-transfer-quota"
+    consumption and both passing the check (same race class as DEC-0015).
+    The unscoped bucket is namespaced by studio for the same reason."""
+    bucket_key = str(project_id) if project_id else f"unscoped-transfer-quota:{studio_id}"
     await session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": bucket_key})
 
 
 async def _enforce_transfer_limits(
-    session: AsyncSession, settings: Settings, project_id: uuid.UUID | None, size_bytes: int
+    session: AsyncSession,
+    settings: Settings,
+    project_id: uuid.UUID | None,
+    size_bytes: int,
+    studio_id: uuid.UUID | None = None,
 ) -> None:
     if size_bytes > settings.transfer_max_size_bytes:
         raise HTTPException(
@@ -78,8 +94,8 @@ async def _enforce_transfer_limits(
                 "max_size_bytes": settings.transfer_max_size_bytes,
             },
         )
-    await _lock_quota_bucket(session, project_id)
-    consumed = await compute_consumption(session, project_id)
+    await _lock_quota_bucket(session, project_id, studio_id)
+    consumed = await compute_consumption(session, project_id, studio_id)
     if consumed + size_bytes > settings.transfer_project_quota_bytes:
         raise HTTPException(
             status.HTTP_507_INSUFFICIENT_STORAGE,
@@ -120,8 +136,18 @@ async def create_transfer(
     project_slug: str,
 ) -> TransferModel:
     authorize_create(principal, transfer_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer_in.project_id, "write")
+    if transfer_in.project_id is not None and not await project_in_active_studio(
+        session, principal, transfer_in.project_id
+    ):
+        # Missing and foreign projects answer the same 404 for a manager.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     await _enforce_transfer_limits(
-        session, settings, transfer_in.project_id, transfer_in.size_bytes
+        session,
+        settings,
+        transfer_in.project_id,
+        transfer_in.size_bytes,
+        principal.studio_id,
     )
     if transfer_in.build_id is not None:
         build = await session.get(BuildModel, transfer_in.build_id)
@@ -143,6 +169,7 @@ async def create_transfer(
     retention_days = _RETENTION_DAYS.get(transfer_in.category)
     transfer = TransferModel(
         id=transfer_id,
+        studio_id=principal.studio_id,
         transfer_code=_generate_transfer_code(),
         sender_user_id=principal.user.id,
         recipient_user_id=transfer_in.recipient_user_id,
@@ -167,10 +194,19 @@ async def create_transfer(
 async def get_transfer(
     session: AsyncSession, principal: Principal, transfer_id: uuid.UUID
 ) -> TransferModel:
-    transfer = await session.get(TransferModel, transfer_id)
+    """One transfer, bounded by the active studio: another studio's id is
+    unknown here (`404`), exactly like a missing one, so no metadata nor a
+    presigned URL can ever be obtained across tenants (DEC-0382)."""
+    transfer = await session.scalar(
+        select(TransferModel).where(
+            TransferModel.id == transfer_id,
+            TransferModel.studio_id == principal.studio_id,
+        )
+    )
     if transfer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "transfer not found")
     ensure_transfer_scope(principal, transfer.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "read")
     ensure_transfer_access(principal, transfer, "read")
     return transfer
 
@@ -180,7 +216,7 @@ async def list_transfers(
 ) -> list[TransferModel]:
     stmt = select(TransferModel)
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(TransferModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, TransferModel.project_id)) is not None:
         stmt = stmt.where(visible)
@@ -200,6 +236,7 @@ async def initiate_upload(
     content_md5: str | None,
 ) -> UploadInitiateResponse:
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
@@ -251,6 +288,7 @@ async def refresh_upload_parts(
     table: this server deliberately never persists in-progress multipart
     state, TECH/06_STORAGE_TRANSFER_SPEC.md)."""
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
@@ -317,6 +355,7 @@ async def complete_upload(
     A client-declared `size_bytes` that disagrees with the reservation is
     therefore rejected the same way a storage-side mismatch is."""
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if size_bytes != transfer.size_bytes:
         raise HTTPException(
@@ -411,6 +450,7 @@ async def acknowledge_download(
     element. A deleted transfer is refused with `409 transfer_deleted`: an
     acknowledgement never resurrects it."""
     ensure_transfer_scope(principal, transfer.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "read")
     ensure_transfer_access(principal, transfer, "read")
     ensure_can_write(principal, "transfer")
     if transfer.status == "deleted":
@@ -464,6 +504,7 @@ async def delete_transfer(
     server-internal and bypasses this check the same way `create_event`
     bypasses `resolve_event_identity` for its own internal callers)."""
     ensure_transfer_scope(principal, transfer.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     await _do_delete(session, storage, transfer)
 

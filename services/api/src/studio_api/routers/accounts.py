@@ -140,6 +140,7 @@ async def _accepted(
         accounts_service.keyed_request_hash(await request.body(), settings),
         _create,
         status.HTTP_202_ACCEPTED,
+        studio_id=idempotency_service.INSTANCE_SCOPE,
     )
     return AcceptedResponse.model_validate(body)
 
@@ -161,6 +162,7 @@ async def _terminal(
         endpoint,
         accounts_service.keyed_request_hash(await request.body(), settings),
         consume,
+        studio_id=idempotency_service.INSTANCE_SCOPE,
     )
     return AccountActionResponse.model_validate(body)
 

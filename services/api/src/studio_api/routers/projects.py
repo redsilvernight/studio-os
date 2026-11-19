@@ -158,6 +158,7 @@ async def create_project(
             project_in.name,
             project_in.description,
             creator=principal.user,
+            studio_id=principal.studio_id,
         )
         if project_in.repository is not None:
             await project_repositories_service.link_repository(
@@ -176,6 +177,7 @@ async def create_project(
         Project,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -244,7 +246,9 @@ async def list_project_members(
     project_id: UUID, session: DbSession, principal: CurrentPrincipal
 ) -> list[ProjectMember]:
     projects_service.ensure_members_admin(principal, "read")
-    members = await projects_service.list_members(session, project_id)
+    members = await projects_service.list_members(
+        session, project_id, studio_id=principal.studio_id
+    )
     users = await provisioning_service.users_by_id(session, {m.user_id for m in members})
     return [_member_out(m, users.get(m.user_id)) for m in members]
 
@@ -272,7 +276,11 @@ async def grant_project_member(
     projects_service.ensure_members_admin(principal, "write")
     provisioning_service.ensure_not_self(principal.user, user_id, "grant_access")
     membership, created = await projects_service.grant_member(
-        session, project_id, user_id, granted_by_user_id=principal.user.id
+        session,
+        project_id,
+        user_id,
+        granted_by_user_id=principal.user.id,
+        studio_id=principal.studio_id,
     )
     if not created:
         response.status_code = status.HTTP_200_OK
@@ -295,7 +303,9 @@ async def revoke_project_member(
 ) -> Response:
     projects_service.ensure_members_admin(principal, "write")
     provisioning_service.ensure_not_self(principal.user, user_id, "revoke_access")
-    await projects_service.revoke_member(session, project_id, user_id)
+    await projects_service.revoke_member(
+        session, project_id, user_id, studio_id=principal.studio_id
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

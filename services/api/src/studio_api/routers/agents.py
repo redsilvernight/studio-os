@@ -23,7 +23,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import agents as agents_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import ensure_can_write
+from studio_api.services.authz import ensure_can_write, studio_clause
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -58,6 +58,7 @@ async def list_agents(
                 ),
             )
         )
+    stmt = stmt.where(studio_clause(principal, AgentModel.studio_id))
     result = await session.execute(stmt)
     agents = [Agent.model_validate(a) for a in result.scalars().all()]
     if include_identity_owner or include_identity_link:
@@ -136,6 +137,7 @@ async def register_agent(
         Agent,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

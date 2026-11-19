@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.decision import DecisionModel
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_contracts.decisions import DecisionCreate
 
 from studio_mcp.errors import run_tool
@@ -78,6 +78,7 @@ async def studio_add_decision(
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
         decisions_service.authorize_create(principal, parsed_project_id)
+        await ensure_optional_project_in_studio(session, principal, parsed_project_id, "write")
 
         async def _create() -> dict[str, Any]:
             decision = await decisions_service.create_decision(
@@ -101,7 +102,12 @@ async def studio_add_decision(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_add_decision", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_add_decision",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

@@ -9,7 +9,7 @@ from studio_api.db.models.task import TaskModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_mcp.errors import run_tool
@@ -147,6 +147,7 @@ async def studio_create_task(
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
         tasks_service.authorize_create(principal, parsed)
+        await ensure_optional_project_in_studio(session, principal, parsed, "write")
 
         async def _create() -> dict[str, Any]:
             task = await tasks_service.create_task(
@@ -163,7 +164,12 @@ async def studio_create_task(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_create_task", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_create_task",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

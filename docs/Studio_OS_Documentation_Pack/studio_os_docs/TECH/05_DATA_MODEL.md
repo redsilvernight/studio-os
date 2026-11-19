@@ -190,6 +190,11 @@ explicitement a chaque insertion.
 studio** : `uq_projects_studio_slug` sur `(studio_id, slug)` ; l'unicite
 globale `uq_projects_slug` est restauree au downgrade), `name`, `description`
 (nullable), `archived` (bool, defaut false), + champs communs mutables.
+Les creations posent `studio_id` explicitement (defaut interne seulement pour
+le CLI operateur) ; un octroi d'acces projet exige un compte membre du studio
+du projet. `idempotency_keys` n'a pas de colonne studio : le studio est dans
+la cle reservee (`<studio_id>:<endpoint>`, UUID nul pour les operations
+d'instance).
 
 ## ProjectMembership (DEC-0103, additif — migration Alembic reversible)
 Table `project_memberships` : `project_id` (FK Project, `ON DELETE CASCADE`),

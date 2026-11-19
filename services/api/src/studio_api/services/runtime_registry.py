@@ -49,7 +49,10 @@ async def _checked_machine(
 def _is_visible(principal: Principal, runtime: RuntimeModel) -> bool:
     """Runtimes are always per-user private (no shared levels in P6):
     owner-or-admin, 404-masked otherwise — same filter-first shape as `user`
-    runtime bindings and private library resources."""
+    runtime bindings and private library resources. Always bounded by the
+    active studio: another studio's row is invisible (DEC-0382)."""
+    if runtime.studio_id != principal.studio_id:
+        return False
     return principal.role == Role.ADMIN or runtime.owner_user_id == principal.user.id
 
 
@@ -77,10 +80,12 @@ async def register_runtime(
     """Declares one runtime. The owner is always the caller (server-derived,
     never client-supplied); an attached machine must exist and be owned by
     the caller. No secret can be persisted: the contract rejects secret
-    metadata keys before this runs, and no credential column exists."""
+    metadata keys before this runs, and no credential column exists. The row
+    lands in the caller's active studio (DEC-0382)."""
     ensure_can_write(principal, "runtime")
     await _checked_machine(session, principal, data.machine_id)
     runtime = RuntimeModel(
+        studio_id=principal.studio_id,
         owner_user_id=principal.user.id,
         machine_id=data.machine_id,
         harness_ref=data.harness_ref,
@@ -116,10 +121,11 @@ async def list_runtimes(
     status: RuntimeStatus | None = None,
     include_revoked: bool = False,
 ) -> list[RuntimeModel]:
-    """Owner filter-first (admins see all, like private library resources).
-    Revoked rows are excluded by default — pass `include_revoked` (or a
-    `status` filter) to audit them."""
-    conditions = []
+    """Owner filter-first (admins see all of their studio, like private
+    library resources). Another studio never appears. Revoked rows are
+    excluded by default — pass `include_revoked` (or a `status` filter) to
+    audit them."""
+    conditions = [RuntimeModel.studio_id == principal.studio_id]
     if principal.role != Role.ADMIN:
         conditions.append(RuntimeModel.owner_user_id == principal.user.id)
     if status is not None:
@@ -149,7 +155,9 @@ async def update_runtime(
     "detach". A fully unanchored row (no machine, no refs left) is rejected
     fail-closed."""
     ensure_can_write(principal, "runtime")
-    if principal.role != Role.ADMIN and runtime.owner_user_id != principal.user.id:
+    if not _is_visible(principal, runtime) or (
+        principal.role != Role.ADMIN and runtime.owner_user_id != principal.user.id
+    ):
         raise forbidden("runtime", "update")
     if runtime.version != expected_version:
         raise HTTPException(
@@ -193,7 +201,9 @@ async def revoke_runtime(
     retargeting. Owner-or-admin only. No physical delete exists — history is
     provenance."""
     ensure_can_write(principal, "runtime")
-    if principal.role != Role.ADMIN and runtime.owner_user_id != principal.user.id:
+    if not _is_visible(principal, runtime) or (
+        principal.role != Role.ADMIN and runtime.owner_user_id != principal.user.id
+    ):
         raise forbidden("runtime", "revoke")
     runtime.status = RuntimeStatus.REVOKED.value
     await session.commit()
@@ -202,16 +212,19 @@ async def revoke_runtime(
 
 
 async def resolve_effective_target(
-    session: AsyncSession, runtime_id: UUID
+    session: AsyncSession, runtime_id: UUID, studio_id: UUID | None = None
 ) -> tuple[RuntimeModel | None, bool]:
     """Acquisition helper for P4 bindings: returns `(row, live)` — `live`
     folds the registry status AND the attached machine liveness (deleted or
     credential-revoked machine = non-live, reusing the Machine
     infrastructure instead of building monitoring). `(None, False)` for a
     missing row. Ownership is checked by the caller (`runtime_bindings`),
-    which owns the 403 shape."""
+    which owns the 403 shape. With a `studio_id`, a runtime of another studio
+    resolves as missing — a stored choice can never reach across tenants."""
     runtime = await session.get(RuntimeModel, runtime_id)
     if runtime is None or runtime.status != RuntimeStatus.ACTIVE.value:
+        return None, False
+    if studio_id is not None and runtime.studio_id != studio_id:
         return None, False
     if runtime.machine_id is not None:
         machine = await session.get(MachineModel, runtime.machine_id)

@@ -18,6 +18,7 @@ from studio_api.openapi_meta import (
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/claims", tags=["claims"])
 
@@ -63,6 +64,7 @@ async def create_claim(
     ),
 ) -> ResourceClaim:
     claims_service.authorize_create(principal, claim_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, claim_in.project_id, "write")
 
     async def _create() -> ResourceClaim:
         claim = await claims_service.create_claim(
@@ -93,6 +95,7 @@ async def create_claim(
         ResourceClaim,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

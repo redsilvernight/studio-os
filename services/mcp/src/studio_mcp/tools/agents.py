@@ -121,7 +121,12 @@ async def studio_register_agent(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_register_agent", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_register_agent",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

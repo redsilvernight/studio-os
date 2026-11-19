@@ -337,6 +337,33 @@ du studio. Le `Role.ADMIN` global ne donne plus aucune portee implicite ;
 - **Nouveaux comptes** : en attendant la creation de studio a l'inscription,
   rattaches au studio interne, `owner` si `User.role = admin`, sinon
   `member` (meme regle que le backfill 0046).
+- **Isolation** (`ensure_project_in_studio`) : un projet/une ressource d'un
+  autre studio repond `404 not_found` (comme un id inconnu) a un `owner`/
+  `admin` ; `403` inchange pour un non-manager (l'acces est controle d'abord) ;
+  un id de projet inexistant passe et garde le comportement habituel de
+  l'appelant. Les listes filtrees par projet (taches, claims, sessions,
+  evenements) passent par `project_visibility_clause`/`studio_clause` et
+  renvoient une collection vide pour un projet etranger.
+- **Idempotence** : la cle reservee est `<studio_id>:<endpoint>` (`studio_id`
+  obligatoire ; `idempotency_keys` n'a pas de colonne studio) ; inscription,
+  verification d'e-mail et reinitialisation de mot de passe utilisent la portee
+  d'instance (UUID nul, `INSTANCE_SCOPE`). Une meme `Idempotency-Key` dans deux
+  studios ne rejoue jamais la reponse de l'autre.
+- **SSE** (`GET /events`) : flux borne au studio actif resolu a l'ouverture et
+  fige ; un evenement dont le studio n'est pas resolvable n'est jamais livre
+  (fail-closed) ; sans parametre `project`, seuls les evenements globaux sont
+  portes.
+- **Projets** : slug unique par studio ; les creations posent `studio_id`
+  explicitement ; octroi d'acces projet : le compte doit etre membre du studio
+  du projet, sinon `404` comme un compte inconnu.
+- **Limites connues** : (1) les controles `Role.ADMIN` (role global de compte)
+  subsistent dans de nombreux services (decisions, agents, Library, runtimes,
+  budgets, lancements...) et restent a convertir en roles de studio avant la
+  creation de studios a l'inscription (etape S2) ; (2) les routes
+  d'administration d'instance (users, machines, infra) acceptent aujourd'hui un
+  `owner`/`admin` de studio via un adaptateur de compatibilite et doivent etre
+  reservees a `is_operator` avant S2 ; (3) `API_CONTRACT_VERSION` non bumpee
+  (additif) : a confirmer.
 
 Acces projet — regles (DEC-0103 §7-12) :
 

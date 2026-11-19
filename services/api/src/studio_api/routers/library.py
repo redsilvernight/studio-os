@@ -39,6 +39,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import library as library_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 locks_router = APIRouter(prefix="/api/v1/library-locks", tags=["library"])
@@ -113,6 +114,7 @@ async def create_library_resource(
     ),
 ) -> LibraryResource:
     library_service.authorize_create(principal, resource_in.scope.value, resource_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, resource_in.project_id, "write")
 
     async def _create() -> LibraryResource:
         resource, _ = await library_service.create_resource(session, principal, resource_in)
@@ -126,6 +128,7 @@ async def create_library_resource(
         LibraryResource,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -245,6 +248,7 @@ async def apply_library_merge(
         LibraryResource,
         _apply,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 
@@ -324,6 +328,7 @@ async def create_library_version(
         LibraryVersion,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -376,6 +381,7 @@ async def activate_library_version(
         LibraryResource,
         _activate,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 
@@ -424,6 +430,7 @@ async def deprecate_library_resource(
         LibraryResource,
         _deprecate,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 
@@ -472,6 +479,7 @@ async def set_library_lock(
     ),
 ) -> LibraryProjectLock:
     library_service.authorize_lock(principal, lock_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, lock_in.project_id, "write")
 
     async def _create() -> LibraryProjectLock:
         return LibraryProjectLock.model_validate(
@@ -486,6 +494,7 @@ async def set_library_lock(
         LibraryProjectLock,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -498,7 +507,7 @@ async def set_library_lock(
 async def release_library_lock(
     lock_id: UUID, session: DbSession, principal: CurrentPrincipal
 ) -> LibraryProjectLock:
-    lock = await library_service.get_lock(session, lock_id)
+    lock = await library_service.get_lock(session, lock_id, principal)
     if lock is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library lock not found")
     return await library_service.release_lock(session, principal, lock)
