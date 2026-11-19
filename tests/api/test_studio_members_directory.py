@@ -78,3 +78,17 @@ async def test_users_directory_stays_operator_only(
 
 async def test_unauthenticated_is_401(client: AsyncClient) -> None:
     assert (await client.get("/api/v1/studio/members")).status_code == 401
+
+
+async def test_global_admin_role_grants_no_studio_content_access(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    studio, users = await _studio_with_users(db_session, {"boss": "member"})
+    admin = await provisioning_service.create_user(
+        db_session, "Global", f"global-{studio.slug}@example.test", "admin"
+    )
+    db_session.add(StudioMembershipModel(studio_id=studio.id, user_id=admin.id, role="member"))
+    _, token = await provisioning_service.create_machine(db_session, admin.id, "m")
+    await db_session.flush()
+    denied = await client.get("/api/v1/studio/members", headers=_h(token, studio))
+    assert denied.status_code == 403, denied.text

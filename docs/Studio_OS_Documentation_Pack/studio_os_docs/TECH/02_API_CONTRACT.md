@@ -384,7 +384,8 @@ projet, `[]` par defaut ; un client N-1 l'ignore).
 - Note de version (authz par studio, `API_CONTRACT_VERSION` inchangee, additif) :
   les routes `/users*`, `/machines` (vue de tous les comptes), `/infra*` et le CLI
   `admin_cli` passent de « role global `admin` » a `is_operator` (migration `0048`
-  : drapeau pose sur les admins globaux existants) ; les controles de contenu de
+  : drapeau pose sur les admins globaux existants ; un admin cree ensuite par
+  `POST /users` ou `admin_cli` ne l'a pas, seul l'admin d'amorçage le recoit) ; les controles de contenu de
   studio suivent `owner`/`admin` du studio actif (`is_studio_manager`).
 - `User` gagne (A3, additif) `status` (`pending|active|disabled`, derive,
   jamais stocke), `email_verified_at` et `disabled_at` (nullables).
