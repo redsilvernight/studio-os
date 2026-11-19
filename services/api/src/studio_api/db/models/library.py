@@ -11,9 +11,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 
-class LibraryResourceModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+class LibraryResourceModel(StudioScopedMixin, UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     """Active pointer of one reusable library definition (DEC-0062/0064).
 
     Canonical identity is the surrogate UUID (all kinds/scopes share the

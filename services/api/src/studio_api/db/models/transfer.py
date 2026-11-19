@@ -8,9 +8,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, UUIDPKMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 
-class TransferModel(UUIDPKMixin, Base):
+class TransferModel(StudioScopedMixin, UUIDPKMixin, Base):
     """Exact field list per .claude/rules/database.md — do not add a field here
     without adding it to TECH/05_DATA_MODEL.md and packages/studio-contracts
     first (contract-change process)."""
