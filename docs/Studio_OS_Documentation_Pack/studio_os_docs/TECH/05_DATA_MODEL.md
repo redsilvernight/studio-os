@@ -118,7 +118,11 @@ poste physique de la machine — la machine du Desktop pour une machine-outil,
 niveau, meme proprietaire ; migration Alembic `0036`, additive, sans
 backfill), + champs communs mutables (contrat
 e1963627, etendu DEC-0171, migration Alembic `0024`, additive et
-reversible). `status`
+reversible). `studio_id` (FK `studios.id`, nullable, `ON DELETE RESTRICT`,
+indexe `ix_machines_studio_id`, migration Alembic `0047`, additive et
+reversible, sans backfill) : studio actif choisi en dernier par la machine ;
+simple preference, `NULL` = defaut resolu depuis les adhesions du proprietaire
+(`TECH/04_AUTH_SYNC_CONTRACT.md`). `status`
 (`online|idle|offline`) n'est PAS stocke : derive de `last_seen_at` a la
 lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
