@@ -3,6 +3,8 @@
  * Thème clair / sombre / système : stockage tolérant, résolution et
  * application sur `<html>`, sélecteur présent dans le shell.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   applyThemeMode,
@@ -15,12 +17,15 @@ import {
 } from "./theme";
 import { shellHtml } from "./shell";
 
-function memoryStore(initial?: string): Pick<Storage, "getItem" | "setItem"> & { value: string | null } {
+function memoryStore(initial?: string): Pick<Storage, "getItem" | "setItem" | "removeItem"> & { value: string | null } {
   const store = {
     value: initial ?? null,
     getItem: (): string | null => store.value,
     setItem: (_key: string, value: string): void => {
       store.value = value;
+    },
+    removeItem: (): void => {
+      store.value = null;
     },
   };
   return store;
@@ -53,9 +58,21 @@ describe("theme (clair / sombre / système)", () => {
       setItem: (): void => {
         throw new Error("denied");
       },
+      removeItem: (): void => {
+        throw new Error("denied");
+      },
     };
     expect(loadThemeMode(broken)).toBe("system");
     expect(() => saveThemeMode("light", broken)).not.toThrow();
+  });
+
+  it("« système » SUPPRIME la clé : l'absence de clé vaut suivi du système", () => {
+    const store = memoryStore();
+    saveThemeMode("dark", store);
+    expect(store.value).toBe("dark");
+    saveThemeMode("system", store);
+    expect(store.value).toBeNull();
+    expect(loadThemeMode(store)).toBe("system");
   });
 
   it("résout « système » depuis la préférence, les choix fermes priment", () => {
@@ -83,5 +100,21 @@ describe("theme (clair / sombre / système)", () => {
     expect(html).toContain('<option value="dark" selected>Sombre</option>');
     expect(html).toContain('<option value="system">Système</option>');
     expect(html).toContain('<option value="light">Clair</option>');
+  });
+});
+
+describe("pré-rendu du thème (script servi en 'self')", () => {
+  const boot = readFileSync(join(__dirname, "..", "public", "theme-boot.js"), "utf8");
+
+  it("rejoue le contrat de src/theme.ts : même clé, mêmes modes", () => {
+    expect(boot).toContain(`var KEY = "${THEME_STORAGE_KEY}"`);
+    expect(boot).toContain('mode !== "light" && mode !== "dark"');
+    expect(boot).toContain('root.setAttribute("data-theme", mode)');
+  });
+
+  it("n'est pas un script inline : il est servi à part (CSP 'self')", () => {
+    expect(boot).not.toContain("eval(");
+    const html = readFileSync(join(__dirname, "..", "index.html"), "utf8");
+    expect(html).toContain('<script src="/theme-boot.js"></script>');
   });
 });

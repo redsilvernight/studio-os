@@ -26,8 +26,17 @@
  * Le thème sombre est mesuré par la même matrice (`tokens.test.ts`) :
  * textes ≥ 4.5:1 sur surface et fond de page, sémantiques ≥ 4.5:1 sur
  * leurs fonds pastel, encre du bouton primaire ≥ 4.5:1, focus ≥ 3:1.
+ *
+ * Deux games de sélecteurs, pour deux usages :
+ *   - `:root` (et son attribut `data-theme`) = la page entière ;
+ *   - `[data-ds-theme-preview="light" | "dark"]` = un fragment de la page
+ *     (catalogue `#/design-system`) qui force un thème pour montrer les
+ *     deux côte à côte. Les mêmes déclarations servent aux deux : une
+ *     variable déclarée sur l'élément preview l'emporte toujours sur la
+ *     valeur héritée de `:root`.
  */
-:root {
+:root,
+[data-ds-theme-preview="light"] {
   color-scheme: light;
 
   /* Surfaces */
@@ -159,7 +168,9 @@
 /* Thème sombre. Deux entrées pour couvrir « système » sans JavaScript
    (media query) et un choix explicite (`data-theme="dark"` posé par
    theme.ts) ; les deux blocs doivent rester identiques — garde-fou dans
-   tokens.test.ts. La sidebar bleu nuit et ses 4 tokens ne changent pas. */
+   tokens.test.ts. Le sélecteur de preview force le même jeu de tokens
+   sur un fragment, pour montrer les deux thèmes côte à côte. La sidebar
+   bleu nuit et ses 4 tokens ne changent pas. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -210,7 +221,8 @@
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-ds-theme-preview="dark"] {
   color-scheme: dark;
 
   /* Surfaces */

@@ -1,11 +1,18 @@
 /**
- * Thème clair / sombre / système (DS tokens, DEC-0078 §2).
+ * Thème clair / sombre / système (DS tokens, DEC-0078 §2, extension
+ * « thème sombre » de la tâche cea09af9).
  *
  * Le choix ne change que la présentation : il pose `data-theme` sur
  * `<html>` (« light » ou « dark ») ou le retire pour suivre la préférence
  * du système (les media queries de `tokens.css` prennent alors le relais).
  * Il se mémorise sur le poste, sans identifiant ni secret ; une valeur
  * illisible vaut « système ». Aucun style inline (contrainte CSP).
+ *
+ * « Système » ne s'écrit pas : la clé localStorage est SUPPRIMÉE, si bien
+ * que l'absence de clé est l'état « suit le système » (une clé absente
+ * survit aux mises à jour et se confond avec une première visite). Le
+ * même contrat est rejoué par `public/theme-boot.js`, exécuté avant le
+ * premier rendu pour éviter le flash de thème (CSP `script-src 'self'`).
  */
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -21,7 +28,7 @@ export const THEME_LABELS: Record<ThemeMode, string> = {
   dark: "Sombre",
 };
 
-type StorageLike = Pick<Storage, "getItem" | "setItem">;
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 function storage(): StorageLike | null {
   try {
@@ -44,9 +51,19 @@ export function loadThemeMode(store: StorageLike | null = storage()): ThemeMode 
   }
 }
 
-/** Mémorise le choix ; un stockage indisponible ne bloque jamais l'interface. */
+/**
+ * Mémorise le choix ; un stockage indisponible ne bloque jamais l'interface.
+ *
+ * « Système » supprime la clé au lieu d'écrire « system » : l'absence de
+ * clé EST le mode système, lisible par le script de pré-rendu sans
+ * partager de code avec ce module.
+ */
 export function saveThemeMode(mode: ThemeMode, store: StorageLike | null = storage()): void {
   try {
+    if (mode === "system") {
+      store?.removeItem(THEME_STORAGE_KEY);
+      return;
+    }
     store?.setItem(THEME_STORAGE_KEY, mode);
   } catch {
     // Quota ou navigation privée : le choix n'est simplement pas mémorisé.

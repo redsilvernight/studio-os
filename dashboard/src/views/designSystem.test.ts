@@ -61,13 +61,24 @@ describe("designSystemHtml (internal UI-1 demo, DEC-0078)", () => {
     const userText = html.replace(/data-ds-close|ds-btn--loading/g, "");
     expect(userText).not.toMatch(/Loading|Nothing to show|See all|Sign in|Submit/i);
   });
-  it("aligns on the tools wireframe: internal eyebrow, hero, 4 cards + context", () => {
+  it("aligns on the tools wireframe: internal eyebrow, hero, cards + context", () => {
     const html = designSystemHtml();
     expect(html).toContain("Interne · absente de la navigation");
     expect(html).toContain('class="ds-hero"');
     expect(html).toContain("Voir les états");
-    expect(html.match(/class="ds-card tool-stack"/g) ?? []).toHaveLength(4);
+    expect(html.match(/class="ds-card tool-stack"/g) ?? []).toHaveLength(5);
     expect(html).toContain('class="ds-card tool-context"');
+  });
+
+  it("shows both themes side by side, each forcing its own token set", () => {
+    const html = designSystemHtml();
+    expect(html).toContain('data-ds-theme-preview="light"');
+    expect(html).toContain('data-ds-theme-preview="dark"');
+    expect(html).toContain("Thème clair");
+    expect(html).toContain("Thème sombre");
+    // Les deux panneaux portent les mêmes primitives : la comparaison est
+    // possible sans basculer le thème du poste.
+    expect(html.match(/class="ds-theme-preview"/g) ?? []).toHaveLength(2);
   });
 
   it("demonstrates the five shared states through the shared component", () => {

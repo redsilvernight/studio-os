@@ -14,20 +14,40 @@ const css = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
 const fontsCss = readFileSync(new URL("./fonts.css", import.meta.url), "utf8");
 const cspSource = readFileSync(new URL("../../csp-policy.ts", import.meta.url), "utf8");
 
-/** Corps de la première règle dont le sélecteur commence par `selector`. */
+/**
+ * Corps de la première règle dont la liste de sélecteurs contient
+ * exactement `selector`. Les commentaires sont retirés (les sélecteurs
+ * y sont mentionnés pour la documentation) et l'appartenance à la liste
+ * est testée partie par partie : `:root` ne doit pas attraper
+ * `:root[data-theme="dark"]`.
+ */
 function ruleBody(source: string, selector: string): string {
-  const start = source.indexOf(selector);
-  if (start < 0) throw new Error(`règle absente : ${selector}`);
-  const open = source.indexOf("{", start);
-  let depth = 0;
-  for (let i = open; i < source.length; i += 1) {
-    if (source[i] === "{") depth += 1;
-    else if (source[i] === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(open + 1, i);
+  const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  let index = withoutComments.indexOf(selector);
+  while (index >= 0) {
+    // La liste de sélecteurs court de la fin de la règle précédente
+    // jusqu'à l'accolade d'ouverture.
+    const listStart = Math.max(
+      withoutComments.lastIndexOf("}", index),
+      withoutComments.lastIndexOf("{", index),
+    );
+    const listEnd = withoutComments.indexOf("{", index);
+    const list = withoutComments.slice(listStart + 1, listEnd);
+    const parts = list.split(",").map((part) => part.trim());
+    if (parts.includes(selector)) {
+      let depth = 0;
+      for (let i = listEnd; i < withoutComments.length; i += 1) {
+        if (withoutComments[i] === "{") depth += 1;
+        else if (withoutComments[i] === "}") {
+          depth -= 1;
+          if (depth === 0) return withoutComments.slice(listEnd + 1, i);
+        }
+      }
+      throw new Error(`règle non fermée : ${selector}`);
     }
+    index = withoutComments.indexOf(selector, index + 1);
   }
-  throw new Error(`règle non fermée : ${selector}`);
+  throw new Error(`règle absente : ${selector}`);
 }
 
 function loadTokens(selector: string): Record<string, string> {
@@ -52,10 +72,13 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const light = loadTokens(":root {");
-const dark = loadTokens(':root[data-theme="dark"] {');
-const darkSystem = loadTokens(':root:not([data-theme="light"]) {');
-
+const light = loadTokens(":root");
+const dark = loadTokens(':root[data-theme="dark"]');
+const darkSystem = loadTokens(':root:not([data-theme="light"])');
+// Fragments forcés (catalogue « les deux thèmes ») : mêmes valeurs que le
+// thème correspondant, sans dépendre de la préférence du poste.
+const lightPreview = loadTokens('[data-ds-theme-preview="light"]');
+const darkPreview = loadTokens('[data-ds-theme-preview="dark"]');
 const themes: Array<[string, Record<string, string>]> = [
   ["clair", light],
   ["sombre", dark],
@@ -128,6 +151,16 @@ describe("thème sombre — cohérence des deux entrées CSS", () => {
   });
 });
 
+describe("aperçu des deux thèmes (fragments forcés)", () => {
+  it("l'aperçu clair porte les mêmes tokens que le thème clair", () => {
+    expect(lightPreview).toEqual(light);
+  });
+
+  it("l'aperçu sombre porte les mêmes tokens que le thème sombre", () => {
+    expect(darkPreview).toEqual(dark);
+  });
+});
+
 describe("polices locales (CSP inchangée)", () => {
   it("aucune URL distante : les woff2 sont servies par le bundle", () => {
     expect(fontsCss).not.toMatch(/https?:\/\//);
@@ -137,8 +170,8 @@ describe("polices locales (CSP inchangée)", () => {
   });
 
   it("les tokens typographiques pointent d'abord sur les familles locales", () => {
-    expect(ruleBody(css, ":root {")).toContain('--ds-font-sans: "Figtree"');
-    expect(ruleBody(css, ":root {")).toContain('--ds-font-mono: "JetBrains Mono"');
+    expect(ruleBody(css, ":root")).toContain('--ds-font-sans: "Figtree"');
+    expect(ruleBody(css, ":root")).toContain('--ds-font-mono: "JetBrains Mono"');
   });
 
   it("la CSP autorise uniquement les polices same-origin", () => {
