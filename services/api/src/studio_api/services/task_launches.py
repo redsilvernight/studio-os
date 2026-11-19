@@ -8,7 +8,7 @@ from typing import Any, Literal
 from fastapi import HTTPException, status
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import MachineCapabilities, MachineStatus, Role
+from studio_contracts.auth import MachineCapabilities, MachineStatus
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.library import LibraryKind
 from studio_contracts.profiles import (
@@ -60,6 +60,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_project_in_studio,
+    is_studio_manager,
     project_visibility_clause,
 )
 from studio_api.settings import Settings, get_settings
@@ -935,7 +936,7 @@ async def cancel_launch(
     """Only the requester (or an admin) cancels, on a non-terminal launch."""
     ensure_can_write(principal, "task_launch")
     await ensure_project_in_studio(session, principal, launch.project_id, "write")
-    if principal.role != Role.ADMIN and launch.requested_by_user_id != principal.user.id:
+    if not is_studio_manager(principal) and launch.requested_by_user_id != principal.user.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail={"error_code": "forbidden", "resource": "task_launch", "action": "cancel"},
@@ -1001,7 +1002,7 @@ async def retry_launch(
     machine's aptitude is re-checked exactly like a creation."""
     ensure_can_write(principal, "task_launch")
     await ensure_project_in_studio(session, principal, launch.project_id, "write")
-    if principal.role != Role.ADMIN and launch.requested_by_user_id != principal.user.id:
+    if not is_studio_manager(principal) and launch.requested_by_user_id != principal.user.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail={"error_code": "forbidden", "resource": "task_launch", "action": "retry"},

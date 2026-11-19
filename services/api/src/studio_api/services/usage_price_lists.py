@@ -21,6 +21,7 @@ from studio_api.services.authz import (
     ensure_shared_access,
     forbidden,
     get_launch_scope,
+    is_studio_manager,
     project_in_active_studio,
 )
 
@@ -45,10 +46,10 @@ def _ensure_publisher(principal: Principal, project_id: uuid.UUID | None) -> Non
     if get_launch_scope(principal.machine) is not None:
         raise forbidden(_RESOURCE, "write")
     if project_id is None:
-        if principal.role != Role.ADMIN:
+        if not is_studio_manager(principal):
             raise forbidden(_RESOURCE, "write")
         return
-    if principal.role not in (Role.ADMIN, Role.DEVELOPER):
+    if not (is_studio_manager(principal) or principal.role == Role.DEVELOPER):
         raise forbidden(_RESOURCE, "write")
     ensure_project_access(principal, project_id, "write")
 

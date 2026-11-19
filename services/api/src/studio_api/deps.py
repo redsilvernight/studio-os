@@ -22,11 +22,11 @@ from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.security_log import security_event
 from studio_api.services.authz import (
-    STUDIO_MANAGER_ROLES,
     Principal,
     ensure_operator,
     ensure_studio_role,
     forbidden,
+    is_studio_manager,
     load_principal,
 )
 from studio_api.services.launch_credentials import (
@@ -182,20 +182,10 @@ async def require_operator(principal: CurrentPrincipal) -> Principal:
     return principal
 
 
-def require_roles(*roles: Role) -> Callable[..., Awaitable[UserModel]]:
-    """Legacy role gate for provisioning endpoints (DEC-0012), kept working
-    while the routers migrate lot by lot: `Role.ADMIN` is now satisfied by an
-    `owner`/`admin` of the active studio, never by the global account role
-    alone. Other account roles keep their historical meaning (developer for
-    provisioning, and so on)."""
-    account_roles = {role.value for role in roles if role is not Role.ADMIN}
-    wants_studio_manager = Role.ADMIN in roles
-
-    async def _dependency(principal: CurrentPrincipal) -> UserModel:
-        if wants_studio_manager and principal.studio_role in STUDIO_MANAGER_ROLES:
-            return principal.user
-        if principal.user.role in account_roles:
-            return principal.user
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient role")
-
-    return _dependency
+async def require_project_provisioner(principal: CurrentPrincipal) -> UserModel:
+    """Project creation gate (DEC-0012): an `owner`/`admin` of the active studio
+    or an account `developer`. Runs as a dependency so its 403 still precedes
+    body validation."""
+    if is_studio_manager(principal) or principal.role == Role.DEVELOPER:
+        return principal.user
+    raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient role")

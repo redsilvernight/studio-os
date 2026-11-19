@@ -11,7 +11,6 @@ from studio_contracts.auth import (
     MachineCapabilities,
     MachineEligibility,
     MachineStatus,
-    Role,
 )
 from studio_contracts.task_launch import TaskLaunchStatus
 
@@ -23,6 +22,7 @@ from studio_api.services import provisioning as provisioning_service
 from studio_api.services.authz import (
     Principal,
     has_project_access,
+    is_studio_manager,
     project_access_for_user,
 )
 from studio_api.settings import Settings
@@ -146,11 +146,11 @@ async def eligible_machines(
     harness_id: str | None,
     settings: Settings,
 ) -> list[MachineEligibility]:
-    """The caller's own machines (every machine for `admin`, as in
-    `GET /machines`), each evaluated against one task's project. Eligible
+    """The caller's own machines (every machine of the studio for its
+    `owner`/`admin`), each evaluated against one task's project. Eligible
     machines first, then by name and id — a stable order."""
-    owner = None if principal.role == Role.ADMIN else principal.user.id
-    machines = await provisioning_service.list_active_machines(session, owner)
+    owner = None if is_studio_manager(principal) else principal.user.id
+    machines = await provisioning_service.list_active_machines(session, owner, principal.studio_id)
     now = datetime.now(UTC)
     unreported = await unreported_launch_counts(session, [m.id for m in machines], now)
     access: dict[uuid.UUID, bool] = {}

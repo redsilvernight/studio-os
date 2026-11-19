@@ -6,7 +6,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import Field
-from studio_contracts.auth import Role
 from studio_contracts.claims import ResourceClaim
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import (
@@ -23,7 +22,7 @@ from studio_contracts.tasks import Task
 
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.user import UserModel
-from studio_api.deps import CurrentPrincipal, DbSession, require_roles
+from studio_api.deps import CurrentPrincipal, DbSession, require_project_provisioner
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -138,7 +137,7 @@ async def create_project(
     request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
-    _owner: Annotated[UserModel, Depends(require_roles(Role.ADMIN, Role.DEVELOPER))],
+    _owner: Annotated[UserModel, Depends(require_project_provisioner)],
     idempotency_key: str | None = Header(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),

@@ -7,7 +7,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.project import ProjectModel
@@ -21,6 +20,7 @@ from studio_api.services.authz import (
     ProjectAction,
     ensure_project_in_studio,
     forbidden,
+    is_studio_manager,
     project_not_found,
     project_visibility_clause,
 )
@@ -134,7 +134,7 @@ async def get_active_claims(
 def ensure_members_admin(principal: Principal, action: ProjectAction) -> None:
     """Granting access is `admin` only, never self-service (DEC-0103). Runs
     before any lookup: a non-admin gets the same 403 for any project id."""
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         raise forbidden("project_members", action)
 
 

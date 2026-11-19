@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.execution_snapshot import (
     ExecutionSnapshot,
     SnapshotCaptureStatus,
@@ -41,7 +40,7 @@ from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import resolution as resolution_service
 from studio_api.services import task_launches as launches_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, is_studio_manager
 from studio_api.settings import Settings
 
 Code = ReplayLimitationCode
@@ -135,7 +134,7 @@ def _resource_differences(
 async def _admission(
     session: AsyncSession, principal: Principal, launch: TaskLaunchModel, settings: Settings
 ) -> ReplayLimitation | None:
-    if principal.role != Role.ADMIN and launch.requested_by_user_id != principal.user.id:
+    if not is_studio_manager(principal) and launch.requested_by_user_id != principal.user.id:
         return limitation(Code.NOT_AUTHORIZED, "requester")
     machine = await session.get(MachineModel, launch.machine_id)
     task = await session.get(TaskModel, launch.task_id)

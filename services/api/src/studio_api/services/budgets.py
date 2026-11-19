@@ -22,7 +22,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import Select, and_, case, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.budgets import (
     BUDGET_STATUS_MAX_RESERVATIONS,
     BudgetAlert,
@@ -58,6 +57,7 @@ from studio_api.services.authz import (
     ensure_project_in_studio,
     forbidden,
     get_launch_scope,
+    is_studio_manager,
     project_in_active_studio,
 )
 
@@ -241,7 +241,7 @@ async def approve_policy(
     into an effective one — never the write that proposed it."""
     _ensure_policy_writer(principal, project_id)
     await ensure_optional_project_in_studio(session, principal, project_id, "write")
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         raise forbidden("budget_policy", "approve")
     row = await _get_policy(session, project_id, lock=True, studio_id=principal.studio_id)
     if row is None:

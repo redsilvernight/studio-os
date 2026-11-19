@@ -77,12 +77,24 @@ async def list_machines(
 
 
 async def list_active_machines(
-    session: AsyncSession, owner_user_id: uuid.UUID | None = None
+    session: AsyncSession,
+    owner_user_id: uuid.UUID | None = None,
+    studio_id: uuid.UUID | None = None,
 ) -> list[MachineModel]:
-    """`owner_user_id=None` lists every owner's machines (admin only)."""
+    """`owner_user_id=None` lists every owner's machines (instance operator
+    only); `studio_id` bounds that list to owners who are members of the studio
+    (a studio manager never sees another studio's machines)."""
     stmt = select(MachineModel).where(MachineModel.credential_revoked_at.is_(None))
     if owner_user_id is not None:
         stmt = stmt.where(MachineModel.owner_user_id == owner_user_id)
+    if studio_id is not None:
+        stmt = stmt.where(
+            MachineModel.owner_user_id.in_(
+                select(StudioMembershipModel.user_id).where(
+                    StudioMembershipModel.studio_id == studio_id
+                )
+            )
+        )
     result = await session.execute(stmt.order_by(MachineModel.created_at))
     return list(result.scalars().all())
 
@@ -119,6 +131,9 @@ async def create_user(session: AsyncSession, display_name: str, email: str, role
         display_name=display_name,
         email=normalize_email(email),
         role=role,
+        # A global admin is the instance operator until operators are assigned
+        # on their own (same rule as migration 0048).
+        is_operator=role == "admin",
         email_verified_at=datetime.now(UTC),
     )
     session.add(user)

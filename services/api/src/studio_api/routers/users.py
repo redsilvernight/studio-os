@@ -4,11 +4,10 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from studio_contracts.auth import Role, User, UserCreate
+from studio_contracts.auth import User, UserCreate
 from studio_contracts.projects import ProjectMember
 
-from studio_api.db.models.user import UserModel
-from studio_api.deps import CurrentMachine, DbSession, require_roles
+from studio_api.deps import CurrentMachine, DbSession, require_operator
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
@@ -16,8 +15,9 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services.authz import Principal
 
-AdminUser = Annotated[UserModel, Depends(require_roles(Role.ADMIN))]
+OperatorPrincipal = Annotated[Principal, Depends(require_operator)]
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["users"])
     response_model=list[User],
     description=(
         "Admin user directory, used to pick who to add to a project. "
-        "Requires the admin role: any other role gets `403 forbidden` "
+        "Requires the instance operator (`is_operator`): anyone else gets `403 forbidden` "
         "before any lookup. `q` filters on a case-insensitive substring of "
         "the display name or email; results are sorted by display name "
         "then email and capped by `limit`. Each User carries its derived "
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["users"])
 )
 async def list_users(
     session: DbSession,
-    _admin: Annotated[UserModel, Depends(require_roles(Role.ADMIN))],
+    _operator: OperatorPrincipal,
     q: Annotated[str | None, Query(max_length=200)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[User]:
@@ -52,7 +52,7 @@ async def list_users(
     description=(
         "Provision a new user with a role (`admin`, `developer`, "
         "`agent`, or `readonly` — the role alone decides what the "
-        "user's machines may do). Requires the admin role. The email is "
+        "user's machines may do). Requires the instance operator. The email is "
         "stored trimmed and lower-cased and is unique regardless of case: "
         "reusing one fails with 409. Deliberately "
         "not replayable: no `Idempotency-Key`. The very first (admin) "
@@ -64,7 +64,7 @@ async def create_user(
     user_in: UserCreate,
     session: DbSession,
     machine: CurrentMachine,
-    _owner: Annotated[UserModel, Depends(require_roles(Role.ADMIN))],
+    _operator: OperatorPrincipal,
 ) -> User:
     user = await provisioning_service.create_user(
         session, user_in.display_name, user_in.email, user_in.role.value
@@ -82,7 +82,7 @@ _SELF_403 = (
     "/{user_id}/disable",
     response_model=User,
     description=(
-        "Disable an account (admin only; idempotent). Every JWT of the User "
+        "Disable an account (operator only; idempotent). Every JWT of the User "
         "is revoked (`auth_version` bumped), every machine it owns is refused "
         "while it stays disabled, and its open event streams close. "
         + _SELF_403
@@ -90,8 +90,8 @@ _SELF_403 = (
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
-async def disable_user(user_id: UUID, session: DbSession, admin: AdminUser) -> User:
-    provisioning_service.ensure_not_self(admin, user_id, "disable")
+async def disable_user(user_id: UUID, session: DbSession, operator: OperatorPrincipal) -> User:
+    provisioning_service.ensure_not_self(operator.user, user_id, "disable")
     user = await provisioning_service.get_user_or_404(session, user_id)
     return User.model_validate(await provisioning_service.disable_account(session, user))
 
@@ -100,7 +100,7 @@ async def disable_user(user_id: UUID, session: DbSession, admin: AdminUser) -> U
     "/{user_id}/enable",
     response_model=User,
     description=(
-        "Lift a deactivation (admin only; idempotent). Earlier JWTs stay "
+        "Lift a deactivation (operator only; idempotent). Earlier JWTs stay "
         "invalid; the User's machines work again. An account whose email is "
         "not verified stays `pending`: activation requires verification. "
         + _SELF_403
@@ -108,8 +108,8 @@ async def disable_user(user_id: UUID, session: DbSession, admin: AdminUser) -> U
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
-async def enable_user(user_id: UUID, session: DbSession, admin: AdminUser) -> User:
-    provisioning_service.ensure_not_self(admin, user_id, "enable")
+async def enable_user(user_id: UUID, session: DbSession, operator: OperatorPrincipal) -> User:
+    provisioning_service.ensure_not_self(operator.user, user_id, "enable")
     user = await provisioning_service.get_user_or_404(session, user_id)
     return User.model_validate(await provisioning_service.enable_account(session, user))
 
@@ -118,15 +118,17 @@ async def enable_user(user_id: UUID, session: DbSession, admin: AdminUser) -> Us
     "/{user_id}/revoke-sessions",
     response_model=User,
     description=(
-        "Revoke every dashboard session (JWT) of a User (admin only): "
+        "Revoke every dashboard session (JWT) of a User (operator only): "
         "`auth_version` is bumped, machine tokens are untouched. "
         + _SELF_403
         + " Unknown user: 404."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
-async def revoke_user_sessions(user_id: UUID, session: DbSession, admin: AdminUser) -> User:
-    provisioning_service.ensure_not_self(admin, user_id, "revoke_sessions")
+async def revoke_user_sessions(
+    user_id: UUID, session: DbSession, operator: OperatorPrincipal
+) -> User:
+    provisioning_service.ensure_not_self(operator.user, user_id, "revoke_sessions")
     user = await provisioning_service.get_user_or_404(session, user_id)
     return User.model_validate(await provisioning_service.revoke_sessions_of(session, user))
 
@@ -135,14 +137,14 @@ async def revoke_user_sessions(user_id: UUID, session: DbSession, admin: AdminUs
     "/{user_id}/memberships",
     response_model=list[ProjectMember],
     description=(
-        "Projects a User can access (admin only), oldest grant first. Access "
+        "Projects a User can access (operator only), oldest grant first. Access "
         "is granted or removed with `PUT`/`DELETE "
         "/projects/{project_id}/members/{user_id}`. Unknown user: 404."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
 async def list_user_memberships(
-    user_id: UUID, session: DbSession, _admin: AdminUser
+    user_id: UUID, session: DbSession, _operator: OperatorPrincipal
 ) -> list[ProjectMember]:
     user = await provisioning_service.get_user_or_404(session, user_id)
     memberships = await projects_service.list_user_memberships(session, user.id)

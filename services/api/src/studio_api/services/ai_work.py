@@ -7,7 +7,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
-from studio_contracts.auth import Role
 from studio_contracts.events import ActorType, EventCreate, EventType
 
 from studio_api.db.models.agent import AgentModel
@@ -23,6 +22,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     ensure_project_in_studio,
     forbidden,
+    is_studio_manager,
     owns_agent,
     project_visibility_clause,
 )
@@ -206,7 +206,7 @@ async def _ensure_ai_work_owned(
     fallback — the same actor-ownership shape `events.resolve_event_identity`
     already uses for `actor_type=agent`."""
     ensure_can_write(principal, "ai_work")
-    if principal.role == Role.ADMIN:
+    if is_studio_manager(principal):
         return
     if work.machine_id is not None:
         if work.machine_id != principal.machine.id:
@@ -230,7 +230,7 @@ def _ensure_can_resolve_review(
     can still resolve its own review, the same systemic trust boundary as
     anywhere else `Role.ADMIN` is checked, not a gap specific to review."""
     ensure_can_write(principal, "ai_work")
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         raise forbidden("ai_work", "resolve_review")
     if work.status != AIWorkStatus.REVIEW_REQUESTED.value:
         raise HTTPException(

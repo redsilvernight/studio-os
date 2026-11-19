@@ -166,8 +166,8 @@ async def _grant_project_member(project_ref: str, email: str, admin_email: str) 
         project = await _resolve_project(session, project_ref)
         user = await _resolve_user(session, email)
         admin = await _resolve_user(session, admin_email)
-        if admin.role != Role.ADMIN.value:
-            print(f"{admin_email} is not an admin", file=sys.stderr)
+        if not admin.is_operator:
+            print(f"{admin_email} is not an instance operator", file=sys.stderr)
             raise SystemExit(1)
         _, created = await projects_service.grant_member(
             session, project.id, user.id, granted_by_user_id=admin.id

@@ -12,7 +12,6 @@ from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
-from studio_contracts.auth import Role
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.library import (
     BindingRelation,
@@ -71,6 +70,7 @@ from studio_api.services.authz import (
     forbidden,
     has_any_project,
     has_project_access,
+    is_studio_manager,
     project_in_active_studio,
     studio_clause,
 )
@@ -86,7 +86,7 @@ def _can_read(principal: Principal, resource: LibraryResourceModel) -> bool:
     if resource.studio_id != principal.studio_id:
         return False
     if resource.scope == "user":
-        return principal.role == Role.ADMIN or resource.owner_user_id == principal.user.id
+        return is_studio_manager(principal) or resource.owner_user_id == principal.user.id
     if resource.project_id is not None:
         return has_project_access(principal, resource.project_id)
     return has_any_project(principal)
@@ -114,7 +114,7 @@ def ensure_resource_scope(
 
 def _read_clause(principal: Principal) -> ColumnElement[bool] | None:
     """SQL twin of `_can_read`; `None` means no filter (admin)."""
-    if principal.role == Role.ADMIN:
+    if is_studio_manager(principal):
         return None
     own = and_(
         LibraryResourceModel.scope == "user",
@@ -687,7 +687,7 @@ def authorize_write(principal: Principal, resource: LibraryResourceModel) -> Non
 def _ensure_studio_admin(principal: Principal) -> None:
     """Studio scope is shared by every project: only an admin mutates it
     (P70a, DEC D3); a developer keeps Project and User scope."""
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         raise forbidden("library", "provision")
 
 
@@ -710,7 +710,7 @@ def authorize_mutation(principal: Principal, resource: LibraryResourceModel) -> 
     owner-or-admin (the row is private, DEC-0063) and Studio scope stays
     admin-only (P70a)."""
     authorize_write(principal, resource)
-    if resource.scope != "user" or principal.role == Role.ADMIN:
+    if resource.scope != "user" or is_studio_manager(principal):
         return
     if resource.owner_user_id != principal.user.id:
         raise forbidden("library", "write")
@@ -1210,7 +1210,7 @@ async def release_lock(
     off a deleted, committed row would fail on session expiry."""
     await ensure_project_in_studio(session, principal, lock.project_id, "write")
     ensure_can_write(principal, "library")
-    if principal.role != Role.ADMIN and lock.created_by_user_id != principal.user.id:
+    if not is_studio_manager(principal) and lock.created_by_user_id != principal.user.id:
         raise forbidden("library", "release")
     released = LibraryProjectLock.model_validate(lock)
     resource = await session.get(LibraryResourceModel, lock.resource_id)

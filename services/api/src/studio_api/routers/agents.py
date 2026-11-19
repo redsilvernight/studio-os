@@ -10,7 +10,7 @@ from studio_contracts.agent_identity import (
     AgentIdentityRequest,
     AgentIdentityResult,
 )
-from studio_contracts.auth import Agent, AgentCreate, AgentEnsureResult, Role
+from studio_contracts.auth import Agent, AgentCreate, AgentEnsureResult
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
@@ -23,7 +23,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import agents as agents_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import ensure_can_write, studio_clause
+from studio_api.services.authz import ensure_can_write, is_studio_manager, studio_clause
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -48,7 +48,7 @@ async def list_agents(
     include_identity_link: bool = False,
 ) -> list[Agent] | JSONResponse:
     stmt = select(AgentModel)
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         stmt = stmt.outerjoin(MachineModel, AgentModel.machine_id == MachineModel.id).where(
             or_(
                 AgentModel.owner_user_id == principal.user.id,
