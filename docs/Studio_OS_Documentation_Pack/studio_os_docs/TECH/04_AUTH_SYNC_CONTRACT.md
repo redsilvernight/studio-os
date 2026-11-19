@@ -356,13 +356,17 @@ du studio. Le `Role.ADMIN` global ne donne plus aucune portee implicite ;
 - **Projets** : slug unique par studio ; les creations posent `studio_id`
   explicitement ; octroi d'acces projet : le compte doit etre membre du studio
   du projet, sinon `404` comme un compte inconnu.
-- **Limites connues** : (1) les controles `Role.ADMIN` (role global de compte)
-  subsistent dans de nombreux services (decisions, agents, Library, runtimes,
-  budgets, lancements...) et restent a convertir en roles de studio avant la
-  creation de studios a l'inscription (etape S2) ; (2) les routes
-  d'administration d'instance (users, machines, infra) acceptent aujourd'hui un
-  `owner`/`admin` de studio via un adaptateur de compatibilite et doivent etre
-  reservees a `is_operator` avant S2 ; (3) `API_CONTRACT_VERSION` non bumpee
+- **Limites connues** : (1) les controles de contenu autrefois portes par
+  `Role.ADMIN` (decisions, agents, Library, runtimes, budgets, lancements,
+  vault...) passent par `is_studio_manager` ; `principal.role` ne garde que les
+  capacites machine/agent ; (2) les routes d'instance (users, machines, infra,
+  CLI `admin_cli`) exigent `is_operator`, pose par la migration `0048` sur les
+  admins globaux existants (et a la creation d'un compte `admin`) ; le
+  `downgrade` de `0048` retire le drapeau a tous les admins globaux ; (3)
+  `GET /users` (annuaire pour choisir un membre de projet) est desormais reserve
+  a l'operateur : un owner/admin de studio n'y accede plus, un annuaire propre
+  au studio reste a creer (S2) ; (4) l'attribution d'`is_operator` hors
+  migration n'a pas d'interface ; (5) `API_CONTRACT_VERSION` non bumpee
   (additif) : a confirmer.
 
 Acces projet — regles (DEC-0103 §7-12) :
