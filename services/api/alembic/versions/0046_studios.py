@@ -11,6 +11,11 @@ choose a studio still land in a valid tenant. Tables listed in the spec that
 do not exist here are skipped and logged (spec wording "budgets" maps to
 `budget_policies`, the project budget row; reservations derive from a policy).
 
+`studio_id` references `studios.id` with `ON DELETE RESTRICT`: a studio that
+still owns resources is never deleted implicitly. The internal-studio
+`server_default` is TEMPORARY and must be removed once authz and studio
+creation set `studio_id` explicitly on every insert.
+
 `projects.slug` becomes unique per studio instead of globally. Downgrade
 restores the global uniqueness and therefore refuses to run while two
 studios share a slug, listing the offending slugs: resolving them is an
@@ -56,10 +61,12 @@ STUDIO_SCOPED_TABLES = (
 
 
 def _studio_id_column(*, nullable: bool) -> sa.Column[Any]:
+    # RESTRICT: a studio that still owns resources cannot be deleted; resources
+    # are reattributed explicitly, never silently cascaded away.
     return sa.Column(
         "studio_id",
         postgresql.UUID(as_uuid=True),
-        sa.ForeignKey("studios.id", ondelete="CASCADE"),
+        sa.ForeignKey("studios.id", ondelete="RESTRICT"),
         nullable=nullable,
     )
 
@@ -76,6 +83,9 @@ def _add_studio_id(bind: Connection, table: str) -> None:
         "studio_id",
         existing_type=postgresql.UUID(as_uuid=True),
         nullable=False,
+        # TEMPORARY: the internal-studio server default keeps insert paths that
+        # do not know about studios yet valid. Remove it once authz and studio
+        # creation are entitled to set studio_id explicitly on every insert.
         server_default=sa.text(f"'{INTERNAL_STUDIO_ID}'"),
     )
     op.create_index(f"ix_{table}_studio_id", table, ["studio_id"])

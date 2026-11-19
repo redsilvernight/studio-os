@@ -191,6 +191,17 @@ async def test_0046_upgrade_backfill_and_downgrade_round_trip(
                 assert column is not None, table
                 assert column["is_nullable"] == "NO", table
                 assert INTERNAL_STUDIO_ID in column["column_default"], table
+            # FK is ON DELETE RESTRICT (PostgreSQL confdeltype 'r'), never CASCADE.
+            for table in ("projects", *SCOPED_TABLES):
+                delete_rule = await conn.fetchval(
+                    "select confdeltype from pg_constraint "
+                    "where conrelid = $1::regclass and contype = 'f' "
+                    "and pg_get_constraintdef(oid) like '%%studios(id)%%'",
+                    table,
+                )
+                assert delete_rule == "r", table
+            with pytest.raises(asyncpg.exceptions.ForeignKeyViolationError):
+                await conn.execute("delete from studios where id = $1", internal_id)
             assert (
                 str(await conn.fetchval("select studio_id from agents where id = $1", agent_id))
                 == INTERNAL_STUDIO_ID
@@ -228,6 +239,7 @@ async def test_0046_upgrade_backfill_and_downgrade_round_trip(
             )
             assert [r[0] for r in constraints] == ["uq_projects_studio_slug"]
             # Leave no cross-studio duplicate for the (deliberately) strict downgrade.
+            await conn.execute("delete from projects where id = $1", second_project_id)
             await conn.execute("delete from studios where id = $1", second_studio_id)
         finally:
             await conn.close()

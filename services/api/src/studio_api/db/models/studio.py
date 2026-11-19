@@ -22,7 +22,7 @@ class StudioScopedMixin:
 
     studio_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("studios.id", ondelete="CASCADE"),
+        ForeignKey("studios.id", ondelete="RESTRICT"),
         index=True,
         server_default=sa.text(f"'{INTERNAL_STUDIO_ID}'"),
     )
@@ -34,8 +34,17 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     not deletable by ordinary code paths."""
 
     __tablename__ = "studios"
+    __table_args__ = (
+        sa.UniqueConstraint("slug", name="uq_studios_slug"),
+        sa.Index(
+            "uq_studios_one_internal",
+            "is_internal",
+            unique=True,
+            postgresql_where=sa.text("is_internal"),
+        ),
+    )
 
-    slug: Mapped[str] = mapped_column(unique=True)
+    slug: Mapped[str]
     name: Mapped[str]
     plan: Mapped[str] = mapped_column(default="free", server_default="free")
     status: Mapped[str] = mapped_column(default="active", server_default="active")
