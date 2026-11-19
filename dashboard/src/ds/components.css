@@ -48,7 +48,7 @@ main {
   padding: var(--ds-space-2) var(--ds-space-4);
   border-radius: var(--ds-radius-md);
   background: var(--ds-text);
-  color: #fff;
+  color: var(--ds-ink-inverse);
   font-weight: 600;
   text-decoration: none;
   transform: translateY(-300%);
@@ -110,7 +110,7 @@ summary:focus-visible,
 .ds-btn--danger {
   background: var(--ds-danger);
   border-color: var(--ds-danger);
-  color: #fff;
+  color: var(--ds-danger-ink);
 }
 .ds-btn--ghost {
   background: transparent;
@@ -624,7 +624,7 @@ summary:focus-visible,
   padding: var(--ds-space-2) var(--ds-space-3);
   border-radius: var(--ds-radius-md);
   background: var(--ds-text);
-  color: #fff;
+  color: var(--ds-ink-inverse);
   font-size: var(--ds-text-sm);
   font-weight: 400;
   white-space: normal;

@@ -228,6 +228,37 @@
   color: var(--ds-navy-active);
 }
 
+/* Sélecteur de thème (pied) : contrôle natif, lisible en rail comme en barre. */
+.app-theme {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  width: 100%;
+  padding: 0 var(--ds-space-2);
+}
+.app-theme-label {
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-sm);
+  white-space: nowrap;
+}
+.app-theme-select {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-navy-deep);
+  color: var(--ds-navy-text);
+  font: inherit;
+  font-size: var(--ds-text-xs);
+  cursor: pointer;
+}
+.app-theme-select:hover {
+  border-color: rgb(255 255 255 / 0.3);
+}
+
 /* Pied : avatar + unique statut de connexion (C4) + déconnexion. */
 .app-me {
   display: flex;
@@ -427,6 +458,13 @@ a.app-connection:hover .app-connection-label {
   .app-navmode {
     justify-content: flex-start;
     padding: var(--ds-space-2) var(--ds-space-3);
+  }
+  .app-theme {
+    justify-content: flex-start;
+    padding: 0;
+  }
+  .app-theme-select {
+    font-size: var(--ds-text-sm);
   }
   .app-navlink,
   .app-navgroup--secondary summary {

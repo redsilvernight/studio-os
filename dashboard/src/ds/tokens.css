@@ -1,10 +1,16 @@
 /**
  * StudiOS Design System — tokens (UI-1, DEC-0078).
  *
- * Thème clair unique : fond légèrement bleuté, surfaces blanches,
- * bordures très discrètes, ombres extrêmement légères.
- * Aucun mécanisme light/dark (réintroduction éventuelle ultérieure
- * sur cette même base de tokens).
+ * Deux thèmes sur la même base de tokens (tâche cea09af9) : clair par
+ * défaut (fond légèrement bleuté, surfaces blanches, bordures très
+ * discrètes) et sombre (`data-theme="dark"` ou préférence système).
+ * Le choix est posé par `src/theme.ts` sur `<html>` ; « système » ne pose
+ * aucun attribut et laisse la media query décider. La sidebar bleu nuit
+ * est un chrome constant dans les deux thèmes.
+ *
+ * Polices auto-hébergées (`ds/fonts.css`) : Figtree pour l'interface,
+ * JetBrains Mono pour le code et les identifiants — aucun CDN, CSP
+ * `font-src 'self'` inchangée.
  *
  * Sémantique couleur (jamais seul vecteur d'information : chaque état
  * s'accompagne d'un libellé et/ou d'une icône textuelle) :
@@ -16,8 +22,14 @@
  * action #1d64d8 (~5.9:1), succès #177245 (~5.9:1),
  * avertissement texte #8a5200 (~5.9:1), erreur #b3261e (~7:1),
  * IA #5b3bbd (~7:1).
+ *
+ * Le thème sombre est mesuré par la même matrice (`tokens.test.ts`) :
+ * textes ≥ 4.5:1 sur surface et fond de page, sémantiques ≥ 4.5:1 sur
+ * leurs fonds pastel, encre du bouton primaire ≥ 4.5:1, focus ≥ 3:1.
  */
 :root {
+  color-scheme: light;
+
   /* Surfaces */
   --ds-bg: #f2f6fb;
   --ds-surface: #ffffff;
@@ -35,6 +47,9 @@
      page : placeholders et métadonnées restent lisibles (UI-14, mesuré
      5.20:1 sur blanc / 4.79:1 sur #f2f6fb, avant #6b7f93 à 4.13/3.81). */
   --ds-text-faint: #5a6f84;
+  /* Texte sur un aplat `--ds-text` (lien d'évitement, infobulles) : bascule
+     avec le thème pour rester lisible. */
+  --ds-ink-inverse: #ffffff;
 
   /* Action principale */
   --ds-action: #1d64d8;
@@ -51,6 +66,7 @@
   --ds-warning-soft: #fdf0d7;
   --ds-warning-border: #ecd194;
   --ds-danger: #b3261e;
+  --ds-danger-ink: #ffffff;
   --ds-danger-soft: #fbe7e5;
   --ds-danger-border: #f0b9b4;
   --ds-ai: #5b3bbd;
@@ -58,9 +74,11 @@
   --ds-ai-border: #c9b8f0;
   --ds-neutral-soft: #eef2f7;
 
-  /* Typographie */
-  --ds-font-sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --ds-font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* Typographie (Figtree et JetBrains Mono sont auto-hébergées : ces
+     familles sont servies par le bundle, les suivantes ne couvrent qu'un
+     échec de chargement). */
+  --ds-font-sans: "Figtree", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --ds-text-xs: 12px;
   --ds-text-sm: 13px;
   --ds-text-base: 14px;
@@ -136,4 +154,106 @@
   --bad: var(--ds-danger);
   --warn: var(--ds-warning);
   --mono: var(--ds-font-mono);
+}
+
+/* Thème sombre. Deux entrées pour couvrir « système » sans JavaScript
+   (media query) et un choix explicite (`data-theme="dark"` posé par
+   theme.ts) ; les deux blocs doivent rester identiques — garde-fou dans
+   tokens.test.ts. La sidebar bleu nuit et ses 4 tokens ne changent pas. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* Surfaces */
+    --ds-bg: #0d1520;
+    --ds-surface: #141f2c;
+    --ds-surface-soft: #1a2736;
+    --ds-surface-sunken: #101a26;
+
+    /* Bordures */
+    --ds-border: #28374a;
+    --ds-border-strong: #3f536b;
+
+    /* Textes */
+    --ds-text: #e9eef5;
+    --ds-text-muted: #a8b8c9;
+    --ds-text-faint: #8ea0b4;
+    --ds-ink-inverse: #0d1520;
+
+    /* Action principale */
+    --ds-action: #7fa8ff;
+    --ds-action-hover: #a3c0ff;
+    --ds-action-active: #c7d8ff;
+    --ds-action-ink: #0b1524;
+    --ds-action-soft: #172742;
+
+    /* États sémantiques */
+    --ds-success: #52d18e;
+    --ds-success-soft: #11291d;
+    --ds-success-border: #245c3d;
+    --ds-warning: #f0b454;
+    --ds-warning-soft: #2e2211;
+    --ds-warning-border: #6b5121;
+    --ds-danger: #ff8a80;
+    --ds-danger-ink: #0b1524;
+    --ds-danger-soft: #331a19;
+    --ds-danger-border: #71302c;
+    --ds-ai: #c0a6ff;
+    --ds-ai-soft: #241a3d;
+    --ds-ai-border: #4a3a78;
+    --ds-neutral-soft: #1b2836;
+
+    /* Ombres (plus profondes sur fond sombre) */
+    --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.45);
+    --ds-shadow-md: 0 2px 8px rgb(0 0 0 / 0.55);
+    --ds-shadow-lg: 0 8px 28px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --ds-bg: #0d1520;
+  --ds-surface: #141f2c;
+  --ds-surface-soft: #1a2736;
+  --ds-surface-sunken: #101a26;
+
+  /* Bordures */
+  --ds-border: #28374a;
+  --ds-border-strong: #3f536b;
+
+  /* Textes */
+  --ds-text: #e9eef5;
+  --ds-text-muted: #a8b8c9;
+  --ds-text-faint: #8ea0b4;
+  --ds-ink-inverse: #0d1520;
+
+  /* Action principale */
+  --ds-action: #7fa8ff;
+  --ds-action-hover: #a3c0ff;
+  --ds-action-active: #c7d8ff;
+  --ds-action-ink: #0b1524;
+  --ds-action-soft: #172742;
+
+  /* États sémantiques */
+  --ds-success: #52d18e;
+  --ds-success-soft: #11291d;
+  --ds-success-border: #245c3d;
+  --ds-warning: #f0b454;
+  --ds-warning-soft: #2e2211;
+  --ds-warning-border: #6b5121;
+  --ds-danger: #ff8a80;
+  --ds-danger-ink: #0b1524;
+  --ds-danger-soft: #331a19;
+  --ds-danger-border: #71302c;
+  --ds-ai: #c0a6ff;
+  --ds-ai-soft: #241a3d;
+  --ds-ai-border: #4a3a78;
+  --ds-neutral-soft: #1b2836;
+
+  /* Ombres (plus profondes sur fond sombre) */
+  --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.45);
+  --ds-shadow-md: 0 2px 8px rgb(0 0 0 / 0.55);
+  --ds-shadow-lg: 0 8px 28px rgb(0 0 0 / 0.6);
 }
