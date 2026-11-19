@@ -14,6 +14,7 @@ class UserModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     display_name: Mapped[str]
     email: Mapped[str]
     role: Mapped[str]
+    is_operator: Mapped[bool] = mapped_column(default=False, server_default="false")
     password_hash: Mapped[str | None] = mapped_column(nullable=True)
     auth_version: Mapped[int] = mapped_column(default=0, server_default="0")
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

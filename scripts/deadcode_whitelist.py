@@ -272,6 +272,9 @@ _._publish_one  # studio_client/publish.py
 # puis persistés par commit.
 
 _.github_integration_id  # studio_api/db/models/build.py
+_.studio_id  # studio_api/db/models/studio.py (+1)
+_.is_internal  # studio_api/db/models/studio.py
+_.is_operator  # studio_api/db/models/user.py
 _.renewed_at  # studio_api/db/models/claim.py (+1)
 _.released_at  # studio_api/db/models/claim.py (+1)
 _.base_update_available  # studio_api/db/models/library.py (+1)

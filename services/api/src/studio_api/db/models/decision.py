@@ -7,9 +7,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 
-class DecisionModel(UUIDPKMixin, TimestampMixin, Base):
+class DecisionModel(StudioScopedMixin, UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "decisions"
 
     readable_id: Mapped[str] = mapped_column(unique=True)
