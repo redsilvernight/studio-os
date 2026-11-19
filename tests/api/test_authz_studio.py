@@ -456,12 +456,12 @@ async def test_global_admin_without_a_studio_manager_role_is_denied(
     await db_session.flush()
     headers = {"Authorization": f"Bearer {token}"}
 
-    denied = await client.get("/api/v1/users", headers=headers)
+    denied = await client.get("/api/v1/studio/members", headers=headers)
     assert denied.status_code == 403
 
     membership.role = "owner"
     await db_session.flush()
-    assert (await client.get("/api/v1/users", headers=headers)).status_code == 200
+    assert (await client.get("/api/v1/studio/members", headers=headers)).status_code == 200
 
 
 async def test_operator_without_membership_reads_no_content(
