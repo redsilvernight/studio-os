@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 import sqlalchemy as sa
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, func
@@ -13,6 +14,18 @@ from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, Version
 INTERNAL_STUDIO_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 """Tenant owning every resource created before studios existed (0046). New
 resources default to it until per-request studio selection exists."""
+
+
+class StudioRole(StrEnum):
+    """A User's role inside one studio (0046 `studio_memberships.role`), weakest
+    to strongest. It decides studio management and project reach; the account
+    `Role` (readonly|agent|developer|admin) keeps governing machine/agent
+    capabilities and grants no implicit project reach any more."""
+
+    VIEWER = "viewer"
+    MEMBER = "member"
+    ADMIN = "admin"
+    OWNER = "owner"
 
 
 class StudioScopedMixin:

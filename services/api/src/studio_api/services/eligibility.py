@@ -21,10 +21,9 @@ from studio_api.db.models.user import UserModel
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import provisioning as provisioning_service
 from studio_api.services.authz import (
-    ALL_PROJECTS,
     Principal,
     has_project_access,
-    load_project_scope,
+    project_access_for_user,
 )
 from studio_api.settings import Settings
 
@@ -136,8 +135,7 @@ async def _owner_has_access(
     owner = await session.get(UserModel, owner_id)
     if owner is None:
         return False
-    scope = await load_project_scope(session, owner_id, Role(owner.role))
-    return scope is ALL_PROJECTS or project_id in scope
+    return await project_access_for_user(session, owner_id, project_id)
 
 
 async def eligible_machines(

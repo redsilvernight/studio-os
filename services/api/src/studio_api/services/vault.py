@@ -38,8 +38,8 @@ from studio_api.db.models.vault import (
     VaultNoteVersionModel,
 )
 from studio_api.services.authz import (
-    ALL_PROJECTS,
     Principal,
+    StudioWide,
     ensure_can_write,
     ensure_project_access,
     forbidden,
@@ -531,7 +531,7 @@ def _decode_version_cursor(cursor: str) -> int:
 
 def _tree_visibility_clause(principal: Principal) -> Any | None:
     scope = principal.project_scope
-    if scope is ALL_PROJECTS:
+    if isinstance(scope, StudioWide):
         return None
     if not scope:
         return VaultNoteModel.scope == VaultScope.STUDIO.value

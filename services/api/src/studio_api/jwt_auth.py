@@ -40,10 +40,18 @@ def access_token_lifetime_seconds(settings: Settings) -> int:
     return settings.jwt_access_token_expire_minutes * 60
 
 
-def create_access_token(user: UserModel, machine: MachineModel, settings: Settings) -> str:
+def create_access_token(
+    user: UserModel,
+    machine: MachineModel,
+    settings: Settings,
+    studio_id: uuid.UUID | None = None,
+) -> str:
     """Issue a JWT bound to a user, their dashboard machine and the user's
     current `auth_version` (DEC-0110). Email and role are never carried: the
-    server reloads them, a client reads them from `GET /auth/me`."""
+    server reloads them, a client reads them from `GET /auth/me`.
+    `studio_id` is optional and additive: when present it is the client's
+    requested active studio, revalidated against the user's memberships on
+    every request, never trusted as-is."""
     issued_at = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": str(user.id),
@@ -54,6 +62,8 @@ def create_access_token(user: UserModel, machine: MachineModel, settings: Settin
         "exp": issued_at + timedelta(seconds=access_token_lifetime_seconds(settings)),
         "type": "access",
     }
+    if studio_id is not None:
+        payload["studio_id"] = str(studio_id)
     return jwt.encode(payload, settings.jwt_secret, algorithm=ALGORITHM)
 
 
@@ -62,11 +72,13 @@ class AccessClaims:
     user_id: uuid.UUID
     machine_id: uuid.UUID
     auth_version: int
+    studio_id: uuid.UUID | None = None
 
 
 def decode_access_token(token: str, settings: Settings) -> AccessClaims | None:
     """Verify signature, expiry and shape of a DEC-0110 access token. Returns
-    None on any failure, including a pre-cutover token without `auth_version`."""
+    None on any failure, including a pre-cutover token without `auth_version`
+    or an unparseable optional `studio_id` claim."""
     try:
         payload = jwt.decode(
             token,
@@ -79,11 +91,13 @@ def decode_access_token(token: str, settings: Settings) -> AccessClaims | None:
     auth_version = payload["auth_version"]
     if payload["type"] != "access" or type(auth_version) is not int:
         return None
+    raw_studio_id = payload.get("studio_id")
     try:
         return AccessClaims(
             user_id=uuid.UUID(str(payload["sub"])),
             machine_id=uuid.UUID(str(payload["machine_id"])),
             auth_version=auth_version,
+            studio_id=None if raw_studio_id is None else uuid.UUID(str(raw_studio_id)),
         )
     except ValueError:
         return None

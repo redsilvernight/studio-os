@@ -12,9 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
-from studio_api.services.authz import ALL_PROJECTS, load_principal
+from studio_api.services.authz import StudioWide, load_principal
 
 pytestmark = pytest.mark.isolation
 
@@ -128,7 +129,9 @@ async def test_project_scope_by_role(db_session: AsyncSession) -> None:
     admin_machine, _ = await provisioning_service.create_machine(db_session, admin.id, "a")
     dev_machine, _ = await provisioning_service.create_machine(db_session, dev.id, "d")
 
-    assert (await load_principal(db_session, admin_machine)).project_scope is ALL_PROJECTS
+    assert (await load_principal(db_session, admin_machine)).project_scope == StudioWide(
+        INTERNAL_STUDIO_ID
+    )
     assert (await load_principal(db_session, dev_machine)).project_scope == frozenset()
 
     project = await projects_service.create_project(

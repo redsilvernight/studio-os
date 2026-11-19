@@ -14,7 +14,11 @@ from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, Version
 
 class MachineModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     """Credential is an opaque token; only its hash is stored, independently
-    revocable per machine (TECH/04_AUTH_SYNC_CONTRACT.md, DEC-0003)."""
+    revocable per machine (TECH/04_AUTH_SYNC_CONTRACT.md, DEC-0003).
+
+    `studio_id` is the studio this machine last selected (0047). It is
+    nullable on purpose: a machine that never chose one falls back to the
+    studio resolution default instead of being pinned to a tenant."""
 
     __tablename__ = "machines"
 
@@ -26,6 +30,12 @@ class MachineModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     capabilities: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=None)
+    studio_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("studios.id", ondelete="RESTRICT"),
+        default=None,
+        index=True,
+    )
     workstation_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("machines.id"), default=None, index=True
     )

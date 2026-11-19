@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioRole
 from studio_api.db.models.user import UserModel
 from studio_api.services.authz import Principal
 from studio_api.services.initialization import (
@@ -172,7 +173,13 @@ def _principal(role: str = "developer") -> Principal:
     user_id = uuid4()
     user = UserModel(id=user_id, role=role, display_name="t", email=f"{user_id}@example.test")
     machine = MachineModel(id=uuid4(), owner_user_id=user_id, display_name="m", credential_hash="x")
-    return Principal(machine=machine, user=user, role=Role(role))
+    return Principal(
+        machine=machine,
+        user=user,
+        role=Role(role),
+        studio_id=INTERNAL_STUDIO_ID,
+        studio_role=StudioRole.OWNER if role == "admin" else StudioRole.MEMBER,
+    )
 
 
 def _roadmap_document() -> RoadmapDocument:

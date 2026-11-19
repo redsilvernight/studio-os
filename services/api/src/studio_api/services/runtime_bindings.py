@@ -40,9 +40,9 @@ from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.services import library as library_service
 from studio_api.services import runtime_registry as registry_service
 from studio_api.services.authz import (
-    ALL_PROJECTS,
     Principal,
     ProjectAction,
+    StudioWide,
     ensure_can_provision,
     ensure_can_write,
     ensure_project_access,
@@ -116,7 +116,7 @@ def _read_clause(principal: Principal) -> ColumnElement[bool] | None:
         RuntimeBindingModel.owner_user_id == principal.user.id,
     )
     scope = principal.project_scope
-    if scope is ALL_PROJECTS:
+    if isinstance(scope, StudioWide):
         return or_(own, RuntimeBindingModel.level != RuntimeLevel.USER.value)
     if not scope:
         return own

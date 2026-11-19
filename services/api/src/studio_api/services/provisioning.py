@@ -6,11 +6,13 @@ from datetime import UTC, datetime
 import bcrypt
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from studio_api.db.models.account_token import AccountTokenModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioMembershipModel, StudioRole
 from studio_api.db.models.user import UserModel
 from studio_api.security import generate_machine_token, hash_token
 from studio_api.security_log import security_event
@@ -121,12 +123,30 @@ async def create_user(session: AsyncSession, display_name: str, email: str, role
     )
     session.add(user)
     try:
+        await session.flush()
+        await join_internal_studio(session, user)
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered") from exc
     await session.refresh(user)
     return user
+
+
+async def join_internal_studio(session: AsyncSession, user: UserModel) -> None:
+    """Every account belongs to a studio, or its Principal cannot be loaded.
+    Until studios are created at sign-up, a new account joins the internal one
+    with the 0046 backfill's rule: `owner` for a global admin, `member`
+    otherwise. Idempotent; the caller commits."""
+    await session.execute(
+        pg_insert(StudioMembershipModel)
+        .values(
+            studio_id=INTERNAL_STUDIO_ID,
+            user_id=user.id,
+            role=StudioRole.OWNER.value if user.role == "admin" else StudioRole.MEMBER.value,
+        )
+        .on_conflict_do_nothing()
+    )
 
 
 async def check_workstation(
