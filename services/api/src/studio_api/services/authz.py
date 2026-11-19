@@ -341,17 +341,6 @@ def project_not_found(project_id: uuid.UUID) -> HTTPException:
     )
 
 
-async def project_in_active_studio(
-    session: AsyncSession, principal: Principal, project_id: uuid.UUID
-) -> bool:
-    """Whether that id is a project of the active studio. A missing project is
-    not: the caller's own not-found handling applies."""
-    studio_id = await session.scalar(
-        select(ProjectModel.studio_id).where(ProjectModel.id == project_id)
-    )
-    return studio_id == principal.studio_id
-
-
 async def ensure_project_in_studio(
     session: AsyncSession,
     principal: Principal,
