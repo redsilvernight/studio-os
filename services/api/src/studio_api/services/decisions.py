@@ -176,7 +176,7 @@ async def _commit_decision_transition(
     await session.commit()
     await session.refresh(decision)
     await session.refresh(event)
-    events_service.publish_event(event)
+    await events_service.publish_event(session, event)
 
 
 async def _replacement(

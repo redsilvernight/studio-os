@@ -64,8 +64,13 @@ async def create_project(
     project (DEC-0103 §5) — an admin included, so a later demotion keeps
     access consistent. `creator=None` only for the operator CLI, which grants
     explicitly afterwards. `studio_id` is the caller's active studio; `None`
-    keeps the internal studio, the one the operator CLI writes to."""
-    existing = await session.execute(select(ProjectModel).where(ProjectModel.slug == slug))
+    keeps the internal studio, the one the operator CLI writes to. Slug
+    uniqueness is per studio (the `uq_projects_studio_slug` constraint), so
+    this check is too, and two studios may each own the same slug."""
+    studio = INTERNAL_STUDIO_ID if studio_id is None else studio_id
+    existing = await session.execute(
+        select(ProjectModel).where(ProjectModel.slug == slug, ProjectModel.studio_id == studio)
+    )
     if existing.scalar_one_or_none() is not None:
         # Slugs are non-secret (accepted oracle, DEC slug): a non-member with
         # a provisioning role learns that a slug exists via this 409 — the
@@ -84,7 +89,7 @@ async def create_project(
         slug=slug,
         name=name,
         description=description,
-        studio_id=INTERNAL_STUDIO_ID if studio_id is None else studio_id,
+        studio_id=studio,
     )
     session.add(project)
     await session.flush()

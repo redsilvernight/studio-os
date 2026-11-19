@@ -136,7 +136,7 @@ class EventListener:
                     )
                 ).all()
                 for row in rows:
-                    publish_event(row)
+                    await publish_event(session, row)
                     self._last_seq = row.seq
                 if len(rows) < _CATCH_UP_BATCH:
                     return
@@ -152,5 +152,7 @@ class EventListener:
                     select(EventModel).where(EventModel.seq.in_(wanted)).order_by(EventModel.seq)
                 )
             ).all()
-        for row in rows:
-            publish_event(row)
+            for row in rows:
+                # Inside the session: the event's studio is resolved through its
+                # project (or library resource) before fan-out (DEC-0382).
+                await publish_event(session, row)

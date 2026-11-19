@@ -972,7 +972,7 @@ async def finish_result(
     await session.commit()
     for event in staged:
         await session.refresh(event)
-        events_service.publish_event(event)
+        await events_service.publish_event(session, event)
 
 
 async def finish(

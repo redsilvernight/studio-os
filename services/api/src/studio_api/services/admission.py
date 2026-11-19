@@ -377,7 +377,7 @@ async def admit_batch(
     for launch, event in staged:
         await session.refresh(launch)
         await session.refresh(event)
-        events_service.publish_event(event)
+        await events_service.publish_event(session, event)
     return AdmissionBatchResult(
         roadmap_id=roadmap.id,
         plan_digest=plan.plan_digest,

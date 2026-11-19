@@ -135,7 +135,7 @@ async def _commit_with_event(
     await session.commit()
     await session.refresh(task)
     await session.refresh(event)
-    events_service.publish_event(event)
+    await events_service.publish_event(session, event)
     return task
 
 

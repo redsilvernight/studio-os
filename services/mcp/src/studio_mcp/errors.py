@@ -15,7 +15,7 @@ from studio_api.services.authz import Principal, load_principal
 from studio_api.services.launch_credentials import ensure_tool_allowed
 
 from studio_mcp.argument_errors import validation_error as validation_error
-from studio_mcp.auth import McpAuthError, authenticate
+from studio_mcp.auth import McpAuthError, authenticate, requested_studio_id
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ async def run_tool[T](
         try:
             machine = await authenticate(ctx, session)
             ensure_tool_allowed(machine, _tool_name(handler))
-            principal = await load_principal(session, machine)
+            principal = await load_principal(session, machine, requested_studio_id(ctx))
             result = await handler(session, principal)
             if isinstance(result, dict) and "error_code" in result:
                 return bounded_error(result)  # type: ignore[return-value]

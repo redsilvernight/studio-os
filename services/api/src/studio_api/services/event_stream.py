@@ -27,9 +27,16 @@ KEEPALIVE = _Keepalive()
 
 @dataclass(frozen=True)
 class StreamEvent:
+    """One committed event on its way to the open streams. `studio_id` is the
+    tenant it belongs to (DEC-0382), resolved from its project — or, for a
+    project-less Studio `library.*` event, from its library resource — when it
+    is published. It is what an open stream filters on, so a subscriber never
+    receives another studio's event; `None` (unknown) is never delivered."""
+
     seq: int
     project_id: UUID | None
     envelope: EventEnvelope
+    studio_id: UUID | None = None
 
 
 @dataclass(frozen=True)
