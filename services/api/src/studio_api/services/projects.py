@@ -12,7 +12,7 @@ from studio_contracts.auth import Role
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
-from studio_api.db.models.studio import INTERNAL_STUDIO_ID
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioMembershipModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.user import UserModel
 from studio_api.services import event_stream
@@ -148,7 +148,15 @@ async def _ensure_project_and_user(
     project = await session.get(ProjectModel, project_id)
     if project is None or (studio_id is not None and project.studio_id != studio_id):
         raise project_not_found(project_id)
-    if user_id is not None and await session.get(UserModel, user_id) is None:
+    if user_id is not None and (
+        await session.get(UserModel, user_id) is None
+        # A project grant only goes to a member of the project's own studio:
+        # any other account answers like an unknown one.
+        or (
+            studio_id is not None
+            and await session.get(StudioMembershipModel, (studio_id, user_id)) is None
+        )
+    ):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
             detail={"error_code": "not_found", "message": f"user {user_id} not found"},

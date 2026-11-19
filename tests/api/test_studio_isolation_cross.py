@@ -276,3 +276,33 @@ async def test_no_project_route_reads_another_studios_project(
         assert response.status_code in (403, 404, 405, 409, 422), (
             f"{path} -> {response.status_code}: {response.text[:200]}"
         )
+
+
+@pytest.mark.isolation
+async def test_a_project_grant_only_goes_to_a_member_of_the_studio(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    owner = await _actor(db_session, "owner")
+    # Granting project access is `admin` only (global account role, DEC-0103).
+    owner_user = await db_session.get(UserModel, owner.user_id)
+    assert owner_user is not None
+    owner_user.role = "admin"
+    await db_session.flush()
+    project_id = await _create_project(client, owner)
+    colleague = await _actor(db_session, "member")
+    db_session.add(
+        StudioMembershipModel(studio_id=owner.studio.id, user_id=colleague.user_id, role="member")
+    )
+    await db_session.flush()
+    outsider = await _actor(db_session, "owner")
+
+    # A member of the project's own studio can be granted access...
+    studio_member = await client.put(
+        f"/api/v1/projects/{project_id}/members/{colleague.user_id}", headers=owner.headers
+    )
+    assert studio_member.status_code in (200, 201), studio_member.text
+    # ...an account that belongs to another studio only answers like an unknown one.
+    refused = await client.put(
+        f"/api/v1/projects/{project_id}/members/{outsider.user_id}", headers=owner.headers
+    )
+    assert refused.status_code == 404, refused.text
