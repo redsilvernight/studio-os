@@ -95,6 +95,19 @@ inchange pour les clients N-1. Nouvelles valeurs `resource` du 403 : `studio`
 reservee a `is_operator`, action `operate`). `API_CONTRACT_VERSION` non
 bumpee a ce stade (changement additif) : a confirmer.
 
+Isolation par studio (DEC-0382) : une ressource ou un projet d'un AUTRE studio
+repond comme un id inconnu (`404 not_found`) pour un `owner`/`admin` du studio
+actif ; un non-manager garde son `403 resource=project` ; un id de projet
+inexistant garde son comportement habituel. Les listes filtrees par projet
+(taches, claims, sessions, evenements) passant par la clause de visibilite
+renvoient une collection vide pour un projet etranger. Idempotence : cle
+scopee par studio, une meme `Idempotency-Key` dans deux studios ne rejoue
+jamais la reponse de l'autre (`TECH/04_AUTH_SYNC_CONTRACT.md`). SSE `/events` :
+flux borne au studio actif resolu a l'ouverture et fige ; sans `project`, il ne
+porte que les evenements globaux. Slug de projet unique par studio ; l'octroi
+d'un acces projet exige un compte membre du studio du projet (sinon `404`
+comme un compte inconnu).
+
 ## Conventions
 - JSON UTF-8.
 - IDs internes UUID.

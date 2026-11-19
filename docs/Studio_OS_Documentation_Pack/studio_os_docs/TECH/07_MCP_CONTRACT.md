@@ -13,6 +13,12 @@ serveur et sans exception brute envoyee au client.
 compte exactement le reliquat. Les anciens appels sans limite ne renvoient
 plus toute la liste. Ces changements de bornes sont declares par la version 4.
 
+Studio actif (DEC-0382, additif) : en HTTP, en-tete `X-Studio-Id` ; en stdio,
+variable `STUDIO_MCP_STUDIO_ID`. Meme resolution que REST (claim, valeur
+demandee, preference machine, defaut ; `TECH/04_AUTH_SYNC_CONTRACT.md`) ; valeur
+mal formee ou studio non membre : meme `403 resource=studio`. Les cles
+d'idempotence des outils sont scopees par studio.
+
 ## Outils de base
 studio_get_projects
 studio_get_project_state
