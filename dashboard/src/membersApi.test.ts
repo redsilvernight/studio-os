@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "./api";
 import { ApiError } from "./api";
-import { grantMember, listMembers, revokeMember, searchUsers } from "./membersApi";
+import { grantMember, listMembers, revokeMember, searchStudioMembers, searchUsers } from "./membersApi";
 
 type Fake = Record<"GET" | "PUT" | "DELETE", ReturnType<typeof vi.fn>>;
 const fakeClient = (impl: Partial<Fake>): StudioClient =>
@@ -17,6 +17,20 @@ const P = "11111111-2222-4333-8444-555555555555";
 const U = "aaaaaaaa-0000-4111-8111-000000000001";
 const member = { project_id: P, user_id: U, granted_by_user_id: null, created_at: "2026-09-25T10:00:00Z" };
 const path = { params: { path: { project_id: P, user_id: U } } };
+
+describe("searchStudioMembers", () => {
+  it("queries the active-studio directory with a bounded limit", async () => {
+    const found = [{ id: U, display_name: "Dev", email: "dev@example.test" }];
+    const GET = vi.fn().mockResolvedValue(reply(200, found));
+    await expect(searchStudioMembers(fakeClient({ GET }), "dev")).resolves.toEqual(found);
+    expect(GET).toHaveBeenCalledWith("/api/v1/studio/members", { params: { query: { q: "dev", limit: 20 } } });
+  });
+
+  it("surfaces a 403 as an ApiError", async () => {
+    const GET = vi.fn().mockResolvedValue(reply(403, undefined, { detail: "forbidden" }));
+    await expect(searchStudioMembers(fakeClient({ GET }), "x")).rejects.toBeInstanceOf(ApiError);
+  });
+});
 
 describe("searchUsers", () => {
   it("queries the admin directory with a bounded limit", async () => {

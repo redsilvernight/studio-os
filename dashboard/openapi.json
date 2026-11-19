@@ -8405,7 +8405,7 @@
      "infra"
     ],
     "summary": "Get Infra Measurements",
-    "description": "Infrastructure cost measurements of the instance, as series over the last `days` (default 7): table sizes, per-project storage, SSE connections, process memory, backup volume. Numbers and timestamps only, never a title, file name or content. Requires the admin role: any other role gets `403 forbidden`.",
+    "description": "Infrastructure cost measurements of the instance, as series over the last `days` (default 7): table sizes, per-project storage, SSE connections, process memory, backup volume. Numbers and timestamps only, never a title, file name or content. Requires the instance operator (`is_operator`): anyone else gets `403 forbidden`.",
     "operationId": "get_infra_measurements_api_v1_internal_infra_measurements_get",
     "security": [
      {
@@ -12564,7 +12564,7 @@
      "machines"
     ],
     "summary": "List Machines",
-    "description": "List machines whose credential is not revoked, oldest first: the caller's own User's machines only, every machine for `admin` (contract version 2). `status` is derived server-side from `last_seen_at` (last heartbeat) and is never stored; a machine that never sent a heartbeat has `last_seen_at: null` and status `offline`. Credentials and their hashes are never exposed.",
+    "description": "List machines whose credential is not revoked, oldest first: the caller's own User's machines only, every machine for the instance operator (contract version 2). `status` is derived server-side from `last_seen_at` (last heartbeat) and is never stored; a machine that never sent a heartbeat has `last_seen_at: null` and status `offline`. Credentials and their hashes are never exposed.",
     "operationId": "list_machines_api_v1_machines_get",
     "responses": {
      "200": {
@@ -13588,7 +13588,7 @@
      "users"
     ],
     "summary": "List Users",
-    "description": "Admin user directory, used to pick who to add to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`. Each User carries its derived account `status` (`pending`, `active`, `disabled`).",
+    "description": "Instance user directory (every account). Requires the instance operator (`is_operator`): anyone else gets `403 forbidden` before any lookup. To pick who to add to a project, a studio `owner`/`admin` uses `GET /studio/members`. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`. Each User carries its derived account `status` (`pending`, `active`, `disabled`).",
     "operationId": "list_users_api_v1_users_get",
     "security": [
      {
@@ -13682,7 +13682,7 @@
      "users"
     ],
     "summary": "Create User",
-    "description": "Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` \u2014 the role alone decides what the user's machines may do). Requires the admin role. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.",
+    "description": "Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` \u2014 the role alone decides what the user's machines may do). Requires the instance operator. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.",
     "operationId": "create_user_api_v1_users_post",
     "security": [
      {
@@ -13753,7 +13753,7 @@
      "users"
     ],
     "summary": "Disable User",
-    "description": "Disable an account (admin only; idempotent). Every JWT of the User is revoked (`auth_version` bumped), every machine it owns is refused while it stays disabled, and its open event streams close. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.",
+    "description": "Disable an account (operator only; idempotent). Every JWT of the User is revoked (`auth_version` bumped), every machine it owns is refused while it stays disabled, and its open event streams close. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.",
     "operationId": "disable_user_api_v1_users__user_id__disable_post",
     "security": [
      {
@@ -13836,7 +13836,7 @@
      "users"
     ],
     "summary": "Enable User",
-    "description": "Lift a deactivation (admin only; idempotent). Earlier JWTs stay invalid; the User's machines work again. An account whose email is not verified stays `pending`: activation requires verification. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.",
+    "description": "Lift a deactivation (operator only; idempotent). Earlier JWTs stay invalid; the User's machines work again. An account whose email is not verified stays `pending`: activation requires verification. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.",
     "operationId": "enable_user_api_v1_users__user_id__enable_post",
     "security": [
      {
@@ -13919,7 +13919,7 @@
      "users"
     ],
     "summary": "Revoke User Sessions",
-    "description": "Revoke every dashboard session (JWT) of a User (admin only): `auth_version` is bumped, machine tokens are untouched. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.",
+    "description": "Revoke every dashboard session (JWT) of a User (operator only): `auth_version` is bumped, machine tokens are untouched. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.",
     "operationId": "revoke_user_sessions_api_v1_users__user_id__revoke_sessions_post",
     "security": [
      {
@@ -14002,7 +14002,7 @@
      "users"
     ],
     "summary": "List User Memberships",
-    "description": "Projects a User can access (admin only), oldest grant first. Access is granted or removed with `PUT`/`DELETE /projects/{project_id}/members/{user_id}`. Unknown user: 404.",
+    "description": "Projects a User can access (operator only), oldest grant first. Access is granted or removed with `PUT`/`DELETE /projects/{project_id}/members/{user_id}`. Unknown user: 404.",
     "operationId": "list_user_memberships_api_v1_users__user_id__memberships_get",
     "security": [
      {
@@ -14066,6 +14066,102 @@
        "application/json": {
         "example": {
          "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studio/members": {
+   "get": {
+    "tags": [
+     "studio"
+    ],
+    "summary": "List Studio Members",
+    "description": "Directory of the accounts that are members of the active studio, used to pick who to add to a project. Requires `owner` or `admin` of the active studio (`403 forbidden` otherwise, before any lookup); never lists another studio's accounts. Same filters, order and `status` as `GET /users`.",
+    "operationId": "list_studio_members_api_v1_studio_members_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 200
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/User"
+         },
+         "title": "Response List Studio Members Api V1 Studio Members Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
         }
        }
       }

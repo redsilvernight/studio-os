@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, Query, status
 from studio_contracts.auth import User, UserCreate
 from studio_contracts.projects import ProjectMember
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession, require_operator
+from studio_api.db.models.studio import StudioRole
+from studio_api.deps import CurrentMachine, DbSession, require_operator, require_studio_role
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
@@ -15,21 +16,22 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
-from studio_api.services.authz import Principal, forbidden, is_studio_manager
+from studio_api.services.authz import Principal
 
 OperatorPrincipal = Annotated[Principal, Depends(require_operator)]
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+studio_router = APIRouter(prefix="/api/v1/studio", tags=["studio"])
 
 
 @router.get(
     "",
     response_model=list[User],
     description=(
-        "User directory, used to pick who to add to a project. "
-        "Instance operator (every account) or `owner`/`admin` of the active studio "
-        "(its members only): anyone else gets `403 forbidden` before any lookup. "
-        "`q` filters on a case-insensitive substring of "
+        "Instance user directory (every account). Requires the instance "
+        "operator (`is_operator`): anyone else gets `403 forbidden` before any "
+        "lookup. To pick who to add to a project, a studio `owner`/`admin` uses "
+        "`GET /studio/members`. `q` filters on a case-insensitive substring of "
         "the display name or email; results are sorted by display name "
         "then email and capped by `limit`. Each User carries its derived "
         "account `status` (`pending`, `active`, `disabled`)."
@@ -38,15 +40,33 @@ router = APIRouter(prefix="/api/v1/users", tags=["users"])
 )
 async def list_users(
     session: DbSession,
-    principal: CurrentPrincipal,
+    _operator: OperatorPrincipal,
     q: Annotated[str | None, Query(max_length=200)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[User]:
-    if not principal.is_operator and not is_studio_manager(principal):
-        raise forbidden("instance", "operate")
-    users = await provisioning_service.list_users(
-        session, q, limit, None if principal.is_operator else principal.studio_id
-    )
+    users = await provisioning_service.list_users(session, q, limit)
+    return [User.model_validate(u) for u in users]
+
+
+@studio_router.get(
+    "/members",
+    response_model=list[User],
+    description=(
+        "Directory of the accounts that are members of the active studio, used "
+        "to pick who to add to a project. Requires `owner` or `admin` of the "
+        "active studio (`403 forbidden` otherwise, before any lookup); never "
+        "lists another studio's accounts. Same filters, order and `status` as "
+        "`GET /users`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def list_studio_members(
+    session: DbSession,
+    principal: Annotated[Principal, Depends(require_studio_role(StudioRole.ADMIN))],
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[User]:
+    users = await provisioning_service.list_users(session, q, limit, principal.studio_id)
     return [User.model_validate(u) for u in users]
 
 

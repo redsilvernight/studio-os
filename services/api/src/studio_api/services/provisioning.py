@@ -134,19 +134,24 @@ async def bootstrap_admin(session: AsyncSession, display_name: str, email: str) 
     existing = await session.execute(select(UserModel).where(UserModel.role == "admin"))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "an admin user already exists")
-    return await create_user(session, display_name, email, role="admin")
+    return await create_user(session, display_name, email, role="admin", operator=True)
 
 
-async def create_user(session: AsyncSession, display_name: str, email: str, role: str) -> UserModel:
+async def create_user(
+    session: AsyncSession,
+    display_name: str,
+    email: str,
+    role: str,
+    *,
+    operator: bool = False,
+) -> UserModel:
     if await get_user_by_email(session, email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
     user = UserModel(
         display_name=display_name,
         email=normalize_email(email),
         role=role,
-        # A global admin is the instance operator until operators are assigned
-        # on their own (same rule as migration 0048).
-        is_operator=role == "admin",
+        is_operator=operator,
         email_verified_at=datetime.now(UTC),
     )
     session.add(user)

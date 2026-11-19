@@ -56,6 +56,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/projects"): "instance",
     ("GET", "/api/v1/internal/infra-measurements"): "instance",
     ("GET", "/api/v1/users"): "instance",
+    ("GET", "/api/v1/studio/members"): "instance",
     ("POST", "/api/v1/users"): "instance",
     ("POST", "/api/v1/users/{user_id}/disable"): "instance",
     ("POST", "/api/v1/users/{user_id}/enable"): "instance",

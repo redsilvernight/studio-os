@@ -26,6 +26,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # shortcut: cannot tell a flag set here from one set by hand, so every
-    # global admin loses it; reassign the operators after a downgrade.
+    # Lossy on purpose: the flag set here cannot be told from one granted by
+    # hand afterwards, so the downgrade removes `is_operator` from EVERY global
+    # admin. Reassign the operators after a downgrade (then re-upgrade restores
+    # the flag for all global admins).
     op.execute("UPDATE users SET is_operator = false WHERE role = 'admin'")

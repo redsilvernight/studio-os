@@ -372,11 +372,20 @@ projet, `[]` par defaut ; un client N-1 l'ignore).
 - POST /users (role `admin`, pas de `Idempotency-Key`) — e-mail stocke
   normalise (`strip().lower()`, A3) et unique sans tenir compte de la casse :
   une variante de casse d'un e-mail existant repond `409`.
-- GET /users (role `admin`, additif, tache ac1b9a28) — annuaire pour choisir
+- GET /users (operateur d'instance `is_operator`, additif, tache ac1b9a28) — annuaire pour choisir
   un membre : `q` optionnel (≤200 caracteres, sous-chaine insensible a la
   casse sur `display_name` ou `email`, jokers `%`/`_` pris litteralement),
   `limit` 1–200 (defaut 50) ; tri par nom puis e-mail ; reponse `list[User]`,
-  jamais de hash. Non-admin : `403`.
+  jamais de hash. Non-operateur : `403`.
+- GET /studio/members (owner/admin du studio actif, additif, authz par studio) —
+  annuaire du studio actif pour choisir un membre de projet : memes `q`,
+  `limit`, tri et reponse `list[User]` que `GET /users`, limite aux comptes
+  membres du studio actif ; autre role de studio : `403`.
+- Note de version (authz par studio, `API_CONTRACT_VERSION` inchangee, additif) :
+  les routes `/users*`, `/machines` (vue de tous les comptes), `/infra*` et le CLI
+  `admin_cli` passent de « role global `admin` » a `is_operator` (migration `0048`
+  : drapeau pose sur les admins globaux existants) ; les controles de contenu de
+  studio suivent `owner`/`admin` du studio actif (`is_studio_manager`).
 - `User` gagne (A3, additif) `status` (`pending|active|disabled`, derive,
   jamais stocke), `email_verified_at` et `disabled_at` (nullables).
 
