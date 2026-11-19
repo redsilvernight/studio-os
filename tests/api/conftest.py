@@ -99,7 +99,7 @@ async def machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
 @pytest_asyncio.fixture
 async def admin_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
     admin = await provisioning_service.create_user(
-        db_session, "Admin", f"{uuid.uuid4()}@example.test", "admin"
+        db_session, "Admin", f"{uuid.uuid4()}@example.test", "admin", operator=True
     )
     return await provisioning_service.create_machine(db_session, admin.id, "admin-machine")
 

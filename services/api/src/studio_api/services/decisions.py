@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.decisions import DecisionCreate, DecisionStatus
 from studio_contracts.events import EventCreate, EventType
 
@@ -22,6 +21,7 @@ from studio_api.services.authz import (
     ensure_project_in_studio,
     ensure_shared_access,
     forbidden,
+    is_studio_manager,
     project_in_active_studio,
     project_visibility_clause,
     studio_clause,
@@ -208,7 +208,7 @@ async def _transition_decision(
     `Idempotency-Key`, a retried transition simply fails the status check
     again (`409 invalid_decision_transition`)."""
     ensure_can_write(principal, "decision")
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         raise forbidden("decision", target.value)
     decision = await _lock_decision(session, principal, decision_id)
     _ensure_decision_scope(principal, decision.project_id, "write")

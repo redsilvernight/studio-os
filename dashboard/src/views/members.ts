@@ -16,7 +16,7 @@ import {
   grantMember,
   listMembers,
   revokeMember,
-  searchUsers,
+  searchStudioMembers,
   type DirectoryUser,
   type ProjectMember,
 } from "../membersApi";
@@ -203,7 +203,7 @@ function bind(
     const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
     if (submit !== null) submit.disabled = true;
     if (msg !== null) msg.textContent = "Recherche…";
-    searchUsers(ctx.client, query)
+    searchStudioMembers(ctx.client, query)
       .then((users) => {
         if (msg !== null) msg.textContent = "";
         if (results !== null) results.innerHTML = candidatesHtml(users, memberIds, ctx.selfId ?? null);

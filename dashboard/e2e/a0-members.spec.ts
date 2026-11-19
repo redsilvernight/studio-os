@@ -57,7 +57,7 @@ function apiStub(role: string, stub: Stub) {
       return json(200, { user_id: ADMIN, display_name: "Ada Admin", email: "ada@example.test", role, machine_id: DEV });
     }
     const parsed = new URL(url);
-    if (parsed.pathname.endsWith("/api/v1/users") && request.method() === "GET") {
+    if (parsed.pathname.endsWith("/api/v1/studio/members") && request.method() === "GET") {
       const q = (parsed.searchParams.get("q") ?? "").toLowerCase();
       stub.searches.push(q);
       return json(

@@ -22,6 +22,7 @@ from studio_api.services.authz import (
     ensure_project_in_studio,
     forbidden,
     has_project_access,
+    is_studio_manager,
 )
 
 
@@ -39,7 +40,7 @@ async def get_managed_machine(
     the same 403 whether the machine exists or not (no oracle); only an admin
     can learn that it does not."""
     machine = await session.get(MachineModel, machine_id)
-    if principal.role == Role.ADMIN:
+    if is_studio_manager(principal):
         if machine is None:
             raise _not_found("machine", machine_id)
         return machine
@@ -125,7 +126,7 @@ async def can_launch(
 ) -> bool:
     if principal.role == Role.READONLY or not has_project_access(principal, project_id):
         return False
-    if principal.role == Role.ADMIN or machine.owner_user_id == principal.user.id:
+    if is_studio_manager(principal) or machine.owner_user_id == principal.user.id:
         return True
     found = await session.execute(
         select(MachineLaunchGrantModel.user_id).where(

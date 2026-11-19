@@ -13,7 +13,6 @@ from studio_contracts.ai_integration import (
     ReportedMachineIntegration,
     ReportFreshness,
 )
-from studio_contracts.auth import Role
 from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.bootstrap_plan import BootstrapPlanRequest
 
@@ -21,7 +20,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.services import bootstrap_plan as bootstrap_plan_service
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import provisioning as provisioning_service
-from studio_api.services.authz import Principal, ensure_project_in_studio
+from studio_api.services.authz import Principal, ensure_project_in_studio, is_studio_manager
 from studio_api.settings import Settings
 
 _UNKNOWN_ERROR = "plan_unavailable"
@@ -94,8 +93,8 @@ async def ai_integration_status(
 ) -> AiIntegrationStatus:
     await ensure_project_in_studio(session, principal, project_id)
     desired, desired_error = await _desired(session, principal, project_id)
-    owner = None if principal.role == Role.ADMIN else principal.user.id
-    machines = await provisioning_service.list_active_machines(session, owner)
+    owner = None if is_studio_manager(principal) else principal.user.id
+    machines = await provisioning_service.list_active_machines(session, owner, principal.studio_id)
     now = datetime.now(UTC)
     views = [
         reported_view(machine, project_id=project_id, settings=settings, now=now)

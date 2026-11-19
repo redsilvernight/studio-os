@@ -10,7 +10,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, case, delete, exists, func, literal, literal_column, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.vault import VAULT_SEARCH_SNIPPET_MAX as _SNIPPET_MAX
 from studio_contracts.vault import (
     VaultActorType,
@@ -45,6 +44,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     ensure_project_in_studio,
     forbidden,
+    is_studio_manager,
     project_in_active_studio,
     studio_clause,
 )
@@ -200,7 +200,7 @@ def _authorize_scope_write(
     # A studio note in an admin-only status is admin-owned: a non-admin can
     # neither reach that status nor leave it (no demote-then-edit bypass).
     statuses = {target_status, current_status} & _ADMIN_ONLY_STATUSES
-    if statuses and principal.role != Role.ADMIN:
+    if statuses and not is_studio_manager(principal):
         raise forbidden("vault_note", "write")
 
 

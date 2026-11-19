@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api/v1/machines", tags=["machines"])
     response_model=list[Machine],
     description=(
         "List machines whose credential is not revoked, oldest first: the "
-        "caller's own User's machines only, every machine for `admin` "
+        "caller's own User's machines only, every machine for the instance operator "
         "(contract version 2). `status` is derived server-side "
         "from `last_seen_at` (last heartbeat) and is never stored; a machine "
         "that never sent a heartbeat has `last_seen_at: null` and status "
@@ -45,7 +45,7 @@ router = APIRouter(prefix="/api/v1/machines", tags=["machines"])
 )
 async def list_machines(session: DbSession, principal: CurrentPrincipal) -> list[Machine]:
     settings = get_settings()
-    owner = None if principal.role == Role.ADMIN else principal.user.id
+    owner = None if principal.is_operator else principal.user.id
     return [
         Machine.model_validate(row).model_copy(
             update={"status": heartbeats_service.derive_status(row, settings)}
@@ -100,7 +100,7 @@ async def create_machine(
     if principal.role == Role.AGENT:
         raise forbidden("machine", "create")
     owner_user_id = machine_in.owner_user_id or principal.user.id
-    if owner_user_id != principal.user.id and principal.role != Role.ADMIN:
+    if owner_user_id != principal.user.id and not principal.is_operator:
         raise forbidden("machine", "create")
     new_machine, token = await provisioning_service.create_machine(
         session, owner_user_id, machine_in.display_name, machine_in.workstation_id
@@ -133,9 +133,7 @@ async def adopt_machine(
     if principal.role == Role.AGENT:
         raise forbidden("machine", "adopt")
     target = await provisioning_service.get_machine(session, machine_id)
-    if target is None or (
-        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
-    ):
+    if target is None or (not principal.is_operator and target.owner_user_id != principal.user.id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
     rotated, token = await provisioning_service.rotate_machine_credential(session, target)
     return MachineCreated(**Machine.model_validate(rotated).model_dump(), credential=token)
@@ -161,9 +159,7 @@ async def revoke_machine(
     if principal.role == Role.AGENT:
         raise forbidden("machine", "revoke")
     target = await provisioning_service.get_machine(session, machine_id)
-    if target is None or (
-        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
-    ):
+    if target is None or (not principal.is_operator and target.owner_user_id != principal.user.id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
     target = await provisioning_service.revoke_machine(session, target)
     return Machine.model_validate(target)
@@ -196,9 +192,7 @@ async def rename_machine(
     if principal.role == Role.AGENT:
         raise forbidden("machine", "rename")
     target = await provisioning_service.get_machine(session, machine_id)
-    if target is None or (
-        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
-    ):
+    if target is None or (not principal.is_operator and target.owner_user_id != principal.user.id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
     if target.version != if_match_version:
         raise HTTPException(
@@ -245,9 +239,7 @@ async def set_machine_workstation(
     if principal.role == Role.AGENT:
         raise forbidden("machine", "set_workstation")
     target = await provisioning_service.get_machine(session, machine_id)
-    if target is None or (
-        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
-    ):
+    if target is None or (not principal.is_operator and target.owner_user_id != principal.user.id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
     if target.version != if_match_version:
         raise HTTPException(

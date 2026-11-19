@@ -16,7 +16,7 @@ from studio_contracts.discovery import (
 
 from studio_api.db.models.build import GitHubIntegrationModel
 from studio_api.db.models.project import ProjectModel
-from studio_api.services.authz import Principal, project_visibility_clause
+from studio_api.services.authz import Principal, is_studio_manager, project_visibility_clause
 from studio_api.services.heartbeats import parse_stored_capabilities
 from studio_api.settings import Settings
 
@@ -268,7 +268,7 @@ async def discover_product(
                 )
         write_allowed = writer
         if spec.key == "projects":
-            write_allowed = principal.role in {Role.ADMIN, Role.DEVELOPER}
+            write_allowed = is_studio_manager(principal) or principal.role == Role.DEVELOPER
             restrictions.append("La création d'un projet exige un rôle admin ou developer.")
         if spec.key == "decisions":
             restrictions.append(

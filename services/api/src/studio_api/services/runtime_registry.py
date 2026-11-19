@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.library import RuntimeCapabilities
 from studio_contracts.runtime import (
     CapabilitySource,
@@ -21,6 +20,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     forbidden,
+    is_studio_manager,
 )
 
 
@@ -53,7 +53,7 @@ def _is_visible(principal: Principal, runtime: RuntimeModel) -> bool:
     active studio: another studio's row is invisible (DEC-0382)."""
     if runtime.studio_id != principal.studio_id:
         return False
-    return principal.role == Role.ADMIN or runtime.owner_user_id == principal.user.id
+    return is_studio_manager(principal) or runtime.owner_user_id == principal.user.id
 
 
 def to_contract(runtime: RuntimeModel) -> RuntimeRegistration:
@@ -126,7 +126,7 @@ async def list_runtimes(
     excluded by default — pass `include_revoked` (or a `status` filter) to
     audit them."""
     conditions = [RuntimeModel.studio_id == principal.studio_id]
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         conditions.append(RuntimeModel.owner_user_id == principal.user.id)
     if status is not None:
         conditions.append(RuntimeModel.status == status.value)
@@ -156,7 +156,7 @@ async def update_runtime(
     fail-closed."""
     ensure_can_write(principal, "runtime")
     if not _is_visible(principal, runtime) or (
-        principal.role != Role.ADMIN and runtime.owner_user_id != principal.user.id
+        not is_studio_manager(principal) and runtime.owner_user_id != principal.user.id
     ):
         raise forbidden("runtime", "update")
     if runtime.version != expected_version:
@@ -202,7 +202,7 @@ async def revoke_runtime(
     provenance."""
     ensure_can_write(principal, "runtime")
     if not _is_visible(principal, runtime) or (
-        principal.role != Role.ADMIN and runtime.owner_user_id != principal.user.id
+        not is_studio_manager(principal) and runtime.owner_user_id != principal.user.id
     ):
         raise forbidden("runtime", "revoke")
     runtime.status = RuntimeStatus.REVOKED.value

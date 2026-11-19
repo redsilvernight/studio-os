@@ -32,10 +32,23 @@ async def get_user_by_email(session: AsyncSession, email: str) -> UserModel | No
     return result.scalar_one_or_none()
 
 
-async def list_users(session: AsyncSession, query: str | None, limit: int) -> list[UserModel]:
+async def list_users(
+    session: AsyncSession,
+    query: str | None,
+    limit: int,
+    studio_id: uuid.UUID | None = None,
+) -> list[UserModel]:
     """Case-insensitive substring match on display name or email; `%` and `_`
-    in `query` are literal."""
+    in `query` are literal. `studio_id` bounds the list to that studio's members."""
     stmt = select(UserModel)
+    if studio_id is not None:
+        stmt = stmt.where(
+            UserModel.id.in_(
+                select(StudioMembershipModel.user_id).where(
+                    StudioMembershipModel.studio_id == studio_id
+                )
+            )
+        )
     needle = (query or "").strip()
     if needle:
         pattern = "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
@@ -77,12 +90,24 @@ async def list_machines(
 
 
 async def list_active_machines(
-    session: AsyncSession, owner_user_id: uuid.UUID | None = None
+    session: AsyncSession,
+    owner_user_id: uuid.UUID | None = None,
+    studio_id: uuid.UUID | None = None,
 ) -> list[MachineModel]:
-    """`owner_user_id=None` lists every owner's machines (admin only)."""
+    """`owner_user_id=None` lists every owner's machines (instance operator
+    only); `studio_id` bounds that list to owners who are members of the studio
+    (a studio manager never sees another studio's machines)."""
     stmt = select(MachineModel).where(MachineModel.credential_revoked_at.is_(None))
     if owner_user_id is not None:
         stmt = stmt.where(MachineModel.owner_user_id == owner_user_id)
+    if studio_id is not None:
+        stmt = stmt.where(
+            MachineModel.owner_user_id.in_(
+                select(StudioMembershipModel.user_id).where(
+                    StudioMembershipModel.studio_id == studio_id
+                )
+            )
+        )
     result = await session.execute(stmt.order_by(MachineModel.created_at))
     return list(result.scalars().all())
 
@@ -109,16 +134,24 @@ async def bootstrap_admin(session: AsyncSession, display_name: str, email: str) 
     existing = await session.execute(select(UserModel).where(UserModel.role == "admin"))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "an admin user already exists")
-    return await create_user(session, display_name, email, role="admin")
+    return await create_user(session, display_name, email, role="admin", operator=True)
 
 
-async def create_user(session: AsyncSession, display_name: str, email: str, role: str) -> UserModel:
+async def create_user(
+    session: AsyncSession,
+    display_name: str,
+    email: str,
+    role: str,
+    *,
+    operator: bool = False,
+) -> UserModel:
     if await get_user_by_email(session, email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
     user = UserModel(
         display_name=display_name,
         email=normalize_email(email),
         role=role,
+        is_operator=operator,
         email_verified_at=datetime.now(UTC),
     )
     session.add(user)

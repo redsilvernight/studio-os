@@ -7,7 +7,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.library import (
     BindingRelation,
     CapabilityRequirement,
@@ -53,6 +52,7 @@ from studio_api.services.authz import (
     forbidden,
     has_any_project,
     has_project_access,
+    is_studio_manager,
     project_in_active_studio,
 )
 
@@ -125,7 +125,7 @@ def _is_visible(principal: Principal, binding: RuntimeBindingModel) -> bool:
     default needs at least one project (DEC-0103 §4/§11). The studio bound
     is checked by `_in_active_studio` before this runs."""
     if binding.level == RuntimeLevel.USER.value:
-        return principal.role == Role.ADMIN or binding.owner_user_id == principal.user.id
+        return is_studio_manager(principal) or binding.owner_user_id == principal.user.id
     if binding.project_id is not None:
         return has_project_access(principal, binding.project_id)
     return has_any_project(principal)
@@ -172,7 +172,7 @@ def _read_clause(principal: Principal) -> ColumnElement[bool]:
         shared_owner,
     )
     scope = principal.project_scope
-    if principal.role == Role.ADMIN:
+    if is_studio_manager(principal):
         return or_(
             own,
             and_(
@@ -388,14 +388,14 @@ async def delete_binding(
     await ensure_optional_project_in_studio(session, principal, binding.project_id, "write")
     if binding.level == RuntimeLevel.USER.value:
         ensure_can_write(principal, "runtime_binding")
-        if principal.role != Role.ADMIN and binding.owner_user_id != principal.user.id:
+        if not is_studio_manager(principal) and binding.owner_user_id != principal.user.id:
             raise forbidden("runtime_binding", "release")
     elif binding.level in (
         RuntimeLevel.PROJECT_OVERRIDE.value,
         RuntimeLevel.PROJECT_DEFAULT.value,
     ):
         ensure_can_write(principal, "runtime_binding")
-        if principal.role != Role.ADMIN and binding.owner_user_id != principal.user.id:
+        if not is_studio_manager(principal) and binding.owner_user_id != principal.user.id:
             raise forbidden("runtime_binding", "release")
     else:
         ensure_can_provision(principal, "runtime_binding")

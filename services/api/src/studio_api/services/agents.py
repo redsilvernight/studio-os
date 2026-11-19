@@ -16,11 +16,11 @@ from studio_contracts.agent_identity import (
     AgentIdentityResult,
     logical_harness,
 )
-from studio_contracts.auth import Agent, AgentCreate, Role
+from studio_contracts.auth import Agent, AgentCreate
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
-from studio_api.services.authz import Principal, ensure_can_write, forbidden
+from studio_api.services.authz import Principal, ensure_can_write, forbidden, is_studio_manager
 
 _METADATA_FIELDS = (
     "display_name",
@@ -350,7 +350,7 @@ async def supersede_identity(
         raise HTTPException(
             409, detail={"error_code": "invalid_identity_link", "field": "canonical_agent_id"}
         )
-    if principal.role != Role.ADMIN:
+    if not is_studio_manager(principal):
         legacy_owner = await _legacy_owner_user_id(session, legacy)
         if legacy_owner != principal.user.id or canonical.owner_user_id != principal.user.id:
             raise forbidden("agent", "supersede")

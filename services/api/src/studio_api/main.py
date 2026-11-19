@@ -318,6 +318,7 @@ def create_app() -> FastAPI:
     app.include_router(eligibility.router)
     app.include_router(ai_integration.router)
     app.include_router(users.router)
+    app.include_router(users.studio_router)
     app.include_router(roadmaps.router)
     app.include_router(admission.router)
     app.include_router(initialization.router)

@@ -18,6 +18,7 @@ from studio_api.services.authz import (
     ensure_optional_project_in_studio,
     ensure_project_access,
     forbidden,
+    is_studio_manager,
     project_not_found,
 )
 
@@ -27,7 +28,7 @@ def authorize_repositories_write(principal: Principal, project_id: uuid.UUID) ->
     lookup (DEC-0103 §12): link management is `admin`/`developer` only — a
     `viewer` (readonly, agent) gets the same 403 for any project id."""
     ensure_project_access(principal, project_id, "write")
-    if principal.role not in (Role.ADMIN, Role.DEVELOPER):
+    if not (is_studio_manager(principal) or principal.role == Role.DEVELOPER):
         raise forbidden("project_repository", "write")
 
 

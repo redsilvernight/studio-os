@@ -163,7 +163,7 @@ async def test_cli_grant_revoke_and_list(
 ) -> None:
     _bind_session(monkeypatch, db_session)
     admin = await provisioning_service.create_user(
-        db_session, "Admin", f"{uuid.uuid4()}@example.test", "admin"
+        db_session, "Admin", f"{uuid.uuid4()}@example.test", "admin", operator=True
     )
     dev = await provisioning_service.create_user(
         db_session, "Dev", f"{uuid.uuid4()}@example.test", "developer"

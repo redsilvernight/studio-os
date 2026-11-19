@@ -16,9 +16,16 @@ import type { components } from "./openapi-schema";
 export type ProjectMember = components["schemas"]["ProjectMember"];
 export type DirectoryUser = components["schemas"]["User"];
 
-/** Admin directory: case-insensitive match on display name or email. */
+/** Instance directory (operator): case-insensitive match on display name or email. */
 export async function searchUsers(client: StudioClient, query: string, limit = 20): Promise<DirectoryUser[]> {
   const result = await client.GET("/api/v1/users", { params: { query: { q: query, limit } } });
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+/** Active-studio directory (owner/admin of the studio): picks who to add to a project. */
+export async function searchStudioMembers(client: StudioClient, query: string, limit = 20): Promise<DirectoryUser[]> {
+  const result = await client.GET("/api/v1/studio/members", { params: { query: { q: query, limit } } });
   if (result.response.ok && result.data !== undefined) return result.data;
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
