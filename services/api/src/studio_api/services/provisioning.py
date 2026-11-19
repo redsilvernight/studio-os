@@ -32,10 +32,23 @@ async def get_user_by_email(session: AsyncSession, email: str) -> UserModel | No
     return result.scalar_one_or_none()
 
 
-async def list_users(session: AsyncSession, query: str | None, limit: int) -> list[UserModel]:
+async def list_users(
+    session: AsyncSession,
+    query: str | None,
+    limit: int,
+    studio_id: uuid.UUID | None = None,
+) -> list[UserModel]:
     """Case-insensitive substring match on display name or email; `%` and `_`
-    in `query` are literal."""
+    in `query` are literal. `studio_id` bounds the list to that studio's members."""
     stmt = select(UserModel)
+    if studio_id is not None:
+        stmt = stmt.where(
+            UserModel.id.in_(
+                select(StudioMembershipModel.user_id).where(
+                    StudioMembershipModel.studio_id == studio_id
+                )
+            )
+        )
     needle = (query or "").strip()
     if needle:
         pattern = "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"

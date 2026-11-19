@@ -363,9 +363,9 @@ du studio. Le `Role.ADMIN` global ne donne plus aucune portee implicite ;
   CLI `admin_cli`) exigent `is_operator`, pose par la migration `0048` sur les
   admins globaux existants (et a la creation d'un compte `admin`) ; le
   `downgrade` de `0048` retire le drapeau a tous les admins globaux ; (3)
-  `GET /users` (annuaire pour choisir un membre de projet) est desormais reserve
-  a l'operateur : un owner/admin de studio n'y accede plus, un annuaire propre
-  au studio reste a creer (S2) ; (4) l'attribution d'`is_operator` hors
+  `GET /users` (annuaire pour choisir un membre de projet) reste ouvert a un
+  owner/admin de studio, limite aux membres de son studio ; seul l'operateur voit
+  tous les comptes, et les autres routes `/users` lui sont reservees ; (4) l'attribution d'`is_operator` hors
   migration n'a pas d'interface ; (5) `API_CONTRACT_VERSION` non bumpee
   (additif) : a confirmer.
 
