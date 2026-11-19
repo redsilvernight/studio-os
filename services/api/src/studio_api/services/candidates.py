@@ -18,7 +18,11 @@ from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.task import TaskModel
 from studio_api.services import project_context_roadmap
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import (
+    Principal,
+    ensure_project_access,
+    project_in_active_studio,
+)
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,8 @@ async def list_candidate_tasks(
     never leaked."""
     ensure_project_access(principal, project_id, "read")
     if limit <= 0:
+        return []
+    if not await project_in_active_studio(session, principal, project_id):
         return []
 
     candidates: list[CandidateTask] = []

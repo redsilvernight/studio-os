@@ -20,6 +20,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_write,
     ensure_project_access,
+    ensure_project_in_studio,
     has_any_project,
     owns_agent,
     project_access_for_user,
@@ -63,7 +64,7 @@ async def resolve_event_identity(
                 "project-less library.* events are emitted by the server only",
             },
         )
-    ensure_project_access(principal, event_in.project_id, "write")
+    await ensure_project_in_studio(session, principal, event_in.project_id, "write")
     ensure_can_write(principal, "event")
     if event_in.event_type.value.startswith(COORDINATION_EVENT_PREFIX):
         raise HTTPException(
@@ -217,6 +218,7 @@ async def list_events_after(
     stmt = select(EventModel).order_by(EventModel.seq.asc()).limit(limit)
     if project_id is not None:
         ensure_project_access(principal, _as_uuid(project_id))
+        visible = project_visibility_clause(principal, EventModel.project_id)
         if include_global:
             stmt = stmt.where(
                 or_(
@@ -226,6 +228,8 @@ async def list_events_after(
             )
         else:
             stmt = stmt.where(EventModel.project_id == project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     else:
         stmt = stmt.where(EventModel.project_id.is_(None))
     if after_seq is not None:
@@ -263,6 +267,9 @@ async def list_events(
             )
         else:
             stmt = stmt.where(EventModel.project_id == project_id)
+        visible = project_visibility_clause(principal, EventModel.project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     elif (visible := project_visibility_clause(principal, EventModel.project_id)) is not None:
         # `project_visibility_clause` already keeps project-less rows for a
         # principal with at least one membership; contract v2 goes one step
@@ -290,14 +297,17 @@ async def list_events(
     return list(result.scalars().all())
 
 
-def authorize_stream(principal: Principal, project_id: UUID | None) -> None:
+async def authorize_stream(
+    session: AsyncSession, principal: Principal, project_id: UUID | None
+) -> None:
     """Opening check of `GET /events/stream`, run before the response starts
     so an inaccessible project is a plain 403 (DEC-0103 §9). A project-less
     (global, Studio `library.*` only) stream needs no project check — any
-    authenticated principal may open it."""
+    authenticated principal may open it. A project of another studio answers
+    like an unknown one."""
     if project_id is None:
         return
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
 
 
 async def stream_global_access_still_valid(

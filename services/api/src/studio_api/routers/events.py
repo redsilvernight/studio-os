@@ -199,7 +199,7 @@ async def stream_events(
     cursor = parsed_last_event_id if parsed_last_event_id is not None else since_seq
     # Before the response starts: an inaccessible project is a plain 403,
     # never an opened-then-closed stream (DEC-0103 §9).
-    events_service.authorize_stream(principal, project)
+    await events_service.authorize_stream(session, principal, project)
     machine_id = principal.machine.id
     user_id = principal.user.id
     jwt_auth_version: int | None = getattr(request.state, JWT_AUTH_VERSION_STATE, None)
