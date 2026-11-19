@@ -84,6 +84,53 @@ function sharedStates(): string {
   );
 }
 
+/**
+ * Les deux thèmes côte à côte.
+ *
+ * Chaque panneau force son thème via `data-ds-theme-preview` (tokens.css
+ * déclare le même jeu de variables pour `:root` et pour ce sélecteur) :
+ * la comparaison ne dépend donc pas du thème actif sur le poste et les
+ * deux rendus restent visibles ensemble.
+ */
+function themePreviews(): string {
+  const panel = (mode: "light" | "dark", label: string): string =>
+    `<section class="ds-theme-preview" data-ds-theme-preview="${mode}" aria-label="Thème ${label}">
+      <header class="ds-theme-preview-head">
+        <h3>Thème ${label}</h3>
+        <p>${
+          mode === "light"
+            ? "Fond de page bleuté, surfaces blanches, action bleue."
+            : "Fond profond, surfaces ardoise, action éclaircie."
+        }</p>
+      </header>
+      <div class="ds-theme-preview-body">
+        <div class="ds-demo-row">
+          <button class="ds-btn ds-btn--primary" type="button">Action</button>
+          <button class="ds-btn" type="button">Secondaire</button>
+          <button class="ds-btn ds-btn--ghost" type="button">Discrète</button>
+        </div>
+        <div class="ds-demo-row">
+          ${dsBadge("Succès", "success")}
+          ${dsBadge("En attente", "warning")}
+          ${dsBadge("Erreur", "danger")}
+          ${dsBadge("IA", "ai")}
+        </div>
+        <p class="ds-theme-preview-text">Texte principal et <span class="ds-theme-preview-muted">texte secondaire atténué</span>.</p>
+        ${dsField(
+          `ds-preview-nom-${mode}`,
+          "Champ",
+          `<input class="ds-input" id="FIELD" type="text" value="Studio" />`,
+          "Aide sous le champ.",
+          "",
+        )}
+        <div class="ds-notice ds-notice--info"><strong>Information.</strong>Notice sur fond pastel.</div>
+        ${dsProgress(2, 5, "2 sur 5 (40 %)")}
+      </div>
+    </section>`;
+
+  return `<div class="ds-theme-previews">${panel("light", "clair")}${panel("dark", "sombre")}</div>`;
+}
+
 export function designSystemHtml(): string {
   const buttons = `<div class="ds-demo-row">
     <button class="ds-btn ds-btn--primary" type="button">Action principale</button>
@@ -218,6 +265,9 @@ export function designSystemHtml(): string {
       `<section class="ds-demo-section" id="ds-demo-etats" aria-label="Cinq états transverses">${dsSectionHeader("Cinq états, une seule langue")}<p>Introuvable, vide, chargement, erreur et hors ligne : même gabarit, une seule action primaire, détails repliés.</p>${sharedStates()}</section>`,
       demoSection("Divulgation progressive", "L'essentiel d'abord, le technique replié sur place : héros à action unique, pastille de statut, détails repliés, erreur cohérente avec le vide et le chargement.", progressive),
       demoSection("Indicateurs", "Un chiffre fort, une progression expliquée, des identités lisibles.", indicators),
+    ])}
+    ${demoCard("Thèmes", "Le même jeu de tokens, deux rendus : clair et sombre, côte à côte.", [
+      demoSection("Les deux thèmes", "Les panneaux ci-dessous forcent leur thème : la comparaison ne dépend pas du thème actif sur le poste. Le sélecteur de la barre latérale choisit « Système », « Clair » ou « Sombre » pour toute la page.", themePreviews()),
     ])}
   </div>
   <aside class="ds-card tool-context" aria-label="Notices, progression et dialogues">

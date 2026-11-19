@@ -13,6 +13,7 @@
  */
 import type { NavMode } from "./navMode";
 import type { Route } from "./router";
+import { THEME_LABELS, THEME_MODES, type ThemeMode } from "./theme";
 import { esc } from "./ui";
 import brandLogoUrl from "./assets/studio-os-logo.png";
 
@@ -137,6 +138,21 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
 }
 
 /**
+ * Sélecteur de thème (clair / sombre / système), pied de barre latérale.
+ * Contrôle natif : clavier et lecteurs d'écran sans code additionnel ;
+ * le mode est appliqué et mémorisé par main.ts via theme.ts.
+ */
+function themeSelectorHtml(mode: ThemeMode): string {
+  const options = THEME_MODES.map(
+    (value) => `<option value="${value}"${value === mode ? " selected" : ""}>${esc(THEME_LABELS[value])}</option>`,
+  ).join("");
+  return (
+    `<div class="app-theme"><label class="app-theme-label app-lbl-full" for="theme-select">Thème</label>` +
+    `<select class="app-theme-select" id="theme-select" data-testid="theme-select" aria-label="Thème">${options}</select></div>`
+  );
+}
+
+/**
  * Bascule simple ↔ complet, pied de barre latérale. `aria-pressed` = mode
  * complet actif ; le libellé ne change pas (l'état porte l'information).
  */
@@ -216,7 +232,7 @@ function paletteHtml(): string {
  * Coquille complète. `authed` pilote le bloc compte (jamais de contenu
  * inventé : état jeton + déconnexion = mécanisme existant relocalisé).
  */
-export function shellHtml(route: Route, authed: boolean, desktop = false, mode: NavMode = "simple"): string {
+export function shellHtml(route: Route, authed: boolean, desktop = false, mode: NavMode = "simple", theme: ThemeMode = "system"): string {
   const groups = shellNavGroups(route, desktop, mode)
     .map((group, index) => navGroupHtml(group, index))
     .join("");
@@ -230,6 +246,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
     <div class="app-brand"><img class="app-brand-mark" src="${esc(brandLogoUrl)}" alt="" aria-hidden="true" width="36" height="36"><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
     <button class="app-cmdk" type="button" id="palette-open" aria-haspopup="dialog" aria-controls="app-palette" aria-keyshortcuts="Control+K" title="Aller à… (Ctrl K)">${icon("goto")}<span class="app-lbl-full">Aller à…</span><kbd class="app-lbl-full" aria-hidden="true">Ctrl K</kbd></button>
     <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
+    ${themeSelectorHtml(theme)}
     ${navModeToggleHtml(mode)}
     <div class="app-me${authed ? "" : " app-me--guest"}">
       <span class="app-avatar" aria-hidden="true">${icon("person")}</span>

@@ -84,6 +84,26 @@ path does not drag the onboarding view into the entry chunk. Global CSS is
 still one entry stylesheet (per-view CSS split would risk cross-view style
 regressions for ~3 kB gzip).
 
+### Polices auto-hébergées (Figtree, JetBrains Mono)
+
+`src/ds/fonts.css` déclare les deux familles en `@font-face` variables,
+servies par le bundle depuis `src/assets/fonts/` : **aucun CDN**, la CSP
+`font-src 'self'` reste inchangée. Quatre fichiers woff2, sous-ensembles
+latin + latin-ext :
+
+| Famille | Sous-ensemble | Poids |
+|---|---|---|
+| Figtree (interface) | latin | 20.2 kB |
+| Figtree | latin-ext | 10.3 kB |
+| JetBrains Mono (code) | latin | 31.4 kB |
+| JetBrains Mono | latin-ext | 11.6 kB |
+
+Le navigateur ne télécharge un woff2 que si la famille est réellement
+utilisée (`unicode-range` + `font-display: swap`) : les polices n'entrent
+**pas** dans le budget gzip JS/CSS de `npm run check:bundle`, qui ne
+mesure que le chargement initial script/style. Budget inchangé : 60 kB JS
+gzip, 20 kB CSS gzip.
+
 ## API URL configuration
 
 No URL is hardcoded. Resolution (`src/config.ts`):
@@ -385,8 +405,7 @@ endpoint exists), and Activity/Worklogs views (nav entries stay disabled).
 
 Roadmap: `docs/StudiOS_Roadmap_Refonte_UI_UX.pdf` (baseline UI-0 acceptée).
 **Refonte UI/UX terminée** : UI-1 → UI-16 intégrées (clôture : DEC-0081). Les évolutions suivantes sont des features, correctifs ou maintenance.
-Thème clair unique (le sombre est supprimé comme référence), interface en
-français (termes backend/code inchangés), TypeScript vanilla sans framework.
+Interface en français (termes backend/code inchangés), TypeScript vanilla sans framework.
 
 - Tokens: `src/ds/tokens.css` (`:root`, seule source de vérité visuelle).
   Les variables historiques (`--bg`, `--panel`, …) sont des aliases vers
@@ -398,8 +417,37 @@ français (termes backend/code inchangés), TypeScript vanilla sans framework.
   tablist conforme, `prefers-reduced-motion`, contrastes AA, cibles ≥ 36 px.
 - Démo interne: `#/design-system` (`src/views/designSystem.ts`) — hash
   direct uniquement, **aucune entrée de navigation**, aucun appel API,
-  retirable en supprimant une route + une vue.
+  retirable en supprimant une route + une vue. La section « Les deux
+  thèmes » montre clair et sombre côte à côte (panneaux forcés via
+  `data-ds-theme-preview`).
 - CSP inchangée (aucun `style=`/`on*=` inline) — voir section ci-dessus.
+
+### Thème clair / sombre / système (tâche cea09af9)
+
+DEC-0078 avait acté un « thème clair unique » ; la tâche cea09af9 le fait
+revenir en **thème sombre** sur la base du DS stabilisé, comme la décision
+l'autorisait (« un dark mode pourra être réintroduit ultérieurement sur la
+base du DS stabilisé »). Les tokens sont restés le seul point de
+branchement.
+
+- `src/theme.ts` : mode `system` (défaut) / `light` / `dark`, mémorisé
+  sous `studio-os.theme`. **« Système » SUPPRIME la clé** : l'absence de
+  clé *est* le mode système ; la valeur lisible `system` vaut aussi
+  « système » (robustesse).
+- `data-theme` est posé sur `<html>` pour un choix ferme, **retiré** pour
+  « système » : les media queries de `tokens.css` décident alors.
+- Pas de flash au chargement : `public/theme-boot.js` est un script
+  **classique bloquant**, servi en `'self'` (`script-src 'self'` inchangé,
+  aucun script inline). Il pose `data-theme` avant le premier rendu ;
+  `src/theme.ts` rejoue le même contrat au démarrage du bundle.
+- Sélecteur natif (`<select id="theme-select">`) en pied de barre
+  latérale : « Système », « Clair », « Sombre », clavier et lecteurs
+  d'écran sans code additionnel.
+- Contrastes : mesurés, pas jugés à l'œil. `src/ds/tokens.test.ts` passe
+  la matrice AA (textes ≥ 4.5:1 sur surface et fond de page, sémantiques
+  ≥ 4.5:1 sur leurs fonds pastel, encre des boutons ≥ 4.5:1, focus ≥ 3:1)
+  **sur les deux thèmes**, et vérifie que la media query « système » et
+  l'attribut explicite portent les mêmes valeurs.
 
 ## AppShell (UI-2, DEC-0079)
 
