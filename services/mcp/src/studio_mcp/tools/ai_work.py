@@ -215,7 +215,12 @@ async def studio_log_ai_work(
                 ).encode()
             )
             return await idempotency_service.run_idempotent_dict(
-                session, idempotency_key, "MCP studio_log_ai_work", request_hash, _create
+                session,
+                idempotency_key,
+                "MCP studio_log_ai_work",
+                request_hash,
+                _create,
+                studio_id=principal.studio_id,
             )
 
         return await _create()

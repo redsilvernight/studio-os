@@ -7,9 +7,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 
-class AgentModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+class AgentModel(StudioScopedMixin, UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     __tablename__ = "agents"
     __table_args__ = (
         UniqueConstraint("machine_id", "stable_key", name="uq_agents_machine_stable_key"),

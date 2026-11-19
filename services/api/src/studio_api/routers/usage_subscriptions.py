@@ -78,6 +78,7 @@ async def create_subscription(
         UsageSubscription,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

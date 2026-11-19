@@ -26,6 +26,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import github as github_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 from studio_api.settings import get_settings
 
 router = APIRouter(tags=["github"])
@@ -167,6 +168,7 @@ async def create_github_integration(
             },
         )
     github_service.authorize_integration_write(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
 
     async def _create() -> GitHubIntegration:
         integration = await github_service.create_integration(session, principal, integration_in)
@@ -180,6 +182,7 @@ async def create_github_integration(
         GitHubIntegration,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

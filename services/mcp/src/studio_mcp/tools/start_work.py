@@ -116,7 +116,12 @@ async def studio_start_work(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_start_work", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_start_work",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

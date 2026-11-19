@@ -17,10 +17,14 @@ from studio_api.services.authz import (
     Principal,
     ProjectAction,
     ensure_can_write,
+    ensure_optional_project_in_studio,
     ensure_project_access,
+    ensure_project_in_studio,
     ensure_shared_access,
     forbidden,
+    project_in_active_studio,
     project_visibility_clause,
+    studio_clause,
 )
 
 _ALLOWED_TRANSITIONS: dict[DecisionStatus, frozenset[DecisionStatus]] = {
@@ -59,10 +63,10 @@ async def list_decisions(
 ) -> list[DecisionModel]:
     """Unfiltered: the accessible projects' decisions plus the global
     (project-less) ones, the latter only for a Principal with at least one
-    project (DEC-0103 §4/§7)."""
-    stmt = select(DecisionModel)
+    project (DEC-0103 §4/§7). Always bounded by the active studio (DEC-0382)."""
+    stmt = select(DecisionModel).where(studio_clause(principal, DecisionModel.studio_id))
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
         stmt = stmt.where(DecisionModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, DecisionModel.project_id)) is not None:
         stmt = stmt.where(visible)
@@ -90,8 +94,15 @@ async def create_decision(
     session: AsyncSession, principal: Principal, decision_in: DecisionCreate
 ) -> DecisionModel:
     authorize_create(principal, decision_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, decision_in.project_id, "write")
+    if decision_in.project_id is not None and not await project_in_active_studio(
+        session, principal, decision_in.project_id
+    ):
+        # Missing and foreign projects answer the same 404 for a manager.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     decision_vault.reject_secrets(decision_in.title, decision_in.body)
     decision = DecisionModel(
+        studio_id=principal.studio_id,
         readable_id=await _next_readable_id(session),
         project_id=decision_in.project_id,
         task_id=decision_in.task_id,
@@ -108,14 +119,24 @@ async def create_decision(
     return decision
 
 
-async def _lock_decision(session: AsyncSession, decision_id: uuid.UUID) -> DecisionModel:
+async def _lock_decision(
+    session: AsyncSession, principal: Principal, decision_id: uuid.UUID
+) -> DecisionModel:
     """`SELECT ... FOR UPDATE`: the row lock serializes concurrent transitions
     on the same Decision so the status check and the write are atomic —
     two admins accepting the same Decision at once can never both succeed
     (the second waits for the lock, then sees the already-updated status
-    and gets `409 invalid_decision_transition`)."""
+    and gets `409 invalid_decision_transition`).
+
+    Bounded by the active studio: another studio's id is unknown here
+    (`404`), exactly like a missing one (DEC-0382)."""
     result = await session.execute(
-        select(DecisionModel).where(DecisionModel.id == decision_id).with_for_update()
+        select(DecisionModel)
+        .where(
+            DecisionModel.id == decision_id,
+            DecisionModel.studio_id == principal.studio_id,
+        )
+        .with_for_update()
     )
     decision = result.scalar_one_or_none()
     if decision is None:
@@ -158,7 +179,7 @@ async def _commit_decision_transition(
     await session.commit()
     await session.refresh(decision)
     await session.refresh(event)
-    events_service.publish_event(event)
+    await events_service.publish_event(session, event)
 
 
 async def _replacement(
@@ -167,9 +188,10 @@ async def _replacement(
     if superseded_by == decision_id:
         raise decision_vault.invalid_supersede_link("a decision cannot supersede itself")
     replacement = await session.get(DecisionModel, superseded_by)
-    if replacement is None:
+    if replacement is None or replacement.studio_id != principal.studio_id:
         raise decision_not_found()
     _ensure_decision_scope(principal, replacement.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, replacement.project_id, "write")
     return replacement
 
 
@@ -188,8 +210,9 @@ async def _transition_decision(
     ensure_can_write(principal, "decision")
     if principal.role != Role.ADMIN:
         raise forbidden("decision", target.value)
-    decision = await _lock_decision(session, decision_id)
+    decision = await _lock_decision(session, principal, decision_id)
     _ensure_decision_scope(principal, decision.project_id, "write")
+    await ensure_optional_project_in_studio(session, principal, decision.project_id, "write")
     current = DecisionStatus(decision.status)
     if current not in _ALLOWED_TRANSITIONS[target]:
         raise invalid_decision_transition(decision.status, target.value)

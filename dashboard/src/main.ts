@@ -36,6 +36,7 @@ import { mountSkillsSync } from "./skillsSync";
 import { parseRoute } from "./router";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
 import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
+import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
 import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { LIVE_CHANGE_EVENT, startRealtimeConnection, type RealtimeConnection } from "./realtime";
@@ -45,6 +46,7 @@ import { resetIdentityCache } from "./identityApi";
 import { SESSION_ENDED_NOTICE, createSessionEndHandler } from "./session";
 import { configurePersistentSession, endPersistentSession, refreshSession, resumeSession } from "./persistentSession";
 import type { components } from "./openapi-schema";
+import "./ds/fonts.css";
 import "./ds/tokens.css";
 import "./ds/components.css";
 import "./shell.css";
@@ -148,6 +150,9 @@ async function renderRoute(
       break;
     case "admin":
       await (await load(() => import("./views/admin"))).renderAdmin(staging, { client, authed });
+      break;
+    case "adminMeasures":
+      await (await load(() => import("./views/infraMeasures"))).renderInfraMeasures(staging, { client, authed });
       break;
     case "decisions":
       await (await load(() => import("./views/decisionsV2"))).renderDecisionsV2(staging, { client, authed });
@@ -404,7 +409,13 @@ export function isDrawerOpen(): boolean {
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
-  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null, loadNavMode());
+  app.innerHTML = shellHtml(
+    parseRoute(location.hash),
+    hasToken(),
+    getDesktopShell() !== null,
+    loadNavMode(),
+    loadThemeMode(),
+  );
   paintShellStatus(document);
   mountSkillsSync(getPlatform());
   paintUpdateBanner(document);
@@ -418,6 +429,17 @@ function mountShell(): void {
     mountShell();
     document.getElementById("nav-mode-toggle")?.focus();
   });
+  // Thème : le choix est appliqué aussitôt (aucun re-rendu nécessaire) et
+  // mémorisé sur le poste ; « système » retire l'attribut, le CSS décide.
+  const themeSelect = document.getElementById("theme-select");
+  if (themeSelect instanceof HTMLSelectElement) {
+    themeSelect.addEventListener("change", () => {
+      const value = themeSelect.value;
+      const mode = isThemeMode(value) ? value : "system";
+      saveThemeMode(mode);
+      applyThemeMode(mode);
+    });
+  }
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
   document.getElementById("app-scrim")?.addEventListener("click", () => closeDrawer());
@@ -553,6 +575,9 @@ function start(): void {
 }
 
 export function boot(): void {
+  // Thème appliqué avant le premier rendu (le choix stocké prime sur la
+  // préférence système, qui reste le défaut).
+  applyThemeMode(loadThemeMode());
   const platform = getPlatform();
   if (platform.mode !== "desktop") {
     setApiObserver({

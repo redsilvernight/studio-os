@@ -48,7 +48,7 @@ main {
   padding: var(--ds-space-2) var(--ds-space-4);
   border-radius: var(--ds-radius-md);
   background: var(--ds-text);
-  color: #fff;
+  color: var(--ds-ink-inverse);
   font-weight: 600;
   text-decoration: none;
   transform: translateY(-300%);
@@ -110,7 +110,7 @@ summary:focus-visible,
 .ds-btn--danger {
   background: var(--ds-danger);
   border-color: var(--ds-danger);
-  color: #fff;
+  color: var(--ds-danger-ink);
 }
 .ds-btn--ghost {
   background: transparent;
@@ -624,7 +624,7 @@ summary:focus-visible,
   padding: var(--ds-space-2) var(--ds-space-3);
   border-radius: var(--ds-radius-md);
   background: var(--ds-text);
-  color: #fff;
+  color: var(--ds-ink-inverse);
   font-size: var(--ds-text-sm);
   font-weight: 400;
   white-space: normal;
@@ -955,6 +955,51 @@ summary:focus-visible,
   font-size: var(--ds-text-sm);
   text-align: right;
   overflow-wrap: anywhere;
+}
+
+/* Aperçu des deux thèmes : deux panneaux côte à côte, chacun forçant son
+   jeu de tokens via `data-ds-theme-preview` (tokens.css). Les fonds sont
+   posés par les variables du thème, pas par une couleur codée en dur. */
+.ds-theme-previews {
+  display: grid;
+  gap: var(--ds-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-top: var(--ds-space-3);
+}
+.ds-theme-preview {
+  display: grid;
+  gap: var(--ds-space-3);
+  align-content: start;
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-bg);
+  color: var(--ds-text);
+}
+.ds-theme-preview-head h3 {
+  margin: 0;
+  font-size: var(--ds-text-md);
+  font-weight: 700;
+}
+.ds-theme-preview-head p {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+}
+.ds-theme-preview-body {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+.ds-theme-preview-text {
+  margin: 0;
+  font-size: var(--ds-text-base);
+}
+.ds-theme-preview-muted {
+  color: var(--ds-text-muted);
 }
 
 /* Responsive : pile, drawer plein écran, tables scrollées (.ds-table-wrap). */

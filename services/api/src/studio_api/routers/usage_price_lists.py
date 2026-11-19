@@ -123,4 +123,5 @@ async def create_price_list(
         UsagePriceList,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )

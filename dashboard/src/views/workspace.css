@@ -285,7 +285,7 @@
 }
 .cal-day--busy.is-selected {
   background: var(--ds-action);
-  color: #fff;
+  color: var(--ds-action-ink);
 }
 .cal-count {
   position: absolute;

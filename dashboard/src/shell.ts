@@ -13,6 +13,7 @@
  */
 import type { NavMode } from "./navMode";
 import type { Route } from "./router";
+import { THEME_LABELS, THEME_MODES, type ThemeMode } from "./theme";
 import { esc } from "./ui";
 import brandLogoUrl from "./assets/studio-os-logo.png";
 
@@ -79,7 +80,7 @@ export function shellNavGroups(route: Route, desktop = false, mode: NavMode = "s
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
   void desktop;
   const admin: ShellNavItem[] = [
-    { href: "#/administration", label: "Vue d'ensemble", short: "Admin", icon: "shield", active: is("admin") },
+    { href: "#/administration", label: "Vue d'ensemble", short: "Admin", icon: "shield", active: is("admin", "adminMeasures") },
     { href: "#/machines", label: "Postes", icon: "machines", active: is("machines") },
     { href: "#/accounts", label: "Comptes", icon: "person", active: is("accounts") },
     { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
@@ -134,6 +135,21 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
   // Groupe secondaire déployé (mode complet) : titre visible ; « Principal » reste muet.
   const titleClass = group.title === "Principal" ? "ds-sr-only" : "app-navgroup-title";
   return `<section class="app-navgroup${placement}" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="${titleClass}">${esc(group.title)}</h2><ul>${items}</ul></section>`;
+}
+
+/**
+ * Sélecteur de thème (clair / sombre / système), pied de barre latérale.
+ * Contrôle natif : clavier et lecteurs d'écran sans code additionnel ;
+ * le mode est appliqué et mémorisé par main.ts via theme.ts.
+ */
+function themeSelectorHtml(mode: ThemeMode): string {
+  const options = THEME_MODES.map(
+    (value) => `<option value="${value}"${value === mode ? " selected" : ""}>${esc(THEME_LABELS[value])}</option>`,
+  ).join("");
+  return (
+    `<div class="app-theme"><label class="app-theme-label app-lbl-full" for="theme-select">Thème</label>` +
+    `<select class="app-theme-select" id="theme-select" data-testid="theme-select" aria-label="Thème">${options}</select></div>`
+  );
 }
 
 /**
@@ -216,7 +232,7 @@ function paletteHtml(): string {
  * Coquille complète. `authed` pilote le bloc compte (jamais de contenu
  * inventé : état jeton + déconnexion = mécanisme existant relocalisé).
  */
-export function shellHtml(route: Route, authed: boolean, desktop = false, mode: NavMode = "simple"): string {
+export function shellHtml(route: Route, authed: boolean, desktop = false, mode: NavMode = "simple", theme: ThemeMode = "system"): string {
   const groups = shellNavGroups(route, desktop, mode)
     .map((group, index) => navGroupHtml(group, index))
     .join("");
@@ -230,6 +246,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
     <div class="app-brand"><img class="app-brand-mark" src="${esc(brandLogoUrl)}" alt="" aria-hidden="true" width="36" height="36"><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
     <button class="app-cmdk" type="button" id="palette-open" aria-haspopup="dialog" aria-controls="app-palette" aria-keyshortcuts="Control+K" title="Aller à… (Ctrl K)">${icon("goto")}<span class="app-lbl-full">Aller à…</span><kbd class="app-lbl-full" aria-hidden="true">Ctrl K</kbd></button>
     <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
+    ${themeSelectorHtml(theme)}
     ${navModeToggleHtml(mode)}
     <div class="app-me${authed ? "" : " app-me--guest"}">
       <span class="app-avatar" aria-hidden="true">${icon("person")}</span>

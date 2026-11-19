@@ -113,6 +113,7 @@ async def create_task_launch(
         TaskLaunch,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -248,6 +249,7 @@ async def retry_task_launch(
         TaskLaunchView,
         _retry,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

@@ -21,9 +21,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 
-class BudgetPolicyModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+class BudgetPolicyModel(StudioScopedMixin, UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     """The explicit budget of one project. Its row is the admission lock:
     every admission of the project takes it `FOR UPDATE` before reserving."""
 

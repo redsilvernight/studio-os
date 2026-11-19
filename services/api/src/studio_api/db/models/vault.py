@@ -20,6 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 SEARCH_VECTOR_SQL = (
     "setweight(to_tsvector('french', coalesce(readable_id, '')), 'A') || "
@@ -29,7 +30,7 @@ SEARCH_VECTOR_SQL = (
 )
 
 
-class VaultNoteModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+class VaultNoteModel(StudioScopedMixin, UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     __tablename__ = "vault_notes"
 
     scope: Mapped[str] = mapped_column(String)

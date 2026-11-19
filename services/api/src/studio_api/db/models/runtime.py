@@ -10,9 +10,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
+from studio_api.db.models.studio import StudioScopedMixin
 
 
-class RuntimeModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+class RuntimeModel(StudioScopedMixin, UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     """One declared runtime in the P6 Registry (DEC-0070).
 
     Stable identity is the surrogate `id` — never a fragile

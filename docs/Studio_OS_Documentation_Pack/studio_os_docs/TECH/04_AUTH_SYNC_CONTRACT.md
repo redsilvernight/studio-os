@@ -60,7 +60,11 @@ publique `register`/`resend-verification`/`verify-email` — contrat complet :
   `session_id` (UUID aleatoire par login, pour la tracabilite — aucun etat
   serveur), `auth_version` (entier, copie de `User.auth_version` au login),
   `iat`, `exp`, `type="access"`. `email` et `role` ne sont plus emis : un
-  client lit son identite via `GET /auth/me`, jamais dans le JWT.
+  client lit son identite via `GET /auth/me`, jamais dans le JWT. Claim
+  optionnel additif `studio_id` (UUID, studio actif demande) : les anciens
+  jetons sans ce claim restent valides ; un claim present mais illisible
+  invalide le jeton (`401` generique). Il est revalide contre les
+  memberships du compte a chaque requete.
 - **Validation a chaque principal** (HTTP, SSE ; le MCP n'accepte que des
   tokens machine) : signature et `exp` valides, `type == "access"`, machine
   existante et non revoquee, `sub == machine.owner_user_id`, User existant,
@@ -308,6 +312,58 @@ Trois niveaux, composes par ET logique (jamais OU) :
   fois par requete/appel MCP (`ALL` ou ensemble d'identifiants). Chemins
   serveur de confiance sans `Principal` (webhook GitHub, Producer,
   `resource.conflict`) : exemptes explicitement.
+
+**Studio actif et role de studio (DEC-0382, amende le paragraphe precedent).**
+`Principal` porte desormais `studio_id` (studio actif), `studio_role`
+(`owner|admin|member|viewer`, `studio_memberships.role`) et `is_operator`.
+`project_scope` est toujours borne au studio actif : `StudioWide(studio_id)`
+pour `owner`/`admin` (tout projet du studio, y compris futurs) ; pour
+`member`/`viewer`, leurs `project_memberships` croisees avec les projets
+du studio. Le `Role.ADMIN` global ne donne plus aucune portee implicite ;
+`owner`/`admin` de studio le remplacent (`is_studio_manager`).
+- **Resolution** (`resolve_active_studio`) : claim JWT, puis `X-Studio-Id`,
+  puis `machines.studio_id` (simple preference : le compte n'en est plus
+  membre -> defaut), puis defaut. Studio demande non membre ou en-tete mal
+  forme : `403 resource=studio`.
+- **Defaut** : un seul studio -> celui-la ; sinon le studio interne si le
+  compte en est membre ; sinon la plus ancienne adhesion ; aucune adhesion ->
+  `403` (fail-closed).
+- **Credential de lancement** : lie au studio de son projet ; ignore `X-Studio-Id` ; adhesion absente -> `viewer` a portee vide.
+- **`is_operator`** : ouvre les seules operations d'instance (`403 resource=instance` sinon) ; jamais consulte par une clause de lecture de
+  contenu (un operateur sans adhesion ne lit rien).
+- **Ecriture/provisioning** : `viewer` (ou compte `readonly`) n'ecrit jamais ;
+  creer projets/machines/users : `owner`/`admin` de studio ou compte
+  `developer`.
+- **Nouveaux comptes** : en attendant la creation de studio a l'inscription,
+  rattaches au studio interne, `owner` si `User.role = admin`, sinon
+  `member` (meme regle que le backfill 0046).
+- **Isolation** (`ensure_project_in_studio`) : un projet/une ressource d'un
+  autre studio repond `404 not_found` (comme un id inconnu) a un `owner`/
+  `admin` ; `403` inchange pour un non-manager (l'acces est controle d'abord) ;
+  un id de projet inexistant passe et garde le comportement habituel de
+  l'appelant. Les listes filtrees par projet (taches, claims, sessions,
+  evenements) passent par `project_visibility_clause`/`studio_clause` et
+  renvoient une collection vide pour un projet etranger.
+- **Idempotence** : la cle reservee est `<studio_id>:<endpoint>` (`studio_id`
+  obligatoire ; `idempotency_keys` n'a pas de colonne studio) ; inscription,
+  verification d'e-mail et reinitialisation de mot de passe utilisent la portee
+  d'instance (UUID nul, `INSTANCE_SCOPE`). Une meme `Idempotency-Key` dans deux
+  studios ne rejoue jamais la reponse de l'autre.
+- **SSE** (`GET /events`) : flux borne au studio actif resolu a l'ouverture et
+  fige ; un evenement dont le studio n'est pas resolvable n'est jamais livre
+  (fail-closed) ; sans parametre `project`, seuls les evenements globaux sont
+  portes.
+- **Projets** : slug unique par studio ; les creations posent `studio_id`
+  explicitement ; octroi d'acces projet : le compte doit etre membre du studio
+  du projet, sinon `404` comme un compte inconnu.
+- **Limites connues** : (1) les controles `Role.ADMIN` (role global de compte)
+  subsistent dans de nombreux services (decisions, agents, Library, runtimes,
+  budgets, lancements...) et restent a convertir en roles de studio avant la
+  creation de studios a l'inscription (etape S2) ; (2) les routes
+  d'administration d'instance (users, machines, infra) acceptent aujourd'hui un
+  `owner`/`admin` de studio via un adaptateur de compatibilite et doivent etre
+  reservees a `is_operator` avant S2 ; (3) `API_CONTRACT_VERSION` non bumpee
+  (additif) : a confirmer.
 
 Acces projet — regles (DEC-0103 §7-12) :
 

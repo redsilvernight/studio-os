@@ -199,9 +199,12 @@ async def stream_events(
     cursor = parsed_last_event_id if parsed_last_event_id is not None else since_seq
     # Before the response starts: an inaccessible project is a plain 403,
     # never an opened-then-closed stream (DEC-0103 §9).
-    events_service.authorize_stream(principal, project)
+    await events_service.authorize_stream(session, principal, project)
     machine_id = principal.machine.id
     user_id = principal.user.id
+    # The stream's studio, resolved at connection time and then frozen: every
+    # delivered event must belong to it, whatever its project (DEC-0382).
+    studio_id = principal.studio_id
     jwt_auth_version: int | None = getattr(request.state, JWT_AUTH_VERSION_STATE, None)
 
     async def generate() -> AsyncIterator[bytes]:
@@ -216,7 +219,7 @@ async def stream_events(
                     after_seq=cursor,
                     include_global=include_global,
                 )
-                for row in backlog:
+                for row in await events_service.events_in_studio(session, backlog, studio_id):
                     last_seq = row.seq
                     yield _format_sse(
                         event_stream.StreamEvent(
@@ -251,7 +254,7 @@ async def stream_events(
                         continue
                     if project is None:
                         if not await events_service.stream_global_access_still_valid(
-                            machine_id, jwt_auth_version
+                            machine_id, jwt_auth_version, studio_id
                         ):
                             return
                     elif not await events_service.stream_access_still_valid(
@@ -263,7 +266,7 @@ async def stream_events(
                 if time.monotonic() - checked_at >= REVALIDATE_SECONDS:
                     if project is None:
                         if not await events_service.stream_global_access_still_valid(
-                            machine_id, jwt_auth_version
+                            machine_id, jwt_auth_version, studio_id
                         ):
                             return
                     elif not await events_service.stream_access_still_valid(
@@ -273,6 +276,11 @@ async def stream_events(
                     checked_at = time.monotonic()
                 if not isinstance(event, event_stream.StreamEvent):  # KEEPALIVE
                     yield b": keep-alive\n\n"
+                    continue
+                # Another studio's event never reaches this subscriber, even on
+                # a project-less stream (DEC-0382); an event whose studio could
+                # not be resolved is never delivered either.
+                if event.studio_id != studio_id:
                     continue
                 if project is None:
                     if event.project_id is not None:

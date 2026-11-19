@@ -94,6 +94,7 @@ async def register_runtime(
         RuntimeRegistration,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -162,6 +163,7 @@ async def update_runtime(
         RuntimeRegistration,
         _update,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 

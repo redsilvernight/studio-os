@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import os
+import uuid
 
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.deps import resolve_machine
+from studio_api.services.authz import forbidden
+
+STUDIO_HEADER = "X-Studio-Id"
+"""HTTP transport: the studio the caller acts in, same header and same
+priority as the REST API (DEC-0382)."""
+
+STUDIO_ENV = "STUDIO_MCP_STUDIO_ID"
+"""stdio transport equivalent of `STUDIO_HEADER`: a single local process has
+no HTTP request to read the active studio from."""
 
 
 class McpAuthError(Exception):
@@ -46,3 +56,23 @@ async def authenticate(ctx: Context, session: AsyncSession) -> MachineModel:
     if machine is None:
         raise McpAuthError("invalid or revoked machine token")
     return machine
+
+
+def requested_studio_id(ctx: Context) -> uuid.UUID | None:
+    """The studio the caller asks to act in (DEC-0382), read exactly like the
+    REST dependency: `X-Studio-Id` over HTTP, `STUDIO_MCP_STUDIO_ID` on stdio
+    (no request at all). `None` lets `load_principal` apply its default. A
+    malformed value answers the same 403 as the API, and a studio the caller
+    is not a member of is refused by `load_principal` — never by a tool."""
+    headers = ctx.headers
+    raw: str | None
+    if headers is not None:
+        raw = headers.get(STUDIO_HEADER) or headers.get(STUDIO_HEADER.lower())
+    else:
+        raw = os.environ.get(STUDIO_ENV)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return uuid.UUID(raw.strip())
+    except ValueError:
+        raise forbidden("studio", "read") from None

@@ -15,8 +15,10 @@ from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.project_repository import ProjectRepositoryModel
 from studio_api.services.authz import (
     Principal,
+    ensure_optional_project_in_studio,
     ensure_project_access,
     forbidden,
+    project_not_found,
 )
 
 
@@ -29,13 +31,14 @@ def authorize_repositories_write(principal: Principal, project_id: uuid.UUID) ->
         raise forbidden("project_repository", "write")
 
 
-async def _ensure_project(session: AsyncSession, project_id: uuid.UUID) -> ProjectModel:
+async def _ensure_project(
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID
+) -> ProjectModel:
+    """The project must exist in the active studio: another studio's project
+    answers like an unknown one."""
     project = await session.get(ProjectModel, project_id)
-    if project is None:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            detail={"error_code": "not_found", "message": f"project {project_id} not found"},
-        )
+    if project is None or project.studio_id != principal.studio_id:
+        raise project_not_found(project_id)
     return project
 
 
@@ -120,7 +123,8 @@ async def link_repository(
     `grant_member`), while a URL owned by another project is a 409
     `repository_already_linked` — never silently moved."""
     authorize_repositories_write(principal, project_id)
-    await _ensure_project(session, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
+    await _ensure_project(session, principal, project_id)
     try:
         normalized = normalize_remote_url(url)
     except ValueError as exc:
@@ -155,7 +159,8 @@ async def unlink_repository(
     removed. The path value is re-normalized when possible so equivalent
     spellings of the same remote resolve to the stored canonical URL."""
     authorize_repositories_write(principal, project_id)
-    await _ensure_project(session, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "write")
+    await _ensure_project(session, principal, project_id)
     try:
         target = normalize_remote_url(normalized_url)
     except ValueError:
@@ -196,6 +201,7 @@ async def resolve_repository(
         .where(
             ProjectRepositoryModel.normalized_url.in_(normalized),
             ProjectMembershipModel.user_id == principal.user.id,
+            ProjectModel.studio_id == principal.studio_id,
             ProjectModel.archived.is_(False),
         )
         .distinct()

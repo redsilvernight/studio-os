@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from typing import Annotated
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import StudioRole
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session
 from studio_api.jwt_auth import AccessClaims, decode_access_token
@@ -19,7 +21,14 @@ from studio_api.middleware import AUTHENTICATED_STATE_FLAG
 from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.security_log import security_event
-from studio_api.services.authz import Principal, load_principal
+from studio_api.services.authz import (
+    STUDIO_MANAGER_ROLES,
+    Principal,
+    ensure_operator,
+    ensure_studio_role,
+    forbidden,
+    load_principal,
+)
 from studio_api.services.launch_credentials import (
     ensure_rest_allowed,
     resolve_launch_credential,
@@ -27,6 +36,15 @@ from studio_api.services.launch_credentials import (
 from studio_api.settings import get_settings
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]
+
+STUDIO_HEADER = "X-Studio-Id"
+"""Client-requested active studio (DEC-0382), second after the JWT claim and
+before `machines.studio_id`. Always revalidated against the user's
+memberships by `resolve_active_studio`."""
+
+JWT_STUDIO_STATE = "jwt_studio_id"
+"""`request.state` attribute holding the optional `studio_id` claim of a JWT
+principal, so `get_current_principal` can prefer it without decoding again."""
 
 
 async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | None:
@@ -88,6 +106,8 @@ async def get_current_machine(
             machine = await resolve_jwt_machine(session, claims)
             if machine is not None:
                 setattr(request.state, JWT_AUTH_VERSION_STATE, claims.auth_version)
+                if claims.studio_id is not None:
+                    setattr(request.state, JWT_STUDIO_STATE, claims.studio_id)
 
     if machine is None:
         machine = await resolve_machine(session, token)
@@ -114,11 +134,12 @@ CurrentMachine = Annotated[MachineModel, Depends(get_current_machine)]
 async def get_current_principal(
     request: Request, machine: CurrentMachine, session: DbSession
 ) -> Principal:
-    """Transverse role + resource ownership both start here (TECH/04
-    Autorisation, DEC-0036) — the owner of the authenticated machine, loaded
-    once per request."""
+    """Studio + transverse role + resource ownership all start here (TECH/04
+    Autorisation, DEC-0036, DEC-0382) — the owner of the authenticated machine,
+    loaded once per request, in the active studio."""
+    principal = await load_principal(session, machine, requested_studio_id(request))
     return replace(
-        await load_principal(session, machine),
+        principal,
         human_authenticated=hasattr(request.state, JWT_AUTH_VERSION_STATE),
     )
 
@@ -126,18 +147,55 @@ async def get_current_principal(
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]
 
 
-def require_roles(*roles: Role) -> Callable[..., Awaitable[UserModel]]:
-    """Role gate for provisioning endpoints (DEC-0012): a request's user
-    identity is the owner of its authenticated machine — there is no separate
-    user-level HTTP auth in v1. Applied only to the new provisioning
-    endpoints, not retrofitted onto existing write endpoints (that would
-    change their observable behavior and needs its own contract change)."""
-    allowed = {role.value for role in roles}
+def requested_studio_id(request: Request) -> uuid.UUID | None:
+    """Active-studio request, in the documented priority order: JWT
+    `studio_id` claim, then `X-Studio-Id` header. The machine's own `studio_id`
+    is only a preference resolved by `load_principal`. `None` lets
+    `resolve_active_studio` apply its default, so a client that sends nothing
+    (every N-1 client) keeps its previous reach."""
+    claim: uuid.UUID | None = getattr(request.state, JWT_STUDIO_STATE, None)
+    if claim is not None:
+        return claim
+    header = request.headers.get(STUDIO_HEADER)
+    if header is None or not header.strip():
+        return None
+    try:
+        return uuid.UUID(header.strip())
+    except ValueError:
+        raise forbidden("studio", "read") from None
 
-    async def _dependency(machine: CurrentMachine, session: DbSession) -> UserModel:
-        user = await session.get(UserModel, machine.owner_user_id)
-        if user is None or user.role not in allowed:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient role")
-        return user
+
+def require_studio_role(min_role: StudioRole) -> Callable[..., Awaitable[Principal]]:
+    """Studio management gate for routers (DEC-0382): `owner`/`admin` for
+    studio administration, `member`+ for writes, `viewer`+ for reads."""
+
+    async def _dependency(principal: CurrentPrincipal) -> Principal:
+        ensure_studio_role(principal, min_role)
+        return principal
+
+    return _dependency
+
+
+async def require_operator(principal: CurrentPrincipal) -> Principal:
+    """Instance-operation gate (`users.is_operator`). Never a content read."""
+    ensure_operator(principal)
+    return principal
+
+
+def require_roles(*roles: Role) -> Callable[..., Awaitable[UserModel]]:
+    """Legacy role gate for provisioning endpoints (DEC-0012), kept working
+    while the routers migrate lot by lot: `Role.ADMIN` is now satisfied by an
+    `owner`/`admin` of the active studio, never by the global account role
+    alone. Other account roles keep their historical meaning (developer for
+    provisioning, and so on)."""
+    account_roles = {role.value for role in roles if role is not Role.ADMIN}
+    wants_studio_manager = Role.ADMIN in roles
+
+    async def _dependency(principal: CurrentPrincipal) -> UserModel:
+        if wants_studio_manager and principal.studio_role in STUDIO_MANAGER_ROLES:
+            return principal.user
+        if principal.user.role in account_roles:
+            return principal.user
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient role")
 
     return _dependency

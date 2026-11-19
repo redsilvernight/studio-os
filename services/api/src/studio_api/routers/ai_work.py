@@ -19,6 +19,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/ai-work", tags=["ai-work"])
 
@@ -83,6 +84,7 @@ async def create_ai_work(
     ),
 ) -> AIWorkLog:
     ai_work_service.authorize_create(principal, work_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, work_in.project_id, "write")
 
     async def _create() -> AIWorkLog:
         return AIWorkLog.model_validate(
@@ -97,6 +99,7 @@ async def create_ai_work(
         AIWorkLog,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

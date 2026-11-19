@@ -18,7 +18,7 @@ from studio_api.services.authz import (
     LaunchScope,
     Principal,
     ensure_can_write,
-    ensure_project_access,
+    ensure_project_in_studio,
     get_launch_scope,
 )
 
@@ -130,7 +130,7 @@ async def issue_credential(
     """Only the launch's target machine, with its durable credential (never an
     ephemeral one), obtains a credential, on a live accepted launch."""
     ensure_can_write(principal, "task_launch")
-    ensure_project_access(principal, launch.project_id)
+    await ensure_project_in_studio(session, principal, launch.project_id)
     if launch.machine_id != principal.machine.id or get_launch_scope(principal.machine):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,

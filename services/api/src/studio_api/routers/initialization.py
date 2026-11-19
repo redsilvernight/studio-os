@@ -96,4 +96,5 @@ async def apply_initialization(
             target, payload.plan, principal, provenance
         ),
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )

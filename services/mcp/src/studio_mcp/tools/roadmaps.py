@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.services import decision_review as decision_review_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import roadmap_support
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_api.services.roadmap_port import RoadmapServicePort
 from studio_contracts.roadmaps import (
     HydrationApplyRequest,
@@ -350,10 +350,16 @@ async def studio_propose_roadmap(
                 ).encode()
             )
             return await idempotency_service.run_idempotent_dict(
-                session, idempotency_key, "MCP studio_propose_roadmap", request_hash, _propose
+                session,
+                idempotency_key,
+                "MCP studio_propose_roadmap",
+                request_hash,
+                _propose,
+                studio_id=principal.studio_id,
             )
 
         roadmap_support.authorize_roadmap_create(principal, parsed)
+        await ensure_optional_project_in_studio(session, principal, parsed, "write")
         request = RoadmapImport(
             project_id=parsed, document=document, submit=submit, provenance=provenance
         )
@@ -374,7 +380,12 @@ async def studio_propose_roadmap(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_propose_roadmap", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_propose_roadmap",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)
@@ -432,7 +443,12 @@ async def studio_apply_roadmap_hydration(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_apply_roadmap_hydration", request_hash, _apply
+            session,
+            idempotency_key,
+            "MCP studio_apply_roadmap_hydration",
+            request_hash,
+            _apply,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)
@@ -588,7 +604,12 @@ async def studio_transition_roadmap(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_transition_roadmap", request_hash, _apply
+            session,
+            idempotency_key,
+            "MCP studio_transition_roadmap",
+            request_hash,
+            _apply,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

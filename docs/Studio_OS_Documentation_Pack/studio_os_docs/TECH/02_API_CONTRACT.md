@@ -83,6 +83,31 @@ Autorisation. Chaque mention « toute machine authentifiee peut lire » de ce
 document s'entend desormais **sous reserve de l'acces projet** pour toute
 ressource rattachee a un projet.
 
+Studio actif (DEC-0382, additif) : en-tete optionnel `X-Studio-Id` (UUID).
+Un en-tete mal forme, ou un studio dont le compte n'est pas membre, repond
+`403 {"detail": {"error_code": "forbidden", "resource": "studio", "action":
+"read"}}` (meme reponse pour un studio inconnu : pas d'oracle d'existence).
+Priorite : claim JWT `studio_id` > en-tete > preference `machines.studio_id`
+(repli sur le defaut si le compte n'en est plus membre) > defaut (regle dans
+`TECH/04_AUTH_SYNC_CONTRACT.md`). Sans en-tete ni claim, le comportement est
+inchange pour les clients N-1. Nouvelles valeurs `resource` du 403 : `studio`
+(gestion/role de studio insuffisant, studio refuse) et `instance` (operation
+reservee a `is_operator`, action `operate`). `API_CONTRACT_VERSION` non
+bumpee a ce stade (changement additif) : a confirmer.
+
+Isolation par studio (DEC-0382) : une ressource ou un projet d'un AUTRE studio
+repond comme un id inconnu (`404 not_found`) pour un `owner`/`admin` du studio
+actif ; un non-manager garde son `403 resource=project` ; un id de projet
+inexistant garde son comportement habituel. Les listes filtrees par projet
+(taches, claims, sessions, evenements) passant par la clause de visibilite
+renvoient une collection vide pour un projet etranger. Idempotence : cle
+scopee par studio, une meme `Idempotency-Key` dans deux studios ne rejoue
+jamais la reponse de l'autre (`TECH/04_AUTH_SYNC_CONTRACT.md`). SSE `/events` :
+flux borne au studio actif resolu a l'ouverture et fige ; sans `project`, il ne
+porte que les evenements globaux. Slug de projet unique par studio ; l'octroi
+d'un acces projet exige un compte membre du studio du projet (sinon `404`
+comme un compte inconnu).
+
 ## Conventions
 - JSON UTF-8.
 - IDs internes UUID.

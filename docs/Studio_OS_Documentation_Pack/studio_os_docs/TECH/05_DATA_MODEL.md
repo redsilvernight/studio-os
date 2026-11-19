@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry, UsageSubscription.
+Studio, StudioMembership, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock, UsageLedgerEntry, UsageSubscription.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -30,6 +30,9 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 (cf. `.claude/rules/contracts.md`).
 
 ## Relations clefs
+- Studio 1-N Project ; User N-N Studio via StudioMembership (0046). Les
+  ressources de premier niveau portent aussi un `studio_id` explicite (voir
+  section Studio).
 - User N-N Project via ProjectMembership (DEC-0103) ; Machine et Agent n'en
   portent jamais en propre (heritage via `Machine.owner_user_id`).
 - Project 1-N Task.
@@ -67,6 +70,10 @@ et `email_verified_at` (nullable). Etat derive, non stocke : `disabled` si
 existant ; la creation par `studio-admin` ou `POST /users` le pose
 immediatement. `session_id` du JWT n'est pas persiste ; seules les sessions
 persistantes du Desktop ont un etat serveur (`RefreshToken`, ci-dessous).
+
+`is_operator` (bool, NOT NULL, defaut `false`, migration `0046`) est un
+drapeau d'operateur independant du `role` global : il n'accorde ni ne retire
+aucun droit a lui seul.
 
 ## AccountToken (A4, DEC-0109 — migration Alembic `0017`, additive et reversible)
 Secret de compte a usage unique : `id`, `user_id` (FK `users`, `ON DELETE
@@ -111,7 +118,11 @@ poste physique de la machine — la machine du Desktop pour une machine-outil,
 niveau, meme proprietaire ; migration Alembic `0036`, additive, sans
 backfill), + champs communs mutables (contrat
 e1963627, etendu DEC-0171, migration Alembic `0024`, additive et
-reversible). `status`
+reversible). `studio_id` (FK `studios.id`, nullable, `ON DELETE RESTRICT`,
+indexe `ix_machines_studio_id`, migration Alembic `0047`, additive et
+reversible, sans backfill) : studio actif choisi en dernier par la machine ;
+simple preference, `NULL` = defaut resolu depuis les adhesions du proprietaire
+(`TECH/04_AUTH_SYNC_CONTRACT.md`). `status`
 (`online|idle|offline`) n'est PAS stocke : derive de `last_seen_at` a la
 lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
@@ -147,9 +158,43 @@ les NULL restent distincts, lignes existantes inchangees) — cle de recherche
 idempotente du demarrage de session, jamais entree d'autorisation, jamais
 confondue avec `AgentDefinition.stable_key` (parametre de resolution).
 
+## Studio / StudioMembership (migration Alembic `0046`)
+
+`studios` : `id`, `slug` (unique), `name`, `plan` (defaut `free`), `status`
+(defaut `active`), `is_internal` (bool, defaut false ; un seul studio interne,
+index partiel unique `uq_studios_one_internal`), + champs communs mutables. La
+migration cree le studio interne `00000000-0000-0000-0000-000000000001` (slug
+`studio-os`), qui possede toutes les donnees anterieures.
+
+`studio_memberships` : `studio_id` (FK Studio, `ON DELETE CASCADE`), `user_id`
+(FK User, `ON DELETE CASCADE`), `role` (`owner|admin|member|viewer`, NOT NULL,
+CHECK `ck_studio_memberships_role`, defaut `member`), `granted_by_user_id`
+(FK User, nullable, `ON DELETE SET NULL`), `created_at`. Cle primaire
+`(studio_id, user_id)`, index `user_id`. Backfill 0046 : chaque User existant
+devient membre du studio interne — `owner` si `User.role = admin`, `member`
+sinon, provenance systeme (`granted_by_user_id` nul) ; toute attribution
+applicative enregistre l'auteur.
+
+`studio_id` (FK `studios.id`, NOT NULL, indexe) est porte par `projects`,
+`decisions`, `vault_notes`, `library_resources`, `runtimes`, `agents`,
+`transfers` et `budget_policies` ; `tasks`, `events` et `roadmaps` en heritent
+via leur `project_id`. La FK est `ON DELETE RESTRICT` : un studio qui porte
+encore des ressources ne peut pas etre supprime, jamais de cascade implicite.
+Ajout 0046 : colonne nullable, backfill vers le studio interne, puis NOT NULL.
+Le `server_default` vers le studio interne est **temporaire** et doit etre
+retire quand l'autorisation et la creation de studio poseront `studio_id`
+explicitement a chaque insertion.
+
 ## Project
-`id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
-defaut false), + champs communs mutables.
+`id`, `studio_id` (FK Studio, voir section Studio), `slug` (unique **par
+studio** : `uq_projects_studio_slug` sur `(studio_id, slug)` ; l'unicite
+globale `uq_projects_slug` est restauree au downgrade), `name`, `description`
+(nullable), `archived` (bool, defaut false), + champs communs mutables.
+Les creations posent `studio_id` explicitement (defaut interne seulement pour
+le CLI operateur) ; un octroi d'acces projet exige un compte membre du studio
+du projet. `idempotency_keys` n'a pas de colonne studio : le studio est dans
+la cle reservee (`<studio_id>:<endpoint>`, UUID nul pour les operations
+d'instance).
 
 ## ProjectMembership (DEC-0103, additif — migration Alembic reversible)
 Table `project_memberships` : `project_id` (FK Project, `ON DELETE CASCADE`),

@@ -12,7 +12,7 @@ from studio_api.db.models.event import EventModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import events as events_service
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 
 
 async def get_timeline(
@@ -55,7 +55,7 @@ async def get_timeline(
 async def get_timeline_dates(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID
 ) -> list[date]:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     events = select(
         cast(func.timezone("UTC", EventModel.server_timestamp), Date).label("day")
     ).where(EventModel.project_id == project_id)

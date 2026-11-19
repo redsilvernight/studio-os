@@ -19,7 +19,7 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
 from studio_api.services.authz import (
     Principal,
-    ensure_project_access,
+    ensure_project_in_studio,
     forbidden,
     has_project_access,
 )
@@ -76,7 +76,7 @@ async def grant(
     if await session.get(UserModel, user_id) is None:
         raise _not_found("user", user_id)
     if project_id is not None:
-        ensure_project_access(principal, project_id, "write")
+        await ensure_project_in_studio(session, principal, project_id, "write")
         if await session.get(ProjectModel, project_id) is None:
             raise _not_found("project", project_id)
     if expires_at is not None and expires_at <= datetime.now(UTC):

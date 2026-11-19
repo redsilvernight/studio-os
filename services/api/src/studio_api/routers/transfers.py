@@ -31,6 +31,7 @@ from studio_api.openapi_meta import (
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 
@@ -87,6 +88,7 @@ async def create_transfer(
 ) -> Transfer:
     # Ahead of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12).
     transfers_service.authorize_create(principal, transfer_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, transfer_in.project_id, "write")
     if transfer_in.project_id is None:
         project_slug = "unscoped"
     else:
@@ -107,6 +109,7 @@ async def create_transfer(
         Transfer,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -128,8 +131,9 @@ async def get_consumption(
     session: DbSession, principal: CurrentPrincipal, project_id: UUID | None = Query(default=None)
 ) -> TransferConsumption:
     transfers_service.ensure_transfer_scope(principal, project_id)
+    await ensure_optional_project_in_studio(session, principal, project_id, "read")
     settings = get_settings()
-    consumed = await transfers_service.compute_consumption(session, project_id)
+    consumed = await transfers_service.compute_consumption(session, project_id, principal.studio_id)
     quota = settings.transfer_project_quota_bytes
     return TransferConsumption(
         project_id=project_id,

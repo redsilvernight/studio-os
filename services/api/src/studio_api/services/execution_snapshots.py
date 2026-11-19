@@ -34,7 +34,7 @@ from studio_contracts.local.common import (
 
 from studio_api.db.models.execution_snapshot import ExecutionSnapshotModel
 from studio_api.db.models.task_launch import TaskLaunchModel
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 from studio_api.services.task_launches import authorize_report
 from studio_api.settings import get_settings
 
@@ -182,7 +182,7 @@ async def submit_launch_snapshot(
     """HTTP path of `record_snapshot`: only the launch's target machine, with
     its durable credential (launch credentials are not on the allowlist)."""
     authorize_report(principal, launch)
-    ensure_project_access(principal, launch.project_id, "write")
+    await ensure_project_in_studio(session, principal, launch.project_id, "write")
     snapshot = await record_snapshot(session, task_launch_id=launch.id, payload=payload)
     await session.commit()
     return snapshot

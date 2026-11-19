@@ -1,0 +1,218 @@
+{
+ "accountsApi": [
+  "applyAccountAction",
+  "listUserMemberships"
+ ],
+ "admissionApi": [
+  "admissionRefusal",
+  "admitRoadmapBatch",
+  "clearPendingAdmission",
+  "getAdmissionDryRun",
+  "pendingAdmissionBody",
+  "pendingAdmissionKey"
+ ],
+ "agentsApi": [
+  "aiWorkStatusLabel",
+  "aiWorkStatusTone",
+  "deriveAgentActivity",
+  "fetchAgentEvents",
+  "fetchAgentProjects",
+  "fetchAgentSessions",
+  "fetchAgentTasks",
+  "fetchAgentWork",
+  "fetchAgents",
+  "filterAgents"
+ ],
+ "aiIntegrationApi": [
+  "getAiIntegrationStatus"
+ ],
+ "api": [
+  "apiBaseUrl",
+  "createApiClient",
+  "parseErrorBody",
+  "requireToken"
+ ],
+ "bindingsApi": [
+  "createRuntimeBinding",
+  "deleteRuntimeBinding",
+  "getRuntimeBinding",
+  "listRuntimeBindings"
+ ],
+ "claimsApi": [
+  "createClaim",
+  "listClaims",
+  "newIdempotencyKey",
+  "releaseClaim",
+  "renewClaim"
+ ],
+ "creationsApi": [
+  "createProject",
+  "createTask",
+  "decodeJwtSubject",
+  "isUuid"
+ ],
+ "harnessApi": [
+  "applyHarness",
+  "call",
+  "changeDetail",
+  "changeTarget",
+  "detectHarnesses",
+  "harnessErrorMessage",
+  "latestRollbackId",
+  "mergeSetupHarnesses",
+  "previewHarness",
+  "rollbackHarness",
+  "verifyHarness"
+ ],
+ "identityApi": [
+  "fetchIdentity",
+  "isAdminIdentity",
+  "resetIdentityCache"
+ ],
+ "launchSettingsApi": [
+  "clampConcurrent",
+  "getLaunchSettings",
+  "launchSettingsErrorMessage",
+  "offeredHarnesses",
+  "saveLaunchSettings"
+ ],
+ "libraryApi": [
+  "activateLibraryVersion",
+  "applyLibraryMerge",
+  "createLibraryLock",
+  "createLibraryResource",
+  "createLibraryVersion",
+  "deprecateLibraryResource",
+  "getLibraryMergePreview",
+  "getLibraryResource",
+  "listLibraryLocks",
+  "listLibraryResources",
+  "listLibraryVersions",
+  "previewDependencyUpdates",
+  "previewWorkProfilePack",
+  "releaseLibraryLock"
+ ],
+ "machinesApi": [
+  "activeSessions",
+  "activityLabelFr",
+  "buildMachineRows",
+  "canonicalPresence",
+  "derivedPresence",
+  "fetchAgents",
+  "fetchCanonicalMachines",
+  "fetchSessions",
+  "filterMachineRows",
+  "findProbableDuplicates",
+  "formatRelativeFr",
+  "groupMachineRows",
+  "initialMachinesState",
+  "isDashboardIdentity",
+  "isMachinesDefaultState",
+  "machineDisplayTitle",
+  "mergeMachinesCommand",
+  "renameMachine",
+  "setMachineWorkstation",
+  "workstationCandidates",
+  "workstationErrorFr"
+ ],
+ "membersApi": [
+  "grantMember",
+  "listMembers",
+  "revokeMember",
+  "searchUsers"
+ ],
+ "missionApi": [
+  "fetchProjectMission"
+ ],
+ "publicAccountApi": [
+  "classifyAccountError",
+  "createIdempotencyKeyer",
+  "passwordProblem",
+  "requestEmailFlow",
+  "resetPassword",
+  "verifyEmail"
+ ],
+ "resolutionApi": [
+  "postResolution",
+  "resolutionErrorView",
+  "winningBindingLevel"
+ ],
+ "reviewApi": [
+  "resolveReview"
+ ],
+ "roadmapApi": [
+  "createApiRoadmapDataSource",
+  "toApiDocument",
+  "toViewDiff",
+  "toViewPhase",
+  "toViewRevision",
+  "toViewRoadmap",
+  "toViewStep"
+ ],
+ "runtimesApi": [
+  "getRuntime",
+  "listRuntimes",
+  "registerRuntime",
+  "revokeRuntime",
+  "updateRuntime"
+ ],
+ "setupApi": [
+  "applySetup",
+  "hasPendingWork",
+  "previewSetup",
+  "setupErrorMessage"
+ ],
+ "skillsApi": [
+  "applySkills",
+  "checkSkills",
+  "configureSkillsSync",
+  "getSkillsSyncStatus",
+  "previewSkills",
+  "skillsPreviewErrorMessage"
+ ],
+ "taskLaunchesApi": [
+  "cancelTaskLaunch",
+  "createTaskLaunch",
+  "getEligibleMachines",
+  "getTaskLaunch",
+  "getTaskLaunchReplayPreview",
+  "getTaskLaunchSnapshot",
+  "listTaskLaunches"
+ ],
+ "tasksApi": [
+  "claimTask",
+  "getTask",
+  "listTasks",
+  "patchTask",
+  "releaseTask"
+ ],
+ "transfersApi": [
+  "acknowledgeDownload",
+  "createTransfer",
+  "deleteTransfer",
+  "downloadUrl",
+  "getConsumption",
+  "getTransfer",
+  "listTransfers",
+  "partRange",
+  "sha256Hex",
+  "uploadPhaseLabel",
+  "uploadTransfer"
+ ],
+ "usageApi": [
+  "createUsageSubscription",
+  "deleteUsageSubscription",
+  "fetchConfigurationHistory",
+  "fetchUsageSummary",
+  "listUsageSubscriptions",
+  "updateUsageSubscription"
+ ],
+ "vaultApi": [
+  "getVaultNote",
+  "getVaultVersion",
+  "listVaultTree",
+  "listVaultVersions",
+  "searchVault",
+  "updateVaultNote"
+ ]
+}

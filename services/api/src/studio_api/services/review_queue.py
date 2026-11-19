@@ -27,7 +27,7 @@ from studio_api.services import events as events_service
 from studio_api.services import github as github_service
 from studio_api.services.authz import (
     Principal,
-    ensure_project_access,
+    ensure_project_in_studio,
     project_visibility_clause,
 )
 
@@ -49,7 +49,7 @@ async def get_review_queue(
     accessible projects; an inaccessible `project_id` answers 403 before
     anything is read (DEC-0103 §7)."""
     if project_id is not None:
-        ensure_project_access(principal, project_id)
+        await ensure_project_in_studio(session, principal, project_id)
     items: list[ReviewQueueItem] = []
 
     for work in await ai_work_service.list_ai_work(session, principal, project_id=project_id):

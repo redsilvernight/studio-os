@@ -10,7 +10,7 @@ from studio_api.db.models.build import BuildModel, ProducerJobModel
 from studio_api.services import github as github_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import producer as producer_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 
 from studio_mcp.errors import run_tool
@@ -117,6 +117,7 @@ async def studio_request_producer_job(
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
         producer_service.authorize_request(principal, parsed_project)
+        await ensure_optional_project_in_studio(session, principal, parsed_project, "write")
 
         async def _create() -> dict[str, Any]:
             job = await producer_service.request_producer_job(
@@ -135,7 +136,12 @@ async def studio_request_producer_job(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_request_producer_job", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_request_producer_job",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

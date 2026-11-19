@@ -61,7 +61,8 @@ from studio_api.services.authz import (
     Principal,
     ensure_can_provision,
     ensure_can_write,
-    ensure_project_access,
+    ensure_optional_project_in_studio,
+    ensure_project_in_studio,
 )
 from studio_api.services.roadmap_support import (
     PendingEvent,
@@ -111,7 +112,7 @@ async def list_roadmaps(
     limit: int = 50,
     offset: int = 0,
 ) -> list[RoadmapSummary]:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     if await session.get(ProjectModel, project_id) is None:
         raise not_found("project")
     stmt = (
@@ -181,6 +182,7 @@ async def create_roadmap(
     session: AsyncSession, principal: Principal, payload: RoadmapCreate
 ) -> Roadmap:
     authorize_roadmap_create(principal, payload.project_id)
+    await ensure_optional_project_in_studio(session, principal, payload.project_id, "write")
     prov = await resolve_provenance(session, principal, payload.provenance)
     await _require_project(session, payload.project_id)
     roadmap = _new_roadmap(
@@ -255,6 +257,7 @@ async def import_roadmap(
     """Create a `draft` (or a `proposed` roadmap with `submit`) from a neutral
     document, atomically. The document is validated before any write."""
     authorize_roadmap_create(principal, payload.project_id)
+    await ensure_optional_project_in_studio(session, principal, payload.project_id, "write")
     prov = await resolve_provenance(session, principal, payload.provenance)
     errors = roadmap_document_errors(payload.document)
     if errors:
@@ -288,6 +291,7 @@ async def update_roadmap(
 ) -> Roadmap:
     roadmap = await lock_roadmap(session, roadmap_id)
     guard_write(principal, roadmap, WriteKind.CONTENT, payload.provenance)
+    await ensure_optional_project_in_studio(session, principal, roadmap.project_id, "write")
     prov = await resolve_provenance(session, principal, payload.provenance)
     check_version(roadmap.version, expected_version)
     if payload.title is not None:
@@ -401,7 +405,7 @@ async def transition_roadmap(
     approve, reject, complete, reopen or archive an approved plan). Activating
     an already `active` roadmap is a successful no-op."""
     roadmap = await lock_roadmap(session, roadmap_id)
-    ensure_project_access(principal, roadmap.project_id, "write")
+    await ensure_project_in_studio(session, principal, roadmap.project_id, "write")
     ensure_can_write(principal, "roadmap")
     current = RoadmapStatus(roadmap.status)
     transition = payload.transition
@@ -549,7 +553,7 @@ async def create_proposal(
     """
     roadmap = await lock_roadmap(session, roadmap_id)
     if roadmap.status == RoadmapStatus.PROPOSED.value:
-        ensure_project_access(principal, roadmap.project_id, "write")
+        await ensure_project_in_studio(session, principal, roadmap.project_id, "write")
         ensure_can_write(principal, "roadmap")
         raise invalid_state(
             RoadmapStatus.PROPOSED,
@@ -559,6 +563,7 @@ async def create_proposal(
     if roadmap.status == RoadmapStatus.DRAFT.value:
         return await _revise_draft(session, principal, roadmap, payload)
     guard_write(principal, roadmap, WriteKind.PROPOSAL, payload.provenance)
+    await ensure_optional_project_in_studio(session, principal, roadmap.project_id, "write")
     prov = await resolve_provenance(session, principal, payload.provenance)
     errors = roadmap_document_errors(payload.document)
     if errors:
@@ -611,6 +616,7 @@ async def _revise_draft(
     payload: ProposalCreate,
 ) -> RoadmapRevision:
     guard_write(principal, roadmap, WriteKind.CONTENT, payload.provenance)
+    await ensure_optional_project_in_studio(session, principal, roadmap.project_id, "write")
     if payload.base_revision_no != roadmap.revision_no:
         raise roadmap_error(
             status.HTTP_409_CONFLICT,
@@ -691,7 +697,7 @@ async def review_proposal(
     a base revision that moved meanwhile is `409 base_revision_stale` and the
     agent must re-propose (P8.6). The other decisions only record the review."""
     roadmap = await lock_roadmap(session, roadmap_id)
-    ensure_project_access(principal, roadmap.project_id, "write")
+    await ensure_project_in_studio(session, principal, roadmap.project_id, "write")
     ensure_can_write(principal, "roadmap")
     ensure_can_provision(principal, "roadmap")
     revision = await _proposal_row(session, roadmap_id, revision_no)

@@ -74,6 +74,7 @@ from studio_api.services.authz import (
     ProjectAction,
     ensure_can_write,
     ensure_project_access,
+    ensure_project_in_studio,
     owns_agent,
 )
 
@@ -267,7 +268,7 @@ async def ensure_roadmap_access(
     roadmap = await session.get(RoadmapModel, roadmap_id)
     if roadmap is None:
         raise not_found()
-    ensure_project_access(principal, roadmap.project_id, action)
+    await ensure_project_in_studio(session, principal, roadmap.project_id, action)
     return roadmap
 
 
@@ -972,7 +973,7 @@ async def finish_result(
     await session.commit()
     for event in staged:
         await session.refresh(event)
-        events_service.publish_event(event)
+        await events_service.publish_event(session, event)
 
 
 async def finish(

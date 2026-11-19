@@ -30,6 +30,7 @@ from studio_api.routers import (
     handoff,
     health,
     heartbeats,
+    infra,
     initialization,
     library,
     machines,
@@ -119,6 +120,9 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
     "usage": (
         "Measured usage ledger with per-metric coverage, source-event deduplication and "
         "versioned whole-block corrections. Writes belong to the authenticated machine."
+    ),
+    "infra": (
+        "Internal infrastructure cost measurements (sizes and counts, never content). Admin only."
     ),
     "budgets": (
         "Explicit per-project launch budget: alert-only by default, `enforce` only once "
@@ -297,6 +301,7 @@ def create_app() -> FastAPI:
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(usage_price_lists.router)
+    app.include_router(infra.router)
     app.include_router(usage_subscriptions.router)
     app.include_router(usage.router)
     app.include_router(budgets.router)

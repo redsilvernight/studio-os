@@ -15,6 +15,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import producer as producer_service
+from studio_api.services.authz import ensure_optional_project_in_studio
 
 router = APIRouter(prefix="/api/v1/producer-jobs", tags=["producer"])
 
@@ -42,6 +43,7 @@ async def request_producer_job(
     ),
 ) -> ProducerJob:
     producer_service.authorize_request(principal, job_in.project_id)
+    await ensure_optional_project_in_studio(session, principal, job_in.project_id, "write")
 
     async def _create() -> ProducerJob:
         job = await producer_service.request_producer_job(session, principal, job_in)
@@ -55,6 +57,7 @@ async def request_producer_job(
         ProducerJob,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

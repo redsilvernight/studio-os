@@ -11,7 +11,7 @@ from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import Principal
+from studio_api.services.authz import Principal, ensure_optional_project_in_studio
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.events import EventCreate, EventType
 
@@ -107,6 +107,7 @@ async def studio_claim_resources(
                 return parsed_agent
             parsed_agent_id = parsed_agent
         claims_service.authorize_create(principal, parsed_project)
+        await ensure_optional_project_in_studio(session, principal, parsed_project, "write")
 
         async def _create() -> dict[str, Any]:
             claims: list[dict[str, Any]] = []
@@ -162,7 +163,12 @@ async def studio_claim_resources(
             ).encode()
         )
         return await idempotency_service.run_idempotent_dict(
-            session, idempotency_key, "MCP studio_claim_resources", request_hash, _create
+            session,
+            idempotency_key,
+            "MCP studio_claim_resources",
+            request_hash,
+            _create,
+            studio_id=principal.studio_id,
         )
 
     return await run_tool(ctx, _handler)

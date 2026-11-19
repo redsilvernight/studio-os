@@ -15,7 +15,7 @@ from studio_api.services import resolution as resolution_service
 from studio_api.services import runtime_bindings as bindings_service
 from studio_api.services import runtime_registry as registry_service
 from studio_api.services import work_profile_pack as pack_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import Principal, ensure_can_write, ensure_optional_project_in_studio
 from studio_contracts.library import (
     DependencyPin,
     DependencySelection,
@@ -382,6 +382,9 @@ async def studio_publish_definition(
             if action == "create":
                 if scope in {s.value for s in LibraryScope}:
                     library_service.authorize_create(principal, str(scope), parsed_project)
+                    await ensure_optional_project_in_studio(
+                        session, principal, parsed_project, "write"
+                    )
                 else:
                     ensure_can_write(principal, "library")
             else:
@@ -486,7 +489,12 @@ async def studio_publish_definition(
         )
         try:
             payload = await idempotency_service.run_idempotent_dict(
-                session, idempotency_key, "MCP studio_publish_definition", request_hash, _create
+                session,
+                idempotency_key,
+                "MCP studio_publish_definition",
+                request_hash,
+                _create,
+                studio_id=principal.studio_id,
             )
         except _MissingArgument as exc:
             return _invalid(str(exc))
@@ -527,6 +535,7 @@ async def studio_configure_runtime(
             return parsed_project
         try:
             bindings_service.authorize_create(principal, parsed_level, parsed_project)
+            await ensure_optional_project_in_studio(session, principal, parsed_project, "write")
         except HTTPException as exc:
             return _from_http(exc)
 
@@ -601,7 +610,12 @@ async def studio_configure_runtime(
         )
         try:
             payload = await idempotency_service.run_idempotent_dict(
-                session, idempotency_key, "MCP studio_configure_runtime", request_hash, _create
+                session,
+                idempotency_key,
+                "MCP studio_configure_runtime",
+                request_hash,
+                _create,
+                studio_id=principal.studio_id,
             )
         except HTTPException as exc:
             return _from_http(exc)
@@ -728,7 +742,12 @@ async def studio_register_runtime(
         )
         try:
             payload = await idempotency_service.run_idempotent_dict(
-                session, idempotency_key, "MCP studio_register_runtime", request_hash, _create
+                session,
+                idempotency_key,
+                "MCP studio_register_runtime",
+                request_hash,
+                _create,
+                studio_id=principal.studio_id,
             )
         except _MissingArgument as exc:
             return _invalid(str(exc))

@@ -56,7 +56,7 @@ from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import sessions as sessions_service
-from studio_api.services.authz import Principal, ensure_project_access
+from studio_api.services.authz import Principal, ensure_project_in_studio
 from studio_api.settings import Settings, get_settings
 
 MISSION_DEFAULT_WINDOW_HOURS = 168
@@ -546,7 +546,7 @@ async def get_project_mission(
     only the returned page. An inaccessible `project_id` answers 403 before
     anything is read (DEC-0103 §7).
     """
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     settings = get_settings()
     now = datetime.now(UTC)
     since = now - timedelta(hours=window_hours)

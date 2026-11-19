@@ -59,7 +59,7 @@ from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
-    ensure_project_access,
+    ensure_project_in_studio,
     project_visibility_clause,
 )
 from studio_api.settings import Settings, get_settings
@@ -135,7 +135,7 @@ async def _commit_with_event(
     await session.commit()
     await session.refresh(launch)
     await session.refresh(event)
-    events_service.publish_event(event)
+    await events_service.publish_event(session, event)
     return launch
 
 
@@ -182,7 +182,7 @@ async def authorize_create(
     coherence and the target machine's launch aptitude are 409s, never
     oracles: the project gate answers the single 403 first. Who may
     request (owner, admin or grantee) is AIB-J (`launch_grants`)."""
-    ensure_project_access(principal, project_id, "write")
+    await ensure_project_in_studio(session, principal, project_id, "write")
     ensure_can_write(principal, "task_launch")
     authorize_profile_request(launch_in)
     authorize_production_request(principal, launch_in)
@@ -372,7 +372,7 @@ async def get_launch(
             # and capacity read `expires_at` to free slots.
             await session.commit()
             await session.refresh(launch)
-        ensure_project_access(principal, launch.project_id)
+        await ensure_project_in_studio(session, principal, launch.project_id)
     return launch
 
 
@@ -383,7 +383,7 @@ async def list_launches(
     limit: int = 100,
     offset: int = 0,
 ) -> list[TaskLaunchModel]:
-    ensure_project_access(principal, project_id)
+    await ensure_project_in_studio(session, principal, project_id)
     stmt = (
         select(TaskLaunchModel)
         .where(TaskLaunchModel.project_id == project_id)
@@ -743,6 +743,8 @@ async def pull_pending(
         .order_by(TaskLaunchModel.created_at.asc(), TaskLaunchModel.id)
         .limit(LAUNCH_POLL_MAX + 1)
     )
+    if (visible := project_visibility_clause(principal, TaskLaunchModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     result = await session.execute(stmt)
     launches = list(result.scalars().all())
     extended = False
@@ -873,7 +875,7 @@ async def report_launch(
     report: TaskLaunchMachineReport,
 ) -> TaskLaunchModel:
     authorize_report(principal, launch)
-    ensure_project_access(principal, launch.project_id)
+    await ensure_project_in_studio(session, principal, launch.project_id)
     await session.refresh(launch, with_for_update=True)
     await expire_launch_if_overdue(session, principal, launch, persist_extension=False)
     if launch.version != report.expected_version:
@@ -932,7 +934,7 @@ async def cancel_launch(
 ) -> TaskLaunchModel:
     """Only the requester (or an admin) cancels, on a non-terminal launch."""
     ensure_can_write(principal, "task_launch")
-    ensure_project_access(principal, launch.project_id, "write")
+    await ensure_project_in_studio(session, principal, launch.project_id, "write")
     if principal.role != Role.ADMIN and launch.requested_by_user_id != principal.user.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -998,7 +1000,7 @@ async def retry_launch(
     attempt the first one created. Same requester rule as cancel; the target
     machine's aptitude is re-checked exactly like a creation."""
     ensure_can_write(principal, "task_launch")
-    ensure_project_access(principal, launch.project_id, "write")
+    await ensure_project_in_studio(session, principal, launch.project_id, "write")
     if principal.role != Role.ADMIN and launch.requested_by_user_id != principal.user.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
