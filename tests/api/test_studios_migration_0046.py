@@ -200,7 +200,7 @@ async def test_0046_upgrade_backfill_and_downgrade_round_trip(
                     table,
                 )
                 assert delete_rule == "r", table
-            with pytest.raises(asyncpg.exceptions.RestrictViolationError):
+            with pytest.raises(asyncpg.exceptions.IntegrityConstraintViolationError):
                 await conn.execute("delete from studios where id = $1", internal_id)
             assert (
                 str(await conn.fetchval("select studio_id from agents where id = $1", agent_id))
