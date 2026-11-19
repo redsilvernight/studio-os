@@ -184,76 +184,112 @@ def pytest_terminal_summary(terminalreporter: Any, config: pytest.Config) -> Non
 
 @pytest.fixture(autouse=True)
 def _backfilled_memberships(request: pytest.FixtureRequest) -> Iterator[None]:
-    """Reproduces the 0014 backfill for the tests written before project
-    isolation: every user created in the test (outsiders excepted) is a
-    member of every project, whatever the creation order — through any
-    session of the test, the app's own included. A Principal is loaded once
-    and often before the test creates its project, so the scope of those
-    members is the global one (projects created later, or none at all yet).
-    Tests marked `isolation` get the real deny-by-default behavior."""
-    if "db_session" not in request.fixturenames or request.node.get_closest_marker("isolation"):
+    """Reproduces the 0046 backfill for the tests written before studios and
+    project isolation: every user created in the test joins the internal studio
+    as `owner` when it is a global admin and `member` otherwise (the same rule
+    as the migration), and — outside `isolation` tests — every user is a member
+    of every project, whatever the creation order, through any session of the
+    test, the app's own included. Tests marked `isolation` keep the real
+    deny-by-default project access (DEC-0103)."""
+    if "db_session" not in request.fixturenames and "real_engine" not in request.fixturenames:
         yield
         return
 
     from sqlalchemy import event, text
     from sqlalchemy.orm import Session
     from studio_api.db.models.project import ProjectModel
+    from studio_api.db.models.studio import INTERNAL_STUDIO_ID
     from studio_api.db.models.user import UserModel
-    from studio_api.services import authz, events
 
-    db_session = request.getfixturevalue("db_session")
-    if db_session is None:  # suites that stub the session out
+    db_session = (
+        request.getfixturevalue("db_session") if "db_session" in request.fixturenames else None
+    )
+    if "db_session" in request.fixturenames and db_session is None:  # suites that stub it out
         yield
         return
 
+    isolation = request.node.get_closest_marker("isolation") is not None
+
     def _grant(session: Any, _flush_context: Any) -> None:
-        if session is not db_session.sync_session:
-            return
         from sqlalchemy.exc import IntegrityError
 
+        # Every session of the test (the shared savepoint one and the
+        # concurrency suites' own engines) reproduces the 0046/0014 backfill:
+        # the principal of any user the test creates resolves a studio and,
+        # outside isolation tests, the project memberships the old global
+        # scope used to emulate.
         conn = session.connection()
+        statements: list[tuple[Any, dict[str, Any]]] = []
         for obj in list(session.new):
-            if isinstance(obj, ProjectModel):
-                statement = text(
-                    "INSERT INTO project_memberships (project_id, user_id) "
-                    "SELECT p.id, u.id FROM projects p, users u "
-                    "WHERE p.id = :pid AND u.display_name NOT LIKE :outsider "
-                    # Deterministic insertion order: concurrent backfillers
-                    # (parallel runners sharing one database) acquire
-                    # speculative-insertion locks in the same order instead of
-                    # deadlocking on opposite orders.
-                    "ORDER BY p.id, u.id "
-                    "ON CONFLICT DO NOTHING"
+            if isinstance(obj, UserModel):
+                statements.append(
+                    (
+                        text(
+                            "INSERT INTO studio_memberships "
+                            "(studio_id, user_id, role, granted_by_user_id) "
+                            "VALUES (CAST(:studio_id AS uuid), :uid, :role, NULL) "
+                            "ON CONFLICT DO NOTHING"
+                        ),
+                        {
+                            "studio_id": str(INTERNAL_STUDIO_ID),
+                            "uid": obj.id,
+                            "role": "owner" if obj.role == "admin" else "member",
+                        },
+                    )
                 )
-                params = {"pid": obj.id, "outsider": f"{OUTSIDER_PREFIX}%"}
-            elif isinstance(obj, UserModel) and not obj.display_name.startswith(OUTSIDER_PREFIX):
-                statement = text(
-                    "INSERT INTO project_memberships (project_id, user_id) "
-                    "SELECT p.id, :uid FROM projects p "
-                    # Same lock-ordering rationale as above.
-                    "ORDER BY p.id "
-                    "ON CONFLICT DO NOTHING"
+                if isolation or obj.display_name.startswith(OUTSIDER_PREFIX):
+                    continue
+                statements.append(
+                    (
+                        text(
+                            "INSERT INTO project_memberships (project_id, user_id) "
+                            "SELECT p.id, :uid FROM projects p "
+                            # Same lock-ordering rationale as above.
+                            "ORDER BY p.id "
+                            "ON CONFLICT DO NOTHING"
+                        ),
+                        {"uid": obj.id},
+                    )
                 )
-                params = {"uid": obj.id}
-            else:
-                continue
+            elif isinstance(obj, ProjectModel) and not isolation:
+                statements.append(
+                    (
+                        text(
+                            "INSERT INTO project_memberships (project_id, user_id) "
+                            "SELECT p.id, u.id FROM projects p, users u "
+                            "WHERE p.id = :pid AND u.display_name NOT LIKE :outsider "
+                            # Deterministic insertion order: concurrent backfillers
+                            # (parallel runners sharing one database) acquire
+                            # speculative-insertion locks in the same order instead of
+                            # deadlocking on opposite orders.
+                            "ORDER BY p.id, u.id "
+                            "ON CONFLICT DO NOTHING"
+                        ),
+                        {"pid": obj.id, "outsider": f"{OUTSIDER_PREFIX}%"},
+                    )
+                )
+        for statement, params in statements:
             try:
                 with conn.begin_nested():
                     conn.execute(statement, params)
             except IntegrityError:
                 continue
 
+    # Legacy suites (outside `isolation` tests) keep the former "global" scope for
+    # every user but the outsiders: the whole of its studio, projects created
+    # after the Principal was loaded included.
+    from studio_api.services import authz
+
     real_scope = authz.load_project_scope
 
-    async def _scope(session: Any, user_id: Any, role: Any) -> Any:
+    async def _scope(session: Any, user_id: Any, studio_id: Any, studio_role: Any) -> Any:
         user = await session.get(UserModel, user_id)
-        if user is not None and user.display_name.startswith(OUTSIDER_PREFIX):
-            return await real_scope(session, user_id, role)
-        return authz.ALL_PROJECTS
+        if isolation or (user is not None and user.display_name.startswith(OUTSIDER_PREFIX)):
+            return await real_scope(session, user_id, studio_id, studio_role)
+        return authz.StudioWide(studio_id)
 
     monkeypatch = request.getfixturevalue("monkeypatch")
     monkeypatch.setattr(authz, "load_project_scope", _scope)
-    monkeypatch.setattr(events, "load_project_scope", _scope)
     event.listen(Session, "after_flush", _grant)
     try:
         yield

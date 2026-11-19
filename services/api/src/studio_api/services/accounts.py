@@ -205,6 +205,7 @@ async def register(session: AsyncSession, settings: Settings, email: str) -> lis
         session.add(user)
         try:
             await session.flush()
+            await provisioning_service.join_internal_studio(session, user)
         except IntegrityError:
             await session.rollback()
             return []

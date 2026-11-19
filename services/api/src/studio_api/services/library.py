@@ -60,9 +60,9 @@ from studio_api.db.models.library import (
 from studio_api.db.models.project import ProjectModel
 from studio_api.services import events as events_service
 from studio_api.services.authz import (
-    ALL_PROJECTS,
     Principal,
     ProjectAction,
+    StudioWide,
     ensure_can_write,
     ensure_project_access,
     ensure_shared_access,
@@ -114,7 +114,7 @@ def _read_clause(principal: Principal) -> ColumnElement[bool] | None:
         LibraryResourceModel.owner_user_id == principal.user.id,
     )
     scope = principal.project_scope
-    if scope is ALL_PROJECTS:
+    if isinstance(scope, StudioWide):
         return or_(own, LibraryResourceModel.scope != "user")
     if not scope:
         return own
@@ -1102,7 +1102,7 @@ async def list_locks(
     if project_id is not None:
         ensure_project_access(principal, project_id)
         stmt = stmt.where(LibraryProjectLockModel.project_id == project_id)
-    elif principal.project_scope is not ALL_PROJECTS:
+    elif not isinstance(principal.project_scope, StudioWide):
         stmt = stmt.where(LibraryProjectLockModel.project_id.in_(principal.project_scope))
     if (visible := _read_clause(principal)) is not None:
         stmt = stmt.where(visible)

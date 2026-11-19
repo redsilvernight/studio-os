@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioRole
 from studio_api.db.models.user import UserModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import sessions as sessions_service
@@ -36,6 +37,8 @@ async def _principal(
         machine=machine_model,
         user=user,
         role=Role(user.role),
+        studio_id=INTERNAL_STUDIO_ID,
+        studio_role=StudioRole.MEMBER,
         project_scope=frozenset({project.id}),
     )
 

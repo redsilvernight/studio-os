@@ -6,7 +6,6 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.auth import Role
 from studio_contracts.coordination import COORDINATION_EVENT_PREFIX
 from studio_contracts.events import EventCreate, EventEnvelope, EventType
 
@@ -22,9 +21,8 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_project_access,
     has_any_project,
-    has_project_access,
-    load_project_scope,
     owns_agent,
+    project_access_for_user,
     project_visibility_clause,
 )
 
@@ -339,8 +337,4 @@ async def stream_access_still_valid(
             return False
         if jwt_auth_version is not None and user.auth_version != jwt_auth_version:
             return False
-        scope = await load_project_scope(session, user.id, Role(user.role))
-    return has_project_access(
-        Principal(machine=machine, user=user, role=Role(user.role), project_scope=scope),
-        project_id,
-    )
+        return await project_access_for_user(session, user.id, project_id)

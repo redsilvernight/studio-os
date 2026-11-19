@@ -173,6 +173,13 @@ _.HTTP_ACCESS  # studio_api/access_registry.py
 # test_account_states)
 _.iter_operations  # studio_api/access_registry.py
 
+# require_studio_role, require_operator, studio_clause — authz par rôle de studio (DEC-0382),
+# lot 1 : gardes et filtre testés (tests/api/test_authz_studio.py), câblés sur les routers et
+# services par les lots 2 à 4 de la tâche f42ee9bc ; ces entrées sont à retirer à ce moment
+_.require_studio_role  # studio_api/deps.py
+_.require_operator  # studio_api/deps.py
+_.studio_clause  # studio_api/services/authz.py
+
 # reset_engine — PC0 à vérifier : utilisé seulement par tests (test_events, client/test_cli) +
 # DEC-0018
 _.reset_engine  # studio_api/db/session.py

@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import StudioRole
 from studio_api.services import roadmaps
 from studio_api.services.authz import Principal
 from studio_contracts.auth import Role
@@ -92,7 +93,13 @@ async def _review(
     current = await roadmaps.get_roadmap(db_session, principal, roadmap_id)
     return await roadmaps.review_proposal(
         db_session,
-        dataclasses.replace(principal, role=role),
+        # The reviewer's authority is its studio role since DEC-0382: the global
+        # `admin` account role no longer grants provisioning rights on its own.
+        dataclasses.replace(
+            principal,
+            role=role,
+            studio_role=StudioRole.ADMIN if role == Role.ADMIN else principal.studio_role,
+        ),
         roadmap_id,
         revision_no,
         ProposalReview(decision=decision, expected_version=current.version, comment=comment),
