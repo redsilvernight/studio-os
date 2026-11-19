@@ -80,6 +80,7 @@ async def create_note(
         VaultNote,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -140,6 +141,7 @@ async def update_note(
         VaultNote,
         _update,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 

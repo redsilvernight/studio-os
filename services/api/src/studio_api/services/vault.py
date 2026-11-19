@@ -43,6 +43,8 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_project_access,
     forbidden,
+    project_in_active_studio,
+    studio_clause,
 )
 from studio_api.services.vault_secrets import scan as _scan_secrets
 
@@ -172,7 +174,7 @@ async def authorize_update(
     idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     _reject_secrets(_update_secret_fields(note_in))
     note = await session.get(VaultNoteModel, note_id)
-    if note is None:
+    if note is None or note.studio_id != principal.studio_id:
         raise note_not_found()
     target_status = note_in.status.value if note_in.status is not None else note.status
     _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
@@ -200,14 +202,20 @@ def _authorize_scope_write(
 
 
 def _authorize_read(principal: Principal, note: VaultNoteModel) -> None:
+    if note.studio_id != principal.studio_id:
+        # Another studio's note is unknown here: same 404 as a missing id.
+        raise note_not_found()
     if note.scope == VaultScope.PROJECT.value:
         if note.project_id is None:
             raise forbidden("project", "read")
         ensure_project_access(principal, note.project_id, "read")
 
 
-async def _ensure_slug_available(session: AsyncSession, note_in: VaultNoteCreate) -> None:
+async def _ensure_slug_available(
+    session: AsyncSession, principal: Principal, note_in: VaultNoteCreate
+) -> None:
     stmt = select(VaultNoteModel.id).where(
+        VaultNoteModel.studio_id == principal.studio_id,
         VaultNoteModel.scope == note_in.scope.value,
         VaultNoteModel.slug == note_in.slug,
         VaultNoteModel.status != VaultNoteStatus.ARCHIVED.value,
@@ -220,12 +228,13 @@ async def _ensure_slug_available(session: AsyncSession, note_in: VaultNoteCreate
 
 async def _validate_links(
     session: AsyncSession,
+    principal: Principal,
     source_project_id: uuid.UUID | None,
     links: list[VaultNoteLink],
 ) -> None:
     for link in links:
         target = await session.get(VaultNoteModel, link.target_note_id)
-        if target is None:
+        if target is None or target.studio_id != principal.studio_id:
             raise _invalid_link(link.target_note_id)
         if target.scope == VaultScope.PROJECT.value and target.project_id != source_project_id:
             raise _invalid_link(link.target_note_id)
@@ -282,12 +291,19 @@ async def create_note(
     author_type: VaultActorType = VaultActorType.USER,
 ) -> VaultNoteModel:
     authorize_create(principal, note_in)
-    await _ensure_slug_available(session, note_in)
-    await _validate_links(session, note_in.project_id, note_in.links)
+    project_id = note_in.project_id
+    if note_in.scope is VaultScope.PROJECT and (
+        project_id is None or not await project_in_active_studio(session, principal, project_id)
+    ):
+        # Missing and foreign projects answer the same 404 for a manager.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    await _ensure_slug_available(session, principal, note_in)
+    await _validate_links(session, principal, note_in.project_id, note_in.links)
     readable_id = (
         await _next_readable_id(session) if note_in.note_type is VaultNoteType.DECISION else None
     )
     note = VaultNoteModel(
+        studio_id=principal.studio_id,
         scope=note_in.scope.value,
         project_id=note_in.project_id,
         slug=note_in.slug,
@@ -334,10 +350,17 @@ async def read_note(
     return note
 
 
-async def _lock_note(session: AsyncSession, note_id: uuid.UUID) -> VaultNoteModel:
+async def _lock_note(
+    session: AsyncSession, principal: Principal, note_id: uuid.UUID
+) -> VaultNoteModel:
     note = (
         await session.execute(
-            select(VaultNoteModel).where(VaultNoteModel.id == note_id).with_for_update()
+            select(VaultNoteModel)
+            .where(
+                VaultNoteModel.id == note_id,
+                studio_clause(principal, VaultNoteModel.studio_id),
+            )
+            .with_for_update()
         )
     ).scalar_one_or_none()
     if note is None:
@@ -353,7 +376,7 @@ async def update_note(
     author_type: VaultActorType = VaultActorType.USER,
 ) -> VaultNoteModel:
     _reject_secrets(_update_secret_fields(note_in))
-    note = await _lock_note(session, note_id)
+    note = await _lock_note(session, principal, note_id)
     target_status = note_in.status.value if note_in.status is not None else note.status
     _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
     if note.version != note_in.expected_version:
@@ -362,7 +385,7 @@ async def update_note(
     current_links = await load_links(session, note.id)
     links = current_links if note_in.links is None else note_in.links
     if note_in.links is not None:
-        await _validate_links(session, note.project_id, note_in.links)
+        await _validate_links(session, principal, note.project_id, note_in.links)
 
     if note_in.title is not None:
         note.title = note_in.title
@@ -555,7 +578,7 @@ async def list_tree(
     limit: int,
     cursor: str | None,
 ) -> VaultTreePage:
-    stmt = select(VaultNoteModel)
+    stmt = select(VaultNoteModel).where(studio_clause(principal, VaultNoteModel.studio_id))
     if scope is VaultScope.STUDIO:
         stmt = stmt.where(VaultNoteModel.scope == VaultScope.STUDIO.value)
     elif scope is VaultScope.PROJECT:
@@ -752,7 +775,7 @@ def _search_filters(
     """Visibility, scope, type and status clauses shared by every search branch.
     With a `project_id` the reader sees the studio notes plus that project's
     notes; without, every note their memberships allow."""
-    filters: list[Any] = []
+    filters: list[Any] = [studio_clause(principal, VaultNoteModel.studio_id)]
     if scope is VaultScope.PROJECT and project_id is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"error_code": "missing_project_id"}

@@ -37,6 +37,7 @@ from studio_api.db.models.library import (
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
+from studio_api.db.models.studio import StudioMembershipModel
 from studio_api.services import library as library_service
 from studio_api.services import runtime_registry as registry_service
 from studio_api.services.authz import (
@@ -50,6 +51,7 @@ from studio_api.services.authz import (
     forbidden,
     has_any_project,
     has_project_access,
+    project_in_active_studio,
 )
 
 _STORED_LEVELS = {
@@ -73,10 +75,53 @@ def _not_found() -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, "runtime binding not found")
 
 
+def _studio_owner_clause(principal: Principal) -> ColumnElement[bool]:
+    """Owners that belong to the active studio. `runtime_bindings` carries no
+    `studio_id` (0046), so a shared level is attributed to its creator's
+    studio membership instead of a column."""
+    return RuntimeBindingModel.owner_user_id.in_(
+        select(StudioMembershipModel.user_id).where(
+            StudioMembershipModel.studio_id == principal.studio_id
+        )
+    )
+
+
+async def _owner_in_studio(
+    session: AsyncSession, principal: Principal, owner_user_id: UUID
+) -> bool:
+    return (
+        await session.scalar(
+            select(StudioMembershipModel.user_id).where(
+                StudioMembershipModel.user_id == owner_user_id,
+                StudioMembershipModel.studio_id == principal.studio_id,
+            )
+        )
+    ) is not None
+
+
+async def _in_active_studio(
+    session: AsyncSession, principal: Principal, binding: RuntimeBindingModel
+) -> bool:
+    """Whether a stored choice belongs to the active studio. Project levels
+    follow their project's studio; `user` and `studio_default` rows are
+    attributed to their owner's membership (no `studio_id` column)."""
+    if binding.project_id is not None:
+        studio_id = await session.scalar(
+            select(ProjectModel.studio_id).where(ProjectModel.id == binding.project_id)
+        )
+        return studio_id == principal.studio_id
+    if binding.level in (RuntimeLevel.USER.value, RuntimeLevel.STUDIO_DEFAULT.value):
+        if binding.level == RuntimeLevel.USER.value and binding.owner_user_id == principal.user.id:
+            return True
+        return await _owner_in_studio(session, principal, binding.owner_user_id)
+    return True
+
+
 def _is_visible(principal: Principal, binding: RuntimeBindingModel) -> bool:
     """`user` bindings are owner-or-admin only (same 404-masking as user
     library resources); project levels follow their project, the studio
-    default needs at least one project (DEC-0103 §4/§11)."""
+    default needs at least one project (DEC-0103 §4/§11). The studio bound
+    is checked by `_in_active_studio` before this runs."""
     if binding.level == RuntimeLevel.USER.value:
         return principal.role == Role.ADMIN or binding.owner_user_id == principal.user.id
     if binding.project_id is not None:
@@ -107,23 +152,56 @@ def authorize_create(principal: Principal, level: RuntimeLevel, project_id: UUID
         ensure_can_write(principal, "runtime_binding")
 
 
-def _read_clause(principal: Principal) -> ColumnElement[bool] | None:
-    """SQL twin of `_is_visible`; `None` means no filter (admin)."""
-    if principal.role == Role.ADMIN:
-        return None
+def _read_clause(principal: Principal) -> ColumnElement[bool]:
+    """SQL twin of `_is_visible`, always bounded by the active studio: a
+    project level follows its project's studio, a shared level follows its
+    owner's membership (no `studio_id` column to filter on)."""
     own = and_(
         RuntimeBindingModel.level == RuntimeLevel.USER.value,
         RuntimeBindingModel.owner_user_id == principal.user.id,
     )
+    shared_owner = _studio_owner_clause(principal)
+    project_levels = and_(
+        RuntimeBindingModel.level != RuntimeLevel.USER.value,
+        RuntimeBindingModel.project_id.is_not(None),
+    )
+    studio_default = and_(
+        RuntimeBindingModel.level == RuntimeLevel.STUDIO_DEFAULT.value,
+        shared_owner,
+    )
     scope = principal.project_scope
+    if principal.role == Role.ADMIN:
+        return or_(
+            own,
+            and_(
+                project_levels,
+                RuntimeBindingModel.project_id.in_(
+                    select(ProjectModel.id).where(ProjectModel.studio_id == principal.studio_id)
+                ),
+            ),
+            studio_default,
+            and_(
+                RuntimeBindingModel.level == RuntimeLevel.USER.value,
+                shared_owner,
+            ),
+        )
     if isinstance(scope, StudioWide):
-        return or_(own, RuntimeBindingModel.level != RuntimeLevel.USER.value)
+        return or_(
+            own,
+            and_(
+                project_levels,
+                RuntimeBindingModel.project_id.in_(
+                    select(ProjectModel.id).where(ProjectModel.studio_id == principal.studio_id)
+                ),
+            ),
+            studio_default,
+        )
     if not scope:
         return own
     return or_(
         own,
         RuntimeBindingModel.project_id.in_(scope),
-        RuntimeBindingModel.level == RuntimeLevel.STUDIO_DEFAULT.value,
+        studio_default,
     )
 
 
@@ -145,7 +223,7 @@ async def _checked_target(
         ):
             raise _invalid_runtime_binding("runtime_id_must_be_exclusive")
         runtime = await session.get(RuntimeModel, target.runtime_id)
-        if runtime is None:
+        if runtime is None or runtime.studio_id != principal.studio_id:
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, detail={"error_code": "runtime_not_found"}
             )
@@ -163,15 +241,20 @@ async def _checked_target(
         raise forbidden("runtime_binding", "bind")
 
 
-async def _effective_target(session: AsyncSession, target: RuntimeTarget) -> RuntimeTarget | None:
+async def _effective_target(
+    session: AsyncSession, target: RuntimeTarget, studio_id: UUID | None = None
+) -> RuntimeTarget | None:
     """Resolves a stored/session choice to its effective target. A
     `runtime_id` reference is canonical: identity, refs and capabilities
     come from the Registry row (P6/DEC-0070). A revoked/removed runtime —
     like a deleted or credential-revoked machine — is non-live: the level
     falls through to the next one, never a hard error and never a silent
-    use of a dead target."""
+    use of a dead target. With a `studio_id`, another studio's runtime is
+    non-live too (it can never be selected across tenants)."""
     if target.runtime_id is not None:
-        row, live = await registry_service.resolve_effective_target(session, target.runtime_id)
+        row, live = await registry_service.resolve_effective_target(
+            session, target.runtime_id, studio_id
+        )
         if not live or row is None:
             return None
         return RuntimeTarget(
@@ -216,7 +299,7 @@ async def create_binding(
         ensure_can_write(principal, "runtime_binding")
         if data.project_id is None:
             raise _invalid_runtime_binding("missing_project")
-        if await session.get(ProjectModel, data.project_id) is None:
+        if not await project_in_active_studio(session, principal, data.project_id):
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, detail={"error_code": "project_not_found"}
             )
@@ -253,6 +336,9 @@ async def get_binding(
     both map to 404, never a leak."""
     binding = await session.get(RuntimeBindingModel, binding_id)
     if binding is None:
+        return None
+    if not await _in_active_studio(session, principal, binding):
+        # Another studio's binding answers exactly like an unknown id.
         return None
     _ensure_level_scope(principal, binding.level, binding.project_id, "read")
     if not _is_visible(principal, binding):
@@ -325,6 +411,7 @@ async def _stored_choice(
     stable_key: str,
     owner_id: UUID | None = None,
     project_id: UUID | None = None,
+    studio_id: UUID | None = None,
 ) -> RuntimeTarget | None:
     conditions = [
         RuntimeBindingModel.level == level.value,
@@ -335,6 +422,20 @@ async def _stored_choice(
         conditions.append(RuntimeBindingModel.owner_user_id == owner_id)
     if project_id is not None:
         conditions.append(RuntimeBindingModel.project_id == project_id)
+        if studio_id is not None:
+            conditions.append(
+                RuntimeBindingModel.project_id.in_(
+                    select(ProjectModel.id).where(ProjectModel.studio_id == studio_id)
+                )
+            )
+    if level == RuntimeLevel.STUDIO_DEFAULT and studio_id is not None:
+        conditions.append(
+            RuntimeBindingModel.owner_user_id.in_(
+                select(StudioMembershipModel.user_id).where(
+                    StudioMembershipModel.studio_id == studio_id
+                )
+            )
+        )
     row = (
         await session.execute(select(RuntimeBindingModel).where(and_(*conditions)))
     ).scalar_one_or_none()
@@ -363,7 +464,7 @@ async def load_candidates(
         candidate = overrides.get((key_kind, key_name))
         if candidate is not None:
             await _checked_target(session, principal, candidate)
-            effective = await _effective_target(session, candidate)
+            effective = await _effective_target(session, candidate, principal.studio_id)
             if effective is not None:
                 candidates.append(
                     RuntimeCandidate(
@@ -391,12 +492,19 @@ async def load_candidates(
                 )
             elif scoped:
                 stored = await _stored_choice(
-                    session, level, key_kind, key_name, project_id=project_id
+                    session,
+                    level,
+                    key_kind,
+                    key_name,
+                    project_id=project_id,
+                    studio_id=principal.studio_id,
                 )
             else:
-                stored = await _stored_choice(session, level, key_kind, key_name)
+                stored = await _stored_choice(
+                    session, level, key_kind, key_name, studio_id=principal.studio_id
+                )
             if stored is not None:
-                effective = await _effective_target(session, stored)
+                effective = await _effective_target(session, stored, principal.studio_id)
                 candidates.append(
                     RuntimeCandidate(
                         level=level,

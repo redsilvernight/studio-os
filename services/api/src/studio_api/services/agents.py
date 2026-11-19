@@ -68,6 +68,7 @@ async def resolve_identity(
     statement = (
         insert(AgentModel)
         .values(
+            studio_id=principal.studio_id,
             owner_user_id=principal.user.id,
             machine_id=principal.machine.id,
             display_name=model,
@@ -141,6 +142,7 @@ async def create_agent(
                 status.HTTP_409_CONFLICT, detail={"error_code": "duplicate_stable_key"}
             )
     agent = AgentModel(
+        studio_id=principal.studio_id,
         machine_id=principal.machine.id,
         display_name=agent_in.display_name,
         agent_kind=agent_in.agent_kind,
@@ -187,6 +189,7 @@ async def ensure_agent(
                 )
             return existing, False
     agent = AgentModel(
+        studio_id=principal.studio_id,
         machine_id=principal.machine.id,
         display_name=agent_in.display_name,
         agent_kind=agent_in.agent_kind,
@@ -336,7 +339,12 @@ async def supersede_identity(
         raise HTTPException(409, detail={"error_code": "invalid_identity_link"})
     legacy = await session.get(AgentModel, agent_id)
     canonical = await session.get(AgentModel, canonical_agent_id)
-    if legacy is None or canonical is None:
+    if (
+        legacy is None
+        or canonical is None
+        or legacy.studio_id != principal.studio_id
+        or canonical.studio_id != principal.studio_id
+    ):
         raise HTTPException(404, detail={"error_code": "not_found"})
     if canonical.owner_user_id is None or canonical.superseded_by_agent_id is not None:
         raise HTTPException(

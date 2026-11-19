@@ -46,6 +46,7 @@ from studio_api.services.authz import (
     forbidden,
     get_launch_scope,
     owns_agent,
+    project_in_active_studio,
     project_visibility_clause,
 )
 from studio_api.services.usage_subscriptions import ShareAccumulator, subscription_shares
@@ -98,7 +99,7 @@ async def validate_identity(
     ensure_project_access(principal, entry.project_id, "write")
     _ensure_own_machine(principal, entry.machine_id)
     validate_measurements(entry)
-    if await session.get(ProjectModel, entry.project_id) is None:
+    if not await project_in_active_studio(session, principal, entry.project_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
 
     task_ids: set[uuid.UUID] = set()
@@ -594,7 +595,11 @@ async def summarize_usage(
         )
     entry = UsageLedgerEntryModel
     groups = _group_columns(group_by)
-    scope: list[Any] = []
+    scope: list[Any] = [
+        entry.project_id.in_(
+            select(ProjectModel.id).where(ProjectModel.studio_id == principal.studio_id)
+        )
+    ]
     if task_id is not None:
         scope.append(entry.task_id == task_id)
     if task_launch_id is not None:

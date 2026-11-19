@@ -95,6 +95,7 @@ async def create_decision(
         Decision,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 

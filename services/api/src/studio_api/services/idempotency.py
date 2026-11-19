@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -20,6 +21,17 @@ _PENDING_RECLAIM_SECONDS = 30.0
 
 def hash_request(body: bytes) -> str:
     return hashlib.sha256(body).hexdigest()
+
+
+def _scoped_endpoint(endpoint: str, studio_id: uuid.UUID | None) -> str:
+    """`idempotency_keys` carries no `studio_id` (0046), so the tenant is
+    part of the reserved key: the same `Idempotency-Key` used in two studios
+    reserves two independent rows and can never replay the other studio's
+    stored response (DEC-0382). The HTTP/MCP namespace rule is unchanged for
+    a single studio."""
+    if studio_id is None:
+        return endpoint
+    return f"{studio_id}:{endpoint}"
 
 
 async def _get_row(
@@ -175,6 +187,8 @@ async def run_idempotent_dict(
     request_hash: str,
     create: Callable[[], Awaitable[dict[str, Any]]],
     response_status: int = 200,
+    *,
+    studio_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     """Core reservation/replay logic, independent of FastAPI's `Request` and
     of any particular Pydantic response model — the piece `run_idempotent`
@@ -195,6 +209,7 @@ async def run_idempotent_dict(
     if idempotency_key is None:
         return await create()
 
+    endpoint = _scoped_endpoint(endpoint, studio_id)
     won = await _reserve(session, idempotency_key, endpoint, request_hash)
     if not won:
         won = await _reclaim_if_abandoned(session, idempotency_key, endpoint, request_hash)
@@ -222,6 +237,8 @@ async def run_idempotent[ModelT](
     response_model: type[ModelT],
     create: Callable[[], Awaitable[ModelT]],
     status_code: int,
+    *,
+    studio_id: uuid.UUID | None = None,
 ) -> ModelT:
     """Shared replay logic for a POST that supports the `Idempotency-Key`
     header (.claude/rules/contracts.md) — used by tasks/claims/decisions/
@@ -250,6 +267,12 @@ async def run_idempotent[ModelT](
         return cast(dict[str, Any], result.model_dump(mode="json"))  # type: ignore[attr-defined]
 
     dumped = await run_idempotent_dict(
-        session, idempotency_key, endpoint, request_hash, _create_dict, status_code
+        session,
+        idempotency_key,
+        endpoint,
+        request_hash,
+        _create_dict,
+        status_code,
+        studio_id=studio_id,
     )
     return cast(ModelT, response_model.model_validate(dumped))  # type: ignore[attr-defined]

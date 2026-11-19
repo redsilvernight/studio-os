@@ -290,6 +290,19 @@ def scope_contains(scope: ProjectScope, project_id: uuid.UUID) -> bool:
     return isinstance(scope, StudioWide) or project_id in scope
 
 
+async def project_in_active_studio(
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID
+) -> bool:
+    """Whether `project_id` belongs to the active studio. A manager's
+    `StudioWide` scope holds any id, so every service that accepts a project id
+    from a caller verifies the project row here; a foreign project is then
+    answered by the caller exactly like a missing one (DEC-0382)."""
+    studio_id = await session.scalar(
+        select(ProjectModel.studio_id).where(ProjectModel.id == project_id)
+    )
+    return studio_id == principal.studio_id
+
+
 def has_any_project(principal: Principal) -> bool:
     """Shared data without a project (global decisions, Studio Library and
     bindings, project-less transfers) is readable only by a studio manager or a

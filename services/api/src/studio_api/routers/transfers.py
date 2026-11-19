@@ -107,6 +107,7 @@ async def create_transfer(
         Transfer,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -129,7 +130,7 @@ async def get_consumption(
 ) -> TransferConsumption:
     transfers_service.ensure_transfer_scope(principal, project_id)
     settings = get_settings()
-    consumed = await transfers_service.compute_consumption(session, project_id)
+    consumed = await transfers_service.compute_consumption(session, project_id, principal.studio_id)
     quota = settings.transfer_project_quota_bytes
     return TransferConsumption(
         project_id=project_id,

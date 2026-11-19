@@ -48,11 +48,16 @@ def _author_type(decision: DecisionModel) -> VaultActorType:
     return VaultActorType.AGENT if decision.proposed_by_type == "agent" else VaultActorType.USER
 
 
-async def _note_for(session: AsyncSession, readable_id: str) -> VaultNoteModel | None:
+async def _note_for(
+    session: AsyncSession, readable_id: str, studio_id: uuid.UUID
+) -> VaultNoteModel | None:
     return (
         await session.execute(
             select(VaultNoteModel)
-            .where(VaultNoteModel.readable_id == readable_id)
+            .where(
+                VaultNoteModel.readable_id == readable_id,
+                VaultNoteModel.studio_id == studio_id,
+            )
             .with_for_update()
         )
     ).scalar_one_or_none()
@@ -68,6 +73,7 @@ async def stage_note(
     note_status = _NOTE_STATUS[decision.status].value
     anchors = [f"task:{decision.task_id}"] if decision.task_id is not None else []
     note = VaultNoteModel(
+        studio_id=decision.studio_id,
         scope=_scope(decision).value,
         project_id=decision.project_id,
         slug=_slug("decisions", decision.readable_id, decision.title),
@@ -94,7 +100,7 @@ async def sync_status(
 ) -> VaultNoteModel:
     """Bring the decision's note to the decision's status, creating the note
     when the decision predates the vault (no commit)."""
-    note = await _note_for(session, decision.readable_id)
+    note = await _note_for(session, decision.readable_id, decision.studio_id)
     if note is None:
         return await stage_note(session, decision, author_id)
     target = _NOTE_STATUS[decision.status].value
@@ -122,7 +128,7 @@ async def link_supersedes(
     (no commit). A studio note cannot point at a project note."""
     if old_note.scope == VaultScope.PROJECT.value and replacement.project_id != old_note.project_id:
         raise invalid_supersede_link("replacement decision is outside the superseded one's project")
-    new_note = await _note_for(session, replacement.readable_id)
+    new_note = await _note_for(session, replacement.readable_id, replacement.studio_id)
     if new_note is None:
         new_note = await stage_note(session, replacement, author_id)
     links = await load_links(session, new_note.id)

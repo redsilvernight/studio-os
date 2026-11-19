@@ -69,6 +69,8 @@ from studio_api.services.authz import (
     forbidden,
     has_any_project,
     has_project_access,
+    project_in_active_studio,
+    studio_clause,
 )
 
 _LIBRARY_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os:library")
@@ -77,7 +79,10 @@ _LIBRARY_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os:library")
 def _can_read(principal: Principal, resource: LibraryResourceModel) -> bool:
     """User definitions are owner-or-admin only (DEC-0063); Project ones
     follow their project, Studio ones need at least one project (DEC-0103
-    §4/§11, composed by AND)."""
+    §4/§11, composed by AND). Every level is additionally bounded by the
+    active studio (DEC-0382)."""
+    if resource.studio_id != principal.studio_id:
+        return False
     if resource.scope == "user":
         return principal.role == Role.ADMIN or resource.owner_user_id == principal.user.id
     if resource.project_id is not None:
@@ -138,6 +143,9 @@ async def get_resource(
     inaccessible project answers 403 first (DEC-0103 §8)."""
     resource = await session.get(LibraryResourceModel, resource_id)
     if resource is None:
+        return None
+    if resource.studio_id != principal.studio_id:
+        # Another studio's resource answers exactly like an unknown id.
         return None
     ensure_resource_scope(principal, resource)
     if not _can_read(principal, resource):
@@ -232,6 +240,7 @@ async def list_resources(
     if project_id is not None:
         ensure_project_access(principal, project_id)
         conditions.append(LibraryResourceModel.project_id == project_id)
+    conditions.append(studio_clause(principal, LibraryResourceModel.studio_id))
     if (visible := _read_clause(principal)) is not None:
         conditions.append(visible)
     stmt = (
@@ -255,6 +264,7 @@ async def _resolve_pin(
     resource visible to the caller, otherwise the dependency is ambiguous
     (409) or unknown (404, same shape as missing — never a leak)."""
     stmt = select(LibraryResourceModel).where(
+        LibraryResourceModel.studio_id == principal.studio_id,
         LibraryResourceModel.kind == pin.kind.value,
         LibraryResourceModel.stable_key == pin.stable_key,
     )
@@ -662,7 +672,10 @@ async def _emit_library_event(
 
 def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
     """Project then role check of a definition mutation, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12). Another
+    studio's resource is unknown here (404)."""
+    if resource.studio_id != principal.studio_id:
+        raise _not_found()
     ensure_resource_scope(principal, resource, "write")
     ensure_can_write(principal, "library")
     if resource.scope == "studio":
@@ -723,7 +736,7 @@ async def create_resource(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "invalid_scope_context"},
             )
-        if await session.get(ProjectModel, data.project_id) is None:
+        if not await project_in_active_studio(session, principal, data.project_id):
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, detail={"error_code": "project_not_found"}
             )
@@ -741,6 +754,7 @@ async def create_resource(
     owner_id = principal.user.id
 
     resource = LibraryResourceModel(
+        studio_id=principal.studio_id,
         kind=data.kind.value,
         stable_key=data.stable_key,
         scope=data.scope.value,
@@ -1015,7 +1029,8 @@ async def batch_get_versions(
         .all()
     }
     for resource in resources.values():
-        ensure_resource_scope(principal, resource)
+        if resource.studio_id == principal.studio_id:
+            ensure_resource_scope(principal, resource)
     readable = {rid for rid, resource in resources.items() if _can_read(principal, resource)}
     rows = {
         (row.resource_id, row.version): row
@@ -1041,8 +1056,20 @@ async def batch_get_versions(
     return [resolved[(ref.resource_id, ref.version)] for ref in refs]
 
 
-async def get_lock(session: AsyncSession, lock_id: UUID) -> LibraryProjectLockModel | None:
-    return await session.get(LibraryProjectLockModel, lock_id)
+async def get_lock(
+    session: AsyncSession, lock_id: UUID, principal: Principal | None = None
+) -> LibraryProjectLockModel | None:
+    """One project lock. With a `principal`, a lock whose project belongs to
+    another studio is unknown (`None` → 404), never a 403 oracle."""
+    lock = await session.get(LibraryProjectLockModel, lock_id)
+    if lock is None or principal is None:
+        return lock
+    studio_id = await session.scalar(
+        select(ProjectModel.studio_id).where(ProjectModel.id == lock.project_id)
+    )
+    if studio_id != principal.studio_id:
+        return None
+    return lock
 
 
 async def version_detail(
@@ -1099,6 +1126,12 @@ async def list_locks(
         LibraryResourceModel,
         LibraryProjectLockModel.resource_id == LibraryResourceModel.id,
     )
+    stmt = stmt.where(studio_clause(principal, LibraryResourceModel.studio_id))
+    stmt = stmt.where(
+        LibraryProjectLockModel.project_id.in_(
+            select(ProjectModel.id).where(ProjectModel.studio_id == principal.studio_id)
+        )
+    )
     if project_id is not None:
         ensure_project_access(principal, project_id)
         stmt = stmt.where(LibraryProjectLockModel.project_id == project_id)
@@ -1113,7 +1146,7 @@ async def set_lock(
     session: AsyncSession, principal: Principal, data: LibraryLockCreate
 ) -> LibraryProjectLockModel:
     authorize_lock(principal, data.project_id)
-    if await session.get(ProjectModel, data.project_id) is None:
+    if not await project_in_active_studio(session, principal, data.project_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"error_code": "project_not_found"})
     resource = await session.get(LibraryResourceModel, data.resource_id)
     if resource is None or not _can_read(principal, resource):
@@ -1244,6 +1277,7 @@ async def _resolve_inner(
     project_id: UUID | None,
 ) -> LibraryResolution:
     stmt = select(LibraryResourceModel).where(
+        LibraryResourceModel.studio_id == principal.studio_id,
         LibraryResourceModel.kind == kind.value,
         LibraryResourceModel.stable_key == stable_key,
     )

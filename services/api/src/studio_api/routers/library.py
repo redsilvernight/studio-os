@@ -126,6 +126,7 @@ async def create_library_resource(
         LibraryResource,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -245,6 +246,7 @@ async def apply_library_merge(
         LibraryResource,
         _apply,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 
@@ -324,6 +326,7 @@ async def create_library_version(
         LibraryVersion,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -376,6 +379,7 @@ async def activate_library_version(
         LibraryResource,
         _activate,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 
@@ -424,6 +428,7 @@ async def deprecate_library_resource(
         LibraryResource,
         _deprecate,
         status.HTTP_200_OK,
+        studio_id=principal.studio_id,
     )
 
 
@@ -486,6 +491,7 @@ async def set_library_lock(
         LibraryProjectLock,
         _create,
         status.HTTP_201_CREATED,
+        studio_id=principal.studio_id,
     )
 
 
@@ -498,7 +504,7 @@ async def set_library_lock(
 async def release_library_lock(
     lock_id: UUID, session: DbSession, principal: CurrentPrincipal
 ) -> LibraryProjectLock:
-    lock = await library_service.get_lock(session, lock_id)
+    lock = await library_service.get_lock(session, lock_id, principal)
     if lock is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library lock not found")
     return await library_service.release_lock(session, principal, lock)
