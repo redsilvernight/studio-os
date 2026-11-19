@@ -23,8 +23,10 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    ensure_project_in_studio,
     get_launch_scope,
     owns_agent,
+    project_in_active_studio,
     project_visibility_clause,
 )
 from studio_api.settings import Settings
@@ -139,12 +141,13 @@ async def _ensure_task_project_access(
 ) -> None:
     """A session has no project of its own: it is visible through
     session -> task -> project only (DEC-0103 §11). An unknown task has no
-    project to check; the caller's own not-found handling applies."""
+    project to check; the caller's own not-found handling applies. A task of
+    another studio's project answers like an unknown project."""
     if task_id is None:
         return
     task = await tasks_service.get_task(session, task_id)
     if task is not None:
-        ensure_project_access(principal, task.project_id, action)
+        await ensure_project_in_studio(session, principal, task.project_id, action)
 
 
 async def list_sessions(
@@ -164,6 +167,8 @@ async def list_sessions(
     )
     if project_id is not None:
         ensure_project_access(principal, project_id)
+        if not await project_in_active_studio(session, principal, project_id):
+            return []
         stmt = stmt.where(
             WorkSessionModel.task_id.in_(
                 select(TaskModel.id).where(TaskModel.project_id == project_id)

@@ -318,6 +318,42 @@ def ensure_shared_access(principal: Principal, action: ProjectAction = "read") -
         raise forbidden("project", action)
 
 
+def project_not_found(project_id: uuid.UUID) -> HTTPException:
+    """The lookup answer of a project id: identical for an unknown id and for
+    an id owned by another studio, which does not exist from the active
+    studio (DEC-0382)."""
+    return HTTPException(
+        status.HTTP_404_NOT_FOUND,
+        detail={"error_code": "not_found", "message": f"project {project_id} not found"},
+    )
+
+
+async def project_in_active_studio(
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID
+) -> bool:
+    """Whether that id is a project of the active studio. A missing project is
+    not: the caller's own not-found handling applies."""
+    studio_id = await session.scalar(
+        select(ProjectModel.studio_id).where(ProjectModel.id == project_id)
+    )
+    return studio_id == principal.studio_id
+
+
+async def ensure_project_in_studio(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    action: ProjectAction = "read",
+) -> None:
+    """`ensure_project_access` plus the tenant check a bare project id cannot
+    carry: the project must belong to the active studio. Access runs first, so
+    a caller with no access at all keeps its 403; a project of another studio
+    then answers like an unknown one."""
+    ensure_project_access(principal, project_id, action)
+    if not await project_in_active_studio(session, principal, project_id):
+        raise project_not_found(project_id)
+
+
 def studio_clause(
     principal: Principal,
     column: Any,

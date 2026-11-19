@@ -20,7 +20,9 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    ensure_project_in_studio,
     owns_agent,
+    project_in_active_studio,
     project_visibility_clause,
 )
 
@@ -52,6 +54,9 @@ async def list_tasks(
     if project_id is not None:
         ensure_project_access(principal, project_id)
         stmt = stmt.where(TaskModel.project_id == project_id)
+        visible = project_visibility_clause(principal, TaskModel.project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     elif (visible := project_visibility_clause(principal, TaskModel.project_id)) is not None:
         stmt = stmt.where(visible)
     if statuses:
@@ -73,10 +78,13 @@ async def read_task(
     session: AsyncSession, principal: Principal, task_id: uuid.UUID
 ) -> TaskModel | None:
     """`get_task` for a read surface: a task of an inaccessible project
-    answers the project 403 (DEC-0103 §8)."""
+    answers the project 403 (DEC-0103 §8), and a task of another studio's
+    project answers like an unknown task."""
     task = await session.get(TaskModel, task_id)
     if task is not None:
         ensure_project_access(principal, task.project_id)
+        if not await project_in_active_studio(session, principal, task.project_id):
+            return None
     return task
 
 
@@ -136,6 +144,7 @@ async def add_task(session: AsyncSession, principal: Principal, task_in: TaskCre
     flushes so its id exists, leaving the transaction to the caller — used by
     units of work (Roadmap hydration) that must create several Tasks atomically."""
     authorize_create(principal, task_in.project_id)
+    await ensure_project_in_studio(session, principal, task_in.project_id, "write")
     task = TaskModel(
         project_id=task_in.project_id, title=task_in.title, description=task_in.description
     )
@@ -161,7 +170,7 @@ async def update_task(
     task_in: TaskUpdate,
     expected_version: int,
 ) -> TaskModel:
-    ensure_project_access(principal, task.project_id, "write")
+    await ensure_project_in_studio(session, principal, task.project_id, "write")
     ensure_can_write(principal, "task")
     await session.refresh(task, with_for_update=True)
     if task.version != expected_version:
@@ -224,6 +233,7 @@ async def claim_task(
     completed task with the same holder is a real (re)claim
     (version bump + `task.started`)."""
     authorize_claim(principal, task)
+    await ensure_project_in_studio(session, principal, task.project_id, "write")
     await session.refresh(task, with_for_update=True)
     if task.claimed_by_machine_id is not None and (
         task.claimed_by_machine_id != machine_id or task.claimed_by_agent_id != agent_id
@@ -259,7 +269,7 @@ async def release_task(
     """`expected_version` is optional: when given, a stale version is rejected
     with `version_conflict` (like `update_task`) instead of releasing a claim
     taken since the caller's read."""
-    ensure_project_access(principal, task.project_id, "write")
+    await ensure_project_in_studio(session, principal, task.project_id, "write")
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
     await session.refresh(task, with_for_update=True)
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")

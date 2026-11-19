@@ -20,6 +20,7 @@ from studio_api.services.authz import (
     ensure_can_write,
     ensure_machine_owned,
     ensure_project_access,
+    ensure_project_in_studio,
     forbidden,
     owns_agent,
     project_visibility_clause,
@@ -79,6 +80,9 @@ async def list_ai_work(
     if project_id is not None:
         ensure_project_access(principal, project_id)
         stmt = stmt.where(AIWorkLogModel.project_id == project_id)
+        visible = project_visibility_clause(principal, AIWorkLogModel.project_id)
+        if visible is not None:
+            stmt = stmt.where(visible)
     elif (visible := project_visibility_clause(principal, AIWorkLogModel.project_id)) is not None:
         stmt = stmt.where(visible)
     if task_id is not None:
@@ -137,6 +141,7 @@ async def create_ai_work(
     session: AsyncSession, principal: Principal, work_in: AIWorkLogCreate
 ) -> AIWorkLogModel:
     authorize_create(principal, work_in.project_id)
+    await ensure_project_in_studio(session, principal, work_in.project_id, "write")
     agent = await session.get(AgentModel, work_in.agent_id)
     if not owns_agent(agent, principal.machine):
         raise HTTPException(
@@ -238,7 +243,7 @@ def _ensure_can_resolve_review(
 async def update_ai_work(
     session: AsyncSession, principal: Principal, work: AIWorkLogModel, work_in: AIWorkLogUpdate
 ) -> AIWorkLogModel:
-    ensure_project_access(principal, work.project_id, "write")
+    await ensure_project_in_studio(session, principal, work.project_id, "write")
     previous_status = work.status
     if work_in.status in _REVIEW_RESOLUTIONS:
         _ensure_can_resolve_review(principal, work, work_in.status)

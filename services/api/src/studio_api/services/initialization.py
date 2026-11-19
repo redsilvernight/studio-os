@@ -535,7 +535,12 @@ class StudioServicesInitializationTarget:
 
     async def create_project(self, spec: InitializationProjectSpec) -> UUID:
         project = await projects_service.create_project(
-            self._session, spec.slug, spec.name, spec.description, creator=self._principal.user
+            self._session,
+            spec.slug,
+            spec.name,
+            spec.description,
+            creator=self._principal.user,
+            studio_id=self._principal.studio_id,
         )
         self._principal = with_created_project(self._principal, project.id)
         if spec.repository is not None:
