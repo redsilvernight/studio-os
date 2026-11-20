@@ -40,6 +40,7 @@ from httpx import ASGITransport
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.services import launch_grants as grants_service
@@ -200,7 +201,10 @@ async def _fleet(db_session: AsyncSession) -> SimpleNamespace:
         db_session, user_a.id, "machine-a"
     )
     agent_a = AgentModel(
-        machine_id=machine_a.id, display_name="machine-a", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine_a.id,
+        display_name="machine-a",
+        agent_kind="claude_code",
     )
     db_session.add(agent_a)
     await db_session.flush()
@@ -213,7 +217,10 @@ async def _fleet(db_session: AsyncSession) -> SimpleNamespace:
         db_session, user_b.id, "machine-b"
     )
     agent_b = AgentModel(
-        machine_id=machine_b.id, display_name="machine-b", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine_b.id,
+        display_name="machine-b",
+        agent_kind="claude_code",
     )
     db_session.add(agent_b)
     await db_session.flush()

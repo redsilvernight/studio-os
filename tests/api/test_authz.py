@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.user import UserModel
 from studio_api.services import provisioning as provisioning_service
 
@@ -75,7 +76,10 @@ async def test_readonly_cannot_log_ai_work(
     db_session: AsyncSession,
 ) -> None:
     agent = AgentModel(
-        machine_id=readonly_machine[0].id, display_name="ro-agent", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=readonly_machine[0].id,
+        display_name="ro-agent",
+        agent_kind="claude_code",
     )
     db_session.add(agent)
     await db_session.flush()
@@ -286,7 +290,10 @@ async def test_ai_work_patch_by_non_owning_machine_is_forbidden(
     db_session: AsyncSession,
 ) -> None:
     agent = AgentModel(
-        machine_id=machine[0].id, display_name="owner-agent", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine[0].id,
+        display_name="owner-agent",
+        agent_kind="claude_code",
     )
     db_session.add(agent)
     await db_session.flush()

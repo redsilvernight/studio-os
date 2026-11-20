@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.task import TaskModel
 
 from tests.api.test_sync import (
@@ -189,7 +190,9 @@ async def test_target_outside_project_rejected(
     db_session: AsyncSession,
 ) -> None:
     _task_row, mine, _theirs, _sh = await _world(client, auth_headers, machine, project, db_session)
-    other_project = ProjectModel(slug=f"other-{uuid.uuid4().hex[:8]}", name="Other")
+    other_project = ProjectModel(
+        studio_id=INTERNAL_STUDIO_ID, slug=f"other-{uuid.uuid4().hex[:8]}", name="Other"
+    )
     db_session.add(other_project)
     await db_session.flush()
     foreign = TaskModel(project_id=other_project.id, title="foreign")
@@ -320,6 +323,7 @@ async def test_same_machine_sessions_receive_each_other(
 
 async def _decision(db_session: AsyncSession, project_id: uuid.UUID) -> DecisionModel:
     decision = DecisionModel(
+        studio_id=INTERNAL_STUDIO_ID,
         readable_id=f"DEC-T{uuid.uuid4().hex[:8]}",
         project_id=project_id,
         title="d",
@@ -340,7 +344,9 @@ async def test_decision_refs_must_exist_in_the_emitters_project(
     db_session: AsyncSession,
 ) -> None:
     task, mine, _theirs, _sh = await _world(client, auth_headers, machine, project, db_session)
-    other_project = ProjectModel(slug=f"other-{uuid.uuid4().hex[:8]}", name="Other")
+    other_project = ProjectModel(
+        studio_id=INTERNAL_STUDIO_ID, slug=f"other-{uuid.uuid4().hex[:8]}", name="Other"
+    )
     db_session.add(other_project)
     await db_session.flush()
     foreign = await _decision(db_session, other_project.id)

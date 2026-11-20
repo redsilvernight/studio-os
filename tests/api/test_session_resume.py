@@ -246,7 +246,10 @@ async def test_model_change_closes_the_previous_identity_session(
     principal = await _principal(db_session, machine, project)
     task_id = await _task_id(client, auth_headers, project)
     other_agent = AgentModel(
-        machine_id=machine_model.id, display_name="other-model", agent_kind="model"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine_model.id,
+        display_name="other-model",
+        agent_kind="model",
     )
     db_session.add(other_agent)
     await db_session.commit()

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.vault import (
     VaultNoteLinkModel,
     VaultNoteModel,
@@ -42,7 +43,7 @@ def _note(**overrides: object) -> VaultNoteModel:
         "author_id": uuid.uuid4(),
     }
     fields.update(overrides)
-    return VaultNoteModel(**fields)
+    return VaultNoteModel(studio_id=INTERNAL_STUDIO_ID, **fields)
 
 
 async def _rejected(session: AsyncSession, note: VaultNoteModel) -> None:
@@ -89,7 +90,9 @@ async def test_value_constraints(db_session: AsyncSession, overrides: dict[str, 
 async def test_slug_unique_per_scope_outside_archived(
     db_session: AsyncSession, project: ProjectModel
 ) -> None:
-    other = ProjectModel(slug=f"other-{uuid.uuid4().hex[:8]}", name="Other")
+    other = ProjectModel(
+        studio_id=INTERNAL_STUDIO_ID, slug=f"other-{uuid.uuid4().hex[:8]}", name="Other"
+    )
     db_session.add(other)
     await db_session.flush()
 
@@ -256,7 +259,14 @@ async def test_concurrent_decision_numbers_never_collide_across_tables(
     session_factory = async_sessionmaker(real_engine, expire_on_commit=False)
     project_id = uuid.uuid4()
     async with session_factory() as setup:
-        setup.add(ProjectModel(id=project_id, slug=f"vault-{uuid.uuid4().hex[:8]}", name="Vault"))
+        setup.add(
+            ProjectModel(
+                studio_id=INTERNAL_STUDIO_ID,
+                id=project_id,
+                slug=f"vault-{uuid.uuid4().hex[:8]}",
+                name="Vault",
+            )
+        )
         await setup.commit()
 
     async def _next_id(session: AsyncSession) -> str:
@@ -280,6 +290,7 @@ async def test_concurrent_decision_numbers_never_collide_across_tables(
             else:
                 session.add(
                     DecisionModel(
+                        studio_id=INTERNAL_STUDIO_ID,
                         readable_id=readable_id,
                         project_id=project_id,
                         title=f"Concurrent {index}",

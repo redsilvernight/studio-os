@@ -21,6 +21,7 @@ from studio_api.db.models.event import EventModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.roadmap import RoadmapRevisionModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.task import TaskModel
 from studio_api.main import app
 from studio_contracts.roadmaps import Roadmap, RoadmapDocument
@@ -1021,7 +1022,9 @@ async def test_link_errors_and_idempotence(
     assert len(step_of(second.json(), "S1")["linked_tasks"]) == 1
     assert second.json()["version"] == first.json()["version"]
 
-    other_project = ProjectModel(slug=f"other-{uuid.uuid4().hex[:6]}", name="Other")
+    other_project = ProjectModel(
+        studio_id=INTERNAL_STUDIO_ID, slug=f"other-{uuid.uuid4().hex[:6]}", name="Other"
+    )
     db_session.add(other_project)
     await db_session.flush()
     foreign = await client.post(

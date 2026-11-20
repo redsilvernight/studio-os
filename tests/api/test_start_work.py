@@ -15,6 +15,7 @@ from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 
 START = "/api/v1/start-work"
 Headers = dict[str, str]
@@ -99,7 +100,12 @@ async def test_same_machine_other_agent_cannot_silently_replace_claim(
     db_session: AsyncSession,
     resource_owner: str | None,
 ) -> None:
-    second_agent = AgentModel(machine_id=machine[0].id, display_name="second", agent_kind="codex")
+    second_agent = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine[0].id,
+        display_name="second",
+        agent_kind="codex",
+    )
     db_session.add(second_agent)
     await db_session.flush()
     task_id = await _task_id(client, auth_headers, project)
@@ -250,7 +256,10 @@ async def test_agent_of_another_machine_is_refused(
 ) -> None:
     other_model, _ = other_machine
     foreign_agent = AgentModel(
-        machine_id=other_model.id, display_name="foreign", agent_kind="other"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=other_model.id,
+        display_name="foreign",
+        agent_kind="other",
     )
     db_session.add(foreign_agent)
     await db_session.flush()
@@ -268,7 +277,9 @@ async def test_readonly_is_forbidden(
     readonly_machine: tuple[MachineModel, str],
 ) -> None:
     readonly_model, _ = readonly_machine
-    agent = AgentModel(machine_id=readonly_model.id, display_name="ro", agent_kind="")
+    agent = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID, machine_id=readonly_model.id, display_name="ro", agent_kind=""
+    )
     db_session.add(agent)
     await db_session.flush()
 

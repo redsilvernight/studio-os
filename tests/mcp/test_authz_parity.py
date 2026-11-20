@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services import provisioning as provisioning_service
 from studio_mcp.tools.ai_work import studio_log_ai_work
@@ -131,6 +132,7 @@ async def test_transfer_download_url_forbidden_for_third_party_via_mcp(
     transfer_id = uuid.uuid4()
     db_session.add(
         TransferModel(
+            studio_id=INTERNAL_STUDIO_ID,
             id=transfer_id,
             transfer_code=f"TRF-{transfer_id.hex[:8].upper()}",
             sender_user_id=machine[0].owner_user_id,

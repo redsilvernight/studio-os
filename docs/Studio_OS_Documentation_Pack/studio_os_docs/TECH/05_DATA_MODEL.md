@@ -181,9 +181,13 @@ applicative enregistre l'auteur.
 via leur `project_id`. La FK est `ON DELETE RESTRICT` : un studio qui porte
 encore des ressources ne peut pas etre supprime, jamais de cascade implicite.
 Ajout 0046 : colonne nullable, backfill vers le studio interne, puis NOT NULL.
-Le `server_default` vers le studio interne est **temporaire** et doit etre
-retire quand l'autorisation et la creation de studio poseront `studio_id`
-explicitement a chaque insertion.
+Le `server_default` vers le studio interne etait temporaire : la migration
+`0049` le retire (reversible, le downgrade le restaure). Toute insertion pose
+desormais `studio_id` explicitement, sinon NOT NULL la refuse au lieu de la
+ranger en silence dans le studio interne.
+
+Exception assumee : `studio_memberships` est une table de jointure sans
+`version` ni `updated_at` (seul `created_at`).
 
 ## Project
 `id`, `studio_id` (FK Studio, voir section Studio), `slug` (unique **par

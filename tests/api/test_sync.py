@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import provisioning as provisioning_service
 from studio_api.settings import get_settings
@@ -92,7 +93,12 @@ async def _backdate(db_session: AsyncSession, session_id: str, age: timedelta) -
 
 async def _second_agent(db_session: AsyncSession, second: tuple[MachineModel, str]) -> AgentModel:
     model, _ = second
-    agent = AgentModel(machine_id=model.id, display_name="claude-code-b", agent_kind="claude_code")
+    agent = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=model.id,
+        display_name="claude-code-b",
+        agent_kind="claude_code",
+    )
     db_session.add(agent)
     await db_session.flush()
     await db_session.refresh(agent)
@@ -571,7 +577,12 @@ async def test_invalid_inputs(
     assert bad_limit.json()["detail"]["error_code"] == "invalid_sync_input"
 
     other_model, _ = await _second_machine(db_session, machine)
-    foreign = AgentModel(machine_id=other_model.id, display_name="foreign", agent_kind="")
+    foreign = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=other_model.id,
+        display_name="foreign",
+        agent_kind="",
+    )
     db_session.add(foreign)
     await db_session.flush()
     refused = await _sync(client, auth_headers, agent_id=str(foreign.id), task_id=task["id"])

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import provisioning as provisioning_service
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 
@@ -72,7 +73,10 @@ async def test_emit_event_rejects_agent_not_attached_to_authenticated_machine(
         db_session, other_user.id, "other-machine"
     )
     foreign_agent = AgentModel(
-        machine_id=other_machine.id, display_name="other-agent", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=other_machine.id,
+        display_name="other-agent",
+        agent_kind="claude_code",
     )
     db_session.add(foreign_agent)
     await db_session.flush()

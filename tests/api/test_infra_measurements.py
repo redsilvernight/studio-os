@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models import InfraMeasurementModel, ProjectModel, TransferModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import infra_measurements, transfers
 from studio_api.services import provisioning as provisioning_service
 from studio_api.settings import Settings
@@ -30,6 +31,7 @@ async def _transfer(
     )
     db_session.add(
         TransferModel(
+            studio_id=INTERNAL_STUDIO_ID,
             transfer_code=f"TRF-{uuid.uuid4().hex[:8].upper()}",
             sender_user_id=sender.id,
             project_id=project.id,

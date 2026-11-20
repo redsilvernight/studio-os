@@ -43,6 +43,8 @@ from studio_contracts.vault import (
 )
 
 from studio_api.db.models.decision import DecisionModel
+from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.vault import VaultNoteModel
 from studio_api.services.vault import _append_version, _compute_hash
 from studio_api.services.vault_secrets import scan as scan_secrets
@@ -526,7 +528,18 @@ async def apply_plan(session: AsyncSession, plan: ImportPlan, author_id: uuid.UU
         if await _slug_taken(session, planned):
             result.conflicts.append(f"{label} : slug {planned.slug} déjà pris")
             continue
+        # A project note belongs to its project's studio; a studio-scope import
+        # is the internal studio's (this is an operator-run CLI import).
+        studio_id = INTERNAL_STUDIO_ID
+        if planned.project_id is not None:
+            studio_id = (
+                await session.scalar(
+                    select(ProjectModel.studio_id).where(ProjectModel.id == planned.project_id)
+                )
+                or INTERNAL_STUDIO_ID
+            )
         note = VaultNoteModel(
+            studio_id=studio_id,
             scope=planned.scope.value,
             project_id=planned.project_id,
             slug=planned.slug,

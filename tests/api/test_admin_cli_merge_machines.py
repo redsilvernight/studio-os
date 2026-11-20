@@ -10,6 +10,7 @@ from studio_api import admin_cli
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.machine_launch_grant import MachineLaunchGrantModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import provisioning as provisioning_service
 
 
@@ -65,6 +66,7 @@ async def test_merge_machines_dry_run_writes_nothing(
     target_hash = target.credential_hash
     assert target_hash != source.credential_hash
     agent = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
         machine_id=source_id,
         display_name="agent",
         agent_kind="claude_code",
@@ -93,6 +95,7 @@ async def test_merge_machines_apply_moves_references_and_credential(
     source_hash = source.credential_hash
     assert target.credential_hash != source_hash
     agent = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
         machine_id=source.id,
         display_name="agent",
         agent_kind="claude_code",
@@ -134,12 +137,14 @@ async def test_merge_machines_is_atomic_on_unique_conflict(
     db_session.add_all(
         [
             AgentModel(
+                studio_id=INTERNAL_STUDIO_ID,
                 machine_id=source_id,
                 display_name="source",
                 agent_kind="claude_code",
                 stable_key=stable_key,
             ),
             AgentModel(
+                studio_id=INTERNAL_STUDIO_ID,
                 machine_id=target_id,
                 display_name="target",
                 agent_kind="claude_code",

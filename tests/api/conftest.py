@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.session import get_session
 from studio_api.main import app
@@ -172,7 +173,10 @@ async def project(db_session: AsyncSession) -> ProjectModel:
 async def agent(db_session: AsyncSession, machine: tuple[MachineModel, str]) -> AgentModel:
     machine_model, _ = machine
     agent_model = AgentModel(
-        machine_id=machine_model.id, display_name="claude-code", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine_model.id,
+        display_name="claude-code",
+        agent_kind="claude_code",
     )
     db_session.add(agent_model)
     await db_session.flush()

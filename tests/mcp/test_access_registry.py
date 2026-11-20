@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.build import BuildModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.services import projects as projects_service
 from studio_api.services.authz import load_principal
@@ -321,7 +322,10 @@ async def _build_world(
         db_session, f"else-{slug}", "Elsewhere", None, creator=outsider.user
     )
     outsider_agent = AgentModel(
-        machine_id=outsider_machine.id, display_name="outsider", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=outsider_machine.id,
+        display_name="outsider",
+        agent_kind="claude_code",
     )
     db_session.add(outsider_agent)
     build = BuildModel(

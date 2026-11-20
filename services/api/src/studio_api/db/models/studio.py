@@ -29,15 +29,13 @@ class StudioRole(StrEnum):
 
 
 class StudioScopedMixin:
-    """`studio_id` carried by every top-level resource (0046). NOT NULL with a
-    server default on the internal studio, so an insert that does not choose a
-    studio still lands in a valid tenant."""
+    """`studio_id` carried by every top-level resource (0046). NOT NULL, no
+    default (0049): every insert chooses its studio explicitly."""
 
     studio_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("studios.id", ondelete="RESTRICT"),
         index=True,
-        server_default=sa.text(f"'{INTERNAL_STUDIO_ID}'"),
     )
 
 
