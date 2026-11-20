@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.tasks import studio_create_task, studio_get_task
 
@@ -79,7 +80,12 @@ async def test_start_work_refuses_a_foreign_agent(
     other_machine: tuple[MachineModel, str],
 ) -> None:
     other_model, _ = other_machine
-    foreign = AgentModel(machine_id=other_model.id, display_name="foreign", agent_kind="")
+    foreign = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=other_model.id,
+        display_name="foreign",
+        agent_kind="",
+    )
     db_session.add(foreign)
     await db_session.flush()
 

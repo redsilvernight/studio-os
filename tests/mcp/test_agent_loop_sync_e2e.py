@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_mcp.tools.claims import studio_claim_resources
 from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.start_work import studio_start_work
@@ -43,7 +44,12 @@ async def test_handoff_signal_reaches_agent_b_on_another_machine_once(
     db_session: AsyncSession,
 ) -> None:
     other_model, _ = other_machine
-    agent_b = AgentModel(machine_id=other_model.id, display_name="agent-b", agent_kind="")
+    agent_b = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=other_model.id,
+        display_name="agent-b",
+        agent_kind="",
+    )
     db_session.add(agent_b)
     await db_session.flush()
 

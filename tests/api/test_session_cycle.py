@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api import admin_cli
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.user import UserModel
 from studio_api.deps import resolve_machine
 from studio_api.jwt_auth import ALGORITHM
@@ -204,7 +205,9 @@ async def test_stream_revalidation_fails_after_revocation(
 
 
 async def _project(db_session: AsyncSession) -> uuid.UUID:
-    project = ProjectModel(slug=f"p-{uuid.uuid4().hex[:12]}", name="Session project")
+    project = ProjectModel(
+        studio_id=INTERNAL_STUDIO_ID, slug=f"p-{uuid.uuid4().hex[:12]}", name="Session project"
+    )
     db_session.add(project)
     await db_session.flush()
     return project.id

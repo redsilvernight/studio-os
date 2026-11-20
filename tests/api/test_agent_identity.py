@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import provisioning
 
 PATH = "/api/v1/agents/resolve-identity"
@@ -219,6 +220,7 @@ async def test_machine_level_collision_fails_explicitly_instead_of_500(
 
     db_session.add(
         AgentModel(
+            studio_id=INTERNAL_STUDIO_ID,
             machine_id=machine[0].id,
             display_name="legacy-holder",
             agent_kind="model",

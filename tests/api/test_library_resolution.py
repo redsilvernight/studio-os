@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.library import LibraryResourceModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import library as library_service
 from studio_api.services.authz import Principal, load_principal
 from studio_contracts.library import (
@@ -460,6 +461,7 @@ async def test_unknown_scope_is_fail_closed(
     principal = await _principal(db_session, machine)
     db_session.add(
         LibraryResourceModel(
+            studio_id=INTERNAL_STUDIO_ID,
             kind=LibraryKind.RULE.value,
             stable_key="tampered",
             scope="bogus",

@@ -12,6 +12,7 @@ from urllib.parse import urlsplit, urlunsplit
 import asyncpg
 import bcrypt
 import pytest
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 
 from tests import infra_probe
 
@@ -198,7 +199,6 @@ def _backfilled_memberships(request: pytest.FixtureRequest) -> Iterator[None]:
     from sqlalchemy import event, text
     from sqlalchemy.orm import Session
     from studio_api.db.models.project import ProjectModel
-    from studio_api.db.models.studio import INTERNAL_STUDIO_ID
     from studio_api.db.models.user import UserModel
 
     db_session = (

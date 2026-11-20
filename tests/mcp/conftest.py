@@ -20,6 +20,7 @@ from studio_api.db import session as db_session_module
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
 
@@ -172,7 +173,10 @@ async def project(db_session: AsyncSession) -> ProjectModel:
 async def agent(db_session: AsyncSession, machine: tuple[MachineModel, str]) -> AgentModel:
     machine_model, _ = machine
     agent_model = AgentModel(
-        machine_id=machine_model.id, display_name="claude-code", agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine_model.id,
+        display_name="claude-code",
+        agent_kind="claude_code",
     )
     db_session.add(agent_model)
     await db_session.flush()

@@ -25,14 +25,12 @@ SCOPED_TABLES = (
 
 
 def test_internal_studio_id_matches_the_model() -> None:
-    """The seeded row and the model's server default must name the same tenant."""
+    """The seeded row and the model constant name the same tenant (no default since 0049)."""
     from studio_api.db.models.project import ProjectModel
     from studio_api.db.models.studio import INTERNAL_STUDIO_ID as model_studio_id
 
     assert str(model_studio_id) == INTERNAL_STUDIO_ID
-    default = ProjectModel.__table__.c.studio_id.server_default
-    assert default is not None
-    assert INTERNAL_STUDIO_ID in str(default.arg)
+    assert ProjectModel.__table__.c.studio_id.server_default is None
 
 
 def _alembic(action: str, revision: str) -> None:

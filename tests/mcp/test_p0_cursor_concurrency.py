@@ -11,6 +11,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.models.work_session import WorkSessionModel
@@ -24,7 +25,9 @@ async def cursor_rows(engine: AsyncEngine) -> AsyncIterator[tuple[uuid.UUID, uui
         user = UserModel(
             display_name="P0 cursor", email=f"{uuid.uuid4()}@example.test", role="admin"
         )
-        project = ProjectModel(slug=f"p0-cursor-{uuid.uuid4().hex}", name="P0 cursor")
+        project = ProjectModel(
+            studio_id=INTERNAL_STUDIO_ID, slug=f"p0-cursor-{uuid.uuid4().hex}", name="P0 cursor"
+        )
         setup.add_all([user, project])
         await setup.flush()
         machine = MachineModel(

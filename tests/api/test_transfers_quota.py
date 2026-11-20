@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session
@@ -132,6 +133,7 @@ async def test_consumption_excludes_deleted_transfers(
     machine_model, _ = machine
     db_session.add(
         TransferModel(
+            studio_id=INTERNAL_STUDIO_ID,
             id=uuid.uuid4(),
             transfer_code="TRF-DELETED",
             sender_user_id=machine_model.owner_user_id,

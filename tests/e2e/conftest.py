@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db import session as db_session_module
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.session import get_session
 from studio_api.main import app
 from studio_api.services import provisioning as provisioning_service
@@ -97,7 +98,12 @@ async def readonly(db_session: AsyncSession) -> Actor:  # noqa: F811
 async def attach_agent(db: AsyncSession, actor: Actor, name: str = "worker") -> AgentModel:
     """A registered agent identity attached to `actor`'s machine (the declared
     `agent_id` of a write). Deliberately a neutral, non-vendor identity."""
-    model = AgentModel(machine_id=actor.machine.id, display_name=name, agent_kind="generic")
+    model = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=actor.machine.id,
+        display_name=name,
+        agent_kind="generic",
+    )
     db.add(model)
     await db.flush()
     await db.refresh(model)

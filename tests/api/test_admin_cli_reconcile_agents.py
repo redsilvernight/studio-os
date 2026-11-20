@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api import admin_cli
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import provisioning as provisioning_service
 
 
@@ -36,6 +37,7 @@ async def _identities(
     )
     machine, _ = await provisioning_service.create_machine(db_session, owner.id, "poste")
     canonical = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
         owner_user_id=owner.id,
         machine_id=machine.id,
         display_name="gpt-6.1-sol",
@@ -46,6 +48,7 @@ async def _identities(
         stable_key=f"canonical-model-v1:{uuid.uuid4().hex}",
     )
     legacy = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
         machine_id=machine.id,
         display_name="gpt-6.1-sol",
         agent_kind="model",

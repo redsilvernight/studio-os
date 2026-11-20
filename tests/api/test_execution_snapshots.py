@@ -22,6 +22,7 @@ from studio_api.db.models import (
     TaskLaunchModel,
     TaskModel,
 )
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.services import execution_snapshots as service
 from studio_api.settings import get_settings
 from studio_contracts.execution_snapshot import (
@@ -178,6 +179,7 @@ async def test_deleting_library_resource_keeps_snapshot(
     db_session: AsyncSession, project: ProjectModel, machine: tuple[MachineModel, str]
 ) -> None:
     resource = LibraryResourceModel(
+        studio_id=INTERNAL_STUDIO_ID,
         kind=LibraryKind.AGENT_DEFINITION.value,
         stable_key=f"snap-{uuid.uuid4().hex[:8]}",
         scope=LibraryScope.STUDIO.value,

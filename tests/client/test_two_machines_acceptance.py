@@ -31,6 +31,7 @@ from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.task import TaskModel
 from studio_api.services import provisioning as provisioning_service
 from studio_client.api_client import StudioApiClient
@@ -62,7 +63,10 @@ async def _provision_machine(
     )
     machine_model, token = await provisioning_service.create_machine(db_session, user.id, name)
     agent_model = AgentModel(
-        machine_id=machine_model.id, display_name=name, agent_kind="claude_code"
+        studio_id=INTERNAL_STUDIO_ID,
+        machine_id=machine_model.id,
+        display_name=name,
+        agent_kind="claude_code",
     )
     db_session.add(agent_model)
     await db_session.flush()

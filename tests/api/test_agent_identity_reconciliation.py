@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 
 PATH = "/api/v1/agents/resolve-identity"
 
@@ -37,6 +38,7 @@ async def _legacy(
     stable_key: str = "agents-ensure-codex:openai/gpt-6.1-sol",
 ) -> AgentModel:
     row = AgentModel(
+        studio_id=INTERNAL_STUDIO_ID,
         machine_id=machine[0].id,
         display_name=model,
         agent_kind="model",
