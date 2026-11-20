@@ -429,6 +429,14 @@ async def enable_user(session: AsyncSession, email: str) -> UserModel:
     return await enable_account(session, await _require_user(session, email))
 
 
+async def set_operator(session: AsyncSession, email: str, operator: bool) -> UserModel:
+    """Grant or withdraw the instance-operator flag (never gives content access)."""
+    user = await _require_user(session, email)
+    user.is_operator = operator
+    await session.flush()
+    return user
+
+
 _DUMMY_PASSWORD_HASH = hash_password("studio-os-dummy-password")
 """Checked against when the email is unknown or has no password, so every
 login attempt pays one bcrypt verification (no user-enumeration by timing)."""

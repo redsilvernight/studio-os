@@ -10,11 +10,11 @@
  *   gèrent dans l'onglet Membres de chaque projet.
  * - Non-admin : note explicite, aucun appel voué au 403.
  */
-import type { StudioClient } from "../api";
+import { ApiError, type StudioClient } from "../api";
 import { applyAccountAction, listUserMemberships, type AccountAction } from "../accountsApi";
 import { dsBadge, dsEmptyState, dsField, dsPageHeader, focusDsErrorBox, type DsTone } from "../ds/ds";
 import { fetchIdentity } from "../identityApi";
-import { searchUsers, type DirectoryUser, type ProjectMember } from "../membersApi";
+import { searchStudioMembers, searchUsers, type DirectoryUser, type ProjectMember } from "../membersApi";
 import { describeError, esc } from "../ui";
 import { projectLabel } from "../actorNames";
 
@@ -126,7 +126,12 @@ export async function renderAccounts(root: HTMLElement, ctx: AccountsContext, qu
     return;
   }
   try {
-    const users = await searchUsers(ctx.client, query, 100);
+    // An admin created after migration 0048 has no `is_operator` flag: the instance
+    // directory answers 403, so fall back on the active studio's own directory.
+    const users = await searchUsers(ctx.client, query, 100).catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 403) return searchStudioMembers(ctx.client, query, 100);
+      throw error;
+    });
     root.innerHTML = pageHtml(
       searchFormHtml(query) +
         `<div data-msg class="ds-list-sub" role="status">${esc(notice)}</div>` +

@@ -83,6 +83,13 @@ async def _update_user_state(action: str, email: str) -> None:
         print(f"{action}: {user.email} ({state}, auth_version={user.auth_version})")
 
 
+async def _set_operator(email: str, operator: bool) -> None:
+    async with get_session_factory()() as session:
+        user = await provisioning_service.set_operator(session, email.strip().lower(), operator)
+        await session.commit()
+        print(f"operator: {user.email} ({'granted' if user.is_operator else 'withdrawn'})")
+
+
 async def _create_machine(owner_email: str, display_name: str) -> None:
     async with get_session_factory()() as session:
         owner = await provisioning_service.get_user_by_email(session, owner_email)
@@ -510,6 +517,12 @@ def main() -> None:
     ):
         user_sub.add_parser(action, help=help_text).add_argument("--email", required=True)
 
+    user_operator = user_sub.add_parser(
+        "set-operator", help="Grant or withdraw the instance-operator flag (is_operator)"
+    )
+    user_operator.add_argument("--email", required=True)
+    user_operator.add_argument("--revoke", action="store_true")
+
     password_parser = sub.add_parser("set-password", help="Set a user's dashboard password")
     password_parser.add_argument("--email", required=True)
     password_source = password_parser.add_mutually_exclusive_group(required=True)
@@ -643,6 +656,8 @@ def main() -> None:
             asyncio.run(_create_user(args.display_name, email, args.role))
         elif args.command == "user":
             asyncio.run(_update_user_state(args.user_command, args.email))
+        elif args.command == "user" and args.user_command == "set-operator":
+            asyncio.run(_set_operator(args.email, not args.revoke))
         elif args.command == "set-password":
             password = _read_password_from_stdin() if args.password_stdin else args.password
             asyncio.run(_set_password(args.email, password))
