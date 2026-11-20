@@ -92,8 +92,12 @@ Priorite : claim JWT `studio_id` > en-tete > preference `machines.studio_id`
 `TECH/04_AUTH_SYNC_CONTRACT.md`). Sans en-tete ni claim, le comportement est
 inchange pour les clients N-1. Nouvelles valeurs `resource` du 403 : `studio`
 (gestion/role de studio insuffisant, studio refuse) et `instance` (operation
-reservee a `is_operator`, action `operate`). `API_CONTRACT_VERSION` non
-bumpee a ce stade (changement additif) : a confirmer.
+reservee a `is_operator`, action `operate`). `API_CONTRACT_VERSION` reste a 6
+(changement additif, avis contract-guardian ; N-1 inchange). Seule nuance : un
+admin global cree apres la migration `0048` n'a pas `is_operator` et recoit le
+`403 resource=instance` sur `/users*`, `/machines` et `/infra*` ; l'operateur lui
+pose le drapeau par `admin_cli user set-operator --email <e> [--revoke]`, et le
+dashboard (vue Comptes) se replie alors sur `GET /studio/members`.
 
 Isolation par studio (DEC-0382) : une ressource ou un projet d'un AUTRE studio
 repond comme un id inconnu (`404 not_found`) pour un `owner`/`admin` du studio
