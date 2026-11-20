@@ -410,3 +410,34 @@ async def test_transfers_and_their_quota_stay_inside_the_active_studio(
     assert consumption_a.status_code == consumption_b.status_code == 200
     assert consumption_a.json()["consumed_bytes"] == 2048
     assert consumption_b.json()["consumed_bytes"] == 0
+
+
+async def test_upload_urls_are_never_signed_for_another_studios_transfer(
+    client: AsyncClient,
+    two_studios: tuple[StudioModel, ProjectModel, dict[str, str], dict[str, str]],
+) -> None:
+    _, project, headers_a, headers_b = two_studios
+    created = await client.post(
+        "/api/v1/transfers",
+        headers=headers_a,
+        json={
+            "category": "temporary",
+            "filename": "iso-upload.bin",
+            "content_type": "application/octet-stream",
+            "size_bytes": 1024,
+            "project_id": str(project.id),
+        },
+    )
+    assert created.status_code == 201, created.text
+    base = f"/api/v1/transfers/{created.json()['id']}"
+    calls = [
+        ("post", f"{base}/upload/initiate", {"content_md5": "1B2M2Y8AsgTpgAmY7PhCfg=="}),
+        ("post", f"{base}/upload/refresh-parts", {"upload_id": "x", "part_numbers": [1]}),
+        ("post", f"{base}/upload/complete", {"size_bytes": 1024, "sha256": "0" * 64}),
+        ("delete", base, None),
+    ]
+    for method, url, payload in calls:
+        denied = await client.request(method, url, headers=headers_b, json=payload)
+        assert denied.status_code == 404, (url, denied.status_code, denied.text)
+
+    assert (await client.get(base, headers=headers_a)).status_code == 200
