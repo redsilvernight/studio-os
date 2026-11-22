@@ -76,7 +76,7 @@ def test_delete_order_puts_children_before_parents() -> None:
 def test_settings_bound_the_export_link_and_announce_the_grace_window() -> None:
     settings = get_settings()
 
-    assert settings.deletion_grace_days == 7
+    assert settings.deletion_grace_days == 14
     assert settings.export_url_ttl_seconds <= 15 * 60
     assert settings.export_retention_days >= 1
     assert settings.deletion_backup_retention_days >= settings.deletion_grace_days

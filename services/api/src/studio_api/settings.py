@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Studio export / deletion (0051). A deletion request is a grace window: the
     # studio turns read-only now and `purge_due_studios` deletes it once
     # `deletion_grace_days` elapsed (the owner may cancel meanwhile).
-    deletion_grace_days: int = Field(default=7, ge=0, le=90)
+    deletion_grace_days: int = Field(default=14, ge=0, le=90)
     # An export archive row stays readable this long; past it the link is
     # refused (the object itself is removed with the studio).
     export_retention_days: int = Field(default=7, ge=1, le=90)

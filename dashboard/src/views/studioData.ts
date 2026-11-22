@@ -44,8 +44,8 @@ export const EXPORT_POLL_MAX_ATTEMPTS = 40;
 
 /** Texte de conséquences par défaut — celui de la fiche (valeurs illustratives). */
 export const DELETION_CONSEQUENCES_DEFAULT =
-  "Seront effacés : 4 projets, 1 240 notes, 1,8 Gio de fichiers, l'historique. " +
-  "Les sauvegardes disparaissent à la fin de la rétention annoncée (30 jours). Vous avez 14 jours pour annuler.";
+  "Seront effacés : tous les projets, notes, fichiers et l'historique du studio. " +
+  "Les sauvegardes disparaissent à la fin de la rétention annoncée (30 jours). Vous pourrez annuler pendant le délai de grâce.";
 
 export type StudioExportState =
   | { kind: "none" }

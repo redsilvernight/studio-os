@@ -112,3 +112,13 @@ describe("N5 · accessibilité", () => {
     expect(studioSuspendedMemberHtml("Atelier Phare", "Flo", ROWS)).toContain("Prévenir Flo");
   });
 });
+
+describe("N5 · aucune donnée inventée", () => {
+  it("n'invente ni nom de propriétaire ni durée d'impayé", () => {
+    const html = studioSuspendedMemberHtml("Atelier Phare");
+    expect(html).toContain("Le propriétaire a été prévenu.");
+    expect(html).toContain("Prévenir le propriétaire");
+    expect(html).not.toContain("Flo");
+    expect(SUSPENDED_OWNER_REASON).not.toContain("21 jours");
+  });
+});

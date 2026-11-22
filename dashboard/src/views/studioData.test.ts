@@ -162,3 +162,10 @@ describe("N7 · accessibilité", () => {
     expect(studioDeletionDialogHtml("Atelier Phare")).toContain('for="delete-confirm-name"');
   });
 });
+
+describe("N7 · dialogue de suppression sans chiffres inventés", () => {
+  it("ne cite aucun volume propre à un autre studio", () => {
+    const html = studioDeletionDialogHtml("Atelier Phare");
+    expect(html).not.toMatch(/1 240|1,8 Gio|4 projets/);
+  });
+});

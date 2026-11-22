@@ -273,6 +273,14 @@ function dialogBody(root: HTMLElement): HTMLElement | null {
 function wireInviteForm(root: HTMLElement, ctx: StudioInvitationsContext, state: InvitePageState): void {
   const form = root.querySelector<HTMLFormElement>("[data-invite-form]");
   if (form === null) return;
+  // Corriger l'adresse rouvre l'envoi (le serveur revalide à la soumission).
+  form.querySelector<HTMLInputElement>('input[name="email"]')?.addEventListener("input", () => {
+    const send = form.querySelector<HTMLButtonElement>("[data-invite-send]");
+    if (send !== null && form.querySelector("[data-invite-limit-subscribe]") === null) {
+      send.disabled = false;
+      send.removeAttribute("aria-disabled");
+    }
+  });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const email = String(new FormData(form).get("email") ?? "").trim();
