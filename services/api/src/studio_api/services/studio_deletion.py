@@ -20,9 +20,11 @@ later (a new migration) is therefore covered without touching this module.
 from __future__ import annotations
 
 import logging
+import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 from fastapi import HTTPException, status
@@ -268,6 +270,36 @@ async def cancel_deletion(
     return studio
 
 
+def purge_expired_backups(backup_dir: str, retention_days: int, now: datetime) -> list[str]:
+    """Remove host backups older than the announced retention.
+
+    `docker/backup.sh` writes one `<UTC %Y%m%dT%H%M%SZ>` folder per run. A studio
+    purged at T lives only in backups taken before T, and the purge only runs
+    once its grace window elapsed, so deleting every backup older than
+    `retention_days` guarantees none outlives T + retention. The newest backup
+    is always kept (never leave the host without a restore point). Folders whose
+    name is not a timestamp are left alone."""
+    root = Path(backup_dir)
+    if not root.is_dir():
+        return []
+    stamped: list[tuple[datetime, Path]] = []
+    for entry in root.iterdir():
+        try:
+            taken = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+        except ValueError:
+            continue
+        if entry.is_dir():
+            stamped.append((taken, entry))
+    stamped.sort()
+    limit = now - timedelta(days=retention_days)
+    removed: list[str] = []
+    for taken, entry in stamped[:-1]:
+        if taken < limit:
+            shutil.rmtree(entry)
+            removed.append(entry.name)
+    return removed
+
+
 async def purge_due_studios(
     session: AsyncSession,
     storage: StorageProvider,
@@ -280,9 +312,9 @@ async def purge_due_studios(
 
     One studio per transaction (a storage or SQL failure only stops the current
     one, the next run resumes the rest). The internal studio is never selected,
-    even if a row was scheduled by hand. The backup purge date is logged: the
-    database backup itself is rotated by the host, this states the announced
-    retention after which the studio is gone from backups too."""
+    even if a row was scheduled by hand. Host backups (`infra_backup_dir`) older
+    than the announced retention are then removed, so a purged studio is gone
+    from backups after `deletion_backup_retention_days`."""
     cutoff = now or datetime.now(UTC)
     due = list(
         (
@@ -332,4 +364,10 @@ async def purge_due_studios(
             settings.deletion_backup_retention_days,
         )
         results.append(StudioPurgeResult(studio.id, studio.slug, objects_deleted, backup_purge_at))
+    if not dry_run and settings.infra_backup_dir:
+        removed = purge_expired_backups(
+            settings.infra_backup_dir, settings.deletion_backup_retention_days, cutoff
+        )
+        if removed:
+            logger.info("expired database backups removed: %s", ", ".join(removed))
     return results

@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     export_retention_days: int = Field(default=7, ge=1, le=90)
     # Download links are short-lived on purpose, never above 15 minutes.
     export_url_ttl_seconds: int = Field(default=900, ge=60, le=900)
-    # Announced backup retention: the purge logs the date after which the
-    # studio is gone from backups too (the backups themselves are rotated by
-    # the host, this setting only states the promise).
+    # Announced backup retention: the purge run removes every backup older than
+    # this from `infra_backup_dir` (newest one always kept), so a purged studio
+    # is gone from backups after it.
     deletion_backup_retention_days: int = Field(default=30, ge=1, le=365)
 
     # Execution snapshots (DEC-0199): kept this long after capture, then purged.
