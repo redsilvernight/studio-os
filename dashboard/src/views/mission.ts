@@ -20,6 +20,7 @@ import { LIVE_CHANGE_EVENT } from "../realtime";
 import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 import { agentRef, machineRef } from "../actorNames";
+import { launchReasonCodeLabel } from "./taskLaunchPanel";
 
 export type LiveState = "live" | "lost" | "off";
 
@@ -152,8 +153,9 @@ function launchStepHtml(run: MissionRun): string {
     return `<li><strong>Lancement</strong> · ${esc(text)}</li>`;
   }
   const finished = launch.finished_at ? ` · fin ${fmtTime(launch.finished_at)}` : "";
+  const motif = launch.reason_code !== "none" ? ` · motif ${esc(launchReasonCodeLabel(launch.reason_code))}` : "";
   return (
-    `<li><strong>Lancement</strong> · ${esc(labelOf(LAUNCH_STATUS_LABEL, launch.status))} · ${esc(launch.harness_id)}` +
+    `<li><strong>Lancement</strong> · ${esc(labelOf(LAUNCH_STATUS_LABEL, launch.status))}${motif} · ${esc(launch.harness_id)}` +
     ` · demandé ${fmtTime(launch.created_at)}${finished}</li>`
   );
 }
