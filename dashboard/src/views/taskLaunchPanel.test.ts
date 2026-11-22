@@ -19,6 +19,7 @@ import {
   launchProtocolBadgeTone,
   launchProtocolStatus,
   launchProtocolTaskLabel,
+  launchFailureHint,
   launchReasonCodeLabel,
   launchTtlOptions,
   validLaunchProfile,
@@ -246,6 +247,14 @@ const provenancePart = (html: string): string => {
   const end = html.indexOf("</section>", start);
   return html.slice(start, end === -1 ? undefined : end);
 };
+
+describe("launchFailureHint", () => {
+  it("signale une authentification expirée, sinon rien", () => {
+    expect(launchFailureHint("Failed to authenticate: OAuth session expired and could not be refreshed")).toContain("/login");
+    expect(launchFailureHint("[studio:profile_refused]")).toBeNull();
+    expect(launchFailureHint(null)).toBeNull();
+  });
+});
 
 describe("labels", () => {
   it("traduit les statuts de lancement", () => {

@@ -238,6 +238,13 @@ export function launchReasonCodeLabel(reasonCode: string): string {
   return REASON_CODE_FR[reasonCode] ?? reasonCode;
 }
 
+export function launchFailureHint(excerpt: string | null | undefined): string | null {
+  if (excerpt && /Failed to authenticate|OAuth session expired/i.test(excerpt)) {
+    return "Authentification du harnais expirée : reconnecter Claude Code sur le poste (commande /login), puis relancer.";
+  }
+  return null;
+}
+
 export function ineligibilityReasonLabel(reason: IneligibilityReason): string {
   return REASON_FR[reason] ?? reason;
 }
@@ -397,6 +404,7 @@ export function latestHtml(state: LaunchPanelState): string {
       ? `<button class="ds-btn ds-btn--danger" type="button" data-action="launch-cancel">Annuler le lancement</button>`
       : "") +
     `</div>`;
+  const failureHint = launchFailureHint(latest.output_excerpt);
   const protocolBadge = launchProtocolBadgeHtml(latest);
   const badges =
     dsBadge(taskLaunchStatusLabel(latest.status), taskLaunchStatusTone(latest.status)) +
@@ -407,6 +415,7 @@ export function latestHtml(state: LaunchPanelState): string {
     (latest.finished_at ? ` · terminé ${esc(fmtTime(latest.finished_at))}` : "") +
     `</div>` +
     linkedSessionHtml(state, latest) +
+    (failureHint === null ? "" : `<div class="ds-list-sub" data-testid="launch-failure-hint">${esc(failureHint)}</div>`) +
     (latest.output_excerpt ? `<pre class="mono">${esc(latest.output_excerpt)}</pre>` : "") +
     actions +
     `</div>${badges}</div>`;
