@@ -34,6 +34,7 @@ from studio_api.security import hash_token
 from studio_api.security_log import email_digest, security_event
 from studio_api.services import event_stream
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services import studios as studios_service
 from studio_api.settings import Settings
 
 SELF_REGISTERED_ROLE = "readonly"
@@ -192,7 +193,8 @@ async def _send_verification(
 async def register(session: AsyncSession, settings: Settings, email: str) -> list[OutgoingEmail]:
     """Creates a `pending` readonly User without membership nor password, or
     re-sends the verification of a still-pending one. An active or disabled
-    address gets nothing."""
+    address gets nothing. The studio (own one, or the one that invited this
+    address) is granted when the verification link is consumed."""
     normalized = provisioning_service.normalize_email(email)
     user = await provisioning_service.get_user_by_email(session, normalized)
     if user is None:
@@ -205,7 +207,6 @@ async def register(session: AsyncSession, settings: Settings, email: str) -> lis
         session.add(user)
         try:
             await session.flush()
-            await provisioning_service.join_internal_studio(session, user)
         except IntegrityError:
             await session.rollback()
             return []
@@ -243,6 +244,7 @@ async def verify_email(
     user.password_hash = password_hash
     user.display_name = display_name
     user.version += 1
+    await studios_service.provision_verified_account(session, user)
     await _expire_outstanding(session, user.id, AccountTokenPurpose.EMAIL_VERIFICATION)
     await session.commit()
     security_event("account.email_verified", outcome="success", user_id=user.id)

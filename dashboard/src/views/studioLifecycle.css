@@ -1,0 +1,71 @@
+/**
+ * Écrans du cycle de vie des studios (atelier N1/N2/N5/N7).
+ *
+ * Une seule couche de style : aucune couleur, rayon, z-index ni taille de
+ * police en dur (garde-fou styleDebt.test.ts) — tout passe par les tokens
+ * de ds/tokens.css et les composants de ds/components.css + ds/lot1.css.
+ */
+
+/* Carte solitaire centrée (fiches N1/N2 : largeur 520px / 480px). */
+.studio-solo {
+  display: flex;
+  justify-content: center;
+  padding: var(--ds-space-6) var(--ds-space-3);
+}
+
+.studio-solo-card {
+  width: 520px;
+  max-width: 100%;
+}
+
+.studio-solo-card--accept {
+  width: 480px;
+}
+
+.studio-solo-card > h1 {
+  font-size: var(--ds-text-2xl);
+  margin: 0 0 var(--ds-space-2);
+}
+
+.studio-solo-card > .ds-list-sub {
+  margin: 0 0 var(--ds-space-4);
+}
+
+/* Rangée de studio / d'invitation : avatar + identité + action. */
+.studio-rows {
+  margin: var(--ds-space-3) 0 0;
+}
+
+/* Groupe de boutons (fiches : .btns), jamais collés au contenu. */
+.studio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin: var(--ds-space-4) 0 0;
+}
+
+/* Boutons dans un bandeau ds-banner (deux actions possibles, fiches N5/N7). */
+.studio-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+/* Zone sensible (fiche N7 : carte « Supprimer le studio » bordée danger). */
+.studio-card--danger {
+  border-color: var(--ds-danger);
+}
+
+/* Ligne technique discrète (fiches : .x.hint.mono). */
+.studio-tech-line {
+  margin: var(--ds-space-3) 0 0;
+  color: var(--ds-text-muted);
+}
+
+/* Empilement des sections d'un écran (N7 : export puis zone sensible). */
+.studio-sections {
+  display: grid;
+  gap: var(--ds-space-4);
+  margin: var(--ds-space-4) 0 0;
+}

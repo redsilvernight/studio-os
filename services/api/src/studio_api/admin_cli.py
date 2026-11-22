@@ -30,6 +30,7 @@ from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services import studio_deletion as studio_deletion_service
 from studio_api.services import transfers as transfers_service
 from studio_api.services import vault_decision_import as decision_import
 from studio_api.settings import get_settings
@@ -227,6 +228,27 @@ async def _purge_execution_snapshots() -> None:
             await session.commit()
             total += deleted
     print(f"{total} execution snapshot(s) deleted")
+
+
+async def _purge_due_studios(dry_run: bool) -> None:
+    """Deletion grace-window worker (0051) — run on a schedule, same model as
+    `_expire_transfers`. Purges every studio whose `deletion_scheduled_at`
+    elapsed: database rows, object-storage files and export archives. The
+    internal studio is never selected."""
+    settings = get_settings()
+    storage = get_storage()
+    async with get_session_factory()() as session:
+        results = await studio_deletion_service.purge_due_studios(
+            session, storage, settings, dry_run=dry_run
+        )
+    verb = "would purge" if dry_run else "purged"
+    for result in results:
+        print(
+            f"{verb} studio {result.studio_id} ({result.slug}): "
+            f"{result.objects_deleted} object(s); backups purged after "
+            f"{result.backup_purge_at.isoformat()}"
+        )
+    print(f"{len(results)} studio(s) {'would be purged' if dry_run else 'purged'}")
 
 
 async def _abort_stale_multipart_uploads(older_than_days: int, dry_run: bool) -> None:
@@ -574,6 +596,14 @@ def main() -> None:
     )
     abort_stale.add_argument("--dry-run", action="store_true")
 
+    studios_parser = sub.add_parser("studios", help="Manage studios")
+    studios_sub = studios_parser.add_subparsers(dest="studios_command", required=True)
+    studios_purge = studios_sub.add_parser(
+        "purge-due",
+        help="Delete studios whose deletion grace window elapsed (DB rows + MinIO)",
+    )
+    studios_purge.add_argument("--dry-run", action="store_true")
+
     snapshots_parser = sub.add_parser("snapshots", help="Manage execution snapshots")
     snapshots_sub = snapshots_parser.add_subparsers(dest="snapshots_command", required=True)
     snapshots_sub.add_parser(
@@ -681,6 +711,8 @@ def main() -> None:
             asyncio.run(_expire_transfers())
         elif args.command == "transfers" and args.transfer_command == "abort-stale-multipart":
             asyncio.run(_abort_stale_multipart_uploads(args.older_than_days, args.dry_run))
+        elif args.command == "studios" and args.studios_command == "purge-due":
+            asyncio.run(_purge_due_studios(args.dry_run))
         elif args.command == "snapshots" and args.snapshots_command == "purge-expired":
             asyncio.run(_purge_execution_snapshots())
         elif args.command == "builds" and args.builds_command == "reconcile":

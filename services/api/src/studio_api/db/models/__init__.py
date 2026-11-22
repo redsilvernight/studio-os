@@ -35,6 +35,7 @@ from studio_api.db.models.roadmap import (
 )
 from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.db.models.studio import StudioMembershipModel, StudioModel
+from studio_api.db.models.studio_export import StudioExportModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.transfer import TransferModel
@@ -58,6 +59,7 @@ __all__ = [
     "ProjectModel",
     "StudioModel",
     "StudioMembershipModel",
+    "StudioExportModel",
     "MachineLaunchGrantModel",
     "ProjectMembershipModel",
     "ProjectRepositoryModel",

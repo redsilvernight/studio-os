@@ -30,6 +30,11 @@ export type Route =
   | { name: "configApplication" }
   | { name: "configIntegrations"; workspaceId?: string }
   | { name: "workspaces" }
+  | { name: "studios"; create?: boolean }
+  | { name: "studioInvitations" }
+  | { name: "invitationAccept"; token: string | null }
+  | { name: "studioSuspended"; id: string }
+  | { name: "studioData"; id: string }
   | { name: "onboarding" }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
@@ -126,6 +131,23 @@ export function parseRoute(hash: string): Route {
     return notFound(hash);
   }
   if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
+  if (parts[0] === "studios") {
+    if (parts.length === 1) return { name: "studios" };
+    if (parts.length === 2 && parts[1] === "create") return { name: "studios", create: true };
+    if (parts.length === 2 && parts[1] === "invitations") return { name: "studioInvitations" };
+    if (parts.length === 3 && parts[1] !== undefined && parts[2] === "suspended") {
+      return { name: "studioSuspended", id: decode(parts[1]) };
+    }
+    if (parts.length === 3 && parts[1] !== undefined && parts[2] === "data") {
+      return { name: "studioData", id: decode(parts[1]) };
+    }
+    return notFound(hash);
+  }
+  if (parts[0] === "invitations" && parts[1] === "accept" && parts.length <= 3) {
+    // Le lien d'acceptation ne porte que le jeton : tout le reste (studio,
+    // invitant, rôle) est lu via POST /invitations/preview.
+    return { name: "invitationAccept", token: parts[2] === undefined ? null : decode(parts[2]) };
+  }
   if (parts[0] === "bienvenue" && parts.length === 1) return { name: "onboarding" };
   // L'ancien onglet Graph est fusionné dans le Vault : `#/graphs/*` mène à l'atlas.
   if (parts[0] === "graphs") return { name: "vaultAtlas" };

@@ -189,6 +189,80 @@ ranger en silence dans le studio interne.
 Exception assumee : `studio_memberships` est une table de jointure sans
 `version` ni `updated_at` (seul `created_at`).
 
+### Studio invitations (migration Alembic `0050`)
+
+Table `studio_invitations` : `id`, `studio_id` (FK `studios.id`,
+`ON DELETE CASCADE`, indexe), `email` (adresse normalisee : coupee et
+minuscule, indexee), `role` (`admin|member|viewer`, NOT NULL, CHECK
+`ck_studio_invitations_role`, defaut `member` — `owner` n'est jamais accorde
+par invitation), `token_hash` (SHA-256 du secret, unique : le secret en clair
+n'existe que dans l'e-mail), `expires_at` (7 jours), `consumed_at` (nullable),
+`invited_by_user_id` (FK `users.id`, nullable, `ON DELETE SET NULL`),
+`created_at`. Migration reversible (index et table supprimes au downgrade).
+
+Le secret suit la regle des jetons de compte : valeur aleatoire 256 bits,
+seul son hash est stocke, expiration et usage unique. La consommation est un
+seul `UPDATE ... WHERE consumed_at IS NULL AND expires_at > now RETURNING` :
+deux consommateurs concurrents du meme secret ne peuvent pas reussir tous les
+deux. Une invitation est liee a une adresse : l'accepter exige un compte
+authentifie dont l'e-mail correspond (l'adresse d'un compte pending est
+activee par la verification). Un lien inconnu, expire ou deja consomme repond
+`410` (`invitation_unknown`, `invitation_expired`, `invitation_used`), jamais
+`404`, pour ne pas distinguer un lien brule d'un lien inexistant. Une nouvelle
+invitation pour la meme adresse expire la precedente.
+
+`POST /invitations/preview` (public, non consommante) ne renvoie que
+`state` (`valid|expired|used|unknown`), le nom du studio, le role invite et le
+nom d'affichage de l'inviteur — tous nuls si le secret est inconnu. Les
+gestionnaires du studio (`owner`/`admin`) invitent et listent/revoquent les
+invitations ; seul `owner` transfere la propriete (le cede en `admin` dans le
+meme commit, donc jamais zero owner). `GET /studios/{id}/members` est lisible
+par tout membre. Un compte auto-inscrit recoit son propre studio (`owner`,
+slug derive du nom d'affichage, unicite par suffixe) a la verification de son
+e-mail, sauf si une invitation en attente vise cette adresse : il rejoint
+alors le studio invitant avec le role invite.
+## Export complet et suppression d'un studio (migration Alembic `0051`)
+
+Additive et reversible (deux colonnes nullables, une table et deux index).
+
+`studios` gagne deux colonnes nullables, `deletion_requested_at` et
+`deletion_scheduled_at` (index partiel `ix_studios_deletion_scheduled_at` sur
+les studios planifies). Les deux valent NULL tant qu'aucune suppression n'est
+demandee. Une demande pose `deletion_requested_at = now`,
+`deletion_scheduled_at = now + STUDIO_DELETION_GRACE_DAYS` (defaut 7 jours) et
+`status = pending_deletion` : le studio est **en lecture seule** (`409
+studio_pending_deletion` sur toute ecriture via `ensure_can_write` /
+`ensure_can_provision`), la lecture, l'export et l'annulation restant ouverts.
+L'annulation efface les deux dates et repasse `status` a `active`.
+
+`studio_exports` : `id`, `studio_id` (FK Studio, `ON DELETE CASCADE`),
+`requested_by_user_id` (FK User, nullable, `ON DELETE SET NULL` : supprimer le
+compte demandeur ne detruit pas la trace), `object_key` (cle MinIO de
+l'archive), `created_at`, `expires_at`. Index `studio_id`. Une archive est un
+ZIP construit par le serveur (`studio-export.json` + `files/<transfer_id>/…`),
+depose sous `studios/{studio_id}/exports/{export_id}/studio-{slug}-{date}.zip`.
+`studio-export.json` (schema `studio.export/v1`) contient le studio, ses
+projets, taches, decisions, roadmaps, membres et les metadonnees de chaque
+fichier. L'archive n'est jamais refusee pour depassement de plan ou de quota
+(chemin de recuperation en lecture seule), et n'est accessible qu'a l'`owner`
+du studio (`403 owner_only` pour tout autre role, `404` pour un studio d'un
+autre tenant). Le lien de telechargement est pre-signe et court
+(`STUDIO_EXPORT_URL_TTL_SECONDS`, 900 s maximum) ; `expires_at` de la ligne
+borne la duree de vie de l'archive (`STUDIO_EXPORT_RETENTION_DAYS`).
+
+`purge_due_studios()` (`services/studio_deletion.py`, expose par
+`studio-admin studios purge-due [--dry-run]`) supprime reellement les studios
+dont `deletion_scheduled_at` est passe : objets MinIO (fichiers des transfers et
+prefixe `studios/{studio_id}/`), archives d'export, puis toutes leurs lignes.
+La suppression des lignes est pilotee par le catalogue PostgreSQL : toute table
+portant `studio_id`, et toute table atteignant une ligne condamnee par une cle
+etrangere, est supprimee enfant-avant-parent (ordre calcule, cycle refuse) ;
+une table ajoutee plus tard est donc couverte sans modifier le service. Le
+studio interne (`is_internal`) n'est jamais selectionne, meme planifie a la
+main. La retention des sauvegardes est annoncee par
+`STUDIO_DELETION_BACKUP_RETENTION_DAYS` et la date de purge prevue est
+journalisee a chaque suppression.
+
 ## Project
 `id`, `studio_id` (FK Studio, voir section Studio), `slug` (unique **par
 studio** : `uq_projects_studio_slug` sur `(studio_id, slug)` ; l'unicite
