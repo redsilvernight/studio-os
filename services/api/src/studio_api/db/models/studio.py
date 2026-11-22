@@ -91,3 +91,33 @@ class StudioMembershipModel(Base):
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), default=None
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StudioInvitationModel(UUIDPKMixin, Base):
+    """Pending invitation to one studio for one address (0050). Only the
+    SHA-256 of the random secret is stored; consumption is a single
+    conditional UPDATE, so a secret joins at most once. `email` is stored
+    normalized (trimmed, lower-cased) and is the account the invitation
+    targets: possessing the link is not enough if the caller's account uses
+    another address."""
+
+    __tablename__ = "studio_invitations"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('owner', 'admin', 'member', 'viewer')",
+            name="ck_studio_invitations_role",
+        ),
+    )
+
+    studio_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("studios.id", ondelete="CASCADE"), index=True
+    )
+    email: Mapped[str] = mapped_column(index=True)
+    role: Mapped[str] = mapped_column(default="member", server_default="member")
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

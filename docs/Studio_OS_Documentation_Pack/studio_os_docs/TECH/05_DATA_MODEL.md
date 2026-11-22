@@ -189,6 +189,39 @@ ranger en silence dans le studio interne.
 Exception assumee : `studio_memberships` est une table de jointure sans
 `version` ni `updated_at` (seul `created_at`).
 
+### Studio invitations (migration Alembic `0050`)
+
+Table `studio_invitations` : `id`, `studio_id` (FK `studios.id`,
+`ON DELETE CASCADE`, indexe), `email` (adresse normalisee : coupee et
+minuscule, indexee), `role` (`admin|member|viewer`, NOT NULL, CHECK
+`ck_studio_invitations_role`, defaut `member` — `owner` n'est jamais accorde
+par invitation), `token_hash` (SHA-256 du secret, unique : le secret en clair
+n'existe que dans l'e-mail), `expires_at` (7 jours), `consumed_at` (nullable),
+`invited_by_user_id` (FK `users.id`, nullable, `ON DELETE SET NULL`),
+`created_at`. Migration reversible (index et table supprimes au downgrade).
+
+Le secret suit la regle des jetons de compte : valeur aleatoire 256 bits,
+seul son hash est stocke, expiration et usage unique. La consommation est un
+seul `UPDATE ... WHERE consumed_at IS NULL AND expires_at > now RETURNING` :
+deux consommateurs concurrents du meme secret ne peuvent pas reussir tous les
+deux. Une invitation est liee a une adresse : l'accepter exige un compte
+authentifie dont l'e-mail correspond (l'adresse d'un compte pending est
+activee par la verification). Un lien inconnu, expire ou deja consomme repond
+`410` (`invitation_unknown`, `invitation_expired`, `invitation_used`), jamais
+`404`, pour ne pas distinguer un lien brule d'un lien inexistant. Une nouvelle
+invitation pour la meme adresse expire la precedente.
+
+`POST /invitations/preview` (public, non consommante) ne renvoie que
+`state` (`valid|expired|used|unknown`), le nom du studio, le role invite et le
+nom d'affichage de l'inviteur — tous nuls si le secret est inconnu. Les
+gestionnaires du studio (`owner`/`admin`) invitent et listent/revoquent les
+invitations ; seul `owner` transfere la propriete (le cede en `admin` dans le
+meme commit, donc jamais zero owner). `GET /studios/{id}/members` est lisible
+par tout membre. Un compte auto-inscrit recoit son propre studio (`owner`,
+slug derive du nom d'affichage, unicite par suffixe) a la verification de son
+e-mail, sauf si une invitation en attente vise cette adresse : il rejoint
+alors le studio invitant avec le role invite.
+
 ## Project
 `id`, `studio_id` (FK Studio, voir section Studio), `slug` (unique **par
 studio** : `uq_projects_studio_slug` sur `(studio_id, slug)` ; l'unicite

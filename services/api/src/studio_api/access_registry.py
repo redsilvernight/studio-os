@@ -47,6 +47,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/auth/verify-email"): "public",
     ("POST", "/api/v1/auth/forgot-password"): "public",
     ("POST", "/api/v1/auth/reset-password"): "public",
+    ("POST", "/api/v1/invitations/preview"): "public",
     ("POST", "/api/v1/github/webhook"): "public",
     ("GET", "/openapi.json"): "public",
     ("GET", "/docs"): "public",
@@ -62,6 +63,19 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/users/{user_id}/enable"): "instance",
     ("POST", "/api/v1/users/{user_id}/revoke-sessions"): "instance",
     ("GET", "/api/v1/users/{user_id}/memberships"): "instance",
+    # Studios: the caller's own list, then role-guarded studio administration
+    # (never tied to an existing project's data).
+    ("GET", "/api/v1/studios"): "own",
+    ("POST", "/api/v1/studios"): "own",
+    ("POST", "/api/v1/invitations/accept"): "own",
+    ("GET", "/api/v1/studios/{studio_id}"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/invitations"): "instance",
+    ("GET", "/api/v1/studios/{studio_id}/invitations"): "instance",
+    ("DELETE", "/api/v1/studios/{studio_id}/invitations/{invitation_id}"): "instance",
+    ("GET", "/api/v1/studios/{studio_id}/members"): "instance",
+    ("PATCH", "/api/v1/studios/{studio_id}/members/{user_id}"): "instance",
+    ("DELETE", "/api/v1/studios/{studio_id}/members/{user_id}"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/transfer-ownership"): "instance",
     # Own: the caller's machines (self-service, A5 — admin for any User),
     # agents and user-private runtimes.
     ("POST", "/api/v1/machines"): "own",

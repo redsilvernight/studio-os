@@ -45,6 +45,7 @@ from studio_api.routers import (
     runtimes,
     sessions,
     start_work,
+    studios,
     sync,
     task_launches,
     tasks,
@@ -281,6 +282,7 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router)
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(accounts.router, prefix="/api/v1")
+    app.include_router(studios.router)
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(task_launches.router)

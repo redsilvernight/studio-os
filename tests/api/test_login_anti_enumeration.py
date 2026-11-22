@@ -103,4 +103,7 @@ def test_no_public_route_can_reveal_a_duplicate() -> None:
         ("POST", "/api/v1/auth/verify-email"),
         ("POST", "/api/v1/auth/forgot-password"),
         ("POST", "/api/v1/auth/reset-password"),
+        # Non-consuming, takes only an invitation secret: it names the studio
+        # and role behind a link the caller already holds, never an address.
+        ("POST", "/api/v1/invitations/preview"),
     }
