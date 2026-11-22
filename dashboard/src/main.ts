@@ -49,6 +49,7 @@ import type { components } from "./openapi-schema";
 import "./ds/fonts.css";
 import "./ds/tokens.css";
 import "./ds/components.css";
+import "./ds/lot1.css";
 import "./shell.css";
 import "./views/overview.css";
 import "./views/projects.css";

@@ -66,7 +66,7 @@ describe("designSystemHtml (internal UI-1 demo, DEC-0078)", () => {
     expect(html).toContain("Interne · absente de la navigation");
     expect(html).toContain('class="ds-hero"');
     expect(html).toContain("Voir les états");
-    expect(html.match(/class="ds-card tool-stack"/g) ?? []).toHaveLength(5);
+    expect(html.match(/class="ds-card tool-stack"/g) ?? []).toHaveLength(6);
     expect(html).toContain('class="ds-card tool-context"');
   });
 

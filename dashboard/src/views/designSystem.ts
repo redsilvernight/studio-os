@@ -30,6 +30,17 @@ import {
   initDsTabs,
   openDsDialog,
 } from "../ds/ds";
+import {
+  dsActorAvatar,
+  dsEntitySelect,
+  dsIllustratedEmpty,
+  dsShowMore,
+  dsPersistentNotice,
+  dsSegmented,
+  initDsEntitySelect,
+  initDsPersistentNotice,
+} from "../ds/lot1";
+import { dsMarkdown } from "../ds/markdown";
 import { esc } from "../ui";
 
 function demoSection(title: string, hint: string, body: string): string {
@@ -129,6 +140,42 @@ function themePreviews(): string {
     </section>`;
 
   return `<div class="ds-theme-previews">${panel("light", "clair")}${panel("dark", "sombre")}</div>`;
+}
+
+
+/** Lot 1 (R1-composants) : composants structurants, chacun dans ses états. */
+function lot1Demo(): string {
+  const studios = [
+    { id: "atelier", label: "Atelier Lumière", meta: "Propriétaire" },
+    { id: "nord", label: "Studio Nord", meta: "Membre" },
+    { id: "lecture", label: "Collectif Arc", meta: "Lecture seule" },
+  ];
+  const entity = `<div class="ds-demo-row">${dsEntitySelect("ds-demo-studio", "Studio", studios, "atelier")}</div>`;
+  const avatars = `<div class="ds-demo-row">${dsActorAvatar("Amina Benali")}${dsActorAvatar("Relecteur", "agent")}</div>`;
+  const notices = `<div class="ds-demo-column">
+    ${dsPersistentNotice("ds-n-info", "info", "Nouveau plan disponible", "Comparez les offres quand vous voulez.")}
+    ${dsPersistentNotice("ds-n-warning", "warning", "Limite bientôt atteinte", "9 projets sur 10 utilisés.", { action: { label: "Voir l'abonnement", href: "#/design-system" }, dismissible: true })}
+    ${dsPersistentNotice("ds-n-danger", "danger", "Studio suspendu", "Les modifications sont bloquées.")}
+  </div>`;
+  const pager = `<div class="ds-demo-column">${dsShowMore(50, 213, "tâches", "#/design-system")}${dsShowMore(213, 213, "tâches")}</div>`;
+  const seg = `<div class="ds-demo-row">${dsSegmented("ds-demo-mode", "Mode d'affichage", [{ value: "simple", label: "Simple" }, { value: "expert", label: "Expert" }], "simple")}</div>`;
+  const empty = dsIllustratedEmpty("inbox", "Rien à valider", "Les propositions des agents apparaîtront ici.", { label: "Voir les projets", href: "#/design-system" });
+  const form = `<form class="ds-form" novalidate>
+    <div class="ds-form-field"><label for="ds-f-nom">Nom du studio</label><input class="ds-input" id="ds-f-nom" type="text" aria-describedby="ds-f-nom-hint"><span class="ds-form-hint" id="ds-f-nom-hint">Visible par les membres.</span></div>
+    <div class="ds-form-field"><label for="ds-f-mail">Adresse</label><input class="ds-input" id="ds-f-mail" type="email" aria-invalid="true" aria-describedby="ds-f-mail-err"><span class="ds-form-error" id="ds-f-mail-err">Adresse invalide.</span></div>
+    <div class="ds-form-actions"><button class="ds-btn ds-btn--primary" type="button">Créer</button><button class="ds-btn" type="button">Annuler</button></div>
+  </form>`;
+  const prose = dsMarkdown(["### Notes", "", "Texte **gras**, *italique*, `code` et [un lien](https://example.com).", "", "- Premier", "- Second", "", "> Citation"].join("\n"));
+  return demoCard("Composants du lot 1", "Sélecteur, avatars, notifications persistantes, « Afficher plus », bascule, état vide, formulaire, texte mis en forme.", [
+    `<div data-ds-lot1="entity">${demoSection("Sélecteur d'entité", "Flèches, Entrée, Échap ; le rôle est lu avec le nom.", entity)}</div>`,
+    `<div data-ds-lot1="avatar">${demoSection("Avatars", "Humain : initiales. Agent : icône, nom annoncé « Agent … ».", avatars)}</div>`,
+    `<div data-ds-lot1="notice">${demoSection("Notifications persistantes", "Restent tant que la cause demeure ; l'icône accompagne le texte.", notices)}</div>`,
+    `<div data-ds-lot1="more">${demoSection("Afficher plus", "Liste partielle, liste complète.", pager)}</div>`,
+    `<div data-ds-lot1="segmented">${demoSection("Bascule segmentée", "Flèches pour changer de mode.", seg)}</div>`,
+    `<div data-ds-lot1="empty">${demoSection("État vide illustré", "Icône, explication, une action.", empty)}</div>`,
+    `<div data-ds-lot1="form">${demoSection("Formulaire", "Étiquette, aide, erreur associées au champ.", form)}</div>`,
+    `<div data-ds-lot1="markdown">${demoSection("Texte mis en forme", "Markdown sans HTML brut.", prose)}</div>`,
+  ]);
 }
 
 export function designSystemHtml(): string {
@@ -266,6 +313,7 @@ export function designSystemHtml(): string {
       demoSection("Divulgation progressive", "L'essentiel d'abord, le technique replié sur place : héros à action unique, pastille de statut, détails repliés, erreur cohérente avec le vide et le chargement.", progressive),
       demoSection("Indicateurs", "Un chiffre fort, une progression expliquée, des identités lisibles.", indicators),
     ])}
+    ${lot1Demo()}
     ${demoCard("Thèmes", "Le même jeu de tokens, deux rendus : clair et sombre, côte à côte.", [
       demoSection("Les deux thèmes", "Les panneaux ci-dessous forcent leur thème : la comparaison ne dépend pas du thème actif sur le poste. Le sélecteur de la barre latérale choisit « Système », « Clair » ou « Sombre » pour toute la page.", themePreviews()),
     ])}
@@ -286,6 +334,8 @@ export function designSystemHtml(): string {
 export function renderDesignSystem(view: HTMLElement): void {
   view.innerHTML = designSystemHtml();
   initDsTabs(view, "ds-demo");
+  initDsEntitySelect(view, "ds-demo-studio");
+  initDsPersistentNotice(view, "ds-n-warning");
   // Le héros propose une seule entrée : descendre aux états, sans changer de route.
   view.querySelector("[data-ds-jump]")?.addEventListener("click", (event) => {
     const target = (event.currentTarget as HTMLElement).dataset.dsJump ?? "";
