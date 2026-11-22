@@ -67,8 +67,7 @@ class StudioDetail(StudioSummary):
     deletion_scheduled_at: datetime | None = Field(
         default=None,
         description=(
-            "When the studio is scheduled for deletion, or null. Always null "
-            "until migration 0051 adds the column; clients may rely on the key."
+            "When the studio is scheduled for deletion, or null."
         ),
     )
 
@@ -237,7 +236,7 @@ async def create_studio(
     description=(
         "One studio the caller belongs to, with the caller's `role` there. "
         "Another studio answers the same `403 forbidden` as an unknown one. "
-        "`deletion_scheduled_at` is always null until migration 0051."
+        "`deletion_scheduled_at` is the purge date once a deletion is scheduled, else null."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
@@ -245,7 +244,7 @@ async def get_studio(
     studio_id: uuid.UUID, session: DbSession, principal: CurrentPrincipal
 ) -> StudioDetail:
     studio, role = await studios_service.get_user_studio(session, principal.user.id, studio_id)
-    return StudioDetail(**_summary(studio, role).model_dump(), deletion_scheduled_at=None)
+    return StudioDetail(**_summary(studio, role).model_dump(), deletion_scheduled_at=studio.deletion_scheduled_at)
 
 
 @router.post(

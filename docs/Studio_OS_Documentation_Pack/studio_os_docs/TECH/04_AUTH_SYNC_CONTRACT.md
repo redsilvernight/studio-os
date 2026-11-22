@@ -334,9 +334,11 @@ du studio. Le `Role.ADMIN` global ne donne plus aucune portee implicite ;
 - **Ecriture/provisioning** : `viewer` (ou compte `readonly`) n'ecrit jamais ;
   creer projets/machines/users : `owner`/`admin` de studio ou compte
   `developer`.
-- **Nouveaux comptes** : en attendant la creation de studio a l'inscription,
-  rattaches au studio interne, `owner` si `User.role = admin`, sinon
-  `member` (meme regle que le backfill 0046).
+- **Nouveaux comptes** (S2) : a la verification de l'e-mail, le compte
+  rejoint le studio qui a invite son adresse (invitation valide en attente), sinon cree son propre studio dont
+  il est `owner` (il y provisionne son premier projet sans operateur). Avant
+  verification, aucune appartenance. Les comptes anterieurs au studio restent
+  rattaches au studio interne (backfill 0046).
 - **Isolation** (`ensure_project_in_studio`) : un projet/une ressource d'un
   autre studio repond `404 not_found` (comme un id inconnu) a un `owner`/
   `admin` ; `403` inchange pour un non-manager (l'acces est controle d'abord) ;

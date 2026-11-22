@@ -252,6 +252,10 @@ async def test_deletion_grace_window_and_cancellation(
     assert studio.status == PENDING_DELETION_STATUS
     assert studio.deletion_scheduled_at is not None
 
+    # The studio detail reports the purge date (N7 reads it after a reload).
+    detail = await client.get(f"/api/v1/studios/{studio.id}", headers=headers)
+    assert datetime.fromisoformat(detail.json()["deletion_scheduled_at"]) == scheduled_at
+
     # Read-only: a write is refused with 409, a second request keeps the
     # original schedule, and an export still works during the grace window.
     refused_write = await client.post(

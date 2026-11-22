@@ -277,7 +277,7 @@ export interface paths {
         };
         /**
          * Get Studio
-         * @description One studio the caller belongs to, with the caller's `role` there. Another studio answers the same `403 forbidden` as an unknown one. `deletion_scheduled_at` is always null until migration 0051.
+         * @description One studio the caller belongs to, with the caller's `role` there. Another studio answers the same `403 forbidden` as an unknown one. `deletion_scheduled_at` is the purge date once a deletion is scheduled, else null.
          */
         get: operations["get_studio_api_v1_studios__studio_id__get"];
         put?: never;
@@ -9430,7 +9430,7 @@ export interface components {
             role: components["schemas"]["StudioRole"];
             /**
              * Deletion Scheduled At
-             * @description When the studio is scheduled for deletion, or null. Always null until migration 0051 adds the column; clients may rely on the key.
+             * @description When the studio is scheduled for deletion, or null.
              */
             deletion_scheduled_at?: string | null;
         };

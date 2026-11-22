@@ -57,6 +57,11 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
             unique=True,
             postgresql_where=sa.text("is_internal"),
         ),
+        sa.Index(
+            "ix_studios_deletion_scheduled_at",
+            "deletion_scheduled_at",
+            postgresql_where=sa.text("deletion_scheduled_at IS NOT NULL"),
+        ),
     )
 
     slug: Mapped[str]

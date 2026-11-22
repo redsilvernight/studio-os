@@ -174,6 +174,8 @@ comme un compte inconnu).
   autres routes `/api/v1/auth/*`.
 
 ### Inscription publique et recuperation de compte (A4, DU-0/A / DEC-0109, additif)
+
+> S2 : le studio du compte est cree a la verification de l'e-mail (`verify-email`), pas a `register` : membre du studio qui a invite cette adresse si une invitation valide existe (consommee a ce moment), sinon proprietaire de son propre studio. Reponses inchangees.
 Routes sans Bearer (sauf `change-password`), bucket strict par IP de
 `/api/v1/auth/*`. Les reponses `202` sont toujours `{"status": "accepted"}`,
 que l'adresse existe ou non ; les e-mails partent apres la reponse.
@@ -222,6 +224,29 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   pour ces routes et pour `register` est un HMAC (le corps contient un mot de
   passe ; cle derivee du secret JWT, jamais egale) et la reponse stockee ne
   contient aucun secret.
+
+### Studios (S2, additif)
+
+Tous sous `/api/v1`, `Idempotency-Key` sur les creations. Un studio etranger repond `403 forbidden` comme un id inconnu.
+
+| Route | Reponses | Role |
+|---|---|---|
+| `GET /studios` | 200 | membre : studios du compte avec son `role` (sert a choisir `X-Studio-Id`) |
+| `POST /studios` | 201, 422 | tout compte : cree un studio dont il est `owner` (slug derive du nom) |
+| `GET /studios/{id}` | 200, 403 | membre ; `deletion_scheduled_at` = date de purge ou null |
+| `POST/GET /studios/{id}/invitations` | 201, 200, 403 | `owner`/`admin` ; roles invitables `admin`, `member`, `viewer` ; secret jamais relu |
+| `DELETE /studios/{id}/invitations/{inv}` | 204 | `owner`/`admin` : revoque, le lien cesse de marcher |
+| `POST /invitations/preview` | 200 | public, sans consommer : `state` = `valid`, `expired`, `used`, `unknown` |
+| `POST /invitations/accept` | 200, 403, 410 `invitation_*` | compte authentifie dont l'e-mail est l'adresse invitee ; usage unique |
+| `GET /studios/{id}/members` | 200 | tout membre, `viewer` inclus |
+| `PATCH/DELETE /studios/{id}/members/{user}` | 200, 204, 409 `last_owner_required` | `owner`/`admin` ; jamais soi-meme ; dernier `owner` protege |
+| `POST /studios/{id}/transfer-ownership` | 200 | `owner` : la cible devient `owner`, l'appelant `admin`, meme commit |
+| `POST /studios/{id}/exports` | 201 | `owner` : archive ZIP datee dans le stockage objet |
+| `GET /studios/{id}/exports/{export}` | 200, 404 | `owner` : lien presigne, 15 minutes au plus |
+| `POST /studios/{id}/deletion` | 200, 409 `invalid_confirmation` | `owner` : retaper le slug ; studio en lecture seule, purge apres `deletion_grace_days` |
+| `DELETE /studios/{id}/deletion` | 204 | `owner` : annule pendant le delai de grace |
+
+Studio en cours de suppression (`status = pending_deletion`) : toute ecriture (dont `POST /projects`) repond `409 studio_pending_deletion` ; lecture et export restent permis. Evenements : aucun nouvel evenement (TECH/03 inchange).
 
 ### Projects
 - GET /projects — uniquement les projets accessibles (membership ou `admin`,
