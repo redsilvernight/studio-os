@@ -83,7 +83,7 @@
   gap: var(--ds-space-2);
   min-height: var(--ds-target);
   padding: var(--ds-space-2);
-  border: 1px solid rgb(255 255 255 / 0.18);
+  border: 1px solid var(--ds-nav-line);
   border-radius: var(--ds-radius-md);
   background: var(--ds-navy-deep);
   color: var(--ds-navy-muted);
@@ -93,12 +93,12 @@
 }
 .app-cmdk:hover {
   color: var(--ds-navy-active);
-  border-color: rgb(255 255 255 / 0.32);
+  border-color: var(--ds-nav-line);
 }
 .app-cmdk kbd {
   margin-left: auto;
   padding: 1px 6px;
-  border: 1px solid rgb(255 255 255 / 0.22);
+  border: 1px solid var(--ds-nav-line);
   border-radius: var(--ds-radius-sm, 4px);
   font: inherit;
   font-size: var(--ds-text-xs);
@@ -126,7 +126,7 @@
 .app-navgroup--admin {
   margin-top: auto;
   padding-top: var(--ds-space-2);
-  border-top: 1px solid rgb(255 255 255 / 0.18);
+  border-top: 1px solid var(--ds-nav-line);
 }
 .app-navlink,
 .app-navgroup--secondary summary {
@@ -154,7 +154,7 @@
 }
 .app-navlink:hover,
 .app-navgroup--secondary summary:hover {
-  background: rgb(255 255 255 / 0.08);
+  background: var(--ds-nav-hover);
   color: var(--ds-navy-active);
 }
 .app-navgroup--secondary[open] summary,
@@ -162,7 +162,7 @@
   color: var(--ds-navy-active);
 }
 .app-navlink.active {
-  background: rgb(255 255 255 / 0.14);
+  background: var(--ds-nav-current);
   color: var(--ds-navy-active);
   font-weight: 600;
 }
@@ -224,7 +224,7 @@
 }
 .app-navmode:hover,
 .app-navmode[aria-pressed="true"] {
-  border-color: rgb(255 255 255 / 0.18);
+  border-color: var(--ds-nav-line);
   color: var(--ds-navy-active);
 }
 
@@ -247,7 +247,7 @@
   width: 100%;
   min-height: var(--ds-target-sm);
   padding: var(--ds-space-1) var(--ds-space-2);
-  border: 1px solid rgb(255 255 255 / 0.18);
+  border: 1px solid var(--ds-nav-line);
   border-radius: var(--ds-radius-md);
   background: var(--ds-navy-deep);
   color: var(--ds-navy-text);
@@ -256,7 +256,7 @@
   cursor: pointer;
 }
 .app-theme-select:hover {
-  border-color: rgb(255 255 255 / 0.3);
+  border-color: var(--ds-nav-line);
 }
 
 /* Pied : avatar + unique statut de connexion (C4) + déconnexion. */
@@ -266,14 +266,14 @@
   align-items: center;
   gap: var(--ds-space-2);
   padding-top: var(--ds-space-3);
-  border-top: 1px solid rgb(255 255 255 / 0.14);
+  border-top: 1px solid var(--ds-nav-line);
 }
 /* Action d'un état dégradé : visible avec le libellé (barre complète, tiroir) ;
    en rail, le point reste un lien vers le détail. */
 .app-connection-action {
   display: none;
   padding: var(--ds-space-1) var(--ds-space-2);
-  border: 1px solid rgb(255 255 255 / 0.24);
+  border: 1px solid var(--ds-nav-line);
   border-radius: var(--ds-radius-sm, 6px);
   background: none;
   color: var(--ds-navy-active);
@@ -283,7 +283,7 @@
   cursor: pointer;
 }
 .app-connection-action:hover {
-  background: rgb(255 255 255 / 0.08);
+  background: var(--ds-nav-hover);
 }
 .app-avatar {
   display: inline-flex;
@@ -292,7 +292,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.12);
+  background: var(--ds-nav-hover);
   color: var(--ds-navy-active);
   flex: none;
 }
@@ -314,7 +314,7 @@ a.app-connection:hover .app-connection-label {
   border-radius: 50%;
   flex: none;
   background: var(--ds-navy-muted);
-  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.1);
+  box-shadow: 0 0 0 3px var(--ds-nav-hover);
 }
 .app-connection--ok .app-connection-dot {
   background: var(--ds-success);
@@ -340,7 +340,7 @@ a.app-connection:hover .app-connection-label {
 }
 .app-logout:hover {
   color: var(--ds-navy-active);
-  border-color: rgb(255 255 255 / 0.2);
+  border-color: var(--ds-nav-line);
 }
 .app-tokenrow {
   display: flex;
@@ -352,7 +352,7 @@ a.app-connection:hover .app-connection-label {
   min-width: 0;
   min-height: var(--ds-target-sm);
   padding: var(--ds-space-1) var(--ds-space-2);
-  border: 1px solid rgb(255 255 255 / 0.25);
+  border: 1px solid var(--ds-nav-line);
   border-radius: var(--ds-radius-md);
   background: var(--ds-navy-deep);
   color: var(--ds-navy-text);
@@ -362,7 +362,7 @@ a.app-connection:hover .app-connection-label {
 .app-tokenbtn {
   min-height: var(--ds-target-sm);
   padding: var(--ds-space-1) var(--ds-space-3);
-  border: 1px solid rgb(255 255 255 / 0.25);
+  border: 1px solid var(--ds-nav-line);
   border-radius: var(--ds-radius-md);
   background: transparent;
   color: var(--ds-navy-text);

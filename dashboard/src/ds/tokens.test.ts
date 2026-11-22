@@ -128,14 +128,17 @@ for (const [themeName, tokens] of themes) {
       expect(ratio(t("ds-ink-inverse"), t("ds-text"))).toBeGreaterThanOrEqual(4.5);
     });
 
-    it("sidebar (chrome constant) ≥ 4.5:1 et focus ≥ 3:1", () => {
-      // La sidebar bleu nuit ne change pas avec le thème : ses 4 tokens
-      // vivent uniquement dans `:root`.
-      expect(ratio(light["ds-navy-text"] as string, light["ds-navy"] as string)).toBeGreaterThanOrEqual(4.5);
-      expect(ratio(light["ds-navy-muted"] as string, light["ds-navy"] as string)).toBeGreaterThanOrEqual(4.5);
-      expect(ratio(light["ds-navy-active"] as string, light["ds-navy"] as string)).toBeGreaterThanOrEqual(4.5);
-      expect(ratio("#ffffff", light["ds-navy"] as string)).toBeGreaterThanOrEqual(3);
+    it("barre latérale ≥ 4.5:1 et focus ≥ 3:1", () => {
+      for (const name of ["ds-navy-text", "ds-navy-muted", "ds-navy-active"]) {
+        expect(ratio(t(name), t("ds-navy")), name).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(ratio(t("ds-navy-active"), t("ds-nav-current"))).toBeGreaterThanOrEqual(4.5);
       expect(ratio(t("ds-action"), t("ds-surface"))).toBeGreaterThanOrEqual(3);
+    });
+
+    it("rôles Atelier : info et marque lisibles sur leur fond pastel", () => {
+      expect(ratio(t("ds-info"), t("ds-info-soft"))).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(t("ds-brand"), t("ds-brand-soft"))).toBeGreaterThanOrEqual(4.5);
     });
   });
 }
@@ -146,8 +149,9 @@ describe("thème sombre — cohérence des deux entrées CSS", () => {
   });
 
   it("le thème clair reste le défaut (aucun attribut requis)", () => {
-    expect(light["ds-bg"]).toBe("#f2f6fb");
-    expect(light["ds-surface"]).toBe("#ffffff");
+    expect(light["ds-bg"]).toBe("#f6f4f0");
+    expect(light["ds-action"]).toBe("#5440d0");
+    expect(light["ds-ai"]).toBe("#0a747e");
   });
 });
 
@@ -167,6 +171,15 @@ describe("polices locales (CSP inchangée)", () => {
     const sources = [...fontsCss.matchAll(/url\("([^"]+\.woff2)"\)/g)].map((m) => m[1] as string);
     expect(sources).toHaveLength(4);
     for (const source of sources) expect(source.startsWith("../assets/fonts/")).toBe(true);
+  });
+
+  it("gabarits Atelier : rayons 10/14/20, cibles 44 px, texte 16 px", () => {
+    const root = ruleBody(css, ":root");
+    expect(root).toContain("--ds-radius-md: 10px");
+    expect(root).toContain("--ds-radius-lg: 14px");
+    expect(root).toContain("--ds-radius-xl: 20px");
+    expect(root).toContain("--ds-target: 44px");
+    expect(root).toContain("--ds-text-base: 16px");
   });
 
   it("les tokens typographiques pointent d'abord sur les familles locales", () => {
