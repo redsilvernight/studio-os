@@ -69,8 +69,9 @@ describe("N1 · état « choisir »", () => {
     expect(html).toContain("Voir mes invitations (1)");
   });
 
-  it("masque le lien d'invitations quand il n'y en a aucune", () => {
+  it("masque le lien d'invitations quand le compteur est nul ou inconnu", () => {
     expect(studioChoiceHtml([studio()], 0)).not.toContain("Voir mes invitations");
+    expect(studioChoiceHtml([studio()])).not.toContain("Voir mes invitations");
   });
 });
 
@@ -100,6 +101,13 @@ describe("N1 · état « créer »", () => {
     expect(html).toContain("Archiver un studio");
     expect(html).toContain("disabled aria-disabled=\"true\"");
   });
+
+  it("n'affiche pas « 0 studios sur 0 » quand le serveur ne donne pas les compteurs", () => {
+    const html = studioCreateFormHtml({ limit: { planLabel: "Gratuit" } });
+    expect(html).toContain("Limite de studios atteinte avec le plan Gratuit");
+    expect(html).not.toContain("0 studios sur 0");
+  });
+
 });
 
 describe("N1 · états vide, chargement et erreur", () => {

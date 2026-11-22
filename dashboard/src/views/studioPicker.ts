@@ -30,9 +30,10 @@ export interface StudioPickerContext {
   authed: boolean;
 }
 
+/** `used`/`total` absents = le serveur ne les a pas fournis : texte sans chiffres. */
 export interface StudioLimitInfo {
-  used: number;
-  total: number;
+  used?: number;
+  total?: number;
   planLabel: string;
 }
 
@@ -57,14 +58,17 @@ function studioRowHtml(studio: StudioSummary): string {
   );
 }
 
-/** État « Choisir · N studios » : liste + création + invitations reçues. */
+/**
+ * État « Choisir · N studios » : liste + création. « Voir mes invitations (n) »
+ * n'apparaît que si le compteur est connu et non nul : l'API n'expose pas les
+ * invitations reçues par le compte (elles arrivent par lien e-mail).
+ */
 export function studioChoiceHtml(studios: StudioSummary[], pendingInvitations?: number): string {
   const rows = studios.map(studioRowHtml).join("");
-  const count = pendingInvitations === undefined ? "" : ` (${esc(String(pendingInvitations))})`;
   const invitations =
-    pendingInvitations === 0
+    pendingInvitations === undefined || pendingInvitations <= 0
       ? ""
-      : `<a class="ds-btn ds-btn--ghost" href="#/studios/invitations">Voir mes invitations${count}</a>`;
+      : `<a class="ds-btn ds-btn--ghost" href="#/studios/invitations">Voir mes invitations (${esc(String(pendingInvitations))})</a>`;
   return soloCard(
     `<h1>Choisissez un studio</h1>` +
       `<p class="ds-list-sub">Vous appartenez à ${esc(String(studios.length))} studios.</p>` +
@@ -73,10 +77,16 @@ export function studioChoiceHtml(studios: StudioSummary[], pendingInvitations?: 
   );
 }
 
+export function limitTitle(limit: StudioLimitInfo): string {
+  return limit.used !== undefined && limit.total !== undefined
+    ? `Limite atteinte : ${limit.used} studios sur ${limit.total} avec le plan ${limit.planLabel}`
+    : `Limite de studios atteinte avec le plan ${limit.planLabel}`;
+}
+
 function limitBannerHtml(limit: StudioLimitInfo): string {
   return (
     `<div class="ds-banner ds-banner--warning" role="status">${dsIcon("alert-triangle", 20)}` +
-    `<div class="ds-banner-body"><strong>Limite atteinte : ${esc(String(limit.used))} studios sur ${esc(String(limit.total))} avec le plan ${esc(limit.planLabel)}</strong>` +
+    `<div class="ds-banner-body"><strong>${esc(limitTitle(limit))}</strong>` +
     `<span>Rejoindre un studio n'est jamais limité. Pour en créer un de plus, passez à Pro ou archivez un studio inutilisé.</span></div>` +
     `<div class="studio-banner-actions"><button type="button" class="ds-btn ds-btn--primary" data-studio-limit-subscribe>Voir l'abonnement</button>` +
     `<button type="button" class="ds-btn" data-studio-limit-archive>Archiver un studio</button></div></div>`
@@ -189,7 +199,7 @@ function wireCreateForm(root: HTMLElement, ctx: StudioPickerContext, reload: () 
           const total = typeof details["studios_limit"] === "number" ? details["studios_limit"] : undefined;
           showCreateForm(root, ctx, reload, {
             initialName: name,
-            limit: { used: used ?? 0, total: total ?? 0, planLabel: "Gratuit" },
+            limit: { used, total, planLabel: "Gratuit" },
           });
           return;
         }

@@ -195,10 +195,17 @@ export function studioDataPageHtml(options: {
     default:
       exportArea = options.empty === true ? studioDataEmptyHtml() : studioExportCardHtml();
   }
+  // Fiche N7 : délai de grâce, préparation, prêt et erreur ne montrent que
+  // leur bandeau ; la zone « Supprimer le studio… » n'apparaît qu'aux états
+  // normal et limite.
+  const showDanger =
+    options.deletionScheduledAt === null &&
+    (options.exportState.kind === "none" || options.exportState.kind === "limit") &&
+    options.empty !== true;
   return (
     dsPageHeader("Confidentialité", "Qui peut voir quoi, et les accès exceptionnels au studio.") +
     grace +
-    `<div class="studio-sections">${exportArea}${studioDangerZoneHtml({ isOwner: options.isOwner })}</div>` +
+    `<div class="studio-sections">${exportArea}${showDanger ? studioDangerZoneHtml({ isOwner: options.isOwner }) : ""}</div>` +
     studioDeletionDialogHtml(options.studioName)
   );
 }

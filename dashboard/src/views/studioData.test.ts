@@ -123,7 +123,32 @@ describe("N7 · page complète", () => {
     expect(html).toContain("Confidentialité");
     expect(html).toContain("Qui peut voir quoi, et les accès exceptionnels au studio.");
     expect(html).toContain("Suppression programmée le 5 décembre");
+    expect(html).toContain("data-deletion-cancel");
+    expect(html).toContain("data-export-start");
+  });
+
+  it("enchaîne l'export puis la zone sensible à l'état normal", () => {
+    const html = studioDataPageHtml({
+      studioName: "Atelier Phare",
+      deletionScheduledAt: null,
+      exportState: { kind: "none" },
+      isOwner: true,
+    });
     expect(html.indexOf("Exporter le studio")).toBeLessThan(html.indexOf("Supprimer le studio"));
+  });
+
+  it("masque la zone « Supprimer le studio… » pendant le délai de grâce, la préparation, le prêt et l'erreur", () => {
+    const base = { studioName: "Atelier Phare", isOwner: true };
+    const grace = studioDataPageHtml({ ...base, deletionScheduledAt: "2026-12-05T10:00:00Z", exportState: { kind: "none" } });
+    expect(grace).not.toContain("data-delete-open");
+    for (const exportState of [
+      { kind: "preparing" },
+      { kind: "ready", fileName: "a.zip", downloadUrl: "https://s/a.zip" },
+      { kind: "error", message: "x" },
+    ] as const) {
+      expect(studioDataPageHtml({ ...base, deletionScheduledAt: null, exportState })).not.toContain("data-delete-open");
+    }
+    expect(studioDataPageHtml({ ...base, deletionScheduledAt: null, exportState: { kind: "limit" } })).toContain("data-delete-open");
   });
 
   it("affiche l'état vide quand le studio n'a rien à exporter", () => {
