@@ -15,6 +15,10 @@ INTERNAL_STUDIO_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 """Tenant owning every resource created before studios existed (0046). New
 resources default to it until per-request studio selection exists."""
 
+PENDING_DELETION_STATUS = "pending_deletion"
+"""Read-only state between a deletion request and its grace-window end (0051).
+Never gates reads or the export/cancel routes; every other write is refused."""
+
 
 class StudioRole(StrEnum):
     """A User's role inside one studio (0046 `studio_memberships.role`), weakest
@@ -58,8 +62,19 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     slug: Mapped[str]
     name: Mapped[str]
     plan: Mapped[str] = mapped_column(default="free", server_default="free")
+    # `pending_deletion` is the read-only state between a deletion request and
+    # its grace-window end (0051). It never gates the export or the cancel
+    # routes; every other write is refused.
     status: Mapped[str] = mapped_column(default="active", server_default="active")
     is_internal: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # Deletion grace window (0051). Both NULL while no deletion is scheduled;
+    # `purge_due_studios` deletes a studio once `deletion_scheduled_at` passed.
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    deletion_scheduled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
 
 
 class StudioMembershipModel(Base):

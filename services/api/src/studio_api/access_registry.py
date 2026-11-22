@@ -62,6 +62,11 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/users/{user_id}/enable"): "instance",
     ("POST", "/api/v1/users/{user_id}/revoke-sessions"): "instance",
     ("GET", "/api/v1/users/{user_id}/memberships"): "instance",
+    # Studio lifecycle (0051): owner-only, tenant-level, never a project's data.
+    ("POST", "/api/v1/studios/{studio_id}/exports"): "instance",
+    ("GET", "/api/v1/studios/{studio_id}/exports/{export_id}"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/deletion"): "instance",
+    ("DELETE", "/api/v1/studios/{studio_id}/deletion"): "instance",
     # Own: the caller's machines (self-service, A5 — admin for any User),
     # agents and user-private runtimes.
     ("POST", "/api/v1/machines"): "own",
