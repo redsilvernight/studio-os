@@ -12,6 +12,7 @@ import {
   invitationAcceptLoadingHtml,
   invitationExpiredHtml,
   invitationUnknownHtml,
+  invitationWrongAccountHtml,
   invitationUsedHtml,
   inviteDialogHtml,
   inviteFormHtml,
