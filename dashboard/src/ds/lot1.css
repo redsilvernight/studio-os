@@ -1,6 +1,6 @@
 /* Design System — composants du lot 1 (R1-composants). Tokens uniquement. */
 .ds-icon { flex: none; vertical-align: middle; }
-.ds-avatar--agent { background: var(--ds-ai-soft); color: var(--ds-ai); }
+.ds-avatar--agent { border-radius: var(--ds-radius-md); background: var(--ds-ai-soft); color: var(--ds-ai); }
 
 .ds-empty--illustrated .ds-empty-art {
   display: inline-flex;
@@ -78,23 +78,9 @@
 .ds-banner--warning { background: var(--ds-warning-soft); border-color: var(--ds-warning-border); }
 .ds-banner--danger { background: var(--ds-danger-soft); border-color: var(--ds-danger-border); }
 
-/* Pagination. */
-.ds-pagination ul { display: flex; flex-wrap: wrap; gap: var(--ds-space-1); margin: 0; padding: 0; list-style: none; }
-.ds-page-link,
-.ds-page-gap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--ds-target);
-  min-height: var(--ds-target);
-  padding: 0 var(--ds-space-2);
-  border-radius: var(--ds-radius-md);
-  color: var(--ds-text);
-  text-decoration: none;
-}
-a.ds-page-link:hover { background: var(--ds-surface-soft); }
-.ds-page-link[aria-current="page"] { background: var(--ds-action); color: var(--ds-action-ink); font-weight: 700; }
-.ds-page-link[aria-disabled="true"] { color: var(--ds-text-muted); opacity: 0.6; }
+/* « Afficher plus ». */
+.ds-more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-3); }
+.ds-more-count { color: var(--ds-text-muted); font-size: var(--ds-text-sm); }
 
 /* Bascule segmentée. */
 .ds-seg { display: inline-flex; margin: 0; padding: 2px; border: 1px solid var(--ds-border-strong); border-radius: var(--ds-radius-md); background: var(--ds-surface-sunken); }

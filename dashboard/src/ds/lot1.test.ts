@@ -5,7 +5,7 @@ import {
   dsEntitySelect,
   dsIcon,
   dsIllustratedEmpty,
-  dsPagination,
+  dsShowMore,
   dsPersistentNotice,
   dsSegmented,
   initDsEntitySelect,
@@ -45,13 +45,12 @@ describe("lot 1 — rendu", () => {
     expect(dsPersistentNotice("n", "info", "T", "m")).not.toContain("data-ds-dismiss");
   });
 
-  it("pagination : page courante, bords désactivés, fenêtre avec trous", () => {
-    const first = dsPagination(1, 10, (p) => `#${p}`);
-    expect(first).toContain('aria-current="page"');
-    expect(first).toContain('aria-disabled="true"');
-    expect(first).toContain("ds-page-gap");
-    expect(dsPagination(1, 1, (p) => `#${p}`).match(/aria-disabled/g)).toHaveLength(2);
-    expect(dsPagination(99, 3, (p) => `#${p}`)).toContain('aria-label="Page 3" aria-current="page"');
+  it("afficher plus : compte honnête, bouton seulement si la liste est partielle", () => {
+    const partial = dsShowMore(50, 213, "tâches", "#/x");
+    expect(partial).toContain("50 sur 213 tâches");
+    expect(partial).toContain("Afficher plus");
+    expect(dsShowMore(213, 213, "tâches", "#/x")).not.toContain("Afficher plus");
+    expect(dsShowMore(1, 5, "<b>", "#/x")).not.toContain("<b>");
   });
 
   it("bascule segmentée : un seul radio coché", () => {

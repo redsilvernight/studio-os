@@ -1,7 +1,7 @@
 /**
  * Design System — composants du lot 1 (R1-composants) : icônes, avatar typé,
  * sélecteur d'entité, état vide illustré, notification persistante,
- * pagination, bascule segmentée. Même contrat que ds.ts : chaînes HTML
+ * « Afficher plus », bascule segmentée. Même contrat que ds.ts : chaînes HTML
  * échappées, aucun style inline, comportements par addEventListener (CSP).
  */
 import { esc } from "../ui";
@@ -201,26 +201,14 @@ export function initDsPersistentNotice(root: ParentNode, id: string): void {
   });
 }
 
-/**
- * Pagination : page courante `aria-current="page"`, fenêtre autour d'elle,
- * précédent/suivant désactivés aux bords (pas de lien mort).
- */
-export function dsPagination(current: number, total: number, hrefFor: (page: number) => string): string {
-  const last = Math.max(1, Math.trunc(total));
-  const page = Math.min(Math.max(1, Math.trunc(current)), last);
-  const shown = [...new Set([1, last, page - 1, page, page + 1])].filter((n) => n >= 1 && n <= last).sort((a, b) => a - b);
-  const edge = (target: number, icon: DsIconName, label: string, disabled: boolean): string =>
-    disabled
-      ? `<li><span class="ds-page-link" role="link" aria-disabled="true" aria-label="${label}">${dsIcon(icon)}</span></li>`
-      : `<li><a class="ds-page-link" href="${esc(hrefFor(target))}" aria-label="${label}">${dsIcon(icon)}</a></li>`;
-  const numbers = shown
-    .map((value, index) => {
-      const gap = index > 0 && value - (shown[index - 1] ?? 0) > 1 ? `<li class="ds-page-gap" aria-hidden="true">…</li>` : "";
-      const here = value === page ? ' aria-current="page"' : "";
-      return `${gap}<li><a class="ds-page-link" href="${esc(hrefFor(value))}" aria-label="Page ${value}"${here}>${value}</a></li>`;
-    })
-    .join("");
-  return `<nav class="ds-pagination" aria-label="Pagination"><ul>${edge(page - 1, "chevron-left", "Page précédente", page <= 1)}${numbers}${edge(page + 1, "chevron-right", "Page suivante", page >= last)}</ul></nav>`;
+/** Liste honnête : « 50 sur 213 · Afficher plus ». Sans suite, seul le compte reste. */
+export function dsShowMore(shown: number, total: number, noun: string, hrefMore?: string): string {
+  const count = `<span class="ds-more-count">${esc(String(shown))} sur ${esc(String(total))} ${esc(noun)}</span>`;
+  const more =
+    hrefMore && shown < total
+      ? `<a class="ds-btn ds-btn--secondary" href="${esc(hrefMore)}">Afficher plus</a>`
+      : "";
+  return `<nav class="ds-more" aria-label="Suite de la liste">${count}${more}</nav>`;
 }
 
 /** Bascule segmentée : `radiogroup` natif (flèches, un seul tabstop). */

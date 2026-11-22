@@ -34,7 +34,7 @@ import {
   dsActorAvatar,
   dsEntitySelect,
   dsIllustratedEmpty,
-  dsPagination,
+  dsShowMore,
   dsPersistentNotice,
   dsSegmented,
   initDsEntitySelect,
@@ -157,7 +157,7 @@ function lot1Demo(): string {
     ${dsPersistentNotice("ds-n-warning", "warning", "Limite bientôt atteinte", "9 projets sur 10 utilisés.", { action: { label: "Voir l'abonnement", href: "#/design-system" }, dismissible: true })}
     ${dsPersistentNotice("ds-n-danger", "danger", "Studio suspendu", "Les modifications sont bloquées.")}
   </div>`;
-  const pager = `<div class="ds-demo-column">${dsPagination(1, 8, () => "#/design-system")}${dsPagination(5, 12, () => "#/design-system")}${dsPagination(3, 3, () => "#/design-system")}</div>`;
+  const pager = `<div class="ds-demo-column">${dsShowMore(50, 213, "tâches", "#/design-system")}${dsShowMore(213, 213, "tâches")}</div>`;
   const seg = `<div class="ds-demo-row">${dsSegmented("ds-demo-mode", "Mode d'affichage", [{ value: "simple", label: "Simple" }, { value: "expert", label: "Expert" }], "simple")}</div>`;
   const empty = dsIllustratedEmpty("inbox", "Rien à valider", "Les propositions des agents apparaîtront ici.", { label: "Voir les projets", href: "#/design-system" });
   const form = `<form class="ds-form" novalidate>
@@ -166,11 +166,11 @@ function lot1Demo(): string {
     <div class="ds-form-actions"><button class="ds-btn ds-btn--primary" type="button">Créer</button><button class="ds-btn" type="button">Annuler</button></div>
   </form>`;
   const prose = dsMarkdown(["### Notes", "", "Texte **gras**, *italique*, `code` et [un lien](https://example.com).", "", "- Premier", "- Second", "", "> Citation"].join("\n"));
-  return demoCard("Composants du lot 1", "Sélecteur, avatars, notifications persistantes, pagination, bascule, état vide, formulaire, texte mis en forme.", [
+  return demoCard("Composants du lot 1", "Sélecteur, avatars, notifications persistantes, « Afficher plus », bascule, état vide, formulaire, texte mis en forme.", [
     `<div data-ds-lot1="entity">${demoSection("Sélecteur d'entité", "Flèches, Entrée, Échap ; le rôle est lu avec le nom.", entity)}</div>`,
     `<div data-ds-lot1="avatar">${demoSection("Avatars", "Humain : initiales. Agent : icône, nom annoncé « Agent … ».", avatars)}</div>`,
     `<div data-ds-lot1="notice">${demoSection("Notifications persistantes", "Restent tant que la cause demeure ; l'icône accompagne le texte.", notices)}</div>`,
-    `<div data-ds-lot1="pagination">${demoSection("Pagination", "Début, milieu, page unique.", pager)}</div>`,
+    `<div data-ds-lot1="more">${demoSection("Afficher plus", "Liste partielle, liste complète.", pager)}</div>`,
     `<div data-ds-lot1="segmented">${demoSection("Bascule segmentée", "Flèches pour changer de mode.", seg)}</div>`,
     `<div data-ds-lot1="empty">${demoSection("État vide illustré", "Icône, explication, une action.", empty)}</div>`,
     `<div data-ds-lot1="form">${demoSection("Formulaire", "Étiquette, aide, erreur associées au champ.", form)}</div>`,

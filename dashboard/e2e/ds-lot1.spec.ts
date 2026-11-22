@@ -6,7 +6,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const COMPONENTS = ["entity", "avatar", "notice", "pagination", "segmented", "empty", "form", "markdown"] as const;
+const COMPONENTS = ["entity", "avatar", "notice", "more", "segmented", "empty", "form", "markdown"] as const;
 
 async function open(page: Page, theme: "light" | "dark"): Promise<void> {
   await page.route("**/api/**", async (route) => {
