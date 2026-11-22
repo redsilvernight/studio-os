@@ -4,6 +4,7 @@
  * la version lue, suppression confirmée ; la consommation est relue après
  * chaque écriture.
  */
+import { answerConfirm } from "../ds/confirmTest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "../api";
 import type { UsageSubscription } from "../usageApi";
@@ -113,12 +114,12 @@ describe("renderUsageSubscriptionsInto", () => {
     const client = { GET: vi.fn(() => ok([MAX])), DELETE: del } as unknown as StudioClient;
     const root = document.createElement("div");
     await renderUsageSubscriptionsInto(root, { client, projectId: PROJECT, now: () => NOW });
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     root.querySelector<HTMLButtonElement>("[data-subscription-delete]")?.click();
+    await answerConfirm(false);
     expect(del).not.toHaveBeenCalled();
     root.querySelector<HTMLButtonElement>("[data-subscription-delete]")?.click();
+    await answerConfirm(true);
     await vi.waitFor(() => expect(del).toHaveBeenCalledOnce());
-    expect(confirm).toHaveBeenCalledTimes(2);
     expect(del).toHaveBeenCalledWith("/api/v1/usage/subscriptions/{subscription_id}", {
       params: { path: { subscription_id: MAX.id }, query: { expected_version: 3 } },
     });

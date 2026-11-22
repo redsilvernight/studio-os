@@ -14,14 +14,14 @@
 .machines-notice {
   border: 1px solid var(--ds-border);
   border-left-width: 4px;
-  border-radius: var(--ds-radius, 8px);
+  border-radius: var(--ds-radius-md);
   padding: var(--ds-space-3) var(--ds-space-4);
   font-size: var(--ds-text-sm);
   background: var(--ds-surface, transparent);
 }
 
 .machines-notice--warning {
-  border-left-color: var(--ds-warning, #b7791f);
+  border-left-color: var(--ds-warning);
 }
 
 .machines-toolbar {
@@ -48,25 +48,10 @@
   margin: 0;
 }
 
-.machines-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: var(--ds-space-3);
-}
-
 .machine-row {
   display: flex;
   gap: var(--ds-space-3);
   align-items: flex-start;
-}
-
-.machine-row .grow {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: var(--ds-space-1);
 }
 
 .machine-row .ds-list-title {
@@ -75,13 +60,6 @@
 
 .machine-row .ds-list-sub {
   overflow-wrap: anywhere;
-}
-
-.machine-side {
-  display: grid;
-  gap: var(--ds-space-2);
-  justify-items: end;
-  flex-shrink: 0;
 }
 
 .machine-group {
@@ -112,44 +90,8 @@
   justify-items: start;
 }
 
-.machine-status {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-1);
-  align-items: center;
-  justify-content: flex-end;
-}
-
 .machine-drawer-title {
   margin: 0 0 var(--ds-space-2);
-  overflow-wrap: anywhere;
-}
-
-.machine-drawer-summary {
-  display: grid;
-  gap: var(--ds-space-2);
-  margin-bottom: var(--ds-space-4);
-}
-
-.machine-facts {
-  margin: var(--ds-space-2) 0 0;
-  display: grid;
-  gap: var(--ds-space-1);
-  font-size: var(--ds-text-sm);
-}
-
-.machine-facts > div {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: var(--ds-space-2);
-}
-
-.machine-facts dt {
-  font-weight: 600;
-}
-
-.machine-facts dd {
-  margin: 0;
   overflow-wrap: anywhere;
 }
 

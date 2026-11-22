@@ -12,6 +12,7 @@
  */
 import { ApiError, type StudioClient } from "../api";
 import { applyAccountAction, listUserMemberships, type AccountAction } from "../accountsApi";
+import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsEmptyState, dsField, dsPageHeader, focusDsErrorBox, type DsTone } from "../ds/ds";
 import { fetchIdentity } from "../identityApi";
 import { searchStudioMembers, searchUsers, type DirectoryUser, type ProjectMember } from "../membersApi";
@@ -158,10 +159,10 @@ function bind(root: HTMLElement, ctx: AccountsContext, query: string): void {
     void renderAccounts(root, ctx, String(new FormData(form).get("q") ?? "").trim());
   });
   root.querySelectorAll<HTMLButtonElement>("[data-account-action]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const action = button.dataset["accountAction"] as AccountAction;
-      if (action === "disable" && !window.confirm(CONFIRM_DISABLE_ACCOUNT)) return;
-      if (action === "revoke-sessions" && !window.confirm(CONFIRM_REVOKE_SESSIONS)) return;
+      if (action === "disable" && !(await confirmDs(CONFIRM_DISABLE_ACCOUNT))) return;
+      if (action === "revoke-sessions" && !(await confirmDs(CONFIRM_REVOKE_SESSIONS))) return;
       button.disabled = true;
       applyAccountAction(ctx.client, button.dataset["user"] ?? "", action)
         .then(() => renderAccounts(root, ctx, query, ACTION_DONE[action]))

@@ -8,6 +8,7 @@
  * - Aucun UUID visible.
  */
 import type { StudioClient } from "../api";
+import { confirmDs } from "../ds/confirm";
 import { dsField, dsSectionHeader, dsSkeleton, focusDsErrorBox } from "../ds/ds";
 import { describeError, esc } from "../ui";
 import {
@@ -172,10 +173,10 @@ export async function renderUsageSubscriptionsInto(root: HTMLElement, ctx: Usage
       });
     });
     body.querySelectorAll<HTMLButtonElement>("[data-subscription-delete]").forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         const subscription = subscriptions[Number(button.dataset["subscriptionDelete"])];
         if (subscription === undefined) return;
-        if (!window.confirm(`Supprimer l'abonnement « ${subscription.label} » ? Sa part ne sera plus répartie, y compris sur les mois passés.`)) return;
+        if (!(await confirmDs(`Supprimer l'abonnement « ${subscription.label} » ? Sa part ne sera plus répartie, y compris sur les mois passés.`))) return;
         button.disabled = true;
         deleteUsageSubscription(ctx.client, subscription)
           .then(() => {

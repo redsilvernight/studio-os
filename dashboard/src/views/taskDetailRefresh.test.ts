@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { answerConfirm } from "../ds/confirmTest";
 import { afterEach, expect, it, vi } from "vitest";
 import type { StudioClient } from "../api";
 import { renderTaskDetail } from "./taskDetail";
@@ -23,7 +24,6 @@ it.each(["", "coding", "architecture-read-only"])("transmet le profil choisi %s 
     return ok([]);
   });
   const post = vi.fn(async () => ({ response: new Response(null, { status: 403 }) }));
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
   const root = document.createElement("div");
   document.body.append(root);
   await renderTaskDetail(root, { client: { GET: get, POST: post } as unknown as StudioClient, authed: true, identity: null }, task.id);
@@ -42,6 +42,7 @@ it.each(["", "coding", "architecture-read-only"])("transmet le profil choisi %s 
   if (profileKey) expect(root.querySelector<HTMLButtonElement>("[data-action=launch-submit]")!.disabled).toBe(true);
   choose("launch-agent", "review-helper");
   root.querySelector<HTMLButtonElement>("[data-action=launch-submit]")!.click();
+  await answerConfirm(true);
   await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1));
   const call = post.mock.calls[0] as unknown as [string, { body: Record<string, unknown> }];
   expect(call[0]).toBe("/api/v1/projects/{project_id}/task-launches");
@@ -49,7 +50,6 @@ it.each(["", "coding", "architecture-read-only"])("transmet le profil choisi %s 
   expect(call[1].body.agent_stable_key).toBe("review-helper");
   if (profileKey) expect(call[1].body.profile_key).toBe(profileKey);
   else expect(call[1].body).not.toHaveProperty("profile_key");
-  expect(confirm).toHaveBeenCalledTimes(1);
 });
 
 it("Actualiser l'état recharge la tâche, le protocole, les sessions et le handoff", async () => {

@@ -14,6 +14,7 @@
  */
 import type { StudioClient } from "../api";
 import { createClaim, listClaims, releaseClaim, renewClaim, type ResourceClaim } from "../claimsApi";
+import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsEmptyState, dsField, dsSectionHeader, focusDsErrorBox } from "../ds/ds";
 import { machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime } from "../ui";
@@ -223,10 +224,10 @@ function bindRows(root: HTMLElement, ctx: ClaimsContext, claims: ResourceClaim[]
     });
   });
   root.querySelectorAll<HTMLButtonElement>("[data-release]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const claimId = button.dataset["release"] ?? "";
       const claim = claims.find((c) => c.id === claimId);
-      if (claim === undefined || !window.confirm(releaseClaimConfirmText(claim))) return;
+      if (claim === undefined || !(await confirmDs(releaseClaimConfirmText(claim)))) return;
       button.disabled = true;
       releaseClaim(ctx.client, claimId)
         .then(() => reload())

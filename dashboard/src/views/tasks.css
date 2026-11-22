@@ -103,7 +103,7 @@
 
 .task-main {
   display: grid;
-  gap: 2px;
+  gap: var(--ds-space-half);
   min-width: 0;
 }
 
@@ -123,7 +123,7 @@
 
 .task-head .ds-badge {
   flex: none;
-  margin-top: 2px;
+  margin-top: var(--ds-space-half);
 }
 
 .task-row .ds-list-sub {
@@ -258,7 +258,7 @@
 }
 
 .task-col.drop-target {
-  outline: 2px dashed var(--accent);
+  outline: 2px dashed var(--ds-action);
   outline-offset: 2px;
 }
 

@@ -10,6 +10,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { globalOverflow, go, LIB_ID, login, newCaptured, P1, T1, UUID_RE, ISO_RE, expectClean, watchErrors } from "./support/ui16-stub";
+import { answerConfirm } from "./confirm";
 
 const ROUTES = [
   "#/",
@@ -210,17 +211,13 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
     await login(page, "#/configuration/bindings", captured);
     const del = page.locator("[data-delete-binding]").first();
     await expect(del).toBeVisible();
-    let message = "";
-    page.once("dialog", (dialog) => {
-      message = dialog.message();
-      void dialog.dismiss();
-    });
     await del.click();
+    const message = await answerConfirm(page, false);
     expect(message).toContain("Cette règle d'affectation disparaît");
     expect(message).toContain("le runtime visé n'est pas supprimé");
     expect(captured.bindingDeletes).toEqual([]);
-    page.once("dialog", (dialog) => void dialog.accept());
     await del.click();
+    await answerConfirm(page, true);
     await expect.poll(() => captured.bindingDeletes.length).toBe(1);
     expectClean(watch);
   });
@@ -234,17 +231,13 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
     await expect(view.locator("table tbody")).toContainText("Active");
     await expect(view.locator("table tbody")).toContainText("Fichier");
     await expect(view).not.toContainText("verrou souple");
-    let message = "";
-    page.once("dialog", (dialog) => {
-      message = dialog.message();
-      void dialog.dismiss();
-    });
     await view.locator("[data-release]").click();
+    const message = await answerConfirm(page, false);
     expect(message).toContain("Libérer la réservation « ");
     expect(message).toContain("détenue par la machine");
     expect(captured.claimReleases).toEqual([]);
-    page.once("dialog", (dialog) => void dialog.accept());
     await view.locator("[data-release]").click();
+    await answerConfirm(page, true);
     await expect.poll(() => captured.claimReleases.length).toBe(1);
     expectClean(watch);
   });
@@ -420,16 +413,11 @@ test.describe("UI-16 navigation, focus et stress", () => {
     await page.keyboard.press("Enter");
     await expect(page.locator("#project-create-dialog")).toBeVisible();
     await page.keyboard.press("Escape");
-    // Action destructive au clavier : la confirmation native s'ouvre et bloque.
+    // Action destructive au clavier : la confirmation s'ouvre et bloque.
     await go(page, "#/configuration/bindings");
-    let asked = false;
-    page.once("dialog", (dialog) => {
-      asked = true;
-      void dialog.dismiss();
-    });
     await page.locator("[data-delete-binding]").first().focus();
     await page.keyboard.press("Enter");
-    await expect.poll(() => asked).toBe(true);
+    await answerConfirm(page, false);
     expectClean(watch);
   });
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { answerConfirm } from "./confirm";
 
 const HOOK_ID = "33333333-3333-4333-8333-333333333333";
 const CREATED_ID = "44444444-4444-4444-8444-444444444444";
@@ -141,8 +142,8 @@ test("hooks: création d'une version puis dépréciation", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Historique des versions" })).toContainText("Hook outils v3");
   expect(writes[0]).toMatchObject({ path: `/api/v1/library/${HOOK_ID}/versions`, body: { title: "Hook outils v3", content: { content_schema: "studio.library.hook/v1", event: "post_tool" } } });
   expect(writes[0]!.key).toBeTruthy();
-  page.once("dialog", (confirmation) => confirmation.accept());
   await page.locator("[data-deprecate]").getByRole("button", { name: "Déprécier", exact: true }).click();
+  await answerConfirm(page, true);
   await expect(page.locator(".library-badges")).toContainText("Déprécié");
   expect(writes[1]).toMatchObject({ path: `/api/v1/library/${HOOK_ID}/deprecate`, body: { expected_resource_version: 3 } });
   expect(writes[1]!.key).toBeTruthy();

@@ -98,7 +98,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  margin-top: 6px;
+  margin-top: var(--ds-space-1-5);
   flex: none;
   background: var(--ds-text-faint);
 }
@@ -301,7 +301,7 @@
 .decision-form .ds-input:focus {
   outline: none;
   border-color: var(--ds-action);
-  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.25);
+  box-shadow: 0 0 0 3px var(--ds-action-soft);
 }
 
 .decision-form textarea.ds-input {
@@ -375,14 +375,14 @@
 }
 
 .ds-notice--danger {
-  background: rgb(239 68 68 / 0.1);
-  border-color: rgb(239 68 68 / 0.3);
+  background: var(--ds-danger-soft);
+  border-color: var(--ds-danger);
   color: var(--ds-danger);
 }
 
 .ds-notice--warning {
-  background: rgb(234 179 8 / 0.1);
-  border-color: rgb(234 179 8 / 0.3);
+  background: var(--ds-warning-soft);
+  border-color: var(--ds-warning-border);
   color: var(--ds-warning);
 }
 

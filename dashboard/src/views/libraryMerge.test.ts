@@ -4,6 +4,7 @@
  * commun + aperçu du résultat. Le moteur Python n'est pas réexécuté :
  * les données sont fournies (fixtures miroir de `merge_texts`).
  */
+import { answerConfirm } from "../ds/confirmTest";
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -123,24 +124,23 @@ describe("fournisseur de comparaison", () => {
   });
 
   it("Revenir au commun : confirme, applique, affiche l'erreur et rend la main", async () => {
-    const confirm = vi.spyOn(window, "confirm");
     const apply = vi.fn().mockRejectedValueOnce(new Error("conflit de version")).mockResolvedValueOnce(undefined);
     const root = document.createElement("div");
     await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), apply });
     const button = root.querySelector<HTMLButtonElement>("[data-merge-revert]")!;
-    confirm.mockReturnValueOnce(false);
     button.click();
+    await answerConfirm(false);
     expect(apply).not.toHaveBeenCalled();
-    confirm.mockReturnValue(true);
     button.click();
+    await answerConfirm(true);
     await Promise.resolve();
     await Promise.resolve();
     expect(apply).toHaveBeenCalledWith({ choice: "revert_to_common" });
     expect(root.querySelector("[data-merge-msg]")?.textContent).toBe("conflit de version");
     expect(button.disabled).toBe(false);
     root.querySelector<HTMLButtonElement>("[data-merge-keep]")!.click();
+    await answerConfirm(true);
     expect(apply).toHaveBeenLastCalledWith({ choice: "keep_override" });
-    confirm.mockRestore();
   });
 });
 
@@ -219,7 +219,6 @@ describe("P62c — résultat éditable et publication", () => {
   });
 
   it("publie le texte édité après une seule confirmation et affiche le refus serveur", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     const apply = vi.fn().mockRejectedValueOnce(new Error("invalid_content")).mockResolvedValueOnce(undefined);
     const root = document.createElement("div");
     await renderLibraryMerge(root, { ...staticMergeProvider(fixture()), apply });
@@ -228,13 +227,12 @@ describe("P62c — résultat éditable et publication", () => {
     editor.dispatchEvent(new Event("input"));
     const publish = root.querySelector<HTMLButtonElement>("[data-merge-publish]")!;
     publish.click();
-    expect(confirm).toHaveBeenCalledTimes(1);
+    await answerConfirm(true);
     expect(apply).toHaveBeenCalledWith({ choice: "merge", content: "résolu à la main\n" });
     await Promise.resolve();
     await Promise.resolve();
     expect(root.querySelector("[data-merge-msg]")?.textContent).toBe("invalid_content");
     expect(publish.disabled).toBe(false);
-    confirm.mockRestore();
   });
 });
 

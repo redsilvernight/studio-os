@@ -48,44 +48,14 @@
   margin: 0;
 }
 
-.transfers-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: var(--ds-space-3);
-}
-
 .transfer-row {
   align-items: flex-start;
-}
-
-.transfer-row .grow {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: var(--ds-space-1);
 }
 
 .transfer-row .ds-list-title,
 .transfer-row .ds-list-sub {
   overflow-wrap: anywhere;
   white-space: normal;
-}
-
-.transfer-side {
-  display: grid;
-  gap: var(--ds-space-2);
-  justify-items: end;
-  flex-shrink: 0;
-}
-
-.transfer-status {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-1);
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .transfer-actions {
@@ -97,34 +67,6 @@
 
 .transfer-drawer-title {
   margin: 0 0 var(--ds-space-2);
-  overflow-wrap: anywhere;
-}
-
-.transfer-drawer-summary {
-  display: grid;
-  gap: var(--ds-space-2);
-  margin-bottom: var(--ds-space-4);
-}
-
-.transfer-facts {
-  margin: var(--ds-space-2) 0 0;
-  display: grid;
-  gap: var(--ds-space-1);
-  font-size: var(--ds-text-sm);
-}
-
-.transfer-facts > div {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: var(--ds-space-2);
-}
-
-.transfer-facts dt {
-  font-weight: 600;
-}
-
-.transfer-facts dd {
-  margin: 0;
   overflow-wrap: anywhere;
 }
 

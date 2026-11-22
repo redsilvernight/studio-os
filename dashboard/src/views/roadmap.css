@@ -109,7 +109,7 @@
   color: var(--ds-action-ink);
   background: var(--ds-action);
   font-weight: 700;
-  z-index: 1;
+  z-index: var(--ds-z-raised);
 }
 
 .roadmap-phase-body {
@@ -404,7 +404,7 @@
 }
 
 .roadmap-editor-overlay {
-  z-index: 1000;
+  z-index: var(--ds-z-modal);
 }
 
 .roadmap-editor-modal {
@@ -496,7 +496,7 @@
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
-    background: #fff;
+    background: var(--ds-print-paper);
   }
   .app-shell {
     display: block !important;
@@ -532,12 +532,12 @@
   .roadmap-print-document {
     display: block !important;
     max-width: none !important;
-    color: #172434;
+    color: var(--ds-print-ink);
     font-size: 10pt;
     line-height: 1.45;
   }
   .roadmap-print-document > header {
-    border-bottom: 2px solid #1f6feb;
+    border-bottom: 2px solid var(--ds-print-accent);
     margin-bottom: 14pt;
     padding-bottom: 10pt;
   }
@@ -567,7 +567,7 @@
     gap: 1pt;
   }
   .roadmap-print-document dt {
-    color: #52647a;
+    color: var(--ds-print-muted);
     font-size: 8pt;
     text-transform: uppercase;
   }
@@ -580,14 +580,14 @@
     margin-bottom: 14pt;
   }
   .roadmap-print-phase > header {
-    border-left: 4px solid #1f6feb;
+    border-left: 4px solid var(--ds-print-accent);
     margin-bottom: 7pt;
     padding: 4pt 8pt;
-    background: #f1f6fc;
+    background: var(--ds-print-soft);
     print-color-adjust: exact;
   }
   .roadmap-print-phase > header p:first-child {
-    color: #52647a;
+    color: var(--ds-print-muted);
     font-size: 8pt;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -595,7 +595,7 @@
   }
   .roadmap-print-step {
     break-inside: avoid;
-    border: 1px solid #cad5e2;
+    border: 1px solid var(--ds-print-line);
     border-radius: 5pt;
     margin-bottom: 7pt;
     padding: 7pt 9pt;
@@ -606,7 +606,7 @@
     gap: 10pt;
   }
   .roadmap-print-step > header span {
-    color: #52647a;
+    color: var(--ds-print-muted);
     white-space: nowrap;
   }
   .roadmap-header,
@@ -617,7 +617,7 @@
     box-shadow: none;
   }
   .roadmap-phase:not(:last-child)::before {
-    background: #a7b0bf !important;
+    background: var(--ds-print-rail) !important;
     print-color-adjust: exact;
   }
 }
@@ -626,8 +626,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ds-space-2, 8px) var(--ds-space-4, 16px);
-  margin-bottom: var(--ds-space-4, 16px);
+  gap: var(--ds-space-2) var(--ds-space-4);
+  margin-bottom: var(--ds-space-4);
 }
 
 .roadmap-switcher label {
@@ -668,13 +668,13 @@
 .roadmap-strip-phase {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ds-space-1-5);
   min-width: 0;
 }
 
 .roadmap-strip-phase i {
   height: 6px;
-  border-radius: 99px;
+  border-radius: var(--ds-radius-pill);
   background: var(--ds-border);
   display: block;
 }
@@ -749,7 +749,7 @@
 .roadmap-done-phase > summary > span:last-child {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--ds-space-half);
   min-width: 0;
 }
 
@@ -786,7 +786,7 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  background: var(--ds-success-soft, #e6f4ea);
+  background: var(--ds-success-soft);
   color: var(--ds-success);
   font-weight: 700;
 }
