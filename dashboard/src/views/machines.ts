@@ -66,6 +66,7 @@ import {
 } from "../ds/ds";
 import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
+import "./listRows.css";
 import "./machines.css";
 
 export interface MachinesContext {

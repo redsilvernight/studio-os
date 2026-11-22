@@ -78,7 +78,7 @@
   font-size: var(--ds-text-xs);
   color: var(--atlas-text-muted);
   background: var(--atlas-label-bg);
-  border-radius: 999px;
+  border-radius: var(--ds-radius-pill);
   pointer-events: none;
 }
 
@@ -120,7 +120,7 @@
 :is(.vault-atlas-swatch, .vault-atlas-dot)[data-type="procedure"] { background: var(--atlas-type-procedure); }
 :is(.vault-atlas-swatch, .vault-atlas-dot)[data-type="reference"] { background: var(--atlas-type-reference); }
 :is(.vault-atlas-swatch, .vault-atlas-dot)[data-type="lesson"] { background: var(--atlas-type-lesson); }
-:is(.vault-atlas-swatch, .vault-atlas-dot)[data-type="anchor"] { background: var(--atlas-satellite); border-radius: 2px; transform: rotate(45deg) scale(0.85); }
+:is(.vault-atlas-swatch, .vault-atlas-dot)[data-type="anchor"] { background: var(--atlas-satellite); border-radius: var(--ds-space-half); transform: rotate(45deg) scale(0.85); }
 
 .vault-atlas-legend-sep {
   padding-left: var(--ds-space-3);

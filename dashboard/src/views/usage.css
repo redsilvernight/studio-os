@@ -2,19 +2,19 @@
 .usage-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3, 12px);
-  margin-block: var(--space-2, 8px);
+  gap: var(--ds-space-3);
+  margin-block: var(--ds-space-2);
 }
 
 .usage-controls label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: var(--ds-space-2);
 }
 
 .usage-currencies {
-  margin: var(--space-1, 4px) 0 0;
-  padding-inline-start: var(--space-4, 16px);
+  margin: var(--ds-space-1) 0 0;
+  padding-inline-start: var(--ds-space-4);
 }
 
 .usage-table td {

@@ -52,7 +52,7 @@
   display: grid;
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
-  border-radius: 12px;
+  border-radius: var(--ds-radius-lg);
   overflow: hidden;
 }
 
@@ -133,6 +133,7 @@
 /* Détails techniques : les valeurs mono (UUID, refs longues) doivent casser
  * pour éviter l'overflow global sur vues étroites. Scopé à .agents. */
 .agents .ds-tech-list dd {
+  min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -146,9 +147,6 @@
  * La grille .ds-tech-list > div (140px 1fr) peut déborder si le 1fr
  * n'est pas borné par min-width: 0 sur le conteneur dd. */
 .agents .ds-tech-list > div {
-  min-width: 0;
-}
-.agents .ds-tech-list dd {
   min-width: 0;
 }
 
@@ -182,7 +180,7 @@
 .agents-project {
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
-  border-radius: 12px;
+  border-radius: var(--ds-radius-lg);
   overflow: hidden;
 }
 
@@ -216,7 +214,7 @@
   overflow-wrap: anywhere;
   font-size: var(--ds-text-sm);
   background: var(--ds-surface-soft);
-  border-radius: 8px;
+  border-radius: var(--ds-radius-sm);
 }
 
 .work-meta {

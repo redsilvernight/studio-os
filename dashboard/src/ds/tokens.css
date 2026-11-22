@@ -102,7 +102,9 @@
   --ds-leading: 1.55;
 
   /* Espacements (échelle 4 px, respiration volontaire) */
+  --ds-space-half: 2px;
   --ds-space-1: 4px;
+  --ds-space-1-5: 6px;
   --ds-space-2: 8px;
   --ds-space-3: 12px;
   --ds-space-4: 16px;
@@ -112,6 +114,7 @@
   --ds-space-12: 48px;
 
   /* Rayons */
+  --ds-radius-xs: 6px;
   --ds-radius-sm: 10px;
   --ds-radius-md: 10px;
   --ds-radius-lg: 14px;

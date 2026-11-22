@@ -32,7 +32,7 @@
 .admin-fam-pic {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: var(--ds-radius-sm);
   display: grid;
   place-items: center;
   background: var(--ds-neutral-soft);
@@ -45,7 +45,7 @@
 }
 .admin-fam-body {
   display: grid;
-  gap: 2px;
+  gap: var(--ds-space-half);
   flex: 1;
   min-width: 0;
 }

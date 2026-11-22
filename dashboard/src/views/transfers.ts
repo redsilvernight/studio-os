@@ -75,6 +75,7 @@ import { describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 import { fetchIdentity, type AuthIdentity } from "../identityApi";
+import "./listRows.css";
 import "./transfers.css";
 
 type Project = components["schemas"]["Project"];

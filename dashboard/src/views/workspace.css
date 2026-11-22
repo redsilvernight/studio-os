@@ -119,7 +119,7 @@
 .tl-marker {
   width: 12px;
   height: 12px;
-  margin-top: 4px;
+  margin-top: var(--ds-space-1);
   border-radius: 50%;
   background: var(--ds-surface-sunken);
   border: 2px solid var(--ds-border-strong);

@@ -14,12 +14,14 @@ describe("views/*.css", () => {
   const sheets = readdirSync(VIEWS).filter((name) => name.endsWith(".css"));
   it("trouve les feuilles de vues", () => expect(sheets.length).toBeGreaterThan(10));
   for (const sheet of sheets) {
-    it(`${sheet} : aucune couleur, z-index ni font-size en dur`, () => {
+    it(`${sheet} : aucune couleur, z-index, font-size, rayon, gap ni marge en dur`, () => {
       const css = read(sheet);
       expect(css.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
       expect(css.match(/\brgba?\(|\bhsla?\(/g) ?? []).toEqual([]);
       expect(css.match(/z-index\s*:\s*-?\d+/g) ?? []).toEqual([]);
       expect(css.match(/font-size\s*:\s*[\d.]+(px|rem)/g) ?? []).toEqual([]);
+      // Rayons, gouttières et marges : tokens --ds-radius-* / --ds-space-*.
+      expect(css.match(/(?:border-radius|gap|margin[a-z-]*)\s*:[^;{}]*\d\.?\d*px/g) ?? []).toEqual([]);
     });
   }
 });

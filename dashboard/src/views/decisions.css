@@ -98,7 +98,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  margin-top: 6px;
+  margin-top: var(--ds-space-1-5);
   flex: none;
   background: var(--ds-text-faint);
 }

@@ -1,0 +1,68 @@
+/* Lignes et tiroirs communs aux vues Machines et Transferts. */
+
+.machines-list,
+.transfers-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.machine-row .grow,
+.transfer-row .grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.machine-side,
+.transfer-side {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: end;
+  flex-shrink: 0;
+}
+
+.machine-status,
+.transfer-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.machine-drawer-summary,
+.transfer-drawer-summary {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
+}
+
+.machine-facts,
+.transfer-facts {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+}
+
+.machine-facts > div,
+.transfer-facts > div {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.machine-facts dt,
+.transfer-facts dt {
+  font-weight: 600;
+}
+
+.machine-facts dd,
+.transfer-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

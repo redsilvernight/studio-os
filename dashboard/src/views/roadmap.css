@@ -626,8 +626,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ds-space-2, 8px) var(--ds-space-4, 16px);
-  margin-bottom: var(--ds-space-4, 16px);
+  gap: var(--ds-space-2) var(--ds-space-4);
+  margin-bottom: var(--ds-space-4);
 }
 
 .roadmap-switcher label {
@@ -668,13 +668,13 @@
 .roadmap-strip-phase {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ds-space-1-5);
   min-width: 0;
 }
 
 .roadmap-strip-phase i {
   height: 6px;
-  border-radius: 99px;
+  border-radius: var(--ds-radius-pill);
   background: var(--ds-border);
   display: block;
 }
@@ -749,7 +749,7 @@
 .roadmap-done-phase > summary > span:last-child {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--ds-space-half);
   min-width: 0;
 }
 

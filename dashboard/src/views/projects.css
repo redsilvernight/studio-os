@@ -50,10 +50,6 @@
   padding: var(--ds-space-3) var(--ds-space-4);
 }
 
-.project-card-top {
-  align-items: center;
-}
-
 .project-card-top .ds-status {
   flex: none;
   align-self: center;
@@ -61,7 +57,7 @@
 
 .project-card-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--ds-space-3);
 }
 
