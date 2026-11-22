@@ -66,9 +66,7 @@ class StudioSummary(BaseModel):
 class StudioDetail(StudioSummary):
     deletion_scheduled_at: datetime | None = Field(
         default=None,
-        description=(
-            "When the studio is scheduled for deletion, or null."
-        ),
+        description=("When the studio is scheduled for deletion, or null."),
     )
 
 
@@ -244,7 +242,8 @@ async def get_studio(
     studio_id: uuid.UUID, session: DbSession, principal: CurrentPrincipal
 ) -> StudioDetail:
     studio, role = await studios_service.get_user_studio(session, principal.user.id, studio_id)
-    return StudioDetail(**_summary(studio, role).model_dump(), deletion_scheduled_at=studio.deletion_scheduled_at)
+    summary = _summary(studio, role).model_dump()
+    return StudioDetail(**summary, deletion_scheduled_at=studio.deletion_scheduled_at)
 
 
 @router.post(

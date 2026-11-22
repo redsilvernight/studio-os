@@ -10,14 +10,14 @@
 import type { InvitationPreviewState, MemberRole, StudioPlan, StudioRole } from "./studioLifecycleApi";
 
 /** Rôles écrits en toutes lettres (fiche N1 : « Propriétaire · Gratuit »). */
-export const STUDIO_ROLE_LABEL: Record<StudioRole, string> = {
+const STUDIO_ROLE_LABEL: Record<StudioRole, string> = {
   owner: "Propriétaire",
   admin: "Administrateur",
   member: "Membre",
   viewer: "Lecture seule",
 };
 
-export const STUDIO_PLAN_LABEL: Record<StudioPlan, string> = {
+const STUDIO_PLAN_LABEL: Record<StudioPlan, string> = {
   free: "Gratuit",
   pro: "Pro",
 };
@@ -43,7 +43,7 @@ export function studioSlugify(name: string): string {
   );
 }
 
-export const STUDIO_NAME_FORBIDDEN_CHARS = /[<>/]/;
+const STUDIO_NAME_FORBIDDEN_CHARS = /[<>/]/;
 
 export const STUDIO_NAME_INVALID_MESSAGE =
   "Ce nom contient des caractères non autorisés (< > /). Utilisez des lettres, chiffres, espaces et tirets.";
@@ -71,7 +71,7 @@ export function validateInviteEmail(email: string): string | null {
  * « 3 sur 5 places utilisées » de la fiche N2. Le serveur reste la vérité :
  * un refus 409 place_full prime sur ce calcul.
  */
-export const STUDIO_SEAT_LIMIT: Record<StudioPlan, number> = { free: 5, pro: 50 };
+const STUDIO_SEAT_LIMIT: Record<StudioPlan, number> = { free: 5, pro: 50 };
 
 export function studioSeatLimit(plan: StudioPlan): number {
   return STUDIO_SEAT_LIMIT[plan] ?? STUDIO_SEAT_LIMIT.free;
@@ -91,7 +91,7 @@ export const INVITABLE_ROLES: MemberRole[] = ["member", "admin", "viewer"];
  * Libellé de l'état d'un lien d'invitation (fiche N2). L'état est porté par
  * le texte, jamais par la seule couleur.
  */
-export const INVITATION_PREVIEW_TITLE: Record<InvitationPreviewState, string> = {
+const INVITATION_PREVIEW_TITLE: Record<InvitationPreviewState, string> = {
   valid: "Invitation valide",
   expired: "Cette invitation a expiré",
   used: "Cette invitation a déjà été utilisée",

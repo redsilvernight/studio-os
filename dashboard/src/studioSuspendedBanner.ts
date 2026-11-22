@@ -10,7 +10,7 @@ import { dsIcon } from "./ds/lot1";
 import { getActiveStudioId } from "./studioContext";
 import { getStudio } from "./studioLifecycleApi";
 
-export const SUSPENDED_BANNER_ID = "studio-suspended-banner";
+const SUSPENDED_BANNER_ID = "studio-suspended-banner";
 
 /** Pur : contenu du bandeau pour un studio suspendu. */
 export function suspendedShellBannerHtml(studioId: string, studioName: string): string {
