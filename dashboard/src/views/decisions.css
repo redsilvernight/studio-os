@@ -208,7 +208,7 @@
   border-radius: var(--ds-radius-lg);
   padding: var(--ds-space-5);
   background: var(--ds-surface);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--ds-motion-hover) var(--ds-ease), box-shadow var(--ds-motion-hover) var(--ds-ease);
 }
 
 .decision-item:hover {

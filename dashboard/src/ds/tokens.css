@@ -1,99 +1,102 @@
 /**
- * StudiOS Design System — tokens (UI-1, DEC-0078).
+ * StudiOS Design System — tokens, direction « Atelier » (R1-tokens).
  *
- * Deux thèmes sur la même base de tokens (tâche cea09af9) : clair par
- * défaut (fond légèrement bleuté, surfaces blanches, bordures très
- * discrètes) et sombre (`data-theme="dark"` ou préférence système).
- * Le choix est posé par `src/theme.ts` sur `<html>` ; « système » ne pose
- * aucun attribut et laisse la media query décider. La sidebar bleu nuit
- * est un chrome constant dans les deux thèmes.
+ * Deux thèmes sur la même base de tokens : clair par défaut (sable chaud,
+ * encre brune, Iris pour l'action, Lagon pour l'IA, Corail pour la marque)
+ * et sombre (`data-theme="dark"` ou préférence système). Le choix est posé
+ * par `src/theme.ts` sur `<html>` ; « système » ne pose aucun attribut.
+ * La barre latérale est claire dans le thème clair, sombre dans le sombre
+ * (tokens `--ds-navy-*` / `--ds-nav-*`, noms historiques conservés).
  *
- * Polices auto-hébergées (`ds/fonts.css`) : Figtree pour l'interface,
- * JetBrains Mono pour le code et les identifiants — aucun CDN, CSP
- * `font-src 'self'` inchangée.
+ * Polices auto-hébergées (`ds/fonts.css`) : Figtree 16 px pour l'interface,
+ * JetBrains Mono pour les valeurs techniques — aucun CDN, CSP inchangée.
+ * Rayons 10 / 14 / 20, cibles 44 px, icônes Lucide.
  *
- * Sémantique couleur (jamais seul vecteur d'information : chaque état
- * s'accompagne d'un libellé et/ou d'une icône textuelle) :
- * bleu = action, vert = succès/opérationnel, orange = attente,
- * rouge = erreur/destructif, violet = IA.
+ * Sémantique couleur (jamais seul vecteur d'information : toujours un
+ * libellé) : Iris = action, Menthe = succès, Ambre = attente, Grenade =
+ * erreur, Ciel = info, Lagon = IA, Corail = marque (jamais une erreur).
  *
- * Contrastés visés WCAG AA sur fond blanc / fond de page :
- * texte #1a2733 (~14:1), texte secondaire #4d6076 (~7:1),
- * action #1d64d8 (~5.9:1), succès #177245 (~5.9:1),
- * avertissement texte #8a5200 (~5.9:1), erreur #b3261e (~7:1),
- * IA #5b3bbd (~7:1).
+ * Les rôles Lagon, Ambre, Ciel et Corail sont assombris d'un cran (valeurs
+ * PDF 0B7F8A / A86200 / 1F6FC4 / C9431F) pour tenir 4,5:1 en texte sur le
+ * fond de page et leur pastille ; Iris sombre éclairci pour la même raison.
  *
- * Le thème sombre est mesuré par la même matrice (`tokens.test.ts`) :
- * textes ≥ 4.5:1 sur surface et fond de page, sémantiques ≥ 4.5:1 sur
- * leurs fonds pastel, encre du bouton primaire ≥ 4.5:1, focus ≥ 3:1.
+ * Les deux thèmes passent la même matrice de contraste (`tokens.test.ts`) :
+ * textes et sémantiques ≥ 4,5:1 sur surface, fond de page et fonds pastel,
+ * encre des boutons pleins ≥ 4,5:1, focus ≥ 3:1.
  *
- * Deux games de sélecteurs, pour deux usages :
- *   - `:root` (et son attribut `data-theme`) = la page entière ;
- *   - `[data-ds-theme-preview="light" | "dark"]` = un fragment de la page
- *     (catalogue `#/design-system`) qui force un thème pour montrer les
- *     deux côte à côte. Les mêmes déclarations servent aux deux : une
- *     variable déclarée sur l'élément preview l'emporte toujours sur la
- *     valeur héritée de `:root`.
+ * Deux familles de sélecteurs : `:root` (page entière) et
+ * `[data-ds-theme-preview="light" | "dark"]` (fragment du catalogue
+ * `#/design-system` qui force un thème pour montrer les deux côte à côte).
  */
 :root,
 [data-ds-theme-preview="light"] {
   color-scheme: light;
 
   /* Surfaces */
-  --ds-bg: #f2f6fb;
+  --ds-bg: #f6f4f0;
   --ds-surface: #ffffff;
-  --ds-surface-soft: #e9f0f8;
-  --ds-surface-sunken: #e3ebf4;
+  --ds-surface-soft: #edeae4;
+  --ds-surface-sunken: #edeae4;
 
   /* Bordures */
-  --ds-border: #dde6f0;
-  --ds-border-strong: #c4d2e2;
+  --ds-border: #dfdad2;
+  --ds-border-strong: #c8c1b6;
 
   /* Textes */
-  --ds-text: #1a2733;
-  --ds-text-muted: #4d6076;
+  --ds-text: #2b2722;
+  --ds-text-muted: #5c554b;
   /* Atténué mais conforme AA (≥ 4.5:1) sur fond blanc comme sur fond de
      page : placeholders et métadonnées restent lisibles (UI-14, mesuré
      5.20:1 sur blanc / 4.79:1 sur #f2f6fb, avant #6b7f93 à 4.13/3.81). */
-  --ds-text-faint: #5a6f84;
+  --ds-text-faint: #6e665b;
   /* Texte sur un aplat `--ds-text` (lien d'évitement, infobulles) : bascule
      avec le thème pour rester lisible. */
   --ds-ink-inverse: #ffffff;
 
   /* Action principale */
-  --ds-action: #1d64d8;
-  --ds-action-hover: #1853b4;
-  --ds-action-active: #143f8a;
+  --ds-action: #5440d0;
+  --ds-action-hover: #4332ab;
+  --ds-action-active: #352987;
   --ds-action-ink: #ffffff;
-  --ds-action-soft: #e3edfd;
+  --ds-action-soft: #f1effe;
 
   /* États sémantiques */
-  --ds-success: #177245;
-  --ds-success-soft: #e2f3e9;
-  --ds-success-border: #b7ddc6;
-  --ds-warning: #8a5200;
-  --ds-warning-soft: #fdf0d7;
-  --ds-warning-border: #ecd194;
-  --ds-danger: #b3261e;
+  --ds-success: #0e7c5a;
+  --ds-success-soft: #e1f4ec;
+  --ds-success-border: #a9dcc8;
+  --ds-warning: #9a5a00;
+  --ds-warning-soft: #fff1d9;
+  --ds-warning-border: #e8c98a;
+  --ds-danger: #c62b37;
   --ds-danger-ink: #ffffff;
-  --ds-danger-soft: #fbe7e5;
-  --ds-danger-border: #f0b9b4;
-  --ds-ai: #5b3bbd;
-  --ds-ai-soft: #ece6fb;
-  --ds-ai-border: #c9b8f0;
-  --ds-neutral-soft: #eef2f7;
+  --ds-danger-soft: #fde7e9;
+  --ds-danger-border: #f2b8be;
+  --ds-ai: #0a747e;
+  --ds-ai-soft: #e2f4f5;
+  --ds-ai-border: #9ed6da;
+  --ds-neutral-soft: #edeae4;
+
+
+  /* Info, marque, navigation */
+  --ds-info: #1a64b4;
+  --ds-info-soft: #e4effb;
+  --ds-brand: #b93b1a;
+  --ds-brand-soft: #ffe6de;
+  --ds-nav-hover: #edeae4;
+  --ds-nav-current: #f1effe;
+  --ds-nav-line: #dfdad2;
 
   /* Typographie (Figtree et JetBrains Mono sont auto-hébergées : ces
      familles sont servies par le bundle, les suivantes ne couvrent qu'un
      échec de chargement). */
   --ds-font-sans: "Figtree", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ds-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --ds-text-xs: 12px;
-  --ds-text-sm: 13px;
-  --ds-text-base: 14px;
-  --ds-text-md: 15px;
-  --ds-text-lg: 17px;
-  --ds-text-xl: 21px;
+  --ds-text-xs: 12.5px;
+  --ds-text-sm: 14px;
+  --ds-text-base: 16px;
+  --ds-text-md: 16px;
+  --ds-text-lg: 18px;
+  --ds-text-xl: 22px;
   --ds-text-2xl: 26px;
   --ds-text-3xl: 30px;
   --ds-leading: 1.55;
@@ -109,15 +112,16 @@
   --ds-space-12: 48px;
 
   /* Rayons */
-  --ds-radius-sm: 6px;
-  --ds-radius-md: 8px;
-  --ds-radius-lg: 12px;
+  --ds-radius-sm: 10px;
+  --ds-radius-md: 10px;
+  --ds-radius-lg: 14px;
+  --ds-radius-xl: 20px;
   --ds-radius-pill: 999px;
 
   /* Ombres (extrêmement légères) */
-  --ds-shadow-sm: 0 1px 2px rgb(26 39 51 / 0.06);
-  --ds-shadow-md: 0 2px 8px rgb(26 39 51 / 0.08);
-  --ds-shadow-lg: 0 8px 28px rgb(26 39 51 / 0.12);
+  --ds-shadow-sm: 0 1px 2px rgb(43 39 34 / 0.06);
+  --ds-shadow-md: 0 2px 8px rgb(43 39 34 / 0.08);
+  --ds-shadow-lg: 0 8px 28px rgb(43 39 34 / 0.12);
 
   /* Breakpoints */
   --ds-bp-sm: 640px;
@@ -139,17 +143,27 @@
   --ds-z-drawer: 140;
   --ds-z-tooltip: 160;
 
+  /* Mouvement : 150 ms au survol, 220 ms pour un panneau, courbe douce
+     (neutralisé par « réduire les animations », voir components.css). */
+  --ds-motion-hover: 150ms;
+  --ds-motion-panel: 220ms;
+  --ds-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Densité : rangées confortables 52 px, compactes (tableaux Expert) 40 px. */
+  --ds-row: 52px;
+  --ds-row-compact: 40px;
+
   /* Dimensions interactives (cibles ≥ 36 px, confort 40 px) */
-  --ds-target: 40px;
-  --ds-target-sm: 36px;
+  --ds-target: 44px;
+  --ds-target-sm: 40px;
 
   /* Sidebar bleu nuit (chrome applicatif, UI-2). Texte #e8eef7 sur
      #101f3c ≈ 13:1 ; texte atténué #a9bcd6 ≈ 7:1. */
-  --ds-navy: #101f3c;
-  --ds-navy-deep: #0b1730;
-  --ds-navy-text: #e8eef7;
-  --ds-navy-muted: #a9bcd6;
-  --ds-navy-active: #ffffff;
+  --ds-navy: #fbfaf8;
+  --ds-navy-deep: #f6f4f0;
+  --ds-navy-text: #2b2722;
+  --ds-navy-muted: #5c554b;
+  --ds-navy-active: #4332ab;
 
   /* Aliases historiques : les vues non migrées (UI-2+) restent lisibles
      sur le thème clair pendant la transition. */
@@ -176,43 +190,55 @@
     color-scheme: dark;
 
     /* Surfaces */
-    --ds-bg: #0d1520;
-    --ds-surface: #141f2c;
-    --ds-surface-soft: #1a2736;
-    --ds-surface-sunken: #101a26;
+    --ds-bg: #1a1714;
+    --ds-surface: #2b2722;
+    --ds-surface-soft: #211e1a;
+    --ds-surface-sunken: #211e1a;
 
     /* Bordures */
-    --ds-border: #28374a;
-    --ds-border-strong: #3f536b;
+    --ds-border: #403a32;
+    --ds-border-strong: #5c554b;
 
     /* Textes */
-    --ds-text: #e9eef5;
-    --ds-text-muted: #a8b8c9;
-    --ds-text-faint: #8ea0b4;
-    --ds-ink-inverse: #0d1520;
+    --ds-text: #edeae4;
+    --ds-text-muted: #c8c1b6;
+    --ds-text-faint: #a29a8d;
+    --ds-ink-inverse: #1a1714;
 
     /* Action principale */
-    --ds-action: #7fa8ff;
-    --ds-action-hover: #a3c0ff;
-    --ds-action-active: #c7d8ff;
-    --ds-action-ink: #0b1524;
-    --ds-action-soft: #172742;
+    --ds-action: #9585f1;
+    --ds-action-hover: #a89cf6;
+    --ds-action-active: #c9c1fb;
+    --ds-action-ink: #1a1714;
+    --ds-action-soft: #2a2450;
 
     /* États sémantiques */
-    --ds-success: #52d18e;
-    --ds-success-soft: #11291d;
-    --ds-success-border: #245c3d;
-    --ds-warning: #f0b454;
-    --ds-warning-soft: #2e2211;
-    --ds-warning-border: #6b5121;
-    --ds-danger: #ff8a80;
-    --ds-danger-ink: #0b1524;
-    --ds-danger-soft: #331a19;
-    --ds-danger-border: #71302c;
-    --ds-ai: #c0a6ff;
-    --ds-ai-soft: #241a3d;
-    --ds-ai-border: #4a3a78;
-    --ds-neutral-soft: #1b2836;
+    --ds-success: #4cc79a;
+    --ds-success-soft: #163b2f;
+    --ds-success-border: #2a6a52;
+    --ds-warning: #f0b24a;
+    --ds-warning-soft: #46320e;
+    --ds-warning-border: #7a5a1e;
+    --ds-danger: #ff7b86;
+    --ds-danger-ink: #1a1714;
+    --ds-danger-soft: #4a1a1f;
+    --ds-danger-border: #8a3a42;
+    --ds-ai: #3cc1cc;
+    --ds-ai-soft: #12393d;
+    --ds-ai-border: #2a6a70;
+    --ds-neutral-soft: #2b2722;
+    --ds-info: #6fb1f2;
+    --ds-info-soft: #16314f;
+    --ds-brand: #ff8a6b;
+    --ds-brand-soft: #4a2218;
+    --ds-navy: #211e1a;
+    --ds-navy-deep: #1a1714;
+    --ds-navy-text: #edeae4;
+    --ds-navy-muted: #c8c1b6;
+    --ds-navy-active: #c9c1fb;
+    --ds-nav-hover: #2b2722;
+    --ds-nav-current: #2a2450;
+    --ds-nav-line: #403a32;
 
     /* Ombres (plus profondes sur fond sombre) */
     --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.45);
@@ -226,43 +252,55 @@
   color-scheme: dark;
 
   /* Surfaces */
-  --ds-bg: #0d1520;
-  --ds-surface: #141f2c;
-  --ds-surface-soft: #1a2736;
-  --ds-surface-sunken: #101a26;
+  --ds-bg: #1a1714;
+  --ds-surface: #2b2722;
+  --ds-surface-soft: #211e1a;
+  --ds-surface-sunken: #211e1a;
 
   /* Bordures */
-  --ds-border: #28374a;
-  --ds-border-strong: #3f536b;
+  --ds-border: #403a32;
+  --ds-border-strong: #5c554b;
 
   /* Textes */
-  --ds-text: #e9eef5;
-  --ds-text-muted: #a8b8c9;
-  --ds-text-faint: #8ea0b4;
-  --ds-ink-inverse: #0d1520;
+  --ds-text: #edeae4;
+  --ds-text-muted: #c8c1b6;
+  --ds-text-faint: #a29a8d;
+  --ds-ink-inverse: #1a1714;
 
   /* Action principale */
-  --ds-action: #7fa8ff;
-  --ds-action-hover: #a3c0ff;
-  --ds-action-active: #c7d8ff;
-  --ds-action-ink: #0b1524;
-  --ds-action-soft: #172742;
+  --ds-action: #9585f1;
+  --ds-action-hover: #a89cf6;
+  --ds-action-active: #c9c1fb;
+  --ds-action-ink: #1a1714;
+  --ds-action-soft: #2a2450;
 
   /* États sémantiques */
-  --ds-success: #52d18e;
-  --ds-success-soft: #11291d;
-  --ds-success-border: #245c3d;
-  --ds-warning: #f0b454;
-  --ds-warning-soft: #2e2211;
-  --ds-warning-border: #6b5121;
-  --ds-danger: #ff8a80;
-  --ds-danger-ink: #0b1524;
-  --ds-danger-soft: #331a19;
-  --ds-danger-border: #71302c;
-  --ds-ai: #c0a6ff;
-  --ds-ai-soft: #241a3d;
-  --ds-ai-border: #4a3a78;
-  --ds-neutral-soft: #1b2836;
+  --ds-success: #4cc79a;
+  --ds-success-soft: #163b2f;
+  --ds-success-border: #2a6a52;
+  --ds-warning: #f0b24a;
+  --ds-warning-soft: #46320e;
+  --ds-warning-border: #7a5a1e;
+  --ds-danger: #ff7b86;
+  --ds-danger-ink: #1a1714;
+  --ds-danger-soft: #4a1a1f;
+  --ds-danger-border: #8a3a42;
+  --ds-ai: #3cc1cc;
+  --ds-ai-soft: #12393d;
+  --ds-ai-border: #2a6a70;
+  --ds-neutral-soft: #2b2722;
+  --ds-info: #6fb1f2;
+  --ds-info-soft: #16314f;
+  --ds-brand: #ff8a6b;
+  --ds-brand-soft: #4a2218;
+  --ds-navy: #211e1a;
+  --ds-navy-deep: #1a1714;
+  --ds-navy-text: #edeae4;
+  --ds-navy-muted: #c8c1b6;
+  --ds-navy-active: #c9c1fb;
+  --ds-nav-hover: #2b2722;
+  --ds-nav-current: #2a2450;
+  --ds-nav-line: #403a32;
 
   /* Ombres (plus profondes sur fond sombre) */
   --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.45);
