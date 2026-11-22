@@ -152,6 +152,10 @@
 .app-navgroup--secondary summary::-webkit-details-marker {
   display: none;
 }
+.app-navlink,
+.app-navgroup--secondary summary {
+  transition: background-color var(--ds-motion-hover) var(--ds-ease), color var(--ds-motion-hover) var(--ds-ease);
+}
 .app-navlink:hover,
 .app-navgroup--secondary summary:hover {
   background: var(--ds-nav-hover);
@@ -546,7 +550,7 @@ a.app-connection:hover .app-connection-label {
     padding: var(--ds-space-4);
     overflow-y: auto;
     transform: translateX(-105%);
-    transition: transform 0.2s ease;
+    transition: transform var(--ds-motion-panel) var(--ds-ease);
   }
   .app-sidebar.open {
     transform: none;

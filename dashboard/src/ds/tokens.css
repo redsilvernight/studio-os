@@ -143,6 +143,16 @@
   --ds-z-drawer: 140;
   --ds-z-tooltip: 160;
 
+  /* Mouvement : 150 ms au survol, 220 ms pour un panneau, courbe douce
+     (neutralisé par « réduire les animations », voir components.css). */
+  --ds-motion-hover: 150ms;
+  --ds-motion-panel: 220ms;
+  --ds-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Densité : rangées confortables 52 px, compactes (tableaux Expert) 40 px. */
+  --ds-row: 52px;
+  --ds-row-compact: 40px;
+
   /* Dimensions interactives (cibles ≥ 36 px, confort 40 px) */
   --ds-target: 44px;
   --ds-target-sm: 40px;

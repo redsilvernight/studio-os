@@ -180,6 +180,9 @@ describe("polices locales (CSP inchangée)", () => {
     expect(root).toContain("--ds-radius-xl: 20px");
     expect(root).toContain("--ds-target: 44px");
     expect(root).toContain("--ds-text-base: 16px");
+    expect(root).toContain("--ds-motion-hover: 150ms");
+    expect(root).toContain("--ds-motion-panel: 220ms");
+    expect(root).toContain("--ds-row: 52px");
   });
 
   it("les tokens typographiques pointent d'abord sur les familles locales", () => {
