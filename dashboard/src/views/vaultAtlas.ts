@@ -41,6 +41,7 @@ import type {
 import { VAULT_STATUS_LABEL, VAULT_TYPE_LABEL, vaultModeNavHtml, vaultScopeLabel } from "./vault";
 import "./vaultAtlas.css";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 type Project = components["schemas"]["Project"];
 
@@ -123,7 +124,7 @@ const LINK_LABEL: Record<string, string> = {
 };
 
 function header(): string {
-  return dsPageHeader("Vault", HEADER_DESC) + vaultModeNavHtml("atlas");
+  return dsPageHeader(UI_LABEL.vault, HEADER_DESC) + vaultModeNavHtml("atlas");
 }
 
 function nodeTitle(node: AtlasNode): string {
@@ -151,7 +152,7 @@ export function atlasToolbarHtml(
     checkbox("status", status, VAULT_STATUS_LABEL[status], filters.statuses.length === 0 || filters.statuses.includes(status)),
   ).join("");
   const scopes = (["studio", "project"] as const)
-    .map((scope) => checkbox("scope", scope, scope === "studio" ? "Studio" : "Projet", filters.scopes.length === 0 || filters.scopes.includes(scope)))
+    .map((scope) => checkbox("scope", scope, scope === "studio" ? "Studio" : UI_LABEL.project, filters.scopes.length === 0 || filters.scopes.includes(scope)))
     .join("");
   return `<div class="vault-atlas-toolbar" role="search" aria-label="Filtrer l'atlas">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
@@ -362,7 +363,7 @@ function prefersReducedMotion(): boolean {
 
 export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext): Promise<void> {
   if (!ctx.authed) {
-    root.innerHTML = header() + dsEmptyState("Connectez-vous", "Saisissez votre jeton machine pour charger le vault.");
+    root.innerHTML = header() + dsEmptyState(UI_LABEL.signIn, "Saisissez votre jeton machine pour charger le vault.");
     return;
   }
   root.innerHTML = header() + dsSkeleton(4);

@@ -24,7 +24,7 @@ import { fetchProjectCoordination, intentLabel, openItems, type CoordinationInte
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
-import { ACTION_LABEL } from "../language";
+import { ACTION_LABEL, UI_LABEL } from "../language";
 import { renderActivityInto } from "./activity";
 import { renderConfigurationHistoryInto } from "./configurationHistory";
 import { renderAiIntegrationInto } from "./aiIntegration";
@@ -64,8 +64,8 @@ export interface ProjectDetailContext {
 
 export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix: string }> = [
   { id: "overview", label: "Vue d'ensemble", suffix: "" },
-  { id: "mission", label: "Exécutions", suffix: "/mission" },
-  { id: "roadmap", label: "Roadmap", suffix: "/roadmap" },
+  { id: "mission", label: UI_LABEL.runs, suffix: "/mission" },
+  { id: "roadmap", label: UI_LABEL.roadmap, suffix: "/roadmap" },
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
   { id: "claims", label: "Réservations", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
@@ -146,14 +146,14 @@ export function workspaceHeaderHtml(project: Project): string {
   const rawDesc = (project.description ?? "").trim();
   const desc =
     rawDesc === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="workspace-desc">${esc(rawDesc)}</p>`;
-  const badge = project.archived ? dsBadge("Archivé", "warning") : dsBadge("Actif", "success");
+  const badge = project.archived ? dsBadge(UI_LABEL.archived, "warning") : dsBadge(UI_LABEL.active, "success");
   return `<div class="workspace-head"><p class="ds-list-sub workspace-back"><a href="#/projects">← Tous les projets</a></p>` +
     `<div class="workspace-title-row"><h1>${esc(project.name)}</h1>${badge}</div>` +
     `${desc}` +
     dsTechDetails([
-      { label: "Identifiant", value: project.id, mono: true },
+      { label: UI_LABEL.identifier, value: project.id, mono: true },
       { label: "Version", value: String(project.version), mono: true },
-      { label: "Créé le", value: fmtTime(project.created_at) },
+      { label: UI_LABEL.createdOn, value: fmtTime(project.created_at) },
       { label: "Mis à jour le", value: fmtTime(project.updated_at) },
     ]) +
     `</div>`;

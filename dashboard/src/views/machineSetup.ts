@@ -28,6 +28,7 @@ import {
 } from "../setupApi";
 import { esc } from "../ui";
 import { plural, sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface SetupView {
   /** Aperçu en attente de confirmation : rien n'est écrit avant. */
@@ -127,7 +128,7 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
     (nothing
       ? `<p class="settings-notice" role="status" data-testid="setup-nothing">Fichiers gérés à jour : rien à écrire. Consultez les vérifications ci-dessus pour les autres étapes.</p>`
       : keptSummary + `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-setup">Confirmer et appliquer</button> `) +
-    `<button class="ds-btn" type="button" data-action="cancel-setup">${nothing ? "Fermer" : "Annuler"}</button>` +
+    `<button class="ds-btn" type="button" data-action="cancel-setup">${nothing ? "Fermer" : UI_LABEL.cancel}</button>` +
     `</div>`
   );
 }

@@ -28,6 +28,7 @@ import {
 import { USAGE_PERIODS, costValueHtml, tokensValueHtml } from "./usage";
 import "./usage.css";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 const RATE_LABEL: Record<string, string> = {
   succeeded: "Tests réussis",
@@ -160,7 +161,7 @@ export function historyCaveatBannerHtml(): string {
 
 function techRows(history: ConfigurationHistory): DsTechRow[] {
   return [
-    { label: "Projet", value: history.project_id, mono: true },
+    { label: UI_LABEL.project, value: history.project_id, mono: true },
     { label: "Depuis (inclus)", value: history.since, mono: true },
     { label: "Jusqu'à (exclu)", value: history.until, mono: true },
     { label: "Calculé le", value: fmtTime(history.generated_at) },

@@ -48,7 +48,7 @@ import {
   type TaskStatus,
 } from "../taskStatus";
 import { describeError, esc } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au bloc
 // d'imports CSS de main.ts.
 import "./tasks.css";
@@ -93,7 +93,7 @@ export const NOW_UPCOMING_LIMIT = 5;
 
 /** Groupes de la liste, dans l'ordre d'attention. */
 const GROUPS: { status: TaskStatus; label: string }[] = [
-  { status: "in_progress", label: "En cours" },
+  { status: "in_progress", label: UI_LABEL.inProgress },
   { status: "blocked", label: "Bloquées" },
   { status: "created", label: "À faire" },
   { status: "completed", label: "Terminées" },
@@ -346,13 +346,13 @@ export function taskCreateFormHtml(
   const projectField =
     projectId !== undefined
       ? `<p class="ds-list-sub">Projet : ${esc(scopeLabel)}</p>`
-      : `<div>${dsField("task-project", "Projet", `<select class="ds-select" id="FIELD" name="project_id" required>${projects.map((project) => `<option value="${esc(project.id)}">${esc(project.name)} (${esc(project.slug)})</option>`).join("")}</select>`, "La tâche sera créée dans ce projet.")}</div>`;
+      : `<div>${dsField("task-project", UI_LABEL.project, `<select class="ds-select" id="FIELD" name="project_id" required>${projects.map((project) => `<option value="${esc(project.id)}">${esc(project.name)} (${esc(project.slug)})</option>`).join("")}</select>`, "La tâche sera créée dans ce projet.")}</div>`;
   return `<form id="task-create-form" novalidate>` +
     projectField +
-    dsField("task-title", "Titre", `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" />`) +
+    dsField("task-title", UI_LABEL.title, `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" />`) +
     dsField(
       "task-desc",
-      "Description (facultative)",
+      UI_LABEL.descriptionOptional,
       `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`,
     ) +
     `<p class="ds-list-sub">Un envoi répété ne crée pas de doublon.</p>` +
@@ -704,7 +704,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
           return;
         }
         if (title === "") {
-          setCreateError("Le titre est obligatoire.");
+          setCreateError(UI_LABEL.titleRequired);
           root.querySelector<HTMLElement>("#task-title")?.focus();
           return;
         }

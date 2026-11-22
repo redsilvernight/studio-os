@@ -18,7 +18,7 @@ import { dsBadge, dsErrorState, dsSectionHeader, dsSkeleton, dsStateHtml, dsTech
 import { fetchProjectMission, type MissionRun, type ProjectMission } from "../missionApi";
 import { LIVE_CHANGE_EVENT } from "../realtime";
 import { describeError, esc, fmtTime } from "../ui";
-import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
+import { ACTION_LABEL, FALLBACK_LABEL, UI_LABEL } from "../language";
 import { agentRef, machineRef } from "../actorNames";
 import { sfx } from "../format";
 
@@ -43,12 +43,12 @@ const MISSION_ATTENTION_VERDICTS = ["waiting_human", "needs_attention", "stale",
 const MISSION_SUMMARY_MAX = 3;
 
 const VERDICT_LABEL: Record<string, string> = {
-  pending: "En attente",
-  running: "En cours",
+  pending: UI_LABEL.pending,
+  running: UI_LABEL.inProgress,
   waiting_human: "Attend une personne",
   needs_attention: "À vérifier",
   stale: "Sans nouvelles",
-  done: "Terminée",
+  done: UI_LABEL.done,
   failed: "Échouée",
   cancelled: "Annulée",
 };
@@ -185,12 +185,12 @@ function resultHtml(run: MissionRun): string {
 function techRows(run: MissionRun): DsTechRow[] {
   const rows: DsTechRow[] = [
     { label: "Exécution", value: run.run_id, mono: true },
-    { label: "Tâche", value: run.task_id, mono: true },
+    { label: UI_LABEL.task, value: run.task_id, mono: true },
     { label: "Poste", value: run.machine_id, mono: true },
   ];
   if (run.launch) rows.push({ label: "Lancement", value: run.launch.id, mono: true });
   if (run.session) rows.push({ label: "Session", value: run.session.id, mono: true });
-  if (run.session?.agent_id) rows.push({ label: "Agent", value: run.session.agent_id, mono: true });
+  if (run.session?.agent_id) rows.push({ label: UI_LABEL.agent, value: run.session.agent_id, mono: true });
   if (run.handoff) rows.push({ label: "Travail IA", value: run.handoff.ai_work_id, mono: true });
   rows.push({ label: "Verdict (code)", value: run.verdict, mono: true });
   if (run.reasons.length > 0) rows.push({ label: "Raisons (codes)", value: run.reasons.join(", "), mono: true });
@@ -266,7 +266,7 @@ function lostBannerHtml(generatedAt: string | null, polls: number, maxPolls: num
 }
 
 function panelHtml(body: string): string {
-  return `<section class="ds-panel" data-mission aria-label="Exécutions"><header><h2>Exécutions</h2></header><div class="body">${body}</div></section>`;
+  return `<section class="ds-panel" data-mission aria-label=UI_LABEL.runs><header><h2>Exécutions</h2></header><div class="body">${body}</div></section>`;
 }
 
 function deniedHtml(): string {
@@ -423,8 +423,8 @@ function attentionRuns(runs: MissionRun[], max = MISSION_SUMMARY_MAX): MissionRu
 
 function summaryHtml(projectId: string, body: string): string {
   return (
-    `<section data-mission-summary aria-label="Exécutions">` +
-    dsSectionHeader("Exécutions", { label: "Voir les exécutions", href: `#/projects/${projectId}/mission` }) +
+    `<section data-mission-summary aria-label=UI_LABEL.runs>` +
+    dsSectionHeader(UI_LABEL.runs, { label: "Voir les exécutions", href: `#/projects/${projectId}/mission` }) +
     `${body}</section>`
   );
 }

@@ -54,7 +54,7 @@ import {
 } from "../ds/ds";
 import { machineName, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./agents.css";
 import { sfx } from "../format";
@@ -625,7 +625,7 @@ function sessionRowHtml(session: WorkSession, names: AgentNames): string {
   const task = names.tasksById.get(session.task_id);
   const state = session.ended_at === null || session.ended_at === undefined
     ? dsBadge("Ouverte", "info")
-    : dsBadge("Terminée", "neutral");
+    : dsBadge(UI_LABEL.done, "neutral");
   return (
     `<li class="ds-list-item"><span class="grow"><span class="ds-list-title">Session sur ${taskLinkHtml(task, session.task_id)}</span>` +
     `<br /><span class="ds-list-sub">Depuis le ${fmtTime(session.started_at)}${session.ended_at ? ` → ${fmtTime(session.ended_at)}` : " (toujours ouverte : signal d'activité, pas preuve de connexion)"}</span></span>${state}</li>`
@@ -696,13 +696,13 @@ export function agentDetailHtml(
           value: agent.machine_id ? agent.machine_id : "—",
           mono: agent.machine_id ? true : undefined,
         },
-        { label: "Révision", value: `v${agent.version}`, mono: true },
-        { label: "Créé le", value: fmtTime(agent.created_at) },
+        { label: UI_LABEL.revision, value: `v${agent.version}`, mono: true },
+        { label: UI_LABEL.createdOn, value: fmtTime(agent.created_at) },
         { label: "Mis à jour le", value: fmtTime(agent.updated_at) },
       ],
       "Détails techniques · modèle, permissions, identifiants",
     ) +
-    `<section class="ds-panel agent-admin" aria-label="Administration"><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
+    `<section class="ds-panel agent-admin" aria-label=UI_LABEL.administration><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
     `<p class="ds-list-sub">Réglages sensibles : ils ne changent pas le statut du jour et restent ici, hors du flux de travail. Renommer et révoquer se font depuis la machine d'exécution — il n'y a aucune action à distance ici.</p>` +
     `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres d'exécution</a></p>` +
     `</div></section>`
@@ -712,7 +712,7 @@ export function agentDetailHtml(
 export async function renderAgentDetail(root: HTMLElement, ctx: AgentsContext, id: string): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="agents">${dsPageHeader("Agent", "")}` +
+      `<div class="agents">${dsPageHeader(UI_LABEL.agent, "")}` +
       dsEmptyState("Connectez-vous pour voir cet agent", "Saisissez votre jeton machine pour charger les agents.") +
       `</div>`;
     return;
@@ -724,7 +724,7 @@ export async function renderAgentDetail(root: HTMLElement, ctx: AgentsContext, i
     agents = await fetchAgents(ctx.client);
   } catch (error) {
     root.innerHTML =
-      `<div class="agents">${dsPageHeader("Agent", "")}` +
+      `<div class="agents">${dsPageHeader(UI_LABEL.agent, "")}` +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Agent indisponible.</strong>${esc(describeError(error))}</div></div>`;
     return;
   }

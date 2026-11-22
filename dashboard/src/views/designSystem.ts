@@ -42,6 +42,7 @@ import {
 } from "../ds/lot1";
 import { dsMarkdown } from "../ds/markdown";
 import { esc } from "../ui";
+import { UI_LABEL } from "../language";
 
 function demoSection(title: string, hint: string, body: string): string {
   return `<section class="ds-demo-section" aria-label="${esc(title)}">${dsSectionHeader(title)}<p>${esc(hint)}</p>${body}</section>`;
@@ -80,12 +81,12 @@ function sharedStates(): string {
     block("Erreur", "Cause affichée, réessai possible, technique repliée.", "error", {
       title: "Résolution impossible",
       message: "Serveur injoignable. Vérifiez la connexion.",
-      action: { label: "Réessayer", href: "#/design-system" },
+      action: { label: UI_LABEL.retry, href: "#/design-system" },
       details: [{ label: "Route", value: "POST /resolutions", mono: true }],
     }) +
-    `<section class="ds-card state-grid-full">${dsSectionHeader("Hors ligne")}<p class="ds-demo-hint">Le statut de connexion du shell passe en dégradé ; aucune bannière dupliquée ici.</p>` +
+    `<section class="ds-card state-grid-full">${dsSectionHeader(UI_LABEL.offline)}<p class="ds-demo-hint">Le statut de connexion du shell passe en dégradé ; aucune bannière dupliquée ici.</p>` +
     dsStateHtml("offline", {
-      title: "Hors ligne",
+      title: UI_LABEL.offline,
       message: "Le statut unique passe en dégradé, la file locale reste active et les actions attendent la reconnexion.",
       action: { label: "Reprendre quand reconnecté", href: "#/design-system" },
       secondary: { label: "Voir la file locale", href: "#/design-system" },
@@ -122,7 +123,7 @@ function themePreviews(): string {
         </div>
         <div class="ds-demo-row">
           ${dsBadge("Succès", "success")}
-          ${dsBadge("En attente", "warning")}
+          ${dsBadge(UI_LABEL.pending, "warning")}
           ${dsBadge("Erreur", "danger")}
           ${dsBadge("IA", "ai")}
         </div>
@@ -130,7 +131,7 @@ function themePreviews(): string {
         ${dsField(
           `ds-preview-nom-${mode}`,
           "Champ",
-          `<input class="ds-input" id="FIELD" type="text" value="Studio" />`,
+          `<input class="ds-input" id="FIELD" type="text" value=UI_LABEL.studio />`,
           "Aide sous le champ.",
           "",
         )}
@@ -148,9 +149,9 @@ function lot1Demo(): string {
   const studios = [
     { id: "atelier", label: "Atelier Lumière", meta: "Propriétaire" },
     { id: "nord", label: "Studio Nord", meta: "Membre" },
-    { id: "lecture", label: "Collectif Arc", meta: "Lecture seule" },
+    { id: "lecture", label: "Collectif Arc", meta: UI_LABEL.readOnly },
   ];
-  const entity = `<div class="ds-demo-row">${dsEntitySelect("ds-demo-studio", "Studio", studios, "atelier")}</div>`;
+  const entity = `<div class="ds-demo-row">${dsEntitySelect("ds-demo-studio", UI_LABEL.studio, studios, "atelier")}</div>`;
   const avatars = `<div class="ds-demo-row">${dsActorAvatar("Amina Benali")}${dsActorAvatar("Relecteur", "agent")}</div>`;
   const notices = `<div class="ds-demo-column">
     ${dsPersistentNotice("ds-n-info", "info", "Nouveau plan disponible", "Comparez les offres quand vous voulez.")}
@@ -159,7 +160,7 @@ function lot1Demo(): string {
   </div>`;
   const pager = `<div class="ds-demo-column">${dsShowMore(50, 213, "tâches", "#/design-system")}${dsShowMore(213, 213, "tâches")}</div>`;
   const seg = `<div class="ds-demo-row">${dsSegmented("ds-demo-mode", "Mode d'affichage", [{ value: "simple", label: "Simple" }, { value: "expert", label: "Expert" }], "simple")}</div>`;
-  const empty = dsIllustratedEmpty("inbox", "Rien à valider", "Les propositions des agents apparaîtront ici.", { label: "Voir les projets", href: "#/design-system" });
+  const empty = dsIllustratedEmpty("inbox", UI_LABEL.nothingToReview, "Les propositions des agents apparaîtront ici.", { label: "Voir les projets", href: "#/design-system" });
   const form = `<form class="ds-form" novalidate>
     <div class="ds-form-field"><label for="ds-f-nom">Nom du studio</label><input class="ds-input" id="ds-f-nom" type="text" aria-describedby="ds-f-nom-hint"><span class="ds-form-hint" id="ds-f-nom-hint">Visible par les membres.</span></div>
     <div class="ds-form-field"><label for="ds-f-mail">Adresse</label><input class="ds-input" id="ds-f-mail" type="email" aria-invalid="true" aria-describedby="ds-f-mail-err"><span class="ds-form-error" id="ds-f-mail-err">Adresse invalide.</span></div>
@@ -187,29 +188,29 @@ export function designSystemHtml(): string {
     <button class="ds-btn ds-btn--sm" type="button">Compacte</button>
     <button class="ds-btn ds-btn--primary" type="button" disabled>Désactivée</button>
     <button class="ds-btn ds-btn--primary ds-btn--loading" type="button" disabled>Chargement…</button>
-    <button class="ds-icon-btn" type="button" aria-label="Fermer">×</button>
+    <button class="ds-icon-btn" type="button" aria-label=UI_LABEL.close>×</button>
   </div>`;
 
   const badges = `<div class="ds-demo-row">
     ${dsBadge("Neutre")}
     ${dsBadge("Succès", "success")}
-    ${dsBadge("En attente", "warning")}
+    ${dsBadge(UI_LABEL.pending, "warning")}
     ${dsBadge("Erreur", "danger")}
     ${dsBadge("IA · Auxiliaire", "ai")}
     ${dsBadge("Information", "info")}
   </div>
   <div class="ds-demo-row">
     ${dsStatus("success", "Connecté")}
-    ${dsStatus("warning", "En attente")}
+    ${dsStatus("warning", UI_LABEL.pending)}
     ${dsStatus("danger", "Bloqué")}
     ${dsStatus("ai", "Agent actif")}
     ${dsStatus("idle", "Inconnu")}
   </div>`;
 
   const fields = `<div class="ds-demo-grid">
-    ${dsField("ds-nom", "Nom du projet", `<input class="ds-input" id="FIELD" type="text" value="Studio" />`, "Nom affiché dans les listes.", "")}
+    ${dsField("ds-nom", "Nom du projet", `<input class="ds-input" id="FIELD" type="text" value=UI_LABEL.studio />`, "Nom affiché dans les listes.", "")}
     ${dsField("ds-recherche", "Rechercher", `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span><input class="ds-input" id="FIELD" type="search" placeholder="Nom, mot-clé…" /></div>`)}
-    ${dsField("ds-statut", "Statut", `<select class="ds-select" id="FIELD"><option>À faire</option><option>En cours</option><option>Bloqué</option></select>`)}
+    ${dsField("ds-statut", UI_LABEL.status, `<select class="ds-select" id="FIELD"><option>À faire</option><option>En cours</option><option>Bloqué</option></select>`)}
     ${dsField("ds-erreur", "Avec erreur", `<input class="ds-input" id="FIELD" type="text" value="!!" />`, "", "Ce champ est requis.")}
   </div>`;
 
@@ -223,7 +224,7 @@ export function designSystemHtml(): string {
     <caption>Exemple : trois projets, colonnes utiles uniquement.</caption>
     <thead><tr><th scope="col">Nom</th><th scope="col">Statut</th><th scope="col">Mis à jour</th></tr></thead>
     <tbody>
-      <tr><td>Phare</td><td>${dsStatus("success", "Actif")}</td><td>aujourd'hui</td></tr>
+      <tr><td>Phare</td><td>${dsStatus("success", UI_LABEL.active)}</td><td>aujourd'hui</td></tr>
       <tr><td>Digue</td><td>${dsStatus("warning", "En pause")}</td><td>hier</td></tr>
     </tbody>
   </table></div>`;
@@ -245,8 +246,8 @@ export function designSystemHtml(): string {
     <button class="ds-btn" type="button" id="ds-open-modal">Ouvrir la modale</button>
     <button class="ds-btn" type="button" id="ds-open-drawer">Ouvrir le tiroir</button>
   </div>
-  ${dsModalHtml({ id: "ds-demo-modal", title: "Exemple de modale", body: "<p>La touche Échap ferme. Le focus revient au bouton d'ouverture.</p>", actions: [{ label: "Fermer", variant: "primary" }] })}
-  ${dsDrawerHtml({ id: "ds-demo-drawer", title: "Exemple de tiroir", body: "<p>Détail progressif : l'information secondaire attend ici.</p>", actions: [{ label: "Fermer", variant: "primary" }] })}`;
+  ${dsModalHtml({ id: "ds-demo-modal", title: "Exemple de modale", body: "<p>La touche Échap ferme. Le focus revient au bouton d'ouverture.</p>", actions: [{ label: UI_LABEL.close, variant: "primary" }] })}
+  ${dsDrawerHtml({ id: "ds-demo-drawer", title: "Exemple de tiroir", body: "<p>Détail progressif : l'information secondaire attend ici.</p>", actions: [{ label: UI_LABEL.close, variant: "primary" }] })}`;
 
   const toasts = `<div class="ds-demo-row">
     <button class="ds-btn" type="button" id="ds-toast-success">Succès</button>
@@ -265,14 +266,14 @@ export function designSystemHtml(): string {
       primary: { label: "Ouvrir le travail", href: "#/design-system" },
       secondary: [{ label: "Voir la tâche liée", href: "#/design-system" }],
     }) +
-    `<div class="ds-demo-row">${dsStatusDot("success", "Opérationnel")}${dsStatusDot("warning", "En attente", true)}<span class="ds-list-sub">La seconde pastille est compacte : libellé réservé aux lecteurs d'écran.</span></div>` +
+    `<div class="ds-demo-row">${dsStatusDot("success", "Opérationnel")}${dsStatusDot("warning", UI_LABEL.pending, true)}<span class="ds-list-sub">La seconde pastille est compacte : libellé réservé aux lecteurs d'écran.</span></div>` +
     dsTechDetails([
-      { label: "Identifiant", value: "aaaaaaaa-0000-4111-8111-000000000001", mono: true },
-      { label: "Révision", value: "v3", mono: true },
-      { label: "Créé le", value: "il y a 12 min" },
+      { label: UI_LABEL.identifier, value: "aaaaaaaa-0000-4111-8111-000000000001", mono: true },
+      { label: UI_LABEL.revision, value: "v3", mono: true },
+      { label: UI_LABEL.createdOn, value: "il y a 12 min" },
     ]) +
     dsErrorState("Chargement impossible", "Les données n'ont pas pu être rechargées.", {
-      label: "Réessayer",
+      label: UI_LABEL.retry,
       href: "#/design-system",
     });
 

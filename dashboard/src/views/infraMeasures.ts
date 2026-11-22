@@ -12,6 +12,7 @@ import { dsEmptyState, dsErrorState, dsPageHeader, dsSkeleton } from "../ds/ds";
 import { humanBytes } from "../transfersFormat";
 import { describeError, esc, fmtTime } from "../ui";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export type InfraReport = components["schemas"]["InfraMeasurementsReport"];
 export type InfraSeries = components["schemas"]["InfraSeries"];
@@ -63,7 +64,7 @@ export function infraMeasuresHtml(report?: InfraReport, error?: string): string 
 
 export async function renderInfraMeasures(root: HTMLElement, ctx?: { client: StudioClient; authed: boolean }): Promise<void> {
   if (ctx === undefined || !ctx.authed) {
-    root.innerHTML = dsPageHeader("Mesures d'infrastructure") + dsEmptyState("Connectez-vous", "Connectez-vous avec un compte administrateur pour consulter les mesures.");
+    root.innerHTML = dsPageHeader("Mesures d'infrastructure") + dsEmptyState(UI_LABEL.signIn, "Connectez-vous avec un compte administrateur pour consulter les mesures.");
     return;
   }
   root.innerHTML = infraMeasuresHtml();

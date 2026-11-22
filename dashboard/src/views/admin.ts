@@ -14,6 +14,7 @@ import { icon } from "../shell";
 import { describeError, esc, fmtTime } from "../ui";
 import "./admin.css";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface AdminFamily {
   href: string;
@@ -23,11 +24,11 @@ export interface AdminFamily {
 }
 
 export const ADMIN_FAMILIES: readonly AdminFamily[] = [
-  { href: "#/machines", title: "Postes", hint: "Environnements où le travail s'exécute", icon: "machines" },
+  { href: "#/machines", title: UI_LABEL.machines, hint: "Environnements où le travail s'exécute", icon: "machines" },
   { href: "#/accounts", title: "Comptes et membres", hint: "Comptes, sessions et accès par projet", icon: "person" },
-  { href: "#/transfers", title: "Transferts", hint: "Fichiers échangés entre postes", icon: "transfers" },
-  { href: "#/library", title: "Bibliothèque", hint: "Règles, savoir-faire et configurations", icon: "book" },
-  { href: "#/configuration/runtimes", title: "Configuration", hint: "Runtimes, liaisons, projet, appli, IA", icon: "settings" },
+  { href: "#/transfers", title: UI_LABEL.transfers, hint: "Fichiers échangés entre postes", icon: "transfers" },
+  { href: "#/library", title: UI_LABEL.library, hint: "Règles, savoir-faire et configurations", icon: "book" },
+  { href: "#/configuration/runtimes", title: UI_LABEL.configuration, hint: "Runtimes, liaisons, projet, appli, IA", icon: "settings" },
   { href: "#/workspaces", title: "Espaces de travail", hint: "Dossiers suivis sur ce poste", icon: "folder" },
   { href: "#/administration/mesures", title: "Mesures d'infrastructure", hint: "Tailles et comptes de l'instance", icon: "settings" },
 ];
@@ -67,15 +68,15 @@ export interface AdminIndicator {
 export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
   const unavailable = (title: string, error: string, href: string, action: string): AdminIndicator => ({ title, value: "État inconnu", detail: error, href, action, tone: "warning", attention: true });
   const cards: AdminIndicator[] = [];
-  if (data.machines.error !== undefined) cards.push(unavailable("Postes", data.machines.error, "#/machines", "Vérifier les postes"));
+  if (data.machines.error !== undefined) cards.push(unavailable(UI_LABEL.machines, data.machines.error, "#/machines", "Vérifier les postes"));
   else {
     const machines = data.machines.data.filter((machine) => !isDashboardIdentity(machine.display_name));
     const offline = machines.filter((machine) => machine.status === "offline");
     const idle = machines.filter((machine) => machine.status === "idle");
-    cards.push({ title: "Postes", value: `${offline.length} hors ligne`, detail: `${machines.length} poste${sfx(machines.length)} accessible${sfx(machines.length)}, ${idle.length} inactif${sfx(idle.length)}. ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/machines", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
+    cards.push({ title: UI_LABEL.machines, value: `${offline.length} hors ligne`, detail: `${machines.length} poste${sfx(machines.length)} accessible${sfx(machines.length)}, ${idle.length} inactif${sfx(idle.length)}. ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/machines", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
   }
   const configErrors = [data.runtimes.error, data.bindings.error].filter((value): value is string => value !== undefined);
-  if (configErrors.length > 0) cards.push(unavailable("Configuration", configErrors.join(" · "), "#/configuration/runtimes", "Ouvrir la configuration"));
+  if (configErrors.length > 0) cards.push(unavailable(UI_LABEL.configuration, configErrors.join(" · "), "#/configuration/runtimes", "Ouvrir la configuration"));
   else if (data.runtimes.data !== undefined && data.bindings.data !== undefined) {
     const active = data.runtimes.data.filter((runtime) => runtime.status === "active");
     const incomplete = active.filter((runtime) => !runtime.harness_ref || !runtime.provider_ref || !runtime.model_ref);
@@ -83,7 +84,7 @@ export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
     const missing = active.length === 0 || data.bindings.data.length === 0;
     const attention = missing || incomplete.length > 0 || broken.length > 0;
     const details = [active.length === 0 ? "Aucun runtime actif." : `${active.length} runtime${sfx(active.length)} actif${sfx(active.length)}, ${incomplete.length} avec des références à compléter.`, data.bindings.data.length === 0 ? "Aucune liaison définie." : `${broken.length} liaison${sfx(broken.length)} vers un runtime absent ou révoqué.`];
-    cards.push({ title: "Configuration", value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/configuration/bindings" : "#/configuration/runtimes", action: "Ouvrir la configuration", tone: attention ? "warning" : "success", attention });
+    cards.push({ title: UI_LABEL.configuration, value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/configuration/bindings" : "#/configuration/runtimes", action: "Ouvrir la configuration", tone: attention ? "warning" : "success", attention });
   }
   if (data.daemon === null) cards.push({ title: "Synchronisation", value: "État local non observé", detail: "La synchronisation des autres postes n'est pas observable depuis ce navigateur. Consultez l'application sur le poste concerné.", href: "#/configuration/application", action: "Voir l'état de l'application", tone: "neutral", attention: false });
   else if (data.daemon.error !== undefined) cards.push(unavailable("Synchronisation", data.daemon.error, "#/configuration/application", "Diagnostiquer l'application"));
@@ -111,7 +112,7 @@ export function adminOverviewHtml(data?: AdminOverviewData, loading = false): st
   const attention = indicators.filter((item) => item.attention);
   const next = attention[0];
   const hero = dsHeroCard({
-    eyebrow: "Administration",
+    eyebrow: UI_LABEL.administration,
     title: data === undefined ? "Vérifier l'état du système" : attention.length > 0 ? `${attention.length} point${sfx(attention.length)} à vérifier` : "Aucun problème détecté dans les données consultées",
     body: "Les indicateurs concernent les ressources accessibles à votre compte. La synchronisation locale décrit uniquement le poste qui exécute l'application.",
     primary: { label: next?.action ?? "Voir les postes", href: next?.href ?? "#/machines" },
@@ -121,7 +122,7 @@ export function adminOverviewHtml(data?: AdminOverviewData, loading = false): st
     (data === undefined ? dsSkeleton(5) : indicators.map((item) => `<article class="ds-card admin-indicator"><div class="admin-indicator-head"><h2>${esc(item.title)}</h2>${dsBadge(item.value, item.tone)}</div><p class="ds-list-sub">${esc(item.detail)}</p><a class="ds-btn ds-btn--sm" href="${esc(item.href)}">${esc(item.action)}</a></article>`).join("")) + `</section>`;
   return (
     `<div class="admin">` +
-    `${dsPageHeader("Administration", "État et actions sur les ressources de votre compte.")}` +
+    `${dsPageHeader(UI_LABEL.administration, "État et actions sur les ressources de votre compte.")}` +
     `<div class="admin-main">${hero}<div class="admin-refresh"><p class="ds-list-sub" role="status">${data === undefined ? "Chargement des indicateurs…" : `Consulté le ${esc(fmtTime(data.checkedAt))}. Actualisation manuelle.`}</p><button class="ds-btn" type="button" data-admin-refresh${loading ? " disabled" : ""}>Actualiser</button></div>${context}${families}</div>` +
     `</div>`
   );
@@ -151,7 +152,7 @@ export async function loadAdminOverview(ctx: AdminContext): Promise<AdminOvervie
 
 export async function renderAdmin(root: HTMLElement, ctx?: AdminContext): Promise<void> {
   if (ctx === undefined || !ctx.authed) {
-    root.innerHTML = dsPageHeader("Administration") + dsEmptyState("Connectez-vous", "Connectez-vous pour consulter les indicateurs et les outils d'administration.");
+    root.innerHTML = dsPageHeader(UI_LABEL.administration) + dsEmptyState(UI_LABEL.signIn, "Connectez-vous pour consulter les indicateurs et les outils d'administration.");
     return;
   }
   let data: AdminOverviewData | undefined;

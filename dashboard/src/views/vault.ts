@@ -38,6 +38,7 @@ import {
 } from "../vaultApi";
 import type { components } from "../openapi-schema";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 type Project = components["schemas"]["Project"];
 type VaultNoteLinkKind = NonNullable<VaultNote["links"]>[number]["kind"];
@@ -80,7 +81,7 @@ export const VAULT_TYPE_LABEL: Record<VaultNoteType, string> = {
 };
 
 export const VAULT_STATUS_LABEL: Record<VaultNoteStatus, string> = {
-  draft: "Brouillon",
+  draft: UI_LABEL.draft,
   proposed: "Proposée",
   validated: "Validée",
   superseded: "Remplacée",
@@ -122,7 +123,7 @@ export function canDecideVaultNote(
 }
 
 export function vaultScopeLabel(scope: VaultNote["scope"]): string {
-  return scope === "studio" ? "Studio" : "Projet";
+  return scope === "studio" ? "Studio" : UI_LABEL.project;
 }
 
 function noteHref(noteId: string): string {
@@ -272,7 +273,7 @@ export function vaultPageHtml(
     projectNames?: ReadonlyMap<string, string>;
   },
 ): string {
-  const header = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") + vaultModeNavHtml("list");
+  const header = dsPageHeader(UI_LABEL.vault, "Connaissances validées du studio et des projets.") + vaultModeNavHtml("list");
   if (opts.error !== undefined) {
     return `${header}<div class="ds-notice ds-notice--danger" role="alert"><strong>Vault indisponible.</strong>${esc(opts.error)}</div>`;
   }
@@ -332,7 +333,7 @@ export function vaultDetailHtml(
     `<p class="vault-badges">${typeBadge(note.note_type)}${statusBadge(note.status)}` +
     `<span class="ds-list-sub"><code class="mono">${esc(note.slug)}</code>${readable} · v${note.version}</span></p>` +
     vaultDecisionActionsHtml(note, role, opts.message) +
-    `<section class="ds-panel" aria-label="Contenu"><header><h2>Contenu</h2></header><div class="body vault-prose">${renderNoteMarkdown(note.body)}</div></section>` +
+    `<section class="ds-panel" aria-label=UI_LABEL.content><header><h2>Contenu</h2></header><div class="body vault-prose">${renderNoteMarkdown(note.body)}</div></section>` +
     `<section class="ds-panel" aria-label="Liens"><header><h2>Liens</h2></header><div class="body">${vaultLinksHtml(note)}</div></section>` +
     `<section class="ds-panel" aria-label="Ancres"><header><h2>Ancres</h2></header><div class="body">${vaultAnchorsHtml(note)}</div></section>` +
     `<section class="ds-panel" aria-label="Historique des versions"><header><h2>Historique des versions</h2></header><div class="body"><div data-vault-versions>` +
@@ -383,11 +384,11 @@ async function fetchProjects(client: StudioClient): Promise<Project[]> {
 
 export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise<void> {
   if (!ctx.authed) {
-    root.innerHTML = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") +
-      dsEmptyState("Connectez-vous", "Saisissez votre jeton machine pour charger le vault.");
+    root.innerHTML = dsPageHeader(UI_LABEL.vault, "Connaissances validées du studio et des projets.") +
+      dsEmptyState(UI_LABEL.signIn, "Saisissez votre jeton machine pour charger le vault.");
     return;
   }
-  root.innerHTML = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") + dsSkeleton(4);
+  root.innerHTML = dsPageHeader(UI_LABEL.vault, "Connaissances validées du studio et des projets.") + dsSkeleton(4);
   let projects: Project[] = [];
   try {
     projects = await fetchProjects(ctx.client);
@@ -530,16 +531,16 @@ export async function renderVault(root: HTMLElement, ctx: VaultContext): Promise
 
 export async function renderVaultDetail(root: HTMLElement, ctx: VaultContext, noteId: string): Promise<void> {
   if (!ctx.authed) {
-    root.innerHTML = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") +
-      dsEmptyState("Connectez-vous", "Saisissez votre jeton machine pour lire cette note.");
+    root.innerHTML = dsPageHeader(UI_LABEL.vault, "Connaissances validées du studio et des projets.") +
+      dsEmptyState(UI_LABEL.signIn, "Saisissez votre jeton machine pour lire cette note.");
     return;
   }
-  root.innerHTML = dsPageHeader("Vault", "") + dsSkeleton(4);
+  root.innerHTML = dsPageHeader(UI_LABEL.vault, "") + dsSkeleton(4);
   let note: VaultNote;
   try {
     note = await getVaultNote(ctx.client, noteId);
   } catch (error) {
-    root.innerHTML = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") +
+    root.innerHTML = dsPageHeader(UI_LABEL.vault, "Connaissances validées du studio et des projets.") +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Note indisponible.</strong>${esc(describeError(error))}</div>`;
     return;
   }

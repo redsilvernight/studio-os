@@ -22,6 +22,7 @@ import { fetchUsageSummary, type UsageAggregate, type UsageGroupBy, type UsageSu
 import "./usage.css";
 import { renderUsageSubscriptionsInto } from "./usageSubscriptions";
 import { formatAmount, formatDay, formatDuration, plural, sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 type CostTotal = UsageAggregate["cost"];
 type ShareTotal = NonNullable<UsageAggregate["subscription_share"]>;
@@ -237,7 +238,7 @@ function groupLabelHtml(groupBy: string, group: UsageAggregate): string {
   return "Total";
 }
 
-const GROUP_HEADER: Record<string, string> = { task: "Tâche", configuration: "Outil · fournisseur · modèle", day: "Jour" };
+const GROUP_HEADER: Record<string, string> = { task: UI_LABEL.task, configuration: "Outil · fournisseur · modèle", day: "Jour" };
 
 function usageGroupsHtml(summary: UsageSummary): string {
   const groups = summary.groups ?? [];
@@ -264,11 +265,11 @@ function usageGroupsHtml(summary: UsageSummary): string {
 
 function techRows(summary: UsageSummary): DsTechRow[] {
   const rows: DsTechRow[] = [
-    { label: "Projet", value: summary.project_id, mono: true },
+    { label: UI_LABEL.project, value: summary.project_id, mono: true },
     { label: "Regroupement (code)", value: summary.group_by, mono: true },
     { label: "Calculé le", value: fmtTime(summary.generated_at) },
   ];
-  if (summary.task_id) rows.push({ label: "Tâche", value: summary.task_id, mono: true });
+  if (summary.task_id) rows.push({ label: UI_LABEL.task, value: summary.task_id, mono: true });
   if (summary.since) rows.push({ label: "Depuis (inclus)", value: summary.since, mono: true });
   if (summary.until) rows.push({ label: "Jusqu'à (exclu)", value: summary.until, mono: true });
   rows.push({ label: "Statut coût (code)", value: summary.total.cost.status, mono: true });

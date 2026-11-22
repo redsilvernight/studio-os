@@ -39,6 +39,7 @@ import type {
   TaskLaunchWithProtocol,
 } from "../taskLaunchesApi";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface AgentOption {
   stable_key: string;
@@ -93,7 +94,7 @@ const LAUNCH_STATUS_FR: Record<TaskLaunchStatus, string> = {
   requested: "Demandé",
   accepted: "Accepté par le poste",
   preparing: "Préparation",
-  running: "En cours",
+  running: UI_LABEL.inProgress,
   succeeded: "Processus terminé (code 0)",
   failed: "Échec",
   cancelled: "Annulé",

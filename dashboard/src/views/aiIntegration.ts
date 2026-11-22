@@ -19,6 +19,7 @@ import { dsBadge, dsEmptyState, dsSkeleton } from "../ds/ds";
 import { activityLabelFr } from "../machinesApi";
 import { describeError, esc, fmtTime } from "../ui";
 import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface AiIntegrationContext {
   client: StudioClient;
@@ -144,7 +145,7 @@ export function aiIntegrationHtml(status: AiIntegrationStatus): string {
   return (
     summary +
     desiredHtml(status.desired, status.desired_error) +
-    `<section class="workspace-section" aria-label="Postes">${body}</section>`
+    `<section class="workspace-section" aria-label=UI_LABEL.machines>${body}</section>`
   );
 }
 

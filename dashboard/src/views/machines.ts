@@ -15,7 +15,7 @@
  *   existe, sinon "Machine sans nom enregistré" + identifiant court —
  *   jamais "Machine 1/2" fabriqué.
  * - Vocabulaire honnête : le déduit parle d'ACTIVITÉ ("Activité récente",
- *   "Aucune activité récente connue"), jamais "En ligne"/"Hors ligne".
+ *   "Aucune activité récente connue"), jamais "En ligne"/UI_LABEL.offline.
  * - Aucune action machine exposée : création et révocation (propriétaire
  *   ou admin, A5) passent par l'API/CLI, pas de bouton dans cette vue.
  * - Pas de route détail `#/machines/<id>` (aucun endpoint) : liste de
@@ -65,7 +65,7 @@ import {
   closeDsDialog,
 } from "../ds/ds";
 import { describeError, esc, fmtTime } from "../ui";
-import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
+import { ACTION_LABEL, FALLBACK_LABEL, UI_LABEL } from "../language";
 import "./listRows.css";
 import "./machines.css";
 import { sfx } from "../format";
@@ -90,7 +90,7 @@ export function machinesLoadingHtml(): string {
   return (
     `<div class="machines">` +
     `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
-    `${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.")}` +
+    `${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.")}` +
     `${dsSkeleton(4)}</div>`
   );
 }
@@ -288,7 +288,7 @@ export function machineDrawerBodyHtml(
           .map(
             (runtime) =>
               `<li><a href="#/configuration/runtimes/${esc(runtime.id)}">${esc(runtimeSummary(runtime))}</a> ` +
-              `${runtime.status === "active" ? dsBadge("Actif", "success") : dsBadge("Révoqué", "neutral")}</li>`,
+              `${runtime.status === "active" ? dsBadge(UI_LABEL.active, "success") : dsBadge("Révoqué", "neutral")}</li>`,
           )
           .join("") +
         `</ul>`);
@@ -376,11 +376,11 @@ export function machinesPageHtml(data: MachinesPageData): string {
   const header =
     `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
     dsPageHeader(
-      "Postes",
+      UI_LABEL.machines,
       "Environnements enregistrés où le travail s'exécute — à distinguer des agents qui y travaillent.",
       [
         { label: "Revoir le poste sans activité", id: "machines-review" },
-        { label: "Actualiser", id: "machines-reload" },
+        { label: UI_LABEL.refresh, id: "machines-reload" },
       ],
     );
   const notice = data.canonicalAvailable
@@ -405,8 +405,8 @@ export function machinesPageHtml(data: MachinesPageData): string {
     `<div class="machines">${header}${notice}${degraded}` +
     (data.rows.length === 0 ? "" : machinesToolbarHtml(data.state, visible.length, data.rows.length)) +
     `<div id="machines-list">${body}</div>` +
-    `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: "Fermer", variant: "primary" }] })}` +
-    `${dsModalHtml({ id: "machine-rename-dialog", title: "Renommer le poste", body: `<form id="machine-rename-form"><input type="hidden" id="machine-rename-id" /><input type="hidden" id="machine-rename-version" /><div class="ds-form-field"><label for="machine-rename-name">Nouveau nom</label><input class="ds-input" type="text" id="machine-rename-name" required maxlength="100" /></div><div class="ds-form-error" id="machine-rename-error" hidden></div></form>`, actions: [{ label: "Annuler", variant: "secondary", id: "machine-rename-cancel" }, { label: "Renommer", variant: "primary", id: "machine-rename-submit" }] })}</div>`
+    `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: UI_LABEL.close, variant: "primary" }] })}` +
+    `${dsModalHtml({ id: "machine-rename-dialog", title: "Renommer le poste", body: `<form id="machine-rename-form"><input type="hidden" id="machine-rename-id" /><input type="hidden" id="machine-rename-version" /><div class="ds-form-field"><label for="machine-rename-name">Nouveau nom</label><input class="ds-input" type="text" id="machine-rename-name" required maxlength="100" /></div><div class="ds-form-error" id="machine-rename-error" hidden></div></form>`, actions: [{ label: UI_LABEL.cancel, variant: "secondary", id: "machine-rename-cancel" }, { label: "Renommer", variant: "primary", id: "machine-rename-submit" }] })}</div>`
   );
 }
 
@@ -434,8 +434,8 @@ export function cardInfos(
 export async function renderMachines(root: HTMLElement, ctx: MachinesContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.")}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton pour voir les postes visibles pour ce jeton.")}</div>`;
+      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.")}` +
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton pour voir les postes visibles pour ce jeton.")}</div>`;
     return;
   }
   root.innerHTML = machinesLoadingHtml();
@@ -469,7 +469,7 @@ export async function renderMachines(root: HTMLElement, ctx: MachinesContext): P
 
   if (rows.length === 0 && problems.length > 0) {
     root.innerHTML =
-      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.", [{ label: "Actualiser", id: "machines-reload" }])}` +
+      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.", [{ label: UI_LABEL.refresh, id: "machines-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les postes : ${esc(problems.join(" · "))}</div></div>`;
     root.querySelector("#machines-reload")?.addEventListener("click", () => {
       void renderMachines(root, ctx);

@@ -101,7 +101,7 @@ import { newIdempotencyKey } from "../claimsApi";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
 import { formatDuration, sfx } from "../format";
 import { libraryMergeSectionHtml, renderLibraryMerge, type LibraryMergeData } from "./libraryMerge";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { getPlatform } from "../platform";
 import { isAdminIdentity } from "../identityApi";
@@ -184,8 +184,8 @@ export function kindFr(kind: LibraryKind): LibraryKindFr {
 
 
 const STATUS_FR: Record<LibraryStatus, string> = {
-  draft: "Brouillon",
-  active: "Actif",
+  draft: UI_LABEL.draft,
+  active: UI_LABEL.active,
   deprecated: "Déprécié",
 };
 
@@ -577,7 +577,7 @@ export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed
   ).join("");
   return (
     `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
-    `${dsPageHeader("Bibliothèque", "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
+    `${dsPageHeader(UI_LABEL.library, "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `<ul class="library-cats">${cards}</ul>${workProfilePackFormHtml()}`
   );
@@ -673,7 +673,7 @@ export function buildResourcePayload(form: HTMLFormElement, kind: LibraryKind): 
   const stableKey = read.text("stable_key").trim();
   if (stableKey === "") return { error: "La clé stable est obligatoire." };
   const title = read.text("title").trim();
-  if (title === "") return { error: "Le titre est obligatoire." };
+  if (title === "") return { error: UI_LABEL.titleRequired };
   const scope = read.text("scope");
   if (scope !== "studio" && scope !== "project" && scope !== "user") return { error: "Portée inconnue." };
   const projectId = read.text("project_id").trim();
@@ -781,7 +781,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
 export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kindSlug: LibraryKindSlug | null): Promise<void> {
   const meta = kindSlug === null ? null : kindFromSlug(kindSlug);
   if (kindSlug !== null && meta === null) {
-    root.innerHTML = libraryTabsHtml(null) + dsPageHeader("Bibliothèque", "") +
+    root.innerHTML = libraryTabsHtml(null) + dsPageHeader(UI_LABEL.library, "") +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Catégorie inconnue.</strong>Revenez à la bibliothèque.</div>`;
     return;
   }
@@ -981,7 +981,7 @@ function lifecycleFormsHtml(resource: LibraryResource): string {
 function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value: LibraryVersionCreate } | { error: string } {
   const read = formReader(form);
   const title = read.text("version_title").trim();
-  if (title === "") return { error: "Le titre est obligatoire." };
+  if (title === "") return { error: UI_LABEL.titleRequired };
   let content: Record<string, unknown>;
   if (kind === "workflow") {
     const built = buildWorkflowContent({
@@ -1124,7 +1124,7 @@ export async function renderLibraryDetail(
 ): Promise<void> {
   const meta = kindFromSlug(kindSlug);
   if (meta === null) {
-    root.innerHTML = libraryTabsHtml(null) + dsPageHeader("Bibliothèque", "") +
+    root.innerHTML = libraryTabsHtml(null) + dsPageHeader(UI_LABEL.library, "") +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Catégorie inconnue.</strong></div>`;
     return;
   }

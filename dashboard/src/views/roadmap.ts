@@ -33,7 +33,7 @@ import { agentRef } from "../actorNames";
 import { ApiError, type StudioClient } from "../api";
 import { describeError, esc, fmtTime } from "../ui";
 import { plural, sfx } from "../format";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 import { renderAdmissionPanelInto } from "./admissionPanel";
 
 export type RoadmapMode = "plan" | "execution";
@@ -54,18 +54,18 @@ export interface RoadmapViewContext {
 }
 
 const STATUS_LABELS: Record<RoadmapStatus, string> = {
-  draft: "Brouillon",
+  draft: UI_LABEL.draft,
   proposed: "À examiner",
   active: "Active",
-  completed: "Terminée",
+  completed: UI_LABEL.done,
   archived: "Archivée",
 };
 
 const STEP_LABELS: Record<string, string> = {
   not_started: "À venir",
-  in_progress: "En cours",
+  in_progress: UI_LABEL.inProgress,
   blocked: "Bloquée",
-  done: "Terminée",
+  done: UI_LABEL.done,
   skipped: "Ignorée",
 };
 
@@ -354,7 +354,7 @@ const DIFF_CHANGE_LABELS: Record<RoadmapDiffChange, string> = {
 };
 
 const DIFF_SCOPE_LABELS: Record<string, string> = {
-  roadmap: "Roadmap",
+  roadmap: UI_LABEL.roadmap,
   phase: "Phase",
   step: "Étape",
   dependency: "Dépendance",
@@ -425,7 +425,7 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
         ? `<p>Aucun critère défini.</p>`
         : `<ul>${(step.acceptance_criteria ?? []).map((criterion) => `<li>${esc(criterion)}</li>`).join("")}</ul>`;
       return `<article class="roadmap-print-step"><header><h3>${phaseIndex + 1}.${stepIndex + 1} ${esc(step.title)}</h3><span>${esc(STEP_LABELS[state] ?? state)}</span></header>` +
-        `<p><strong>Objectif :</strong> ${esc(step.objective?.trim() || "Non renseigné")}</p>` +
+        `<p><strong>Objectif :</strong> ${esc(step.objective?.trim() || UI_LABEL.notProvided)}</p>` +
         `<div><strong>Tâches</strong>${tasks}</div><p><strong>Dépendances :</strong> ${dependencies}</p>` +
         `<div><strong>Critères d'acceptation</strong>${criteria}</div></article>`;
     }).join("");
@@ -484,11 +484,11 @@ export function roadmapShellHtml(
 function documentEditorHtml(document: RoadmapDocument): string {
   const phases = document.phases.map((phase, phaseIndex) => `<fieldset class="roadmap-editor-phase" data-editor-phase="${phaseIndex}"><legend>Phase ${phaseIndex + 1}</legend>` +
     dsField(`phase-${phaseIndex}-key`, "Clé", `<input id="FIELD" name="phase.${phaseIndex}.key" value="${esc(phase.key)}" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}">`) +
-    dsField(`phase-${phaseIndex}-title`, "Titre", `<input id="FIELD" name="phase.${phaseIndex}.title" value="${esc(phase.title)}" required>`) +
+    dsField(`phase-${phaseIndex}-title`, UI_LABEL.title, `<input id="FIELD" name="phase.${phaseIndex}.title" value="${esc(phase.title)}" required>`) +
     dsField(`phase-${phaseIndex}-objective`, "Objectif", `<textarea id="FIELD" name="phase.${phaseIndex}.objective">${esc(phase.objective ?? "")}</textarea>`) +
     `<div class="roadmap-editor-steps">${phase.steps.map((step, stepIndex) => `<fieldset class="roadmap-editor-step" data-editor-step="${stepIndex}"><legend>Étape ${stepIndex + 1}</legend>` +
       dsField(`step-${phaseIndex}-${stepIndex}-key`, "Clé", `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.key" value="${esc(step.key)}" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}">`) +
-      dsField(`step-${phaseIndex}-${stepIndex}-title`, "Titre", `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.title" value="${esc(step.title)}" required>`) +
+      dsField(`step-${phaseIndex}-${stepIndex}-title`, UI_LABEL.title, `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.title" value="${esc(step.title)}" required>`) +
       dsField(`step-${phaseIndex}-${stepIndex}-objective`, "Objectif", `<textarea id="FIELD" name="step.${phaseIndex}.${stepIndex}.objective">${esc(step.objective ?? "")}</textarea>`) +
       dsField(`step-${phaseIndex}-${stepIndex}-depends`, "Dépend de", `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.depends" value="${esc(step.depends_on.join(", "))}">`, "Clés séparées par des virgules.") +
       dsField(`step-${phaseIndex}-${stepIndex}-criteria`, "Critères d'acceptation", `<textarea id="FIELD" name="step.${phaseIndex}.${stepIndex}.criteria">${esc(step.acceptance_criteria.join("\n"))}</textarea>`, "Un critère par ligne.") +
@@ -496,7 +496,7 @@ function documentEditorHtml(document: RoadmapDocument): string {
     `<div class="roadmap-editor-row"><button class="ds-btn" type="button" data-add-step="${phaseIndex}">Ajouter une étape</button><button class="ds-btn ds-btn--ghost" type="button" data-remove-phase="${phaseIndex}">Retirer la phase</button></div></fieldset>`).join("");
   return `<div class="roadmap-editor"><div class="ds-notice ds-notice--info" role="note"><strong>Édition locale.</strong> Rien n'est envoyé au serveur dans cette version.</div>` +
     `<form data-roadmap-editor>` +
-    dsField("roadmap-title", "Titre", `<input id="FIELD" name="title" value="${esc(document.title)}" required maxlength="200">`) +
+    dsField("roadmap-title", UI_LABEL.title, `<input id="FIELD" name="title" value="${esc(document.title)}" required maxlength="200">`) +
     dsField("roadmap-objective", "Objectif", `<textarea id="FIELD" name="objective" maxlength="2000">${esc(document.objective ?? "")}</textarea>`) +
     dsField("roadmap-context", "Contexte", `<textarea id="FIELD" name="context" maxlength="4000">${esc(document.context ?? "")}</textarea>`) +
     `<div data-editor-phases>${phases}</div><button class="ds-btn" type="button" data-add-phase>Ajouter une phase</button>` +
