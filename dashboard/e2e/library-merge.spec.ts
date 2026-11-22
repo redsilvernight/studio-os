@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import type { LibraryMergeData } from "../src/views/libraryMerge";
+import { answerConfirm } from "./confirm";
 
 const RESOURCE_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -111,11 +112,9 @@ test("détail : choisit un bloc, débloque la publication et publie en une confi
   await expect(publish).toBeEnabled();
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).include("main").analyze();
   expect(axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious")).toEqual([]);
-  let dialogs = 0;
-  page.on("dialog", (dialog) => { dialogs += 1; void dialog.accept(); });
   await publish.click();
+  await answerConfirm(page, true);
   await expect.poll(() => applied.length).toBe(1);
-  expect(dialogs).toBe(1);
   expect(applied[0]).toEqual({
     choice: "merge",
     content: "ligne une\nligne deux (moi)\nligne trois (commun)\ncommun (eux)\n",

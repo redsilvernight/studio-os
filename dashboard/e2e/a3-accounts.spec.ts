@@ -6,6 +6,7 @@
  * Zéro erreur page ni CSP.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { answerConfirm } from "./confirm";
 
 const CSP_RE = /content security policy|securitypolicyviolation/i;
 const ADMIN = "aaaaaaaa-0000-4111-8111-000000000001";
@@ -88,20 +89,20 @@ test.describe("A3 comptes", () => {
     await expect(selfRow.getByRole("button")).toHaveCount(0);
     await expect(doraRow).toContainText("Actif");
 
-    page.once("dialog", (dialog) => void dialog.dismiss());
     await doraRow.getByRole("button", { name: "Désactiver Dora" }).click();
+    await answerConfirm(page, false);
     expect(stub.adminCalls.filter((c) => c.startsWith("disable"))).toEqual([]);
 
-    page.once("dialog", (dialog) => void dialog.accept());
     await doraRow.getByRole("button", { name: "Désactiver Dora" }).click();
+    await answerConfirm(page, true);
     await expect(page.locator("[data-msg]")).toContainText("Compte désactivé");
     await expect(page.locator(`[data-account-row="${DORA}"]`)).toContainText("Désactivé");
 
     await page.locator(`[data-account-row="${DORA}"]`).getByRole("button", { name: "Réactiver Dora" }).click();
     await expect(page.locator(`[data-account-row="${DORA}"]`)).toContainText("Actif");
 
-    page.once("dialog", (dialog) => void dialog.accept());
     await page.locator(`[data-account-row="${DORA}"]`).getByRole("button", { name: "Révoquer les sessions de Dora" }).click();
+    await answerConfirm(page, true);
     await expect(page.locator("[data-msg]")).toContainText("Sessions révoquées");
 
     await page.locator(`[data-account-row="${DORA}"]`).getByRole("button", { name: "Voir les accès de Dora" }).click();

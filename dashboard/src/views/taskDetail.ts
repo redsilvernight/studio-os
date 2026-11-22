@@ -31,6 +31,7 @@
  * - Le compteur de réservations liées n'apparaît que lorsque la donnée a
  *   pu être chargée ; sinon il est omis discrètement.
  */
+import { confirmDs } from "../ds/confirm";
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { claimTask, getTask, patchTask, releaseTask, type Task } from "../tasksApi";
@@ -1071,7 +1072,7 @@ function bindLaunchPanel(
   async function doCancel(): Promise<void> {
     const latest = state.data?.latest ?? null;
     if (latest === null || !state.canCancel) return;
-    if (!window.confirm(cancelLaunchConfirmText(latest))) return;
+    if (!(await confirmDs(cancelLaunchConfirmText(latest)))) return;
     state.error = "";
     state.notice = "";
     const button = container.querySelector<HTMLButtonElement>("[data-action=launch-cancel]");
@@ -1099,7 +1100,7 @@ function bindLaunchPanel(
   async function doLaunch(): Promise<void> {
     const machine = selectedMachine(state);
     if (machine === null || !machine.eligible || state.selectedHarnessId === "" || !validLaunchProfile(state)) return;
-    if (!window.confirm(launchConfirmText(machine, state.selectedHarnessId, state.agentStableKey, state.allowProduction, state.profileKey))) return;
+    if (!(await confirmDs(launchConfirmText(machine, state.selectedHarnessId, state.agentStableKey, state.allowProduction, state.profileKey)))) return;
     state.error = "";
     state.notice = "";
     const submit = container.querySelector<HTMLButtonElement>("[data-action=launch-submit]");
@@ -1157,7 +1158,7 @@ async function doClaim(root: HTMLElement, ctx: TaskDetailContext, taskId: string
 }
 
 async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task): Promise<void> {
-  if (!window.confirm(releaseTaskConfirmText(task))) return;
+  if (!(await confirmDs(releaseTaskConfirmText(task)))) return;
   const taskId = task.id;
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release]")) {
     button.disabled = true;

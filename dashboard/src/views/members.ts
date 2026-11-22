@@ -11,6 +11,7 @@
  *   note explicite, sans appel voué à l'échec.
  */
 import type { StudioClient } from "../api";
+import { confirmDs } from "../ds/confirm";
 import { dsEmptyState, dsField, dsSectionHeader, focusDsErrorBox } from "../ds/ds";
 import {
   grantMember,
@@ -164,8 +165,8 @@ function bind(
   reload: (notice?: string) => Promise<void>,
 ): void {
   root.querySelectorAll<HTMLButtonElement>("[data-revoke]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (!window.confirm(CONFIRM_REVOKE_MEMBER)) return;
+    button.addEventListener("click", async () => {
+      if (!(await confirmDs(CONFIRM_REVOKE_MEMBER))) return;
       button.disabled = true;
       revokeMember(ctx.client, ctx.projectId, button.dataset["revoke"] ?? "")
         .then(() => reload("Membre retiré."))

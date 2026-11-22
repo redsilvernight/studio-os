@@ -13,6 +13,7 @@
  */
 
 import { describeError, esc } from "../ui";
+import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsStatus } from "../ds/ds";
 import type { LibraryMergeApply, LibraryMergePreview } from "../libraryApi";
 
@@ -245,9 +246,9 @@ function bindApplyZone(
     });
   }
   editor.addEventListener("input", refresh);
-  const run = (input: LibraryMergeChoiceInput): void => {
+  const run = async (input: LibraryMergeChoiceInput): Promise<void> => {
     if (input.choice === "merge" && mergeResultProblem(editor.value) !== null) return;
-    if (!window.confirm(CONFIRMATIONS[input.choice])) return;
+    if (!(await confirmDs(CONFIRMATIONS[input.choice]))) return;
     for (const button of buttons) button.disabled = true;
     if (msg !== null) msg.textContent = "";
     apply(input).catch((error: unknown) => {
@@ -256,9 +257,9 @@ function bindApplyZone(
       refresh();
     });
   };
-  publish.addEventListener("click", () => { run({ choice: "merge", content: editor.value }); });
-  root.querySelector("[data-merge-keep]")?.addEventListener("click", () => { run({ choice: "keep_override" }); });
-  root.querySelector("[data-merge-revert]")?.addEventListener("click", () => { run({ choice: "revert_to_common" }); });
+  publish.addEventListener("click", () => { void run({ choice: "merge", content: editor.value }); });
+  root.querySelector("[data-merge-keep]")?.addEventListener("click", () => { void run({ choice: "keep_override" }); });
+  root.querySelector("[data-merge-revert]")?.addEventListener("click", () => { void run({ choice: "revert_to_common" }); });
 }
 
 /** Flèches ← → ↑ ↓, Début, Fin entre les trois volets ; choix de fusion si `apply` est fourni. */

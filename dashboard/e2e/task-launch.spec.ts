@@ -6,6 +6,7 @@
  * TaskLaunch (Idempotency-Key), sans jamais afficher d'état non rapporté.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { answerConfirm } from "./confirm";
 
 const CSP_RE = /content security policy|securitypolicyviolation/i;
 const P1 = "11111111-2222-4333-8444-555555555555";
@@ -283,7 +284,6 @@ function apiStub(captured: Captured) {
 }
 
 async function openTaskDetail(page: Page, captured: Captured): Promise<void> {
-  page.on("dialog", (dialog) => void dialog.accept());
   await page.route("**/api/**", apiStub(captured));
   await page.goto(`/#/tasks/${TASK_ID}`);
   await expect(page.locator("#login-form")).toBeVisible();
@@ -339,6 +339,7 @@ test("lancement : POST typé avec Idempotency-Key, état rapporté affiché", as
   await page.selectOption("#launch-harness", "claude-code");
   await page.selectOption("#launch-agent", "review-helper");
   await page.locator('[data-action="launch-submit"]').click();
+  await answerConfirm(page, true);
 
   await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Demandé");
   expect(captured.idempotencyKeys).toHaveLength(1);
@@ -375,6 +376,7 @@ test("annulation : POST versionné, état annulé affiché", async ({ page }) =>
   await openTaskDetail(page, captured);
 
   await page.locator('[data-action="launch-cancel"]').click();
+  await answerConfirm(page, true);
   await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Annulé");
   expect(captured.cancelCalls).toHaveLength(1);
   expect(captured.cancelCalls[0]?.body).toEqual({ expected_version: 3 });
@@ -391,6 +393,7 @@ test("conflit de version : relecture et message, aucune réapplication aveugle",
   await openTaskDetail(page, captured);
 
   await page.locator('[data-action="launch-cancel"]').click();
+  await answerConfirm(page, true);
   await expect(page.locator('[data-testid="launch-panel"]')).toContainText("a changé ailleurs");
   expect(captured.cancelCalls).toHaveLength(1);
   await expect(page.locator('[data-testid="launch-latest"]')).toContainText("En cours");
@@ -438,7 +441,6 @@ test("divulgation progressive : repli fermé par défaut, ancre interne qui l'ou
     launchFixture({ status: "running", session_id: "sess-0000-4111-8111-000000000001" }),
   );
   const errors = watchErrors(page);
-  page.on("dialog", (dialog) => void dialog.accept());
   await page.route("**/api/**", apiStub(captured));
   await page.goto(`/#/tasks/${TASK_ID}`);
   await expect(page.locator("#login-form")).toBeVisible();
@@ -535,9 +537,8 @@ test("production : confirmation explicite et autorisation limitée à un lanceme
   await page.selectOption("#launch-harness", "claude-code");
   await expect(page.locator("#launch-production")).not.toBeChecked();
   await page.locator("#launch-production").check();
-  const confirmation = page.waitForEvent("dialog");
   await page.locator('[data-action="launch-submit"]').click();
-  expect((await confirmation).message()).toContain("ce lancement uniquement");
+  expect(await answerConfirm(page, true)).toContain("ce lancement uniquement");
   await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Production autorisée");
   expect(captured.bodies[0]).toMatchObject({ allow_production: true });
   await expect(page.locator("#launch-production")).not.toBeChecked();

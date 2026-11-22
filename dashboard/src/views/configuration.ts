@@ -79,6 +79,7 @@ import { machineLabel, machineRef } from "../actorNames";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, statusBlock } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
+import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
@@ -687,11 +688,11 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
       });
   });
   const revokeForm = root.querySelector<HTMLFormElement>("[data-revoke]");
-  revokeForm?.addEventListener("submit", (event) => {
+  revokeForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const msg = revokeForm.querySelector("[data-msg]");
     const submit = revokeForm.querySelector<HTMLButtonElement>("button[type=submit]");
-    if (!window.confirm("Révoquer ce runtime ? La ligne reste consultable mais n'est plus active.")) return;
+    if (!(await confirmDs("Révoquer ce runtime ? La ligne reste consultable mais n'est plus active."))) return;
     if (submit !== null) submit.disabled = true;
     revokeRuntime(ctx.client, runtime.id)
       .then(() => {
@@ -1038,10 +1039,10 @@ function bindCapabilityGaps(
 
 function bindBindingDeletes(root: HTMLElement, ctx: ConfigurationContext): void {
   root.querySelectorAll<HTMLButtonElement>("[data-delete-binding]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const bindingId = button.dataset["deleteBinding"];
       if (bindingId === undefined) return;
-      if (!window.confirm("Supprimer ce binding ? Cette règle d'affectation disparaît ; le runtime visé n'est pas supprimé.")) return;
+      if (!(await confirmDs("Supprimer ce binding ? Cette règle d'affectation disparaît ; le runtime visé n'est pas supprimé."))) return;
       button.disabled = true;
       deleteRuntimeBinding(ctx.client, bindingId)
         .then(() => {
@@ -1189,10 +1190,10 @@ function bindProjectTab(root: HTMLElement, ctx: ConfigurationContext, tab: "reso
       });
   });
   root.querySelectorAll<HTMLButtonElement>("[data-release-lock]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const lockId = button.dataset["releaseLock"];
       if (lockId === undefined) return;
-      if (!window.confirm(CONFIRM_RELEASE_LOCK)) return;
+      if (!(await confirmDs(CONFIRM_RELEASE_LOCK))) return;
       button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {

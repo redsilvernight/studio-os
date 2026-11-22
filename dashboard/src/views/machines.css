@@ -21,7 +21,7 @@
 }
 
 .machines-notice--warning {
-  border-left-color: var(--ds-warning, #b7791f);
+  border-left-color: var(--ds-warning);
 }
 
 .machines-toolbar {

@@ -164,19 +164,6 @@
   --ds-navy-text: #2b2722;
   --ds-navy-muted: #5c554b;
   --ds-navy-active: #4332ab;
-
-  /* Aliases historiques : les vues non migrées (UI-2+) restent lisibles
-     sur le thème clair pendant la transition. */
-  --bg: var(--ds-bg);
-  --panel: var(--ds-surface);
-  --line: var(--ds-border);
-  --text: var(--ds-text);
-  --dim: var(--ds-text-muted);
-  --accent: var(--ds-action);
-  --ok: var(--ds-success);
-  --bad: var(--ds-danger);
-  --warn: var(--ds-warning);
-  --mono: var(--ds-font-mono);
 }
 
 /* Thème sombre. Deux entrées pour couvrir « système » sans JavaScript
@@ -306,4 +293,46 @@
   --ds-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.45);
   --ds-shadow-md: 0 2px 8px rgb(0 0 0 / 0.55);
   --ds-shadow-lg: 0 8px 28px rgb(0 0 0 / 0.6);
+}
+
+/* Palettes à valeurs fixes, identiques dans les deux thèmes : canevas sombre
+   du Vault › Atlas (contraste AA des étiquettes sur le fond) et encre
+   d'impression de la feuille de route (papier blanc). */
+:root {
+  --atlas-bg: #1b2540;
+  --atlas-bg-edge: #0b1020;
+  --atlas-text: #e8edf7;
+  --atlas-text-muted: #9aa8c1;
+  --atlas-edge: #56637d;
+  --atlas-edge-strong: #cbd5e1;
+  --atlas-accent: #ffffff;
+  --atlas-label-bg: rgba(11, 16, 32, 0.82);
+  --atlas-type-decision: #5b9dff;
+  --atlas-type-rule: #ff6b7a;
+  --atlas-type-convention: #b58cff;
+  --atlas-type-procedure: #3ddc97;
+  --atlas-type-reference: #2fd4e6;
+  --atlas-type-lesson: #ffc23d;
+  --atlas-type-note: #a3b1c6;
+  --atlas-satellite: #7c8aa5;
+  --atlas-zone-1: #5b9dff;
+  --atlas-zone-2: #3ddc97;
+  --atlas-zone-3: #ffc23d;
+  --atlas-zone-4: #b58cff;
+  --atlas-zone-5: #2fd4e6;
+  --atlas-community-1: #f472b6;
+  --atlas-community-2: #38bdf8;
+  --atlas-community-3: #facc15;
+  --atlas-community-4: #a3e635;
+  --atlas-community-5: #fb923c;
+  --atlas-community-6: #c084fc;
+  --atlas-node-ring: rgb(11 16 32 / 0.15);
+  --ds-print-paper: #fff;
+  --ds-print-ink: #172434;
+  --ds-print-muted: #52647a;
+  --ds-print-line: #cad5e2;
+  --ds-print-accent: #1f6feb;
+  --ds-print-soft: #f1f6fc;
+  --ds-print-rail: #a7b0bf;
+  --ds-z-raised: 1;
 }

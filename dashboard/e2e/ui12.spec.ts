@@ -7,6 +7,7 @@
  * partielle, mobile 375, clavier, zéro violation CSP. Captures hors dépôt.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { answerConfirm } from "./confirm";
 
 const CSP_RE = /content security policy|securitypolicyviolation/i;
 const SHOTS = "C:/Users/redsi/AppData/Local/Temp/opencode/ui12";
@@ -384,12 +385,8 @@ test.describe("UI-12 Configuration — Liaisons", () => {
     await expect(view.locator(".settings-binding-row")).toHaveCount(3);
 
     // Suppression : formulation « Supprimer ce binding », jamais « le runtime ».
-    let confirmMessage = "";
-    page.once("dialog", (dialog) => {
-      confirmMessage = dialog.message();
-      void dialog.accept();
-    });
     await view.locator(`[data-delete-binding="${B1}"]`).click();
+    const confirmMessage = await answerConfirm(page, true);
     await expect.poll(() => captured.deletes.length).toBe(1);
     expect(confirmMessage).toContain("Supprimer ce binding");
     expect(confirmMessage).toContain("runtime visé n'est pas supprimé");

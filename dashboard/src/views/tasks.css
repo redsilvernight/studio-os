@@ -258,7 +258,7 @@
 }
 
 .task-col.drop-target {
-  outline: 2px dashed var(--accent);
+  outline: 2px dashed var(--ds-action);
   outline-offset: 2px;
 }
 

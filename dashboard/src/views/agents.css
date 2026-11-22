@@ -215,7 +215,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: var(--ds-text-sm);
-  background: var(--ds-surface-muted, rgba(0, 0, 0, 0.04));
+  background: var(--ds-surface-soft);
   border-radius: 8px;
 }
 

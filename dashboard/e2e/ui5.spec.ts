@@ -7,6 +7,7 @@
  * Zéro violation CSP, zéro erreur page. Captures hors dépôt (temp).
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { answerConfirm } from "./confirm";
 
 const CSP_RE = /content security policy|securitypolicyviolation/i;
 const SHOTS = "C:/Users/redsi/AppData/Local/Temp/opencode/ui5";
@@ -417,13 +418,8 @@ test.describe("UI-5 détail tâche", () => {
 
     // Libérer : confirmation nommant la machine détentrice, POST release,
     // statut conservé, message explicite.
-    let confirmMessage = "";
-    page.once("dialog", (dialog) => {
-      confirmMessage = dialog.message();
-      void dialog.accept();
-    });
     await view.locator("[data-release]").click();
-    await expect.poll(() => confirmMessage).toContain("prise par la machine");
+    expect(await answerConfirm(page, true)).toContain("prise par la machine");
     await expect(view.locator(".ds-notice--info")).toContainText("Le statut reste inchangé");
     // Libération versionnée : la version lue part en If-Match-Version.
     expect(captured.releaseVersions).toEqual([String(TASKS[1]?.version)]);

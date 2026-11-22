@@ -22,6 +22,7 @@
  * /resolutions) : ici, seules les exigences déclarées sont affichées,
  * jamais un verdict inventé (unknown != compatible).
  */
+import { confirmDs } from "../ds/confirm";
 import type { StudioClient } from "../api";
 import type { components } from "../openapi-schema";
 import { loadHookListContent, loadIncomingHookDependencies, type HookListContent, type IncomingHookDependency } from "../libraryHooks";
@@ -1261,9 +1262,9 @@ function bindDetail(
       });
   });
   const deprecateForm = root.querySelector<HTMLFormElement>("[data-deprecate]");
-  deprecateForm?.addEventListener("submit", (event) => {
+  deprecateForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!window.confirm("Déprécier cette ressource ? L'historique et le pointeur actif sont conservés.")) return;
+    if (!(await confirmDs("Déprécier cette ressource ? L'historique et le pointeur actif sont conservés."))) return;
     const msg = deprecateForm.querySelector("[data-msg]");
     const submit = deprecateForm.querySelector<HTMLButtonElement>("button[type=submit]");
     if (submit !== null) submit.disabled = true;
@@ -1356,10 +1357,10 @@ function bindDetail(
       });
   });
   root.querySelectorAll<HTMLButtonElement>("[data-release-lock]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const lockId = button.dataset["releaseLock"];
       if (lockId === undefined) return;
-      if (!window.confirm(CONFIRM_RELEASE_LOCK)) return;
+      if (!(await confirmDs(CONFIRM_RELEASE_LOCK))) return;
       button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {

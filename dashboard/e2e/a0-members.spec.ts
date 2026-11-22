@@ -6,6 +6,7 @@
  * membres ni à l'annuaire. Zéro erreur page ni CSP.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { answerConfirm } from "./confirm";
 
 const CSP_RE = /content security policy|securitypolicyviolation/i;
 const P1 = "11111111-2222-4333-8444-555555555555";
@@ -152,8 +153,8 @@ test.describe("A0 membres du projet", () => {
     await expect(candidates.filter({ hasText: "Ada Admin" })).toContainText("Votre compte");
     expect(stub.memberCalls.filter((c) => c.startsWith("PUT"))).toEqual([`PUT ${DEV}`]);
 
-    page.once("dialog", (dialog) => void dialog.accept());
     await panel.locator(`[data-revoke="${DEV}"]`).click();
+    await answerConfirm(page, true);
     await expect(panel.locator("[data-msg]")).toHaveText("Membre retiré.");
     await expect(panel).toContainText("Aucun membre");
     expect(stub.memberCalls).toContain(`DELETE ${DEV}`);
