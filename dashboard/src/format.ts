@@ -29,12 +29,6 @@ export function formatDateTime(value: string | number | Date | null | undefined)
   return date.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
 }
 
-/** Date locale seule : « 22/11/2026 ». */
-export function formatDate(value: string | number | Date | null | undefined): string {
-  const date = toDate(value);
-  return date === null ? ABSENT : date.toLocaleDateString("fr-FR");
-}
-
 /**
  * Jour calendaire « AAAA-MM-JJ » (sans heure) : affiché tel quel, sans décalage
  * de fuseau. `long` donne « dimanche 22 novembre 2026 ».
