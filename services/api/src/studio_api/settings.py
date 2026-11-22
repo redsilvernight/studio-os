@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     transfer_project_quota_bytes: int = 100 * 1024**3
     multipart_abandon_after_days: int = 7
 
+    # Studio export / deletion (0051). A deletion request is a grace window: the
+    # studio turns read-only now and `purge_due_studios` deletes it once
+    # `deletion_grace_days` elapsed (the owner may cancel meanwhile).
+    deletion_grace_days: int = Field(default=7, ge=0, le=90)
+    # An export archive row stays readable this long; past it the link is
+    # refused (the object itself is removed with the studio).
+    export_retention_days: int = Field(default=7, ge=1, le=90)
+    # Download links are short-lived on purpose, never above 15 minutes.
+    export_url_ttl_seconds: int = Field(default=900, ge=60, le=900)
+    # Announced backup retention: the purge logs the date after which the
+    # studio is gone from backups too (the backups themselves are rotated by
+    # the host, this setting only states the promise).
+    deletion_backup_retention_days: int = Field(default=30, ge=1, le=365)
+
     # Execution snapshots (DEC-0199): kept this long after capture, then purged.
     execution_snapshot_retention_days: int = Field(default=90, ge=1, le=3650)
 

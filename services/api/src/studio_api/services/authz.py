@@ -15,7 +15,9 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.studio import (
     INTERNAL_STUDIO_ID,
+    PENDING_DELETION_STATUS,
     StudioMembershipModel,
+    StudioModel,
     StudioRole,
 )
 from studio_api.db.models.transfer import TransferModel
@@ -165,6 +167,7 @@ class Principal:
     role: Role
     studio_id: uuid.UUID
     studio_role: StudioRole
+    studio_status: str = "active"
     is_operator: bool = False
     project_scope: ProjectScope = field(default_factory=frozenset)
     human_authenticated: bool = False
@@ -197,12 +200,18 @@ async def load_principal(
         )
         studio_id, studio_role = active.studio_id, active.role
         project_scope = await load_project_scope(session, user.id, studio_id, studio_role)
+    # Studio lifecycle (0051): a studio scheduled for deletion is read-only
+    # everywhere `ensure_can_write` / `ensure_can_provision` gates a write.
+    studio_status = await session.scalar(
+        select(StudioModel.status).where(StudioModel.id == studio_id)
+    )
     return Principal(
         machine=machine,
         user=user,
         role=role,
         studio_id=studio_id,
         studio_role=studio_role,
+        studio_status=studio_status or "active",
         is_operator=user.is_operator,
         project_scope=project_scope,
     )
@@ -437,10 +446,25 @@ def ensure_operator(principal: Principal) -> None:
         raise forbidden("instance", "operate")
 
 
+def ensure_studio_writable(principal: Principal) -> None:
+    """A studio scheduled for deletion is read-only until its purge or its
+    cancellation (0051). Reads and the export/cancel routes never call this.
+    `409` rather than `403`: the refusal is temporary and reversible."""
+    if principal.studio_status == PENDING_DELETION_STATUS:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "studio_pending_deletion",
+                "message": "studio is read-only pending its deletion",
+            },
+        )
+
+
 def ensure_can_write(principal: Principal, resource: str) -> None:
     """A studio `viewer` and the account `readonly` never write shared state
     anywhere. Heartbeat is the one explicit exception (TECH/04) and
     deliberately never calls this."""
+    ensure_studio_writable(principal)
     if principal.role == Role.READONLY or principal.studio_role == StudioRole.VIEWER:
         raise forbidden(resource, "write")
 
@@ -449,6 +473,7 @@ def ensure_can_provision(principal: Principal, resource: str) -> None:
     """`agent` gets every `developer` write except provisioning (new projects,
     machines, users). A studio `owner`/`admin` may provision; `member` and
     `viewer` may not."""
+    ensure_studio_writable(principal)
     if is_studio_manager(principal) or principal.role == Role.DEVELOPER:
         return
     raise forbidden(resource, "provision")
