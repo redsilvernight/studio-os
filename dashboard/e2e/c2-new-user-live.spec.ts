@@ -2,9 +2,8 @@
  * C2 — nouvel utilisateur Web contre une VRAIE API (pile jetable
  * `desktop/e2e/gate_stack.py`, inscriptions ouvertes, emails en fichiers) :
  * inscription par l'écran → lien lu dans le .eml → vérification → connexion
- * → « En attente d'accès » → l'admin attribue un projet → tableau de bord →
- * premier usage : la tâche du projet attribué est listée, rien de l'autre
- * projet n'apparaît. Ni mot de passe ni jeton hors mémoire.
+ * → studio propre (S2) → création du premier projet par le compte →
+ * isolation : rien des projets d'un autre studio n'apparaît. Ni mot de passe ni jeton hors mémoire.
  *
  * Ignoré sans `STUDIO_C2_LIVE` : lancer via `node scripts/c2-new-user-live.mjs`.
  */
@@ -80,7 +79,7 @@ test.describe("C2 nouvel utilisateur Web (API réelle)", () => {
   test.skip(LIVE === null, "STUDIO_C2_LIVE absent : lancer node scripts/c2-new-user-live.mjs");
   test.setTimeout(120_000);
 
-  test("inscription → vérification → attente d'accès → accès → premier usage", async ({ page }) => {
+  test("inscription → vérification → studio → premier projet", async ({ page }) => {
     const live = LIVE!;
     const email = `c2-${randomUUID().slice(0, 8)}@example.test`;
     const password = `c2-${randomUUID()}`;
@@ -130,25 +129,26 @@ test.describe("C2 nouvel utilisateur Web (API réelle)", () => {
     await submitAccountForm(page);
     await expect(screen(page, "verified")).toContainText("Votre compte est actif");
 
-    // Connexion : compte actif readonly sans projet.
+    // Connexion : le compte possède son propre studio (S2) — pas d'écran
+    // « En attente d'accès », il crée lui-même son premier projet.
     await submitAccountForm(page);
     await page.fill("#login-email", email);
     await page.fill("#login-password", password);
     await page.locator("#login-form button[type=submit]").click();
-    await expect(page.locator("[data-testid=awaiting-access]")).toBeVisible();
-    const me = (await api("/api/v1/auth/me", { token: await login(email, password) })).json;
-    expect(me.role).toBe("readonly");
-
-    // L'admin attribue le projet ; « Vérifier à nouveau » ouvre le tableau de bord.
-    expect((await api(`/api/v1/projects/${gate.id}/members/${me.user_id}`, { method: "PUT", token: admin })).status).toBe(201);
-    await page.locator("[data-testid=awaiting-access-recheck]").click();
     await expect(page.locator("[data-testid=awaiting-access]")).toHaveCount(0);
-    await expect(page.locator("#view")).toContainText(gate.name);
-    await expect(page.locator("#view")).not.toContainText("C2 autre projet");
+    await page.goto("/#/projects");
+    await page.locator("#project-new").click();
+    const firstSlug = `c2-first-${randomUUID().slice(0, 6)}`;
+    await page.fill("#project-slug", firstSlug);
+    await page.fill("#project-name", "C2 premier projet");
+    await page.locator("#project-create-submit").click();
+    await expect(page.locator("#view")).toContainText("C2 premier projet");
 
-    // Premier usage : la tâche du projet attribué, rien de l'autre.
+    // Isolation : rien des projets d'un autre studio n'apparaît.
+    await expect(page.locator("#view")).not.toContainText(gate.name);
+    await expect(page.locator("#view")).not.toContainText("C2 autre projet");
     await page.goto("/#/tasks");
-    await expect(page.locator("#view .task-row", { hasText: TASK })).toHaveCount(1);
+    await expect(page.locator("body")).not.toContainText(TASK);
     await expect(page.locator("body")).not.toContainText(HIDDEN_TASK);
 
     const dump = await page.evaluate(() =>

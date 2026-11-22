@@ -18,7 +18,12 @@ export async function probeProjectAccess(client: StudioClient): Promise<ProjectA
   try {
     const result = await client.GET("/api/v1/projects");
     if (!result.response.ok || result.data === undefined) return "unknown";
-    return result.data.length > 0 ? "granted" : "none";
+    if (result.data.length > 0) return "granted";
+    // Owner/admin of a studio provisions its first project themselves (S2):
+    // the "ask an administrator" screen would be wrong for them.
+    const studios = await client.GET("/api/v1/studios");
+    if (studios.response.ok && studios.data?.some((s) => s.role === "owner" || s.role === "admin")) return "granted";
+    return "none";
   } catch {
     return "unknown";
   }

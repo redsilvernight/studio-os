@@ -5,13 +5,14 @@ import { clearToken, setToken } from "../auth";
 import { resetIdentityCache } from "../identityApi";
 import { probeProjectAccess, renderAwaitingAccess } from "./awaitingAccess";
 
-function client(role: string | null, projects: unknown[] | "error"): StudioClient {
+function client(role: string | null, projects: unknown[] | "error", studios: unknown[] = []): StudioClient {
   const GET = vi.fn(async (path: string) => {
     if (path === "/api/v1/auth/me") {
       return role === null
         ? { response: new Response(null, { status: 401 }) }
         : { response: new Response(null, { status: 200 }), data: { role } };
     }
+    if (path === "/api/v1/studios") return { response: new Response(null, { status: 200 }), data: studios };
     return projects === "error"
       ? { response: new Response(null, { status: 500 }) }
       : { response: new Response(null, { status: 200 }), data: projects };
@@ -32,6 +33,12 @@ describe("probeProjectAccess", () => {
 
   it("is granted as soon as one project is visible", async () => {
     await expect(probeProjectAccess(client("readonly", [{ id: "p" }]))).resolves.toBe("granted");
+  });
+
+  it("is granted for a studio owner or admin without project, none for a viewer", async () => {
+    await expect(probeProjectAccess(client("readonly", [], [{ role: "owner" }]))).resolves.toBe("granted");
+    await expect(probeProjectAccess(client("readonly", [], [{ role: "admin" }]))).resolves.toBe("granted");
+    await expect(probeProjectAccess(client("readonly", [], [{ role: "viewer" }]))).resolves.toBe("none");
   });
 
   it("is granted for an admin without project", async () => {
