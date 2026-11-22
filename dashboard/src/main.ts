@@ -196,6 +196,21 @@ async function renderRoute(
     case "workspaces":
       await (await load(() => import("./views/workspacesPage"))).renderWorkspaces(staging, getPlatform(), { client, authed });
       break;
+    case "studios":
+      await (await load(() => import("./views/studioPicker"))).renderStudioPicker(staging, { baseUrl, authed }, route.create === true);
+      break;
+    case "studioInvitations":
+      await (await load(() => import("./views/studioInvitations"))).renderStudioInvitations(staging, { baseUrl, authed });
+      break;
+    case "invitationAccept":
+      await (await load(() => import("./views/studioInvitations"))).renderInvitationAccept(staging, { baseUrl }, route);
+      break;
+    case "studioSuspended":
+      await (await load(() => import("./views/studioSuspended"))).renderStudioSuspended(staging, { baseUrl, authed }, route.id);
+      break;
+    case "studioData":
+      await (await load(() => import("./views/studioData"))).renderStudioData(staging, { baseUrl, authed }, route.id);
+      break;
     case "onboarding":
       await (await load(() => import("./onboarding/view"))).renderOnboarding(staging, getPlatform());
       break;
