@@ -27,6 +27,8 @@ import {
   type SetupPlan,
 } from "../setupApi";
 import { esc } from "../ui";
+import { plural, sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface SetupView {
   /** Aperçu en attente de confirmation : rien n'est écrit avant. */
@@ -43,7 +45,6 @@ type Rerender = (view: { setup: SetupView }) => Promise<void>;
 
 const itemLabel = (item: SetupItemPlan): string => `${ITEM_KIND_LABELS[item.kind]} (${item.harness})`;
 
-const plural = (count: number, one: string, many: string): string => `${count} ${count > 1 ? many : one}`;
 
 /** Résumé du diff replié : lignes annoncées (additions + suppressions) ou lignes du diff. */
 const diffSummary = (item: SetupItemPlan): string => {
@@ -58,7 +59,7 @@ function itemHtml(item: SetupItemPlan, checked: boolean): string {
     : "";
   const differs =
     item.state === "differs"
-      ? `<p class="settings-intro">${item.managed ? "Copie gérée différente de la version actuelle (obsolète ou modifiée)" : "Fichier qui n'est pas géré par Studi'OS"} : +${item.lines_added ?? 0} / −${item.lines_removed ?? 0} ligne(s).</p>` +
+      ? `<p class="settings-intro">${item.managed ? "Copie gérée différente de la version actuelle (obsolète ou modifiée)" : "Fichier qui n'est pas géré par Studi'OS"} : +${item.lines_added ?? 0} / −${item.lines_removed ?? 0} ligne${sfx(item.lines_removed ?? 0)}.</p>` +
         `<details class="setup-diff"><summary>${diffSummary(item)}</summary>` +
         `<pre class="mono" data-testid="setup-diff">${esc(item.diff ?? "")}</pre>` +
         (item.diff_truncated ? `<p class="settings-intro">Différence tronquée : seules les premières lignes sont affichées.</p>` : "") +
@@ -90,7 +91,7 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
   const adapters = plan.adapters;
   const adaptersBody =
     adapters.state === "checked"
-      ? `${dsBadge(adapters.drifted ? "Dérive" : "Conformes", adapters.drifted ? "warning" : "success")} ${adapters.checked ?? 0} fichier(s) vérifié(s), ${adapters.drifted ?? 0} en dérive. Lecture seule : cet aperçu ne modifie aucun de ces fichiers.`
+      ? `${dsBadge(adapters.drifted ? "Dérive" : "Conformes", adapters.drifted ? "warning" : "success")} ${adapters.checked ?? 0} fichier${sfx(adapters.checked ?? 0)} vérifié${sfx(adapters.checked ?? 0)}, ${adapters.drifted ?? 0} en dérive. Lecture seule : cet aperçu ne modifie aucun de ces fichiers.`
       : `${esc(ADAPTERS_STATE_LABELS[adapters.state])}.`;
   const mcp =
     harnesses.length === 0
@@ -103,7 +104,7 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
       ? "Git est absent. Il conserve l’historique et permet de revenir sur vos changements. Parcours manuel : installez Git avec votre accord, vérifiez git --version, puis relancez cet aperçu."
       : versioning.state === "unavailable"
         ? "Git est présent mais sa vérification a échoué. Vérifiez git --version dans votre terminal puis relancez cet aperçu."
-        : `${versioning.repositories} dépôt(s) local(aux) sur ${versioning.workspaces} projet(s) enregistré(s), ${versioning.with_identity} avec une identité de commit, ${versioning.with_remote} avec un distant. ${versioning.unavailable ? `${versioning.unavailable} vérification(s) incomplète(s). ` : ""}` +
+        : `${versioning.repositories ?? 0} dépôt${sfx(versioning.repositories ?? 0)} local${(versioning.repositories ?? 0) >= 2 ? "aux" : ""} sur ${versioning.workspaces} projet${sfx(versioning.workspaces ?? 0)} enregistré${sfx(versioning.workspaces ?? 0)}, ${versioning.with_identity} avec une identité de commit, ${versioning.with_remote} avec un distant. ${versioning.unavailable ? `${plural(versioning.unavailable, "vérification")} incomplète${sfx(versioning.unavailable)}. ` : ""}` +
           `${versioning.identity_configured ? "Identité globale configurée. " : "Aucune identité globale complète détectée ; une identité locale au projet suffit. "}` +
           "Un dépôt distant est facultatif pour versionner localement. Depuis le dossier du projet : git init si nécessaire, puis git config --local user.name et git config --local user.email avec les valeurs de votre choix. --global concerne tous vos projets : ne l’utilisez que si vous le souhaitez. Relancez cet aperçu après configuration.";
   const hooks = (plan.hooks ?? []).map((item) => itemHtml(item, chosen.has(item.item_id))).join("");
@@ -127,7 +128,7 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
     (nothing
       ? `<p class="settings-notice" role="status" data-testid="setup-nothing">Fichiers gérés à jour : rien à écrire. Consultez les vérifications ci-dessus pour les autres étapes.</p>`
       : keptSummary + `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-setup">Confirmer et appliquer</button> `) +
-    `<button class="ds-btn" type="button" data-action="cancel-setup">${nothing ? "Fermer" : "Annuler"}</button>` +
+    `<button class="ds-btn" type="button" data-action="cancel-setup">${nothing ? "Fermer" : UI_LABEL.cancel}</button>` +
     `</div>`
   );
 }
@@ -149,8 +150,8 @@ function resultHtml(plan: SetupPlan | undefined, result: SetupApplyResult): stri
   const skillsTone = skills.outcome === "failed" ? "danger" : skills.outcome === "synced" ? "success" : "neutral";
   const skillsLine =
     dsBadge(SKILLS_OUTCOME_LABELS[skills.outcome], skillsTone) +
-    (skills.written ? ` ${skills.written} fichier(s) écrit(s).` : "") +
-    (skills.left_modified ? ` ${skills.left_modified} modifiée(s) localement, laissée(s) telle(s) quelle(s).` : "");
+    (skills.written ? ` ${skills.written} fichier${sfx(skills.written)} écrit${sfx(skills.written)}.` : "") +
+    (skills.left_modified ? ` ${skills.left_modified} modifiée${sfx(skills.left_modified)} localement, laissée${sfx(skills.left_modified)} telle${sfx(skills.left_modified)} quelle${sfx(skills.left_modified)}.` : "");
   return (
     `<div class="integration-plan" data-testid="setup-result" data-result-state="${outcome}" role="status">` +
     `<h3>${summary}</h3>` +

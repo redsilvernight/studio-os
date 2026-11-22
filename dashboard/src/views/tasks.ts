@@ -48,10 +48,11 @@ import {
   type TaskStatus,
 } from "../taskStatus";
 import { describeError, esc } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au bloc
 // d'imports CSS de main.ts.
 import "./tasks.css";
+import { sfx } from "../format";
 
 export interface TasksContext {
   client: StudioClient;
@@ -92,7 +93,7 @@ export const NOW_UPCOMING_LIMIT = 5;
 
 /** Groupes de la liste, dans l'ordre d'attention. */
 const GROUPS: { status: TaskStatus; label: string }[] = [
-  { status: "in_progress", label: "En cours" },
+  { status: "in_progress", label: UI_LABEL.inProgress },
   { status: "blocked", label: "Bloquées" },
   { status: "created", label: "À faire" },
   { status: "completed", label: "Terminées" },
@@ -328,7 +329,7 @@ export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): stri
             `${taskMoveControlHtml(task, options.authed)}</li>`,
         )
         .join("");
-      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${count} tâche(s) chargée(s)">` +
+      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${count} tâche${sfx(cards.length)} chargée${sfx(cards.length)}">` +
         `<h3 class="task-col-title">${esc(label)} <span class="ds-list-sub">(${count})</span></h3>` +
         (items === "" ? `<p class="ds-list-sub">Aucune tâche ici.</p>` : `<ul class="task-col-list">${items}</ul>`) +
         `</section>`;
@@ -345,13 +346,13 @@ export function taskCreateFormHtml(
   const projectField =
     projectId !== undefined
       ? `<p class="ds-list-sub">Projet : ${esc(scopeLabel)}</p>`
-      : `<div>${dsField("task-project", "Projet", `<select class="ds-select" id="FIELD" name="project_id" required>${projects.map((project) => `<option value="${esc(project.id)}">${esc(project.name)} (${esc(project.slug)})</option>`).join("")}</select>`, "La tâche sera créée dans ce projet.")}</div>`;
+      : `<div>${dsField("task-project", UI_LABEL.project, `<select class="ds-select" id="FIELD" name="project_id" required>${projects.map((project) => `<option value="${esc(project.id)}">${esc(project.name)} (${esc(project.slug)})</option>`).join("")}</select>`, "La tâche sera créée dans ce projet.")}</div>`;
   return `<form id="task-create-form" novalidate>` +
     projectField +
-    dsField("task-title", "Titre", `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" />`) +
+    dsField("task-title", UI_LABEL.title, `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" />`) +
     dsField(
       "task-desc",
-      "Description (facultative)",
+      UI_LABEL.descriptionOptional,
       `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`,
     ) +
     `<p class="ds-list-sub">Un envoi répété ne crée pas de doublon.</p>` +
@@ -429,7 +430,7 @@ export function tasksPageHtml(data: TasksPageData): string {
       : `<div class="tasks-footer">${reloadButton}` +
         (data.exhausted ? "" : `<button class="ds-btn" type="button" data-more${data.moreLoading ? " disabled" : ""}>${data.moreLoading ? "Chargement…" : "Afficher plus de tâches"}</button>`) +
         (data.state.scope === "all" && data.completedVisible === false && (!board || (visible.length === 0 && data.state.query.trim() !== "")) ? `<button class="ds-btn" type="button" data-completed>Afficher les tâches terminées</button>` : "") +
-        (data.state.scope === "all" ? `<p class="ds-list-sub" role="status">${inScope.length} tâche(s) chargée(s)${data.exhausted ? "" : " · D'autres tâches sont disponibles (+)."}${data.completedVisible === false ? " · Les terminées ne sont pas encore chargées." : ""}</p>` : "") +
+        (data.state.scope === "all" ? `<p class="ds-list-sub" role="status">${inScope.length} tâche${sfx(inScope.length)} chargée${sfx(inScope.length)}${data.exhausted ? "" : " · D'autres tâches sont disponibles (+)."}${data.completedVisible === false ? " · Les terminées ne sont pas encore chargées." : ""}</p>` : "") +
         `</div>`;
   const msg =
     data.msg.human === ""
@@ -703,7 +704,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
           return;
         }
         if (title === "") {
-          setCreateError("Le titre est obligatoire.");
+          setCreateError(UI_LABEL.titleRequired);
           root.querySelector<HTMLElement>("#task-title")?.focus();
           return;
         }

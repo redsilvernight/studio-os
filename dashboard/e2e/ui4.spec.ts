@@ -224,7 +224,7 @@ test.describe("UI-4 projets et workspace", () => {
     await view.locator("#projects-filter").click();
     await page.keyboard.type("phare");
     await expect(view.locator(".projects-grid .project-card")).toHaveCount(1);
-    await expect(view).toContainText("1 projet(s) affiché(s) sur 2 chargé(s)");
+    await expect(view).toContainText("1 projet affiché sur 2 chargés");
     await page.keyboard.press("Escape");
     await view.locator("#projects-filter").fill("");
     await expect(view.locator(".projects-grid .project-card")).toHaveCount(2);

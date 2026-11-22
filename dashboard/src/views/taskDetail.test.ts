@@ -378,8 +378,8 @@ describe("travail IA lisible, actions existantes préservées", () => {
     expect(html).toContain("En relecture");
     expect(html).toContain("dev-front");
     expect(html).toContain("muse-spark");
-    expect(html).toContain("2 fichier(s)");
-    expect(html).toContain("1 test(s)");
+    expect(html).toContain("2 fichiers");
+    expect(html).toContain("1 test");
   });
 
   it("vide utile vs indisponible, sans déplacer la logique Review (UI-8)", () => {

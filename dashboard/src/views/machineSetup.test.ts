@@ -143,7 +143,7 @@ describe("« Configurer ce poste » — aperçu", () => {
     const html = setupSectionHtml({ plan: makePlan({
       versioning: { state: "checked", identity_configured: false, workspaces: 2, repositories: 1, with_identity: 1, with_remote: 0, unavailable: 0 },
     }) });
-    expect(html).toContain("1 dépôt(s) local(aux)");
+    expect(html).toContain("1 dépôt local");
     expect(html).toContain("0 avec un distant");
     expect(html).toContain("une identité locale au projet suffit");
     expect(html).toContain("Un dépôt distant est facultatif");
@@ -302,8 +302,8 @@ describe("« Configurer ce poste » — application", () => {
     await click(root, "[data-action=confirm-setup]");
     const result = root.querySelector("[data-testid=setup-result]")!;
     expect(result.querySelector("[data-setup-result=guard]")?.textContent).toContain("sauvegarde créée");
-    expect(result.querySelector("[data-testid=setup-result-skills]")?.textContent).toContain("2 fichier(s) écrit(s)");
-    expect(result.textContent).toContain("1 modifiée(s) localement");
+    expect(result.querySelector("[data-testid=setup-result-skills]")?.textContent).toContain("2 fichiers écrits");
+    expect(result.textContent).toContain("1 modifiée localement");
     expect(result.getAttribute("data-result-state")).toBe("partial");
   });
 

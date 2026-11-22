@@ -192,7 +192,7 @@ test.describe("UI-9 page Postes", () => {
     // Recherche locale sur nom (l'identifiant reste replié dans le détail).
     await view.locator("#machines-search").fill(M2.slice(0, 8));
     await expect(view.locator(".machine-row")).toHaveCount(1);
-    await expect(view).toContainText("1 poste(s) affiché(s) sur 3 chargé(s)");
+    await expect(view).toContainText("1 poste affiché sur 3 chargés");
     await expect(view).toContainText("recherche et filtre locaux");
 
     // Aucun résultat : état dédié, pas d'écran d'erreur.

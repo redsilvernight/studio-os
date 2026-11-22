@@ -10,6 +10,7 @@
 import type { StudioClient } from "../api";
 import { confirmDs } from "../ds/confirm";
 import { dsField, dsSectionHeader, dsSkeleton, focusDsErrorBox } from "../ds/ds";
+import { formatDay } from "../format";
 import { describeError, esc } from "../ui";
 import {
   createUsageSubscription,
@@ -29,18 +30,14 @@ export interface UsageSubscriptionsContext {
   now?: () => number;
 }
 
-function formatDate(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("fr-FR", { timeZone: "UTC" });
-}
-
 function coverageText(subscription: UsageSubscription): string {
   const parts = [...(subscription.harnesses ?? []), ...(subscription.providers ?? [])];
   return parts.length === 0 ? "—" : parts.join(", ");
 }
 
 function periodText(subscription: UsageSubscription): string {
-  const start = `depuis le ${formatDate(subscription.starts_on)}`;
-  return subscription.ends_on ? `${start} jusqu'au ${formatDate(subscription.ends_on)}` : `${start} (en cours)`;
+  const start = `depuis le ${formatDay(subscription.starts_on)}`;
+  return subscription.ends_on ? `${start} jusqu'au ${formatDay(subscription.ends_on)}` : `${start} (en cours)`;
 }
 
 export function subscriptionsTableHtml(subscriptions: ReadonlyArray<UsageSubscription>): string {

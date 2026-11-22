@@ -35,6 +35,8 @@ import {
 import { projectHealth } from "./overview";
 import { selectProject } from "../store";
 import { describeError, esc, fmtTime } from "../ui";
+import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 type Task = components["schemas"]["Task"];
 
@@ -81,7 +83,7 @@ function toolbarHtml(state: ProjectsPageState, shown: number, total: number): st
     `<option value="active"${selected("active")}>Actifs</option>` +
     `<option value="archived"${selected("archived")}>Archivés</option>` +
     `</select></label>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet(s) affiché(s) sur ${total} chargé(s) — filtre appliqué aux projets chargés.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — filtre appliqué aux projets chargés.</p>` +
     `</div>`;
 }
 
@@ -89,7 +91,7 @@ function cardHtml(project: Project, tasks: Task[] | null): string {
   const rawDesc = (project.description ?? "").trim();
   const desc =
     rawDesc === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="project-card-desc">${esc(rawDesc)}</p>`;
-  const badge = project.archived ? dsBadge("Archivé", "warning") : dsBadge("Actif", "success");
+  const badge = project.archived ? dsBadge(UI_LABEL.archived, "warning") : dsBadge(UI_LABEL.active, "success");
   // Santé par point de couleur (tâches bloquées / en cours) ; absente si les tâches n'ont pas pu être chargées.
   const health = project.archived || tasks === null ? null : projectHealth(project.id, tasks);
   const dot = health === null ? "" : dsStatusDot(health.state, health.label, true);
@@ -111,7 +113,7 @@ export function projectCreateFormHtml(): string {
   return `<form id="project-create-form" novalidate>` +
     dsField("project-slug", "Identifiant court", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
     dsField("project-name", "Nom", `<input class="ds-input" id="FIELD" name="name" required autocomplete="off" />`) +
-    dsField("project-desc", "Description (facultative)", `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`) +
+    dsField("project-desc", UI_LABEL.descriptionOptional, `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`) +
     dsField("project-repository", "Adresse du dépôt (facultative)", `<input class="ds-input" id="FIELD" name="repository" inputmode="url" placeholder="https://github.com/organisation/depot" autocomplete="off" />`, "Enregistrée avec le projet : les dépôts locaux de ce dépôt retrouvent alors le projet. Un dépôt déjà lié à un autre projet est refusé.") +
     `<p class="ds-list-sub">Réservé aux administrateurs et aux développeurs. Un envoi répété ne crée pas de doublon.</p>` +
     `<div class="ds-field-error" id="project-create-error" role="alert" hidden></div>` +

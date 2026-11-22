@@ -18,6 +18,7 @@ import { fetchIdentity } from "../identityApi";
 import { searchStudioMembers, searchUsers, type DirectoryUser, type ProjectMember } from "../membersApi";
 import { describeError, esc } from "../ui";
 import { projectLabel } from "../actorNames";
+import { UI_LABEL } from "../language";
 
 export interface AccountsContext {
   client: StudioClient;
@@ -30,7 +31,7 @@ export const CONFIRM_REVOKE_SESSIONS =
   "Révoquer toutes les sessions de ce compte ? Il devra se reconnecter ; ses machines ne sont pas touchées.";
 
 const STATUS_LABEL: Record<string, { label: string; tone: DsTone }> = {
-  active: { label: "Actif", tone: "success" },
+  active: { label: UI_LABEL.active, tone: "success" },
   pending: { label: "En attente de vérification", tone: "warning" },
   disabled: { label: "Désactivé", tone: "danger" },
 };
@@ -38,8 +39,8 @@ const STATUS_LABEL: Record<string, { label: string; tone: DsTone }> = {
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrateur",
   developer: "Développeur",
-  agent: "Agent",
-  readonly: "Lecture seule",
+  agent: UI_LABEL.agent,
+  readonly: UI_LABEL.readOnly,
 };
 
 function statusBadge(status: string | undefined): string {

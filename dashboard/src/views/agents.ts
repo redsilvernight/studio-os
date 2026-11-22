@@ -54,9 +54,10 @@ import {
 } from "../ds/ds";
 import { machineName, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./agents.css";
+import { sfx } from "../format";
 
 export interface AgentsContext {
   client: StudioClient;
@@ -157,11 +158,11 @@ export function agentIdentityNote(agent: Agent, all: Agent[]): string | null {
   const duplicates = agentDuplicateCount(agent, all);
   if (isLegacyAgentIdentity(agent)) {
     return duplicates > 0
-      ? `Ancienne identité · ${duplicates} autre(s) fiche(s) de ce modèle sur ce poste`
+      ? `Ancienne identité · ${duplicates} autre${sfx(duplicates)} fiche${sfx(duplicates)} de ce modèle sur ce poste`
       : "Ancienne identité";
   }
   if (agentModelName(agent) === null && (agent.harness ?? "").trim() !== "") return "Modèle inconnu";
-  return duplicates > 0 ? `${duplicates} autre(s) fiche(s) de ce modèle sur ce poste` : null;
+  return duplicates > 0 ? `${duplicates} autre${sfx(duplicates)} fiche${sfx(duplicates)} de ce modèle sur ce poste` : null;
 }
 
 /** Rôle déclaré (nature) : null quand non renseigné. */
@@ -435,7 +436,7 @@ export function agentsListHtml(
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
     `<label class="ds-sr-only" for="agents-search">Rechercher un agent déjà chargé</label>` +
     `<input class="ds-input" type="search" id="agents-search" value="${esc(query)}" placeholder="Rechercher par nom ou rôle…" autocomplete="off" /></div>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${visible.length} agent(s) affiché(s) sur ${agents.length} chargé(s) — recherche locale.</p></div>`;
+    `<p class="ds-list-sub" role="status" aria-live="polite">${visible.length} agent${sfx(visible.length)} affiché${sfx(visible.length)} sur ${agents.length} chargé${sfx(agents.length)} — recherche locale.</p></div>`;
   const notice = secondaryOk
     ? ""
     : `<div class="ds-notice ds-notice--warning" role="note"><strong>Activité inconnue.</strong> Les sources secondaires (sessions, travail, tâches, événements) sont indisponibles : la liste ci-dessous n'affirme aucune activité.</div>`;
@@ -624,7 +625,7 @@ function sessionRowHtml(session: WorkSession, names: AgentNames): string {
   const task = names.tasksById.get(session.task_id);
   const state = session.ended_at === null || session.ended_at === undefined
     ? dsBadge("Ouverte", "info")
-    : dsBadge("Terminée", "neutral");
+    : dsBadge(UI_LABEL.done, "neutral");
   return (
     `<li class="ds-list-item"><span class="grow"><span class="ds-list-title">Session sur ${taskLinkHtml(task, session.task_id)}</span>` +
     `<br /><span class="ds-list-sub">Depuis le ${fmtTime(session.started_at)}${session.ended_at ? ` → ${fmtTime(session.ended_at)}` : " (toujours ouverte : signal d'activité, pas preuve de connexion)"}</span></span>${state}</li>`
@@ -656,12 +657,12 @@ export function agentDetailHtml(
     `${dsPageHeader(name, subtitle)}` +
     `${agentHeroHtml(hero)}` +
     `<section class="ds-panel" aria-label="Activité"><header><h2>Activité</h2></header><div class="body" role="status">${agentSignalHtml(activity)}</div></section>` +
-    `<section class="ds-panel" aria-label="Travail réalisé"><header><h2>Travail réalisé</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
+    `<section class="ds-panel" aria-label="Travail réalisé"><header><h2>Travail réalisé</h2><span class="ds-list-sub">${ownWork.length} entrée${sfx(ownWork.length)} — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
     (ownWork.length === 0
       ? `<p class="ds-list-sub">Aucun travail attribué à cet agent.</p>`
       : pagedListHtml(ownWork.map((work) => workRowHtml(work, names)), "entrées")) +
     `</div></section>` +
-    `<section class="ds-panel" aria-label="Sessions"><header><h2>Sessions</h2><span class="ds-list-sub">${ownSessions.length} session(s) — une session ouverte est un signal, pas une preuve de connexion</span></header><div class="body">` +
+    `<section class="ds-panel" aria-label="Sessions"><header><h2>Sessions</h2><span class="ds-list-sub">${ownSessions.length} session${sfx(ownSessions.length)} — une session ouverte est un signal, pas une preuve de connexion</span></header><div class="body">` +
     (ownSessions.length === 0
       ? `<p class="ds-list-sub">Aucune session attribuée à cet agent.</p>`
       : pagedListHtml(ownSessions.map((session) => sessionRowHtml(session, names)), "sessions")) +
@@ -695,13 +696,13 @@ export function agentDetailHtml(
           value: agent.machine_id ? agent.machine_id : "—",
           mono: agent.machine_id ? true : undefined,
         },
-        { label: "Révision", value: `v${agent.version}`, mono: true },
-        { label: "Créé le", value: fmtTime(agent.created_at) },
+        { label: UI_LABEL.revision, value: `v${agent.version}`, mono: true },
+        { label: UI_LABEL.createdOn, value: fmtTime(agent.created_at) },
         { label: "Mis à jour le", value: fmtTime(agent.updated_at) },
       ],
       "Détails techniques · modèle, permissions, identifiants",
     ) +
-    `<section class="ds-panel agent-admin" aria-label="Administration"><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
+    `<section class="ds-panel agent-admin" aria-label=UI_LABEL.administration><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
     `<p class="ds-list-sub">Réglages sensibles : ils ne changent pas le statut du jour et restent ici, hors du flux de travail. Renommer et révoquer se font depuis la machine d'exécution — il n'y a aucune action à distance ici.</p>` +
     `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres d'exécution</a></p>` +
     `</div></section>`
@@ -711,7 +712,7 @@ export function agentDetailHtml(
 export async function renderAgentDetail(root: HTMLElement, ctx: AgentsContext, id: string): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="agents">${dsPageHeader("Agent", "")}` +
+      `<div class="agents">${dsPageHeader(UI_LABEL.agent, "")}` +
       dsEmptyState("Connectez-vous pour voir cet agent", "Saisissez votre jeton machine pour charger les agents.") +
       `</div>`;
     return;
@@ -723,7 +724,7 @@ export async function renderAgentDetail(root: HTMLElement, ctx: AgentsContext, i
     agents = await fetchAgents(ctx.client);
   } catch (error) {
     root.innerHTML =
-      `<div class="agents">${dsPageHeader("Agent", "")}` +
+      `<div class="agents">${dsPageHeader(UI_LABEL.agent, "")}` +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Agent indisponible.</strong>${esc(describeError(error))}</div></div>`;
     return;
   }

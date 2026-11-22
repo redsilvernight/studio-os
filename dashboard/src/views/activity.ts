@@ -23,6 +23,7 @@ import { agentLabel, machineLabel } from "../actorNames";
 import { COORDINATION_PREFIX, intentLabel, type CoordinationIntent } from "../coordination";
 import { describeError, esc } from "../ui";
 import { FALLBACK_LABEL } from "../language";
+import { formatDateTime, formatDay, formatMonth, sfx } from "../format";
 
 type Timeline = components["schemas"]["Timeline"];
 type TimelineDay = components["schemas"]["TimelineDay"];
@@ -225,12 +226,12 @@ function eventHtml(event: TimelineEvent): string {
   return `<li class="tl-item"><span class="tl-marker" aria-hidden="true"></span><div class="tl-card">` +
     `<div class="tl-title">${esc(timelineEventLabel(event.event_type))}</div>` +
     `${contextHtml}` +
-    `<div class="tl-meta"><span title="${esc([event.actor_id, event.machine_id].filter(Boolean).join(" · "))}">${esc(timelineEventActor(event))}</span> · <time datetime="${esc(event.server_timestamp)}">${utcTime(event.server_timestamp)}</time>${taskHtml === "" ? "" : ` · ${taskHtml}`}</div>` +
+    `<div class="tl-meta"><span title="${esc([event.actor_id, event.machine_id].filter(Boolean).join(" · "))}">${esc(timelineEventActor(event))}</span> · <time datetime="${esc(event.server_timestamp)}">${localTime(event.server_timestamp)}</time>${taskHtml === "" ? "" : ` · ${taskHtml}`}</div>` +
     `</div></li>`;
 }
 
-function utcTime(value: string): string {
-  return esc(new Date(value).toLocaleString("fr-FR", { timeZone: "UTC" }));
+function localTime(value: string): string {
+  return esc(formatDateTime(value));
 }
 
 export function newestTimelineFirst(timeline: Timeline): Timeline {
@@ -251,19 +252,16 @@ function sessionsHtml(sessions: WorkSession[]): string {
     `<li class="tl-item"><span class="tl-marker" aria-hidden="true"></span><div class="tl-card">` +
     `<div class="tl-title">Session de travail${session.ended_at ? " terminée" : " ouverte"}</div>` +
     `<div class="tl-meta">${esc(machineLabel(session.machine_id))}${session.agent_id ? ` · ${esc(agentLabel(session.agent_id))}` : ""}</div>` +
-    `<p>Début : <time datetime="${esc(session.started_at)}">${utcTime(session.started_at)}</time>` +
-    `${session.ended_at ? ` · Fin : <time datetime="${esc(session.ended_at)}">${utcTime(session.ended_at)}</time>` : ""}</p>` +
+    `<p>Début : <time datetime="${esc(session.started_at)}">${localTime(session.started_at)}</time>` +
+    `${session.ended_at ? ` · Fin : <time datetime="${esc(session.ended_at)}">${localTime(session.ended_at)}</time>` : ""}</p>` +
     `<a href="#/tasks/${esc(session.task_id)}">Ouvrir la tâche</a></div></li>`,
   ).join("") + `</ol></section>`;
 }
 
 function dayHtml(day: TimelineDay): string {
-  const date = new Date(`${day.date}T00:00:00Z`);
-  const label = Number.isNaN(date.getTime())
-    ? day.date
-    : date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const label = formatDay(day.date, true);
   return `<section class="tl-day" aria-labelledby="tl-day-${esc(day.date)}">` +
-    `<h3 id="tl-day-${esc(day.date)}"><time datetime="${esc(day.date)}">${esc(label)}</time> · ${day.events.length} événement(s)</h3>` +
+    `<h3 id="tl-day-${esc(day.date)}"><time datetime="${esc(day.date)}">${esc(label)}</time> · ${day.events.length} événement${sfx(day.events.length)}</h3>` +
     `<ol class="tl-list">${day.events.map(eventHtml).join("")}</ol></section>`;
 }
 
@@ -293,7 +291,7 @@ function calendarHtml(timeline: Timeline, view: CalendarView, dates: string[]): 
   const first = new Date(Date.UTC(year, mon - 1, 1));
   const daysInMonth = new Date(Date.UTC(year, mon, 0)).getUTCDate();
   const offset = (first.getUTCDay() + 6) % 7; // semaine commençant le lundi
-  const title = first.toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
+  const title = formatMonth(view.month);
   const head = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."].map((d) => `<span class="cal-dow" aria-hidden="true">${d}</span>`).join("");
   const blanks = Array.from({ length: offset }, () => `<span class="cal-blank" aria-hidden="true"></span>`).join("");
   const cells = Array.from({ length: daysInMonth }, (_, i) => {
@@ -342,7 +340,7 @@ export function timelineHtml(data: TimelineViewData): string {
     !data.loading && !data.failure && (data.hasMore ?? fetched >= data.limit)
       ? `<button class="ds-btn" type="button" data-timeline-more>Charger la suite de cette journée</button>`
       : "";
-  return `<p class="ds-list-sub">Dates et heures en UTC. Toutes les dates enregistrées sont accessibles dans le calendrier.</p><div class="tl-layout">${calendarHtml(timeline, view, dates)}<div class="tl-selected" aria-busy="${String(data.loading ?? false)}">${dayBody}</div></div>${more}`;
+  return `<p class="ds-list-sub">Heures affichées dans votre fuseau horaire. Toutes les dates enregistrées sont accessibles dans le calendrier.</p><div class="tl-layout">${calendarHtml(timeline, view, dates)}<div class="tl-selected" aria-busy="${String(data.loading ?? false)}">${dayBody}</div></div>${more}`;
 }
 
 export function activityLoadingHtml(): string {

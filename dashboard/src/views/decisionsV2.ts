@@ -49,7 +49,7 @@ import {
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { agentLabel, projectLabel } from "../actorNames";
 import { describeError, esc, fmtTime, newUuid } from "../ui";
-import { ACTION_LABEL, FALLBACK_LABEL, REVIEW_KIND_LABEL as REVIEW_KIND_LABEL_SOURCE } from "../language";
+import { ACTION_LABEL, FALLBACK_LABEL, REVIEW_KIND_LABEL as REVIEW_KIND_LABEL_SOURCE, UI_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 
 type Decision = components["schemas"]["Decision"];
@@ -90,7 +90,7 @@ export const DECISION_STATUS_TONE: Record<string, "neutral" | "info" | "warning"
 
 export const PROPOSER_TYPE_LABEL: Record<string, string> = {
   user: "Utilisateur",
-  agent: "Agent",
+  agent: UI_LABEL.agent,
   system: "Système",
 };
 
@@ -344,25 +344,25 @@ export function reviewCardTechRows(card: ReviewCard): DsTechRow[] {
   const item = card.item;
   const rows: DsTechRow[] = [
     { label: "Type", value: item.kind },
-    { label: "Identifiant", value: item.id, mono: true },
+    { label: UI_LABEL.identifier, value: item.id, mono: true },
     { label: "Résolution", value: REVIEW_RESOLUTION[card.kind] },
   ];
-  if (item.project_id) rows.push({ label: "Projet", value: item.project_id, mono: true });
-  if (item.task_id) rows.push({ label: "Tâche", value: item.task_id, mono: true });
+  if (item.project_id) rows.push({ label: UI_LABEL.project, value: item.project_id, mono: true });
+  if (item.task_id) rows.push({ label: UI_LABEL.task, value: item.task_id, mono: true });
   switch (item.kind) {
     case "ai_work_review":
-      rows.push({ label: "Agent", value: item.agent_id, mono: true });
+      rows.push({ label: UI_LABEL.agent, value: item.agent_id, mono: true });
       break;
     case "decision_proposal":
       rows.push({ label: "Décision", value: item.readable_id, mono: true });
       rows.push({ label: "Proposé par", value: item.proposed_by_type });
       break;
     case "roadmap_proposal":
-      rows.push({ label: "Roadmap", value: item.roadmap_id, mono: true });
+      rows.push({ label: UI_LABEL.roadmap, value: item.roadmap_id, mono: true });
       rows.push({ label: "Portée", value: item.scope });
-      rows.push({ label: "Révision", value: String(item.revision_no ?? "—") });
+      rows.push({ label: UI_LABEL.revision, value: String(item.revision_no ?? "—") });
       rows.push({ label: "Version de base", value: String(item.base_revision_no ?? "—") });
-      rows.push({ label: "Statut", value: item.status });
+      rows.push({ label: UI_LABEL.status, value: item.status });
       rows.push({ label: "Entrées regroupées", value: String(card.grouped) });
       if (item.summary) rows.push({ label: "Résumé", value: item.summary });
       break;
@@ -582,7 +582,7 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
   // Sur la page globale, un lien de sortie pointerait vers elle-même : il
   // n'existe que dans l'espace projet.
   const seeAll = projectId !== undefined ? { label: "Voir la file globale", href: "#/decisions" } : undefined;
-  const open = `<section class="review-section review-inbox" aria-label="À valider">`;
+  const open = `<section class="review-section review-inbox" aria-label=UI_LABEL.toReview>`;
 
   if (error !== undefined) {
     return `${open}<div class="ds-notice ds-notice--danger" role="alert"><strong>File « À valider » indisponible.</strong>${esc(error)}</div></section>`;
@@ -591,7 +591,7 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
   const cards = buildReviewCards(queue);
   if (cards.length === 0) {
     return `${open}${dsEmptyState(
-      "Rien à valider",
+      UI_LABEL.nothingToReview,
       "Aucun élément n'attend une décision humaine pour le moment.",
       seeAll,
     )}</section>`;
@@ -676,7 +676,7 @@ export type DecisionFilter = "all" | "proposed" | "accepted" | "superseded";
 
 export const DECISION_FILTERS: ReadonlyArray<{ id: DecisionFilter; label: string }> = [
   { id: "all", label: "Toutes" },
-  { id: "proposed", label: "En attente" },
+  { id: "proposed", label: UI_LABEL.pending },
   { id: "accepted", label: "Acceptées" },
   { id: "superseded", label: "Remplacées" },
 ];
@@ -787,8 +787,8 @@ export function createDecisionFormHtml(
     `<input type="hidden" name="idempotency_key" value="${generateIdempotencyKey()}" />` +
     `${projectField}` +
     `${dsField("decision-task_id", "Tâche (facultative)", `<input class="ds-input" id="FIELD" name="task_id" type="text" placeholder="Collez l'identifiant de la tâche" />`, "Liez cette décision à une tâche si pertinent.")}` +
-    `${dsField("decision-title", "Titre", `<input class="ds-input" id="FIELD" name="title" type="text" required />`, "Titre clair et concis de la décision.")}` +
-    `${dsField("decision-body", "Contenu", `<textarea class="ds-input" id="FIELD" name="body" rows="4" required></textarea>`, "Décrivez la décision, son contexte et ses implications.")}` +
+    `${dsField("decision-title", UI_LABEL.title, `<input class="ds-input" id="FIELD" name="title" type="text" required />`, "Titre clair et concis de la décision.")}` +
+    `${dsField("decision-body", UI_LABEL.content, `<textarea class="ds-input" id="FIELD" name="body" rows="4" required></textarea>`, "Décrivez la décision, son contexte et ses implications.")}` +
     `${dsField("decision-proposed_by_type", "Proposé par", `<select class="ds-input" id="FIELD" name="proposed_by_type"><option value="user">Utilisateur</option><option value="agent">Agent</option><option value="system">Système</option></select>`)}` +
     `${dsField("decision-proposed_by_id", "Identifiant du proposant", `<input class="ds-input" id="FIELD" name="proposed_by_id" type="text" value="${esc(proposerId)}" required />`, "Prérempli avec votre identifiant ; ne le changez que pour proposer au nom d'un agent ou du système.")}` +
     `<div class="decision-form-actions">` +
@@ -803,9 +803,9 @@ export function createDecisionFormHtml(
 
 export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
   return dsTabsHtml("decisions-main", [
-    { id: "review", label: "À valider", panel: '<div id="review-panel"></div>' },
+    { id: "review", label: UI_LABEL.toReview, panel: '<div id="review-panel"></div>' },
     { id: "decisions", label: "Historique des décisions", panel: '<div id="decisions-panel"></div>' },
-  ], activeTab, "À valider");
+  ], activeTab, UI_LABEL.toReview);
 }
 
 /**
@@ -814,7 +814,7 @@ export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
  */
 function decisionsPageHeader(projectId: string | undefined): string {
   return projectId === undefined
-    ? dsPageHeader("À valider", "Ce qui attend votre validation, et l'historique des décisions.")
+    ? dsPageHeader(UI_LABEL.toReview, "Ce qui attend votre validation, et l'historique des décisions.")
     : "";
 }
 
@@ -822,7 +822,7 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
   if (!ctx.authed) {
     root.innerHTML =
       decisionsPageHeader(ctx.projectId) +
-      dsEmptyState("Connectez-vous", "Saisissez votre jeton machine pour charger la file d'examen et les décisions.");
+      dsEmptyState(UI_LABEL.signIn, "Saisissez votre jeton machine pour charger la file d'examen et les décisions.");
     return;
   }
 

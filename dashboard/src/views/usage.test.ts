@@ -93,7 +93,7 @@ describe("usageSummaryHtml", () => {
     const [totalTokens] = metric(html, "tokens");
     expect(totalCost?.dataset.usageValue).toBe("0.125");
     expect(totalDuration?.dataset.usageValue).toBe("17");
-    expect(totalDuration?.textContent).toBe("17 s");
+    expect(totalDuration?.textContent).toBe("moins d'une minute");
     expect(totalTokens?.dataset.usageValue).toBe("330");
     expect(visibleText(html)).toContain("studio-claude-code (1) · studio-runner (1)");
   });
@@ -179,9 +179,9 @@ describe("usageSummaryHtml", () => {
 
 describe("formatSeconds", () => {
   it("convertit l'unité sans arrondir les petites durées", () => {
-    expect(formatSeconds("12.25")).toBe("12,25 s");
-    expect(formatSeconds("125")).toBe("2 min 05 s");
-    expect(formatSeconds("3725")).toBe("1 h 02 min 05 s");
+    expect(formatSeconds("12.25")).toBe("moins d'une minute");
+    expect(formatSeconds("125")).toBe("2 min");
+    expect(formatSeconds("3725")).toBe("1 h 02");
   });
 });
 

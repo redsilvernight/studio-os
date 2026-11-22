@@ -27,10 +27,11 @@ import { currentStatusWithNextStep } from "../desktopShell";
 import { SERVER_DOWN_NEXT_STEP, type StatusLevel } from "../shellStatus";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { describeError, esc } from "../ui";
-import { REVIEW_KIND_SHORT_LABEL } from "../language";
+import { REVIEW_KIND_SHORT_LABEL, UI_LABEL } from "../language";
 import { agentLabel } from "../actorNames";
 import { TASK_STATUS_LABEL_FR } from "../taskStatus";
 import type { components } from "../openapi-schema";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 type Task = components["schemas"]["Task"];
@@ -202,8 +203,8 @@ export function homeHealthHtml(health: HealthInfo): string {
 
 export function homeMetricsHtml(activeProjects: number, activeTasks: number, reviewTotal: number | null): string {
   return `<p class="home-counts" aria-label="Résumé">` +
-    `<span><strong>${activeProjects}</strong> projet(s) actif(s)</span>` +
-    `<span><strong>${activeTasks}</strong> tâche(s) ouverte(s)</span>` +
+    `<span><strong>${activeProjects}</strong> projet${sfx(activeProjects)} actif${sfx(activeProjects)}</span>` +
+    `<span><strong>${activeTasks}</strong> tâche${sfx(activeTasks)} ouverte${sfx(activeTasks)}</span>` +
     `<span><strong>${reviewTotal ?? "—"}</strong> à valider</span></p>`;
 }
 
@@ -236,7 +237,7 @@ export function homeProjectsHtml(result: HomeResult<Project[]>, tasks: Task[] = 
   const items = pickHomeProjects(result.value)
     .map((p) => {
       const health = projectHealth(p.id, tasks);
-      const dot = p.archived ? dsBadge("Archivé", "warning") : dsStatusDot(health.state, health.label, true);
+      const dot = p.archived ? dsBadge(UI_LABEL.archived, "warning") : dsStatusDot(health.state, health.label, true);
       return `<li class="ds-list-item">${dot}<div class="grow"><div class="ds-list-title"><a href="#/projects/${esc(p.id)}">${esc(p.name)}</a></div><div class="ds-list-sub">${esc(p.archived ? "Archivé" : health.label)}</div></div></li>`;
     })
     .join("");
@@ -279,14 +280,14 @@ export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): 
   const [first, ...rest] = picked as [Task, ...Task[]];
   const firstLabel = TASK_STATUS_LABEL[first.status] ?? first.status;
   const hero = dsHeroCard({
-    eyebrow: `${names.get(first.project_id) ?? "Projet"} · ${firstLabel}`,
+    eyebrow: `${names.get(first.project_id) ?? UI_LABEL.project} · ${firstLabel}`,
     title: first.title,
     body: first.description ?? "",
     primary: { label: first.status === "in_progress" ? "Reprendre" : "Ouvrir", href: `#/tasks/${first.id}` },
   });
   const items = rest
     .map((t) => {
-      const project = names.get(t.project_id) ?? "Projet";
+      const project = names.get(t.project_id) ?? UI_LABEL.project;
       const label = TASK_STATUS_LABEL[t.status] ?? t.status;
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(t.id)}">${esc(t.title)}</a></div><div class="ds-list-sub">${esc(project)} · ${esc(label)}</div></div>${dsBadge(label, taskTone(t.status))}</li>`;
     })
@@ -302,13 +303,13 @@ export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): strin
 }
 
 export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: boolean): string {
-  const header = dsSectionHeader("À valider", { label: "Voir la file complète", href: "#/decisions" });
+  const header = dsSectionHeader(UI_LABEL.toReview, { label: "Voir la file complète", href: "#/decisions" });
   if (!result.ok) {
     return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File À valider indisponible.</strong>${esc(result.message)}</div></section>`;
   }
   const items = result.value?.items ?? [];
   if (items.length === 0) {
-    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à valider", "Aucun élément n'attend une décision humaine.", { label: "Voir les éléments À valider", href: "#/decisions" })}</section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState(UI_LABEL.nothingToReview, "Aucun élément n'attend une décision humaine.", { label: "Voir les éléments À valider", href: "#/decisions" })}</section>`;
   }
   const shown = items.slice(0, HOME_REVIEW_LIMIT);
   const rows = shown
@@ -317,8 +318,8 @@ export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: b
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title">${esc(title)}</div><div class="ds-list-sub">${esc(REVIEW_KIND_LABEL[item.kind])} · ${esc(reviewQueueItemDetail(item))}</div></div>${reviewActionsHtml(item, authed)}</li>`;
     })
     .join("");
-  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les éléments À valider.</p>` : "";
-  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à valider.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
+  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre${sfx(items.length - shown.length)} — voir les éléments À valider.</p>` : "";
+  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément${sfx(items.length)} à valider.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
 }
 
 /** Signal discret uniquement si un envoi est réellement en cours. */
@@ -326,7 +327,7 @@ export function homeTransferSignalHtml(result: HomeResult<Transfer[]>): string {
   if (!result.ok) return "";
   const pending = result.value.filter((t) => t.status === "created" || t.status === "uploading");
   if (pending.length === 0) return "";
-  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi(s) en cours — <a href="#/transfers">voir les transferts</a>.</div>`;
+  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi${sfx(pending.length)} en cours — <a href="#/transfers">voir les transferts</a>.</div>`;
 }
 
 function bindReviewActions(root: HTMLElement, ctx: OverviewContext): void {

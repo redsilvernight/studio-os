@@ -351,7 +351,7 @@ describe("rattachement à un poste", () => {
     expect(html).toContain(`data-machine-detach="${M2}"`);
     expect(html).toContain("PC Flo");
     const parent = machineWorkstationSectionHtml(desk, [desk, attached]);
-    expect(parent).toContain("1 machine(s) d'outil rattachée(s)");
+    expect(parent).toContain("1 machine d'outil rattachée");
     expect(parent).not.toMatch(/data-machine-(attach|detach)/);
   });
 

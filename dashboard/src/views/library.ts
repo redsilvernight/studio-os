@@ -99,8 +99,9 @@ import {
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
+import { formatDuration, sfx } from "../format";
 import { libraryMergeSectionHtml, renderLibraryMerge, type LibraryMergeData } from "./libraryMerge";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { getPlatform } from "../platform";
 import { isAdminIdentity } from "../identityApi";
@@ -183,8 +184,8 @@ export function kindFr(kind: LibraryKind): LibraryKindFr {
 
 
 const STATUS_FR: Record<LibraryStatus, string> = {
-  draft: "Brouillon",
-  active: "Actif",
+  draft: UI_LABEL.draft,
+  active: UI_LABEL.active,
   deprecated: "Déprécié",
 };
 
@@ -228,7 +229,7 @@ export function shadowNoteHtml(resources: LibraryResource[]): string {
   const shadowed = [...scopesByKey.values()].filter((scopes) => scopes.size > 1).length;
   if (shadowed === 0) return "";
   return (
-    `<div class="ds-notice ds-notice--warning" role="note"><strong>Plusieurs portées pour ${shadowed} clé(s) stable(s).</strong>` +
+    `<div class="ds-notice ds-notice--warning" role="note"><strong>Plusieurs portées pour ${shadowed} clé${sfx(shadowed)} stable${sfx(shadowed)}.</strong>` +
     `Cette liste montre chaque ressource stockée ; elle ne choisit pas la version effective. ` +
     `Consultez l'<a href="#/inspector">Inspecteur de résolution</a> pour voir la version retenue.</div>`
   );
@@ -393,7 +394,7 @@ function hookContentHtml(content: LibraryVersion["content"]): string {
   const matcher = typeof content["matcher"] === "string" ? `<code class="mono">${esc(content["matcher"])}</code>` : "Aucun filtre";
   return description + `<dl class="library-kv"><div><dt>Événement</dt><dd><code class="mono">${esc(content["event"])}</code></dd></div>` +
     `<div><dt>Matcher</dt><dd>${matcher}</dd></div><div><dt>Mode</dt><dd>${esc(mode)}</dd></div>` +
-    `<div><dt>Délai maximal</dt><dd>${typeof timeout === "number" ? timeout : "—"} secondes</dd></div></dl>` + scripts +
+    `<div><dt>Délai maximal</dt><dd>${typeof timeout === "number" ? formatDuration(timeout) : "—"}</dd></div></dl>` + scripts +
     `<p class="ds-notice ds-notice--info">L'exécution locale exige un consentement explicite sur chaque machine. Activer cette version ne donne pas ce consentement.</p>`;
 }
 
@@ -484,7 +485,7 @@ export function librarySyncNoticeHtml(status: SkillsSyncStatus | null | undefine
     const conflicts = status.conflicts ?? [];
     return (
       `<div class="ds-notice ds-notice--warning" role="alert" data-library-sync="conflicts" data-testid="library-sync-conflicts">` +
-      `<strong>Conflit local : ${conflicts.length} fichier${conflicts.length > 1 ? "s" : ""} modifié${conflicts.length > 1 ? "s" : ""} à la main.</strong>` +
+      `<strong>Conflit local : ${conflicts.length} fichier${sfx(conflicts.length)} modifié${sfx(conflicts.length)} à la main.</strong>` +
       `Ces copies n'ont pas été écrasées et la synchronisation est en attente. ` +
       `Rétablissez-les ou supprimez-les, puis relancez la synchronisation locale.` +
       (conflicts.length > 0 ? `<ul>${conflicts.map((path) => `<li><code class="mono">${esc(path)}</code></li>`).join("")}</ul>` : "") +
@@ -576,7 +577,7 @@ export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed
   ).join("");
   return (
     `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
-    `${dsPageHeader("Bibliothèque", "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
+    `${dsPageHeader(UI_LABEL.library, "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `<ul class="library-cats">${cards}</ul>${workProfilePackFormHtml()}`
   );
@@ -672,7 +673,7 @@ export function buildResourcePayload(form: HTMLFormElement, kind: LibraryKind): 
   const stableKey = read.text("stable_key").trim();
   if (stableKey === "") return { error: "La clé stable est obligatoire." };
   const title = read.text("title").trim();
-  if (title === "") return { error: "Le titre est obligatoire." };
+  if (title === "") return { error: UI_LABEL.titleRequired };
   const scope = read.text("scope");
   if (scope !== "studio" && scope !== "project" && scope !== "user") return { error: "Portée inconnue." };
   const projectId = read.text("project_id").trim();
@@ -739,7 +740,7 @@ function listToolbarHtml(meta: LibraryKindFr, state: LibraryListState, shown: nu
     `<option value="deprecated"${statusSelected("deprecated")}>Déprécié</option>` +
     `</select></label>` +
     `<button class="ds-btn ds-btn--sm" type="button" id="library-reset">Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} élément(s) affiché(s) sur ${total} chargé(s) — recherche et filtres locaux.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} élément${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — recherche et filtres locaux.</p>` +
     `</div>`;
 }
 
@@ -780,7 +781,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
 export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kindSlug: LibraryKindSlug | null): Promise<void> {
   const meta = kindSlug === null ? null : kindFromSlug(kindSlug);
   if (kindSlug !== null && meta === null) {
-    root.innerHTML = libraryTabsHtml(null) + dsPageHeader("Bibliothèque", "") +
+    root.innerHTML = libraryTabsHtml(null) + dsPageHeader(UI_LABEL.library, "") +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Catégorie inconnue.</strong>Revenez à la bibliothèque.</div>`;
     return;
   }
@@ -980,7 +981,7 @@ function lifecycleFormsHtml(resource: LibraryResource): string {
 function buildVersionPayload(form: HTMLFormElement, kind: LibraryKind): { value: LibraryVersionCreate } | { error: string } {
   const read = formReader(form);
   const title = read.text("version_title").trim();
-  if (title === "") return { error: "Le titre est obligatoire." };
+  if (title === "") return { error: UI_LABEL.titleRequired };
   let content: Record<string, unknown>;
   if (kind === "workflow") {
     const built = buildWorkflowContent({
@@ -1096,7 +1097,7 @@ export function libraryDetailHtml(
         `<button class="ds-btn ds-btn--primary" type="submit" id="library-version-submit">Créer la version</button></div></form>`,
     }) +
     `</div></section>` +
-    `<section class="ds-panel" aria-label="Historique des versions"><header><h2>Historique des versions</h2><span class="ds-list-sub">${versions.length} version(s) · instantanés immuables</span></header><div class="body">` +
+    `<section class="ds-panel" aria-label="Historique des versions"><header><h2>Historique des versions</h2><span class="ds-list-sub">${versions.length} version${sfx(versions.length)} · instantanés immuables</span></header><div class="body">` +
     (versionBlocks === "" ? dsEmptyState("Aucune version", "Aucune version enregistrée.") : `<div class="library-versions">${versionBlocks}</div>`) +
     `</div></section>` +
     `<section class="ds-panel" aria-label="Verrous projet"><header><h2>Verrous projet</h2></header><div class="body">` +
@@ -1123,7 +1124,7 @@ export async function renderLibraryDetail(
 ): Promise<void> {
   const meta = kindFromSlug(kindSlug);
   if (meta === null) {
-    root.innerHTML = libraryTabsHtml(null) + dsPageHeader("Bibliothèque", "") +
+    root.innerHTML = libraryTabsHtml(null) + dsPageHeader(UI_LABEL.library, "") +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Catégorie inconnue.</strong></div>`;
     return;
   }
@@ -1220,7 +1221,7 @@ export async function renderLibraryDetail(
     output.textContent = "Chargement des dépendances…";
     loadIncomingHookDependencies(ctx.client, resource).then((loaded) => {
       output.innerHTML = incomingHookDependenciesHtml(loaded.dependencies) +
-        (loaded.errors.length === 0 ? "" : `<p class="ds-field-error" role="alert">Lecture partielle : ${loaded.errors.length} ressource(s) indisponible(s).</p>`);
+        (loaded.errors.length === 0 ? "" : `<p class="ds-field-error" role="alert">Lecture partielle : ${loaded.errors.length} ressource${sfx(loaded.errors.length)} indisponible${sfx(loaded.errors.length)}.</p>`);
     }).catch((error: unknown) => {
       output.innerHTML = `<p class="ds-field-error" role="alert">Dépendances indisponibles : ${esc(describeError(error))}</p>`;
     }).finally(() => { incomingButton.disabled = false; });

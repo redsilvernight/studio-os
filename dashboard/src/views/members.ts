@@ -23,6 +23,7 @@ import {
 } from "../membersApi";
 import { describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
+import { sfx } from "../format";
 
 export interface MembersContext {
   client: StudioClient;
@@ -122,7 +123,7 @@ export function membersPanelHtml(members: ProjectMember[], selfId: string | null
       ? dsEmptyState("Aucun membre", "Personne n'a encore accès à ce projet, hormis les administrateurs.")
       : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Membres du projet</caption><thead><tr><th scope="col">Utilisateur</th><th scope="col">Accordé par</th><th scope="col">Depuis</th><th scope="col">Actions</th></tr></thead><tbody>${rowsHtml(members, selfId)}</tbody></table></div>`;
   return panelHtml(
-    `${members.length} membre(s) · les administrateurs accèdent à tous les projets`,
+    `${members.length} membre${sfx(members.length)} · les administrateurs accèdent à tous les projets`,
     `${table}<div class="members-grant">${dsSectionHeader("Ajouter un membre")}${searchFormHtml()}</div>` +
       `<div data-msg class="ds-list-sub" role="status"></div>`,
   );

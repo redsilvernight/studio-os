@@ -10,6 +10,7 @@ import type {
   ProjectProjectionsApplyResult,
   ProjectProjectionsStatus,
 } from "./platform/generated/local-contracts.generated";
+import { sfx } from "./format";
 
 export type { ProjectProjectionsApplyResult, ProjectProjectionsStatus };
 
@@ -31,7 +32,7 @@ export function projectProjectionsHtml(status: ProjectProjectionsStatus | null, 
   if (updates.length === 0) return "";
   const items = updates.map((update) => {
     const files = (update.files ?? []).map((file) => `<li>${esc(file.path)} — ${FILE_STATE_LABELS[file.state]}</li>`).join("");
-    return `<li class="project-projections-item"><p>${(update.files ?? []).length} fichier(s) générés à écrire dans un dépôt du projet.</p>` +
+    return `<li class="project-projections-item"><p>${(update.files ?? []).length} fichier${sfx((update.files ?? []).length)} générés à écrire dans un dépôt du projet.</p>` +
       `<details><summary>Fichiers concernés</summary><ul>${files}</ul></details>` +
       `<button class="ds-btn ds-btn--primary" type="button" data-project-projections-apply="${esc(update.workspace_id)}"${busy ? " disabled" : ""}>Confirmer l'écriture dans le dépôt</button></li>`;
   }).join("");

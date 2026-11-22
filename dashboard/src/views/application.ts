@@ -39,6 +39,7 @@ import { stepById } from "../onboarding/steps";
 import { allNotes, openWhatsNew, whatsNewSectionHtml } from "../releaseNotes";
 import { installUpdateOnce, updateErrorMessage } from "../updateInstaller";
 import "./configuration.css";
+import { UI_LABEL } from "../language";
 
 const DESCRIPTION = "Identité, serveur et état de l'application qui exécute ce tableau de bord.";
 
@@ -239,7 +240,7 @@ function legacyOutboxHtml(section: DesktopSection): string {
   return (
     `<div data-testid="legacy-outbox-section"><h4>File d'attente héritée</h4><dl class="settings-refs">` +
     row("État", esc(outbox.exists ? "Présente" : "Absente")) +
-    row("Contenu", esc(outbox.has_queued_work ? "Travail en attente" : "Vide")) +
+    row(UI_LABEL.content, esc(outbox.has_queued_work ? "Travail en attente" : "Vide")) +
     row("Détail par table", esc(counts)) +
     `</dl><p class="settings-intro">Cette file date d'avant l'identité de ce poste. Elle est en lecture seule.</p></div>`
   );
@@ -362,7 +363,7 @@ export function applicationPageHtml(
   form: ApplicationFormState = {},
   diag: DesktopDiagnostics | null = null,
 ): string {
-  const head = `<p class="ds-hero-eyebrow">Administration / Configuration</p>${dsPageHeader("Configuration", DESCRIPTION)}${configTabsHtml("application")}`;
+  const head = `<p class="ds-hero-eyebrow">Administration / Configuration</p>${dsPageHeader(UI_LABEL.configuration, DESCRIPTION)}${configTabsHtml("application")}`;
   let body: string;
   if (mode === "desktop") {
     body =

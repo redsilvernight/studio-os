@@ -61,7 +61,7 @@ describe("libraryMergeHtml (trois volets + aperçu)", () => {
     expect(html).toContain('id="library-merge-conflict-1"');
     expect(html).toContain('data-merge-conflict-link="1"');
     expect(html).toContain("Conflit 1 — ligne 4");
-    expect(html).toContain("1 conflit(s)");
+    expect(html).toContain("1 conflit");
   });
 
   it("annonce une fusion nette sans inventer de conflit", () => {
@@ -178,7 +178,7 @@ describe("P62b — acceptation par bloc", () => {
     await renderLibraryMerge(root, { load: () => Promise.resolve({ inputs: fixture().inputs, result: twoConflicts() }), apply });
     const publish = root.querySelector<HTMLButtonElement>("[data-merge-publish]")!;
     const remaining = root.querySelector("[data-merge-remaining]")!;
-    expect(remaining.textContent).toBe("2 conflit(s) restant(s)");
+    expect(remaining.textContent).toBe("2 conflits restants");
     expect(publish.disabled).toBe(true);
     const pick = (index: number, value: string): void => {
       const radio = root.querySelector<HTMLInputElement>(`[data-merge-hunk="${index}"][value="${value}"]`)!;
@@ -186,12 +186,12 @@ describe("P62b — acceptation par bloc", () => {
       radio.dispatchEvent(new Event("change"));
     };
     pick(0, "theirs");
-    expect(remaining.textContent).toBe("1 conflit(s) restant(s)");
+    expect(remaining.textContent).toBe("1 conflit restant");
     expect(publish.disabled).toBe(true);
     publish.click();
     expect(apply).not.toHaveBeenCalled();
     pick(1, "ours");
-    expect(remaining.textContent).toBe("0 conflit(s) restant(s)");
+    expect(remaining.textContent).toBe("0 conflit restant");
     expect(publish.disabled).toBe(false);
     expect(root.querySelector<HTMLTextAreaElement>("[data-merge-result]")!.value).toBe("a\neux 1\nb\nmoi 2\n");
   });

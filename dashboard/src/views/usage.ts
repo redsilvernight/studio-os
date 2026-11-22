@@ -21,6 +21,8 @@ import { describeError, esc, fmtTime } from "../ui";
 import { fetchUsageSummary, type UsageAggregate, type UsageGroupBy, type UsageSummary } from "../usageApi";
 import "./usage.css";
 import { renderUsageSubscriptionsInto } from "./usageSubscriptions";
+import { formatAmount, formatDay, formatDuration, plural, sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 type CostTotal = UsageAggregate["cost"];
 type ShareTotal = NonNullable<UsageAggregate["subscription_share"]>;
@@ -69,22 +71,10 @@ function statusTone(status: string): DsTone {
   return Object.prototype.hasOwnProperty.call(STATUS_TONE, status) ? (STATUS_TONE[status] as DsTone) : "neutral";
 }
 
-function plural(count: number, singular: string, pluralForm: string): string {
-  return `${count} ${count > 1 ? pluralForm : singular}`;
-}
-
 /** Durée lisible à partir des secondes serveur (conversion d'unité, aucune somme). */
 export function formatSeconds(raw: string): string {
   const seconds = Number(raw);
-  if (!Number.isFinite(seconds)) return `${raw} s`;
-  if (seconds < 60) return `${raw.replace(".", ",")} s`;
-  const whole = Math.round(seconds);
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor((whole % 3600) / 60);
-  const rest = whole % 60;
-  const mm = String(minutes).padStart(2, "0");
-  const ss = String(rest).padStart(2, "0");
-  return hours > 0 ? `${hours} h ${mm} min ${ss} s` : `${minutes} min ${ss} s`;
+  return Number.isFinite(seconds) ? formatDuration(seconds) : raw;
 }
 
 function formatTokens(value: number): string {
@@ -105,10 +95,6 @@ function basesHtml(bases: ReadonlyArray<string> | undefined): string {
   if (bases === undefined || bases.length === 0) return "";
   const label = bases.map(basisLabel).join(" + ");
   return ` <span class="ds-list-sub" data-usage-basis="${esc(bases.join(" "))}">(${esc(label)})</span>`;
-}
-
-function formatAmount(raw: string, currency: string | null | undefined): string {
-  return `${raw.replace(".", ",")} ${currency ?? "(devise inconnue)"}`;
 }
 
 /**
@@ -191,9 +177,9 @@ export function usageTotalText(total: UsageAggregate): string {
 
 function coverageText(coverage: Coverage): string {
   const parts = [
-    coverage.measured_entries > 0 ? `${coverage.measured_entries} mesurée(s)` : "",
-    coverage.estimated_entries > 0 ? `${coverage.estimated_entries} estimée(s)` : "",
-    coverage.unknown_entries > 0 ? `${coverage.unknown_entries} inconnue(s)` : "",
+    coverage.measured_entries > 0 ? `${coverage.measured_entries} mesurée${sfx(coverage.measured_entries)}` : "",
+    coverage.estimated_entries > 0 ? `${coverage.estimated_entries} estimée${sfx(coverage.estimated_entries)}` : "",
+    coverage.unknown_entries > 0 ? `${coverage.unknown_entries} inconnue${sfx(coverage.unknown_entries)}` : "",
   ].filter((part) => part !== "");
   return parts.length === 0 ? "—" : parts.join(" · ");
 }
@@ -247,12 +233,12 @@ function groupLabelHtml(groupBy: string, group: UsageAggregate): string {
     return esc(parts.join(" · "));
   }
   if (groupBy === "day") {
-    return key.day === null || key.day === undefined ? "Jour inconnu" : esc(new Date(`${key.day}T00:00:00Z`).toLocaleDateString("fr-FR", { timeZone: "UTC" }));
+    return key.day === null || key.day === undefined ? "Jour inconnu" : esc(formatDay(key.day));
   }
   return "Total";
 }
 
-const GROUP_HEADER: Record<string, string> = { task: "Tâche", configuration: "Outil · fournisseur · modèle", day: "Jour (UTC)" };
+const GROUP_HEADER: Record<string, string> = { task: UI_LABEL.task, configuration: "Outil · fournisseur · modèle", day: "Jour" };
 
 function usageGroupsHtml(summary: UsageSummary): string {
   const groups = summary.groups ?? [];
@@ -279,11 +265,11 @@ function usageGroupsHtml(summary: UsageSummary): string {
 
 function techRows(summary: UsageSummary): DsTechRow[] {
   const rows: DsTechRow[] = [
-    { label: "Projet", value: summary.project_id, mono: true },
+    { label: UI_LABEL.project, value: summary.project_id, mono: true },
     { label: "Regroupement (code)", value: summary.group_by, mono: true },
     { label: "Calculé le", value: fmtTime(summary.generated_at) },
   ];
-  if (summary.task_id) rows.push({ label: "Tâche", value: summary.task_id, mono: true });
+  if (summary.task_id) rows.push({ label: UI_LABEL.task, value: summary.task_id, mono: true });
   if (summary.since) rows.push({ label: "Depuis (inclus)", value: summary.since, mono: true });
   if (summary.until) rows.push({ label: "Jusqu'à (exclu)", value: summary.until, mono: true });
   rows.push({ label: "Statut coût (code)", value: summary.total.cost.status, mono: true });
