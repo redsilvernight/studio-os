@@ -31,6 +31,7 @@ import { REVIEW_KIND_SHORT_LABEL } from "../language";
 import { agentLabel } from "../actorNames";
 import { TASK_STATUS_LABEL_FR } from "../taskStatus";
 import type { components } from "../openapi-schema";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 type Task = components["schemas"]["Task"];
@@ -202,8 +203,8 @@ export function homeHealthHtml(health: HealthInfo): string {
 
 export function homeMetricsHtml(activeProjects: number, activeTasks: number, reviewTotal: number | null): string {
   return `<p class="home-counts" aria-label="Résumé">` +
-    `<span><strong>${activeProjects}</strong> projet(s) actif(s)</span>` +
-    `<span><strong>${activeTasks}</strong> tâche(s) ouverte(s)</span>` +
+    `<span><strong>${activeProjects}</strong> projet${sfx(activeProjects)} actif${sfx(activeProjects)}</span>` +
+    `<span><strong>${activeTasks}</strong> tâche${sfx(activeTasks)} ouverte${sfx(activeTasks)}</span>` +
     `<span><strong>${reviewTotal ?? "—"}</strong> à valider</span></p>`;
 }
 
@@ -317,8 +318,8 @@ export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: b
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title">${esc(title)}</div><div class="ds-list-sub">${esc(REVIEW_KIND_LABEL[item.kind])} · ${esc(reviewQueueItemDetail(item))}</div></div>${reviewActionsHtml(item, authed)}</li>`;
     })
     .join("");
-  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les éléments À valider.</p>` : "";
-  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à valider.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
+  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre${sfx(items.length - shown.length)} — voir les éléments À valider.</p>` : "";
+  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément${sfx(items.length)} à valider.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
 }
 
 /** Signal discret uniquement si un envoi est réellement en cours. */
@@ -326,7 +327,7 @@ export function homeTransferSignalHtml(result: HomeResult<Transfer[]>): string {
   if (!result.ok) return "";
   const pending = result.value.filter((t) => t.status === "created" || t.status === "uploading");
   if (pending.length === 0) return "";
-  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi(s) en cours — <a href="#/transfers">voir les transferts</a>.</div>`;
+  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi${sfx(pending.length)} en cours — <a href="#/transfers">voir les transferts</a>.</div>`;
 }
 
 function bindReviewActions(root: HTMLElement, ctx: OverviewContext): void {

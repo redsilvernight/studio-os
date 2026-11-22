@@ -61,9 +61,9 @@ describe("vault atlas view", () => {
     expect(view.communities).toHaveLength(1);
     expect(view.communities[0]?.members.sort()).toEqual(["a", "b"]);
     const status = atlasStatusLine(view, graph, "a");
-    expect(status).toContain("zone(s)");
-    expect(status).toContain("communauté(s)");
-    expect(status).toContain("voisin(s) surligné(s)");
+    expect(status).toContain("zones");
+    expect(status).toContain("communauté");
+    expect(status).toContain("surligné");
     const list = atlasVisibleListHtml(view, "a", graph);
     expect(list).toContain("is-neighbor");
     expect(list).toContain("voisin");
@@ -127,7 +127,7 @@ describe("atlas projection persistence and performance", () => {
 
   it("formats the render timing for the dev status line", () => {
     const text = atlasPerfText(2000, 3200, { buildMs: 12.3, layoutMs: 45.6, filterMs: 1.2, drawMs: 8.9 });
-    expect(text).toContain("2000 note(s)");
+    expect(text).toContain("2000 notes");
     expect(text).toContain("construction 12.3 ms");
     expect(text).toContain("disposition 45.6 ms");
     expect(text).toContain("dessin 8.9 ms");

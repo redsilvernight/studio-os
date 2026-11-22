@@ -27,6 +27,7 @@ import {
 } from "../usageApi";
 import { USAGE_PERIODS, costValueHtml, tokensValueHtml } from "./usage";
 import "./usage.css";
+import { sfx } from "../format";
 
 const RATE_LABEL: Record<string, string> = {
   succeeded: "Tests réussis",
@@ -90,7 +91,7 @@ function groupHeading(group: ConfigurationHistoryGroup): string {
   return (
     `<h3>${esc(harness)} · ${esc(version)}</h3>` +
     `<p class="ds-list-sub">Fournisseur : ${esc(keyValue(key.provider))} · Modèle : ${esc(keyValue(key.model))} · Profil : ${esc(profile)}</p>` +
-    `<p class="ds-list-sub" data-history-group-meta>${esc(String(group.launches))} lancement(s) · ${esc(statusCountsText(group.status_counts ?? {}))}</p>`
+    `<p class="ds-list-sub" data-history-group-meta>${esc(String(group.launches))} lancement${sfx(Number(group.launches))} · ${esc(statusCountsText(group.status_counts ?? {}))}</p>`
   );
 }
 

@@ -8,6 +8,7 @@
  * qu'après la réussite de l'assistant. Studi'OS ne gère ni modèle, ni
  * abonnement, ni clé de fournisseur : aucun champ de ce type n'existe ici.
  */
+import { sfx } from "../format";
 import { getPlatform, type Platform } from "../platform";
 import { dsBadge, dsEmptyState, dsPageHeader, dsStateHtml } from "../ds/ds";
 import type { WorkspaceStatus, IdentityView } from "../platform/generated/local-contracts.generated";
@@ -258,7 +259,7 @@ export function launchSettingsHtml(view: LaunchSettingsView, draft?: LaunchSetti
     `<label class="settings-field">Lancements simultanés maximum (${MIN_CONCURRENT} à ${MAX_CONCURRENT}) <input type="number" min="${MIN_CONCURRENT}" max="${MAX_CONCURRENT}" step="1" data-launch-field="max_concurrent" value="${shown.max_concurrent}"${draft ? " disabled" : ""}></label>` +
     `<fieldset class="settings-field"><legend>Harnais autorisés</legend>${boxes}</fieldset>`;
   const actions = draft
-    ? `<div class="settings-confirm" role="alert" data-testid="launch-confirm"><p>Enregistrer ces réglages ? Vous seul autorisez les lancements sur ce poste : ${draft.opt_in ? `ils seront acceptés (${draft.max_concurrent} simultané(s) au plus, ${(draft.allowed_harnesses ?? []).length} harnais autorisé(s))` : "aucun lancement ne sera accepté"}.</p>` +
+    ? `<div class="settings-confirm" role="alert" data-testid="launch-confirm"><p>Enregistrer ces réglages ? Vous seul autorisez les lancements sur ce poste : ${draft.opt_in ? `ils seront acceptés (${draft.max_concurrent} simultané${sfx(draft.max_concurrent)} au plus, ${(draft.allowed_harnesses ?? []).length} harnais autorisé${sfx((draft.allowed_harnesses ?? []).length)})` : "aucun lancement ne sera accepté"}.</p>` +
       `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-launch">Confirmer l'enregistrement</button> ` +
       `<button class="ds-btn" type="button" data-action="cancel-launch">Annuler</button></div>`
     : `<button class="ds-btn ds-btn--primary" type="button" data-action="save-launch">Enregistrer…</button>`;

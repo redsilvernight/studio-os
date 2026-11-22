@@ -102,7 +102,7 @@ test("activité : plus de 500 événements, tri et accès à un ancien mois", as
   await page.locator('[data-cal-day="2026-07-09"]').click();
   await expect(items).toHaveCount(1);
   await expect(items.first()).toContainText("2026-07-09 activité 0");
-  await expect(page.locator("#view")).toContainText("Dates et heures en UTC");
+  await expect(page.locator("#view")).toContainText("Heures affichées dans votre fuseau horaire");
   await page.screenshot({ path: testInfo.outputPath("activite-ancien-mois.png") });
 });
 

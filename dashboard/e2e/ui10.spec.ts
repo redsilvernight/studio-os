@@ -212,7 +212,7 @@ test.describe("UI-10 page Transferts", () => {
 
     await view.locator("#transfers-search").fill("notes");
     await expect(view.locator(".transfer-row")).toHaveCount(1);
-    await expect(view).toContainText("1 transfert(s) affiché(s) sur 3 chargé(s)");
+    await expect(view).toContainText("1 transfert affiché sur 3 chargés");
     await expect(view).toContainText("recherche et filtres locaux");
 
     await view.locator("#transfers-search").fill("");

@@ -35,6 +35,7 @@ import {
 import { projectHealth } from "./overview";
 import { selectProject } from "../store";
 import { describeError, esc, fmtTime } from "../ui";
+import { sfx } from "../format";
 
 type Task = components["schemas"]["Task"];
 
@@ -81,7 +82,7 @@ function toolbarHtml(state: ProjectsPageState, shown: number, total: number): st
     `<option value="active"${selected("active")}>Actifs</option>` +
     `<option value="archived"${selected("archived")}>Archivés</option>` +
     `</select></label>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet(s) affiché(s) sur ${total} chargé(s) — filtre appliqué aux projets chargés.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — filtre appliqué aux projets chargés.</p>` +
     `</div>`;
 }
 

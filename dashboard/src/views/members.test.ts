@@ -53,7 +53,7 @@ describe("onglet Membres", () => {
         user_email: "admin@example.test",
       },
     ]);
-    expect(html).toContain("2 membre(s)");
+    expect(html).toContain("2 membres");
     expect(html).toContain("<strong>Dev &lt;Un&gt;</strong>");
     expect(html).toContain("dev@example.test");
     expect(html).toContain(`<td>Admin</td>`);

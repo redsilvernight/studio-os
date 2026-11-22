@@ -277,9 +277,9 @@ describe("homeReviewHtml", () => {
   it("affiche le total, 3 éléments max et le reliquat", () => {
     const items = [aiItem("a1"), decisionItem("d1"), aiItem("a2"), decisionItem("d2")];
     const html = homeReviewHtml({ ok: true, value: { items, generated_at: "" } as never }, true);
-    expect(html).toContain("4 élément(s) à valider");
+    expect(html).toContain("4 éléments à valider");
     expect(html.match(/ds-list-item/g)).toHaveLength(HOME_REVIEW_LIMIT);
-    expect(html).toContain("+ 1 autre(s)");
+    expect(html).toContain("+ 1 autre");
     expect(html).toContain("Voir la file complète");
   });
 

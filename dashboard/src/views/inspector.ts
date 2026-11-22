@@ -31,6 +31,7 @@ import { uiState } from "../store";
 import { describeError, esc, isOfflineError } from "../ui";
 import { dsEmptyState, dsPageHeader, dsSkeleton, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
 import "./inspector.css";
+import { sfx } from "../format";
 
 export interface InspectorContext {
   client: StudioClient;
@@ -135,7 +136,7 @@ function verdictHtml(resolved: ResolvedAgentDefinition): string {
   const unsatisfied = runtime.unsatisfied ?? [];
   return unsatisfied.length === 0
     ? dsStatus("success", "Compatible")
-    : dsStatus("danger", `Incompatible — ${unsatisfied.length} exigence(s) non satisfaite(s)`);
+    : dsStatus("danger", `Incompatible — ${unsatisfied.length} exigence${sfx(unsatisfied.length)} non satisfaite${sfx(unsatisfied.length)}`);
 }
 
 export function identityHtml(resolved: ResolvedAgentDefinition): string {

@@ -13,6 +13,7 @@ import { conditionLabel, daemonLabel, type DaemonSummary } from "../shellStatus"
 import { icon } from "../shell";
 import { describeError, esc, fmtTime } from "../ui";
 import "./admin.css";
+import { sfx } from "../format";
 
 export interface AdminFamily {
   href: string;
@@ -71,7 +72,7 @@ export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
     const machines = data.machines.data.filter((machine) => !isDashboardIdentity(machine.display_name));
     const offline = machines.filter((machine) => machine.status === "offline");
     const idle = machines.filter((machine) => machine.status === "idle");
-    cards.push({ title: "Postes", value: `${offline.length} hors ligne`, detail: `${machines.length} poste(s) accessible(s), ${idle.length} inactif(s). ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/machines", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
+    cards.push({ title: "Postes", value: `${offline.length} hors ligne`, detail: `${machines.length} poste${sfx(machines.length)} accessible${sfx(machines.length)}, ${idle.length} inactif${sfx(idle.length)}. ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/machines", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
   }
   const configErrors = [data.runtimes.error, data.bindings.error].filter((value): value is string => value !== undefined);
   if (configErrors.length > 0) cards.push(unavailable("Configuration", configErrors.join(" · "), "#/configuration/runtimes", "Ouvrir la configuration"));
@@ -81,7 +82,7 @@ export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
     const broken = data.bindings.data.filter((binding) => binding.target.runtime_id && !active.some((runtime) => runtime.id === binding.target.runtime_id));
     const missing = active.length === 0 || data.bindings.data.length === 0;
     const attention = missing || incomplete.length > 0 || broken.length > 0;
-    const details = [active.length === 0 ? "Aucun runtime actif." : `${active.length} runtime(s) actif(s), ${incomplete.length} avec des références à compléter.`, data.bindings.data.length === 0 ? "Aucune liaison définie." : `${broken.length} liaison(s) vers un runtime absent ou révoqué.`];
+    const details = [active.length === 0 ? "Aucun runtime actif." : `${active.length} runtime${sfx(active.length)} actif${sfx(active.length)}, ${incomplete.length} avec des références à compléter.`, data.bindings.data.length === 0 ? "Aucune liaison définie." : `${broken.length} liaison${sfx(broken.length)} vers un runtime absent ou révoqué.`];
     cards.push({ title: "Configuration", value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/configuration/bindings" : "#/configuration/runtimes", action: "Ouvrir la configuration", tone: attention ? "warning" : "success", attention });
   }
   if (data.daemon === null) cards.push({ title: "Synchronisation", value: "État local non observé", detail: "La synchronisation des autres postes n'est pas observable depuis ce navigateur. Consultez l'application sur le poste concerné.", href: "#/configuration/application", action: "Voir l'état de l'application", tone: "neutral", attention: false });
@@ -111,7 +112,7 @@ export function adminOverviewHtml(data?: AdminOverviewData, loading = false): st
   const next = attention[0];
   const hero = dsHeroCard({
     eyebrow: "Administration",
-    title: data === undefined ? "Vérifier l'état du système" : attention.length > 0 ? `${attention.length} point(s) à vérifier` : "Aucun problème détecté dans les données consultées",
+    title: data === undefined ? "Vérifier l'état du système" : attention.length > 0 ? `${attention.length} point${sfx(attention.length)} à vérifier` : "Aucun problème détecté dans les données consultées",
     body: "Les indicateurs concernent les ressources accessibles à votre compte. La synchronisation locale décrit uniquement le poste qui exécute l'application.",
     primary: { label: next?.action ?? "Voir les postes", href: next?.href ?? "#/machines" },
   });

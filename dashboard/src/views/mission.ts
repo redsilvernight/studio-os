@@ -20,6 +20,7 @@ import { LIVE_CHANGE_EVENT } from "../realtime";
 import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 import { agentRef, machineRef } from "../actorNames";
+import { sfx } from "../format";
 
 export type LiveState = "live" | "lost" | "off";
 
@@ -217,7 +218,7 @@ export function missionRunHtml(run: MissionRun): string {
   const agent = run.session?.agent_id
     ? agentRef(run.session.agent_id)
     : esc(run.launch?.harness_id ? (harnessLabels[run.launch.harness_id] ?? run.launch.harness_id) : FALLBACK_LABEL.agent);
-  const claims = run.active_claims > 0 ? `<p class="ds-list-sub">${run.active_claims} réservation(s) active(s)</p>` : "";
+  const claims = run.active_claims > 0 ? `<p class="ds-list-sub">${run.active_claims} réservation${sfx(run.active_claims)} active${sfx(run.active_claims)}</p>` : "";
   // Lacunes non rattachées à une étape (vocabulaire additif) : mention générique.
   const extraGaps = gaps.filter((g) => !["machine_unknown", "session_not_found", "task_not_found"].includes(g)).map(gapHtml).join("");
   return (
@@ -243,7 +244,7 @@ function missionCountsHtml(mission: ProjectMission): string {
     .map((v) => `<li data-count-verdict="${esc(v)}">${dsBadge(`${verdictLabel(v)} : ${byVerdict[v] ?? 0}`, verdictTone(v))}</li>`)
     .join("");
   return (
-    `<div data-mission-counts><p><strong>${mission.counts.total}</strong> exécution(s) sur ${mission.window_hours} h` +
+    `<div data-mission-counts><p><strong>${mission.counts.total}</strong> exécution${sfx(mission.counts.total)} sur ${mission.window_hours} h` +
     `${mission.truncated ? " (fenêtre tronquée)" : ""}</p>${items === "" ? "" : `<ul class="mission-counts">${items}</ul>`}</div>`
   );
 }
@@ -256,7 +257,7 @@ function lostBannerHtml(generatedAt: string | null, polls: number, maxPolls: num
   const when = generatedAt === null ? "" : ` Données du ${fmtTime(generatedAt)}.`;
   const auto =
     polls >= maxPolls
-      ? `<span data-mission-poll-stopped>Rafraîchissement automatique arrêté après ${maxPolls} essai(s) : utilisez Actualiser.</span>`
+      ? `<span data-mission-poll-stopped>Rafraîchissement automatique arrêté après ${maxPolls} essai${sfx(maxPolls)} : utilisez Actualiser.</span>`
       : `<span>Rafraîchissement automatique toutes les ${Math.round(pollMs / 1000)} s (${polls}/${maxPolls}).</span>`;
   return (
     `<div class="ds-notice ds-notice--warning" role="status" data-mission-live="lost">` +

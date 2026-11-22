@@ -27,7 +27,7 @@ describe("Bibliothèque Hooks", () => {
 
   it("présente toutes les variantes de script dans le détail", () => {
     const html = versionContentHtml("hook", hook(content));
-    for (const value of ["pre_tool", "Read", "30", "windows", "pwsh", "linux", "bash", "echo ok"]) {
+    for (const value of ["pre_tool", "Read", "windows", "pwsh", "linux", "bash", "echo ok"]) {
       expect(html).toContain(value);
     }
     expect(html).toContain("Vérifie les outils");
@@ -55,7 +55,7 @@ describe("Bibliothèque Hooks", () => {
   it("présente les valeurs par défaut du contrat quand elles sont omises", () => {
     const html = versionContentHtml("hook", hook({ content_schema: "studio.library.hook/v1", event: "session_start", scripts: [{ shell: "pwsh", body: "Write-Output 'ok'" }] }));
     expect(html).toContain("advisory");
-    expect(html).toContain("30 secondes");
+    expect(html).toContain("moins d'une minute");
     expect(html).toContain("Script any");
     expect(html).toContain("Aucun filtre");
   });

@@ -36,6 +36,7 @@ import { renderProjectUsageInto } from "./usage";
 import { renderTasksInto } from "./tasks";
 import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
 import "./projectDetail.css";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 type ProjectState = components["schemas"]["ProjectState"];
@@ -211,7 +212,7 @@ export function projectHeroHtml(project: Project, state: ProjectState, step: Cur
   const blockersBody =
     blockers.length === 0
       ? `<p class="ds-list-sub">Aucun blocage.</p>`
-      : `<ul class="ds-list">${blockers.slice(0, 3).map((item) => `<li class="ds-list-item"><div class="grow">${esc(item)}</div></li>`).join("")}</ul>${blockers.length > 3 ? `<p class="ds-list-sub">+ ${blockers.length - 3} autre(s).</p>` : ""}`;
+      : `<ul class="ds-list">${blockers.slice(0, 3).map((item) => `<li class="ds-list-item"><div class="grow">${esc(item)}</div></li>`).join("")}</ul>${blockers.length > 3 ? `<p class="ds-list-sub">+ ${blockers.length - 3} autre${sfx(blockers.length - 3)}.</p>` : ""}`;
   return `<section class="workspace-hero" aria-label="Situation du projet">` +
     `<div class="workspace-hero-main"><p class="ds-hero-eyebrow">Objectif</p>` +
     `<p class="workspace-objective">${objective === "" ? "Aucun objectif renseigné." : esc(objective)}</p>` +
@@ -238,7 +239,7 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
               `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
               `<div class="ds-list-sub">${esc(TASK_STATUS_LABEL[task.status] ?? task.status)}</div></div>${dsBadge(TASK_STATUS_LABEL[task.status] ?? task.status, taskTone(task.status))}</li>`,
           )
-          .join("")}</ul>${state.active_tasks.length > taskPreview.length ? `<p class="ds-list-sub">+ ${state.active_tasks.length - taskPreview.length} autre(s).</p>` : ""}`;
+          .join("")}</ul>${state.active_tasks.length > taskPreview.length ? `<p class="ds-list-sub">+ ${state.active_tasks.length - taskPreview.length} autre${sfx(state.active_tasks.length - taskPreview.length)}.</p>` : ""}`;
 
   const claimsBody =
     state.active_claims.length === 0
@@ -249,7 +250,7 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
               `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><code class="mono">${esc(claim.resource_path)}</code></div>` +
               `<div class="ds-list-sub">${esc(claim.resource_type)} · expire ${esc(fmtTime(claim.expires_at))}</div></div></li>`,
           )
-          .join("")}</ul>${state.active_claims.length > claimPreview.length ? `<p class="ds-list-sub">+ ${state.active_claims.length - claimPreview.length} autre(s).</p>` : ""}`;
+          .join("")}</ul>${state.active_claims.length > claimPreview.length ? `<p class="ds-list-sub">+ ${state.active_claims.length - claimPreview.length} autre${sfx(state.active_claims.length - claimPreview.length)}.</p>` : ""}`;
 
   return `<div class="workspace-overview">` +
     projectHeroHtml(project, state, step, now) +

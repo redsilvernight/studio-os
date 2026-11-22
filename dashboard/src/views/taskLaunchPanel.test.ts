@@ -266,7 +266,7 @@ describe("labels", () => {
   });
 
   it("compose le libellé d'un poste éligible et inéligible", () => {
-    expect(machineOptionLabel(machine())).toContain("2 place(s) libre(s)");
+    expect(machineOptionLabel(machine())).toContain("2 places libres");
     expect(machineOptionLabel(machine({ eligible: false, free_slots: 0, reasons: ["offline"] }))).toContain("hors ligne");
   });
 });
@@ -628,7 +628,7 @@ describe("provenance (DEC-0199)", () => {
   it("Combien : le total serveur du lancement, sans présenter un coût partiel comme exact", () => {
     const answer = answerOf(provenanceFacts(launchWithProvenance(), snapshot(), launchUsage()), "how-much");
     expect(answer).toContain("2 mesures");
-    expect(answer).toContain("durée 17 s");
+    expect(answer).toContain("durée moins d'une minute");
     expect(answer).toContain("coût au moins 0,125 USD · inconnu pour 1 entrée");
     expect(answer).toContain("jetons au moins 330");
   });

@@ -18,6 +18,7 @@ import {
 import { dsBadge, dsEmptyState, dsSkeleton } from "../ds/ds";
 import { activityLabelFr } from "../machinesApi";
 import { describeError, esc, fmtTime } from "../ui";
+import { sfx } from "../format";
 
 export interface AiIntegrationContext {
   client: StudioClient;
@@ -94,8 +95,8 @@ export function desiredHtml(
   const agents = (desired.agent_keys ?? []).length;
   const items = Object.values(desired.artifact_counts ?? {}).reduce((sum, n) => sum + n, 0);
   return (
-    `<p class="ds-list-sub">Ce projet attend ${agents} agent${agents > 1 ? "s" : ""} ` +
-    `et ${items} élément${items > 1 ? "s" : ""} de configuration.</p>`
+    `<p class="ds-list-sub">Ce projet attend ${agents} agent${sfx(agents)} ` +
+    `et ${items} élément${sfx(items)} de configuration.</p>`
   );
 }
 
@@ -132,7 +133,7 @@ export function aiIntegrationHtml(status: AiIntegrationStatus): string {
   const summary =
     machines.length === 0
       ? ""
-      : `<p class="ai-summary"><strong>${upToDate} poste${upToDate > 1 ? "s" : ""} sur ${machines.length}</strong> à jour.</p>`;
+      : `<p class="ai-summary"><strong>${upToDate} poste${sfx(upToDate)} sur ${machines.length}</strong> à jour.</p>`;
   const body =
     machines.length === 0
       ? dsEmptyState(

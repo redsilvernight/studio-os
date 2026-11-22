@@ -77,6 +77,7 @@ import type { components } from "../openapi-schema";
 import { fetchIdentity, type AuthIdentity } from "../identityApi";
 import "./listRows.css";
 import "./transfers.css";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 
@@ -335,7 +336,7 @@ export function transfersToolbarHtml(
     `<label class="transfers-filter"><span>Catégorie</span><select class="ds-select" id="transfers-category">${categoryOptions}</select></label>` +
     `<label class="transfers-filter"><span>Projet</span><select class="ds-select" id="transfers-project">${projectOptionsHtml(transfers, state, ctx)}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isTransfersDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} transfert(s) affiché(s) sur ${transfers.length} chargé(s) — recherche et filtres locaux.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} transfert${sfx(shown)} affiché${sfx(shown)} sur ${transfers.length} chargé${sfx(transfers.length)} — recherche et filtres locaux.</p>` +
     `</div>`
   );
 }

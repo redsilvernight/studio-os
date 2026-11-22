@@ -68,6 +68,7 @@ import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 import "./listRows.css";
 import "./machines.css";
+import { sfx } from "../format";
 
 export interface MachinesContext {
   client: StudioClient;
@@ -114,7 +115,7 @@ export function machinesToolbarHtml(state: MachinesPageState, shown: number, tot
     `<label class="machines-activity-filter"><span>Activité</span>` +
     `<select class="ds-select" id="machines-activity">${options}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isMachinesDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} poste(s) affiché(s) sur ${total} chargé(s) — recherche et filtre locaux.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} poste${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — recherche et filtre locaux.</p>` +
     `</div>`
   );
 }
@@ -331,7 +332,7 @@ export function machineWorkstationSectionHtml(row: MachineRow, allRows: MachineR
   if (children.length > 0) {
     return (
       `<section class="machine-workstation" aria-labelledby="machine-workstation-heading">${heading}` +
-      `<p class="ds-list-sub">Poste de travail : ${children.length} machine(s) d'outil rattachée(s).</p></section>`
+      `<p class="ds-list-sub">Poste de travail : ${children.length} machine${sfx(children.length)} d'outil rattachée${sfx(children.length)}.</p></section>`
     );
   }
   if (row.version === null) {

@@ -40,6 +40,7 @@ import type {
 } from "../atlas/types";
 import { VAULT_STATUS_LABEL, VAULT_TYPE_LABEL, vaultModeNavHtml, vaultScopeLabel } from "./vault";
 import "./vaultAtlas.css";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 
@@ -87,7 +88,7 @@ export function measureAtlasStep<T>(label: string, fn: () => T): { value: T; ms:
 }
 
 export function atlasPerfText(notes: number, edges: number, timings: AtlasTimings): string {
-  return `${notes} note(s) · ${edges} lien(s) · construction ${timings.buildMs.toFixed(1)} ms` +
+  return `${notes} note${sfx(notes)} · ${edges} lien${sfx(edges)} · construction ${timings.buildMs.toFixed(1)} ms` +
     ` · disposition ${timings.layoutMs.toFixed(1)} ms · filtre ${timings.filterMs.toFixed(1)} ms` +
     ` · dessin ${timings.drawMs.toFixed(1)} ms`;
 }
@@ -186,14 +187,14 @@ export function atlasStatusLine(view: AtlasView, graph: AtlasGraph, selected: st
   const notes = view.clusters.length > 0
     ? view.clusters.reduce((sum, c) => sum + c.count, 0)
     : view.nodes.filter((n) => n.kind === "note").length;
-  const parts = [`${notes} note(s) visible(s) sur ${graph.nodes.filter((n) => n.kind === "note").length}`];
+  const parts = [`${notes} note${sfx(notes)} visible${sfx(notes)} sur ${graph.nodes.filter((n) => n.kind === "note").length}`];
   if (view.clusters.length > 0) parts.push(`regroupées en ${view.clusters.length} amas`);
-  if (view.groups.length > 0) parts.push(`${view.groups.length} zone(s)`);
-  if (view.communities.length > 0) parts.push(`${view.communities.length} communauté(s)`);
-  if (view.matches.size > 0) parts.push(`${view.matches.size} correspondance(s)`);
+  if (view.groups.length > 0) parts.push(`${view.groups.length} zone${sfx(view.groups.length)}`);
+  if (view.communities.length > 0) parts.push(`${view.communities.length} communauté${sfx(view.communities.length)}`);
+  if (view.matches.size > 0) parts.push(`${view.matches.size} correspondance${sfx(view.matches.size)}`);
   if (selected !== null) {
     const neighbors = graph.neighbors.get(selected)?.size ?? 0;
-    if (neighbors > 0) parts.push(`${neighbors} voisin(s) surligné(s)`);
+    if (neighbors > 0) parts.push(`${neighbors} voisin${sfx(neighbors)} surligné${sfx(neighbors)}`);
   }
   if (graph.truncated) parts.push("chargement plafonné, affinez par projet");
   return `${parts.join(" — ")}.`;
@@ -214,7 +215,7 @@ export function atlasVisibleListHtml(view: AtlasView, selected: string | null, g
     return `<li><button type="button" class="${classes}" data-atlas-pick="${esc(node.id)}"${isSelected ? ' aria-current="true"' : ""}><span class="vault-atlas-dot" data-type="${esc(node.kind === "note" ? node.noteType : "anchor")}" aria-hidden="true"></span>${esc(nodeTitle(node))}${isNeighbor ? ' <span class="vault-atlas-neighbor">voisin</span>' : ""}</button></li>`;
   }).join("");
   const more = ordered.length > VISIBLE_LIST_MAX
-    ? `<p class="ds-list-sub">${ordered.length - VISIBLE_LIST_MAX} autre(s) : affinez la recherche.</p>`
+    ? `<p class="ds-list-sub">${ordered.length - VISIBLE_LIST_MAX} autre${sfx(ordered.length - VISIBLE_LIST_MAX)} : affinez la recherche.</p>`
     : "";
   return `<ul class="vault-atlas-items" role="list">${items}</ul>${more}`;
 }

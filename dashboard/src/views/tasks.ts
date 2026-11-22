@@ -52,6 +52,7 @@ import { FALLBACK_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au bloc
 // d'imports CSS de main.ts.
 import "./tasks.css";
+import { sfx } from "../format";
 
 export interface TasksContext {
   client: StudioClient;
@@ -328,7 +329,7 @@ export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): stri
             `${taskMoveControlHtml(task, options.authed)}</li>`,
         )
         .join("");
-      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${count} tâche(s) chargée(s)">` +
+      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${count} tâche${sfx(cards.length)} chargée${sfx(cards.length)}">` +
         `<h3 class="task-col-title">${esc(label)} <span class="ds-list-sub">(${count})</span></h3>` +
         (items === "" ? `<p class="ds-list-sub">Aucune tâche ici.</p>` : `<ul class="task-col-list">${items}</ul>`) +
         `</section>`;
@@ -429,7 +430,7 @@ export function tasksPageHtml(data: TasksPageData): string {
       : `<div class="tasks-footer">${reloadButton}` +
         (data.exhausted ? "" : `<button class="ds-btn" type="button" data-more${data.moreLoading ? " disabled" : ""}>${data.moreLoading ? "Chargement…" : "Afficher plus de tâches"}</button>`) +
         (data.state.scope === "all" && data.completedVisible === false && (!board || (visible.length === 0 && data.state.query.trim() !== "")) ? `<button class="ds-btn" type="button" data-completed>Afficher les tâches terminées</button>` : "") +
-        (data.state.scope === "all" ? `<p class="ds-list-sub" role="status">${inScope.length} tâche(s) chargée(s)${data.exhausted ? "" : " · D'autres tâches sont disponibles (+)."}${data.completedVisible === false ? " · Les terminées ne sont pas encore chargées." : ""}</p>` : "") +
+        (data.state.scope === "all" ? `<p class="ds-list-sub" role="status">${inScope.length} tâche${sfx(inScope.length)} chargée${sfx(inScope.length)}${data.exhausted ? "" : " · D'autres tâches sont disponibles (+)."}${data.completedVisible === false ? " · Les terminées ne sont pas encore chargées." : ""}</p>` : "") +
         `</div>`;
   const msg =
     data.msg.human === ""

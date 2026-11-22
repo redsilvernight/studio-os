@@ -102,10 +102,10 @@ test("détail : choisit un bloc, débloque la publication et publie en une confi
   const applied: unknown[] = [];
   await bootDetail(page, 200, applied);
   const publish = page.getByRole("button", { name: "Publier le résultat" });
-  await expect(page.getByText("1 conflit(s) restant(s)", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 conflit restant", { exact: true })).toBeVisible();
   await expect(publish).toBeDisabled();
   await page.getByRole("radio", { name: "Accepter le nouveau commun" }).check();
-  await expect(page.getByText("0 conflit(s) restant(s)", { exact: true })).toBeVisible();
+  await expect(page.getByText("0 conflit restant", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Résultat de la fusion (modifiable)")).toHaveValue(
     "ligne une\nligne deux (moi)\nligne trois (commun)\ncommun (eux)\n",
   );

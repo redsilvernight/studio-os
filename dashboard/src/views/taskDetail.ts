@@ -99,6 +99,7 @@ import {
   type LaunchPanelData,
   type LaunchPanelState,
 } from "./taskLaunchPanel";
+import { sfx } from "../format";
 
 export interface TaskDetailContext {
   client: StudioClient;
@@ -326,7 +327,7 @@ export function nextActionText(task: Task, pendingReview: number): string {
       break;
   }
   if (pendingReview > 0) {
-    return `Faire la relecture : ${pendingReview} travail(s) attendent votre avis (voir « Validation »).`;
+    return `Faire la relecture : ${pendingReview} travail${sfx(pendingReview)} attendent votre avis (voir « Validation »).`;
   }
   return held
     ? "Poursuivre le travail, puis marquer « Terminé » ou « Bloqué » selon le constat."
@@ -495,8 +496,8 @@ function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
           if (work.model !== null && work.model !== undefined && work.model !== "") context.push(work.model);
           const files = work.changed_files?.length ?? 0;
           const tests = work.tests_run?.length ?? 0;
-          if (files > 0) context.push(`${files} fichier(s)`);
-          if (tests > 0) context.push(`${tests} test(s)`);
+          if (files > 0) context.push(`${files} fichier${sfx(files)}`);
+          if (tests > 0) context.push(`${tests} test${sfx(tests)}`);
           const summary = work.summary.length > 140 ? `${work.summary.slice(0, 140)}…` : work.summary;
           return `<li class="ds-list-item"><div class="grow">` +
             `<div class="ds-list-title">${esc(summary)}</div>` +

@@ -16,6 +16,7 @@ import { describeError, esc } from "../ui";
 import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsStatus } from "../ds/ds";
 import type { LibraryMergeApply, LibraryMergePreview } from "../libraryApi";
+import { plural, sfx } from "../format";
 
 /* ------------------------------------------------------------------ */
 /* Données : miroir strict du contrat Python (textes + conflits).      */
@@ -83,7 +84,7 @@ export function remainingConflicts(text: string): number {
 /** Raison bloquant la publication, ou null si le résultat est publiable. */
 function mergeResultProblem(text: string): string | null {
   const remaining = remainingConflicts(text);
-  if (remaining > 0) return `${remaining} conflit(s) restant(s) : choisissez un bloc pour chacun ou éditez le résultat.`;
+  if (remaining > 0) return `${remaining} conflit${sfx(remaining)} restant${sfx(remaining)} : choisissez un bloc pour chacun ou éditez le résultat.`;
   if (text.split("\n").some((line) => CONFLICT_MARKERS.some((marker) => line.startsWith(marker)))) {
     return "Le résultat contient encore des marqueurs de conflit.";
   }
@@ -137,7 +138,7 @@ function conflictsHtml(result: LibraryMergeResult, canApply: boolean): string {
     })
     .join("");
   return (
-    `<p role="status">${dsBadge(`${result.conflicts.length} conflit(s)`, "warning")} ` +
+    `<p role="status">${dsBadge(`${plural(result.conflicts.length, "conflit")}`, "warning")} ` +
     `Les blocs en conflit apparaissent dans l’aperçu.</p>` +
     `<ol class="library-merge-conflicts">${items}</ol>`
   );
@@ -187,7 +188,7 @@ function applyZoneHtml(content: string): string {
     `le serveur valide le schéma du kind et n'écrit rien en cas d'erreur.</p>` +
     `<label for="library-merge-result">Résultat de la fusion (modifiable)</label>` +
     `<textarea id="library-merge-result" class="library-merge-result mono" rows="12" spellcheck="false" data-merge-result>${esc(content)}</textarea>` +
-    `<p role="status" data-merge-remaining>${remainingConflicts(content)} conflit(s) restant(s)</p>` +
+    `<p role="status" data-merge-remaining>${remainingConflicts(content)} conflit${sfx(remainingConflicts(content))} restant${sfx(remainingConflicts(content))}</p>` +
     `<p class="ds-list-sub" data-merge-validation>${esc(problem ?? "Prêt à publier.")}</p>` +
     `<div class="library-merge-actions">` +
     `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-merge-publish${problem === null ? "" : " disabled"}>Publier le résultat</button>` +
@@ -233,7 +234,7 @@ function bindApplyZone(
   const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-merge-publish], [data-merge-keep], [data-merge-revert]")];
   const refresh = (): void => {
     const problem = mergeResultProblem(editor.value);
-    if (remaining !== null) remaining.textContent = `${remainingConflicts(editor.value)} conflit(s) restant(s)`;
+    if (remaining !== null) remaining.textContent = `${remainingConflicts(editor.value)} conflit${sfx(remainingConflicts(editor.value))} restant${sfx(remainingConflicts(editor.value))}`;
     if (validation !== null) validation.textContent = problem ?? "Prêt à publier.";
     publish.disabled = problem !== null;
   };

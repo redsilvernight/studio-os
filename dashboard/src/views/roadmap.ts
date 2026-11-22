@@ -32,6 +32,7 @@ import type {
 import { agentRef } from "../actorNames";
 import { ApiError, type StudioClient } from "../api";
 import { describeError, esc, fmtTime } from "../ui";
+import { plural, sfx } from "../format";
 import { FALLBACK_LABEL } from "../language";
 import { renderAdmissionPanelInto } from "./admissionPanel";
 
@@ -129,11 +130,11 @@ export function roadmapDonePhasesHtml(roadmap: Roadmap, selectedKey: string | nu
     const steps = phase.steps ?? [];
     return `<details class="roadmap-done-phase" data-done-phase="${esc(phase.key)}"><summary>` +
       `<span class="roadmap-done-ok" aria-hidden="true">✓</span><span><span class="roadmap-eyebrow">Phase ${index + 1} · Terminée</span>` +
-      `<strong>${esc(phase.title)}</strong><span class="ds-list-sub">${steps.length} étape${steps.length > 1 ? "s" : ""} · ${phaseProgress(phase)} %</span></span></summary>` +
+      `<strong>${esc(phase.title)}</strong><span class="ds-list-sub">${steps.length} étape${sfx(steps.length)} · ${phaseProgress(phase)} %</span></span></summary>` +
       `<div class="roadmap-done-content">${phase.objective ? `<p>${esc(phase.objective)}</p>` : ""}` +
       `<div class="roadmap-step-list">${steps.map((step) => stepButtonHtml(step, step.key === selectedKey)).join("")}</div></div></details>`;
   }).join("");
-  return `<section class="roadmap-done-phases" aria-label="Phases terminées"><h3>${done.length} phase${done.length > 1 ? "s" : ""} terminée${done.length > 1 ? "s" : ""}</h3>${contents}</section>`;
+  return `<section class="roadmap-done-phases" aria-label="Phases terminées"><h3>${done.length} phase${sfx(done.length)} terminée${sfx(done.length)}</h3>${contents}</section>`;
 }
 
 export function roadmapPlanHtml(roadmap: Roadmap, selectedKey: string | null): string {
@@ -165,7 +166,7 @@ export function roadmapPhaseStripHtml(roadmap: Roadmap): string {
   return `<section class="roadmap-phase-strip" data-major aria-label="Progression des phases">` +
     `<div class="roadmap-strip-top"><span><strong>${percent(roadmap.progress?.ratio)} %</strong>` +
     `<span class="ds-list-sub"> ${roadmap.progress?.done ?? 0} étapes sur ${roadmap.progress?.total ?? allSteps(roadmap).length}</span></span>` +
-    (position > 0 ? `<span class="ds-list-sub">Phase ${position} sur ${phases.length}</span>` : `<span class="ds-list-sub">${doneCount} terminée${doneCount > 1 ? "s" : ""}</span>`) +
+    (position > 0 ? `<span class="ds-list-sub">Phase ${position} sur ${phases.length}</span>` : `<span class="ds-list-sub">${doneCount} terminée${sfx(doneCount)}</span>`) +
     `</div><div class="roadmap-strip-track" aria-hidden="true">${track}</div></section>`;
 }
 
@@ -242,7 +243,7 @@ export function roadmapStepDetailHtml(step: RoadmapStep | null, roadmap: Roadmap
   return `<aside class="roadmap-detail" aria-label="Détail de l'étape ${esc(step.title)}">` +
     `<header><div><p class="roadmap-eyebrow">${esc(step.key)}</p><h2>${esc(step.title)}</h2></div>${dsBadge(STEP_LABELS[state] ?? state, stepTone(state))}</header>` +
     `<section><h3>Objectif</h3><p>${esc(step.objective?.trim() || "Objectif non renseigné.")}</p>${step.context ? `<p class="roadmap-context">${esc(step.context)}</p>` : ""}</section>` +
-    `<section><h3>Tâches</h3>${taskListHtml(step)}${totalTasks > 0 ? dsProgress(completedTasks, totalTasks, `${completedTasks} sur ${totalTasks} terminée(s)`) : ""}</section>` +
+    `<section><h3>Tâches</h3>${taskListHtml(step)}${totalTasks > 0 ? dsProgress(completedTasks, totalTasks, `${completedTasks} sur ${totalTasks} terminée${sfx(completedTasks)}`) : ""}</section>` +
     `<section><h3>Critères d'acceptation</h3>${criteriaHtml(step)}</section>` +
     `<section><h3>Dépendances</h3>${dependencies.length === 0 ? `<p class="ds-list-sub">Aucune dépendance.</p>` : `<p>${dependencies.map(esc).join(", ")}</p>`}` +
     (waiting.length > 0 ? `<div class="ds-notice ds-notice--warning" role="status"><strong>En attente de :</strong> ${waiting.map(esc).join(", ")}</div>` : "") + `</section>` +
@@ -418,7 +419,7 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
       const linkedCount = step.linked_tasks?.length ?? 0;
       const tasks = plannedTasks.length === 0 && linkedCount === 0
         ? `<p>Aucune tâche liée.</p>`
-        : `<ul>${plannedTasks.map((task) => `<li>${esc(task.title)}</li>`).join("")}${linkedCount > 0 ? `<li>${linkedCount} tâche(s) liée(s)</li>` : ""}</ul>`;
+        : `<ul>${plannedTasks.map((task) => `<li>${esc(task.title)}</li>`).join("")}${linkedCount > 0 ? `<li>${plural(linkedCount, "tâche")} liée${sfx(linkedCount)}</li>` : ""}</ul>`;
       const dependencies = (step.depends_on ?? []).length === 0 ? "Aucune" : (step.depends_on ?? []).map(esc).join(", ");
       const criteria = (step.acceptance_criteria ?? []).length === 0
         ? `<p>Aucun critère défini.</p>`

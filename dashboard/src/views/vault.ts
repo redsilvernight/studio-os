@@ -37,6 +37,7 @@ import {
   type VaultNoteVersion,
 } from "../vaultApi";
 import type { components } from "../openapi-schema";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 type VaultNoteLinkKind = NonNullable<VaultNote["links"]>[number]["kind"];
@@ -197,7 +198,7 @@ export function vaultListHtml(
     );
   }
   const hint = opts.searching && opts.total !== undefined
-    ? `<p class="ds-list-sub" role="status">${opts.total} résultat(s)${opts.truncated === true ? " — liste tronquée, affinez la recherche" : ""}</p>`
+    ? `<p class="ds-list-sub" role="status">${opts.total} résultat${sfx(opts.total)}${opts.truncated === true ? " — liste tronquée, affinez la recherche" : ""}</p>`
     : "";
   const sorted = sortVaultNotes(notes, opts.sort);
   return `${hint}<ul class="ds-list ds-list--card vault-list" role="list">${sorted.map((note) => vaultItemHtml(note, opts.projectNames)).join("")}</ul>`;
@@ -245,7 +246,7 @@ function vaultToolbarHtml(
     `<label class="vault-filter"><span>Statut</span><select class="ds-select" id="vault-status">${statusOptions}</select></label>` +
     `<label class="vault-filter"><span>Tri</span><select class="ds-select" id="vault-sort">${sortOptions}</select></label>` +
     `<button class="ds-btn ds-btn--sm" type="button" id="vault-reset">Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${counts.shown} note(s) affichée(s)${counts.searching ? " — recherche serveur" : ""}.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${counts.shown} note${sfx(counts.shown)} affichée${sfx(counts.shown)}${counts.searching ? " — recherche serveur" : ""}.</p>` +
     `</div>`;
 }
 

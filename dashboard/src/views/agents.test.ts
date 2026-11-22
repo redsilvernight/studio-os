@@ -304,7 +304,7 @@ describe("agentsListHtml (liste compacte groupée, empty utile)", () => {
 
   it("français partout, CSP respectée", () => {
     const html = agentsListHtml([agentOf()], activities, { sessions: [], aiWork: [], tasks: [] }, names, "", true);
-    expect(html).toContain("affiché(s)");
+    expect(html).toContain("affiché");
     expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
     expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);
   });
@@ -449,8 +449,8 @@ describe("identité par modèle et par poste (DEC-0225)", () => {
     expect(isLegacyAgentIdentity(legacy)).toBe(true);
     expect(isLegacyAgentIdentity(canonical)).toBe(true);
     const all = [canonical, legacy, otherPc];
-    expect(agentIdentityNote(legacy, all)).toBe("Ancienne identité · 1 autre(s) fiche(s) de ce modèle sur ce poste");
-    expect(agentIdentityNote(canonical, all)).toBe("Ancienne identité · 1 autre(s) fiche(s) de ce modèle sur ce poste");
+    expect(agentIdentityNote(legacy, all)).toBe("Ancienne identité · 1 autre fiche de ce modèle sur ce poste");
+    expect(agentIdentityNote(canonical, all)).toBe("Ancienne identité · 1 autre fiche de ce modèle sur ce poste");
     expect(agentIdentityNote(otherPc, all)).toBe("Ancienne identité");
   });
 

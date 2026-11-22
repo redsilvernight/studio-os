@@ -145,7 +145,7 @@ describe("coordination.* dans la timeline", () => {
 
   it("la timeline n'est pas filtrée : un signal s'y affiche comme les autres", () => {
     expect(html).toContain("Question");
-    expect(html).toContain("1 événement(s)");
+    expect(html).toContain("1 événement");
     expect(html).toContain('href="#/tasks/t1"');
     expect(html).not.toContain("coordination");
   });
@@ -210,7 +210,7 @@ describe("timelineHtml nominal", () => {
   });
 
   it("calendrier : focus sur le jour le plus récent, les autres jours restent à un clic", () => {
-    expect(html).toContain("2 événement(s)");
+    expect(html).toContain("2 événements");
     expect(html).toContain('data-cal-day="2026-09-12"');
     expect(html).toContain('data-cal-day="2026-09-11"');
     expect(html).toContain("Tâche créée");
@@ -264,7 +264,7 @@ describe("timelineHtml limites et états", () => {
       timeline: timeline({ date: "2026-09-12", events: [] }, { date: "2026-09-11", events: [event({ event_type: "task.created" })] }),
       limit: TIMELINE_LIMIT_DEFAULT,
     });
-    expect(html).toContain("1 événement(s)");
+    expect(html).toContain("1 événement");
     expect(html).not.toContain("tl-day-2026-09-12");
   });
 
@@ -343,7 +343,7 @@ describe("historique exhaustif et pagination par journée UTC", () => {
     expect(root.querySelectorAll(".tl-item")).toHaveLength(1);
     expect(GET.mock.calls.some(([path, options]) => path.endsWith("/timeline") && options.params.query["offset"] === 400)).toBe(true);
     expect(GET.mock.calls.find(([path, options]) => path.endsWith("/timeline") && String(options.params.query["since"]).startsWith("2026-07"))?.[1].params.query["until"]).toBe("2026-07-10T00:00:00.000Z");
-    expect(root.textContent).toContain("Dates et heures en UTC");
+    expect(root.textContent).toContain("Heures affichées dans votre fuseau horaire");
   });
 
   it("une session sans événements reste consultable au calendrier, et une panne ne devient pas un jour vide", async () => {
@@ -401,7 +401,7 @@ describe("collapseAiWork", () => {
     });
     expect(html).toContain("Travail IA terminé");
     expect(html).not.toContain("Travail IA démarré");
-    expect(html).toContain("1 événement(s)");
+    expect(html).toContain("1 événement");
     expect(html.match(/class="tl-item"/g)).toHaveLength(1);
   });
 

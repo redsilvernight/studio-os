@@ -83,6 +83,7 @@ import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
+import { sfx } from "../format";
 
 export interface ConfigurationContext {
   client: StudioClient;
@@ -336,7 +337,7 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
     `</select></label>` +
     `<label class="settings-check"><input type="checkbox" id="settings-runtimes-revoked" data-include-revoked${state.includeRevoked ? " checked" : ""} /> Inclure les révoqués</label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isRuntimesDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} runtime(s) affiché(s) sur ${runtimes.length} chargé(s) — recherche et filtres locaux.</p>` +
+    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} runtime${sfx(shown)} affiché${sfx(shown)} sur ${runtimes.length} chargé${sfx(runtimes.length)} — recherche et filtres locaux.</p>` +
     `</div>`
   );
 }
@@ -792,7 +793,7 @@ export function bindingsToolbarHtml(state: BindingsPageState, shown: number, tot
     `<label class="settings-filter"><span>Niveau</span><select class="ds-select" id="settings-bindings-scope">` +
     `<option value="all"${state.scope === "all" ? " selected" : ""}>Tous les niveaux</option>${scopeOptions}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isBindingsDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} binding(s) affiché(s) sur ${total} chargé(s) — recherche et filtre locaux.</p>` +
+    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} binding${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — recherche et filtre locaux.</p>` +
     `</div>`
   );
 }

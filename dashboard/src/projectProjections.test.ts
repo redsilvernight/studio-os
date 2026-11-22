@@ -25,7 +25,7 @@ describe("project projections section", () => {
     const html = projectProjectionsHtml(status(), false);
     expect(html).toContain(`data-project-projections-apply="${WORKSPACE}"`);
     expect(html).toContain("Confirmer l'écriture dans le dépôt");
-    expect(html).toContain("2 fichier(s)");
+    expect(html).toContain("2 fichiers");
     expect(html).toContain("&lt;b&gt;");
     expect(html).not.toContain("<b>");
   });

@@ -18,7 +18,9 @@ import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsEmptyState, dsField, dsSectionHeader, focusDsErrorBox } from "../ds/ds";
 import { machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime } from "../ui";
+import { formatDuration } from "../format";
 import { ACTION_LABEL } from "../language";
+import { sfx } from "../format";
 
 export interface ClaimsContext {
   client: StudioClient;
@@ -65,7 +67,7 @@ export function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
         `<tr><td><code class="mono">${esc(c.resource_path)}</code></td><td>${esc(RESOURCE_TYPE_LABEL[c.resource_type] ?? c.resource_type)}</td>` +
         `<td>${machineRef(c.claimed_by_machine_id)}</td><td>${c.task_id ? `<a href="#/tasks/${esc(c.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` : "—"}</td>` +
         `<td>${dsBadge(LIVELINESS_LABEL[state], LIVELINESS_TONE[state])}</td>` +
-        `<td>Expire le ${fmtTime(c.expires_at)}<br /><span class="ds-list-sub">durée ${c.ttl_seconds} s</span></td>` +
+        `<td>Expire le ${fmtTime(c.expires_at)}<br /><span class="ds-list-sub">durée ${formatDuration(c.ttl_seconds)}</span></td>` +
         `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +
         `<button type="button" class="ds-btn ds-btn--sm" data-release="${esc(c.id)}" aria-label="Libérer la réservation ${esc(c.resource_path)}" ${authed && state !== "released" ? "" : "disabled"}>Libérer</button></td></tr>`
       );
@@ -79,7 +81,7 @@ function createFormHtml(authed: boolean): string {
     `<form data-create class="claims-form">` +
     dsField("claim-path", "Chemin", `<input class="ds-input" id="FIELD" name="resource_path" required placeholder="godot/scenes/level1.tscn" autocomplete="off"${off} />`) +
     dsField("claim-type", "Type", `<select class="ds-select" id="FIELD" name="resource_type"${off}><option value="file">Fichier</option><option value="folder">Dossier</option></select>`) +
-    dsField("claim-ttl", "Durée (secondes)", `<input class="ds-input" id="FIELD" name="ttl_seconds" type="number" min="1" value="3600" required${off} />`, "La réservation expire d'elle-même à l'issue de cette durée.") +
+    dsField("claim-ttl", "Durée (minutes)", `<input class="ds-input" id="FIELD" name="ttl_minutes" type="number" min="1" value="60" required${off} />`, "La réservation expire d'elle-même à l'issue de cette durée.") +
     dsField("claim-task", "Tâche liée (facultatif)", `<input class="ds-input" id="FIELD" name="task_id" placeholder="identifiant de la tâche" autocomplete="off"${off} />`) +
     `<p class="ds-list-sub">Une réservation prévient les autres sans rien bloquer : un chevauchement reste accepté et est signalé. Un envoi répété ne crée pas de doublon.</p>` +
     `<button type="submit" class="ds-btn ds-btn--primary"${off}>Créer la réservation</button>` +
@@ -171,7 +173,7 @@ export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): P
     viewStates.set(root, state);
     const activeCount = filterClaims(claims, "active", Date.now()).length;
     root.innerHTML = panelHtml(
-      `${claims.length} réservation(s), dont ${activeCount} active(s) · renouvellement et libération réservés au détenteur ou à un administrateur`,
+      `${claims.length} réservation${sfx(claims.length)}, dont ${activeCount} active${sfx(activeCount)} · renouvellement et libération réservés au détenteur ou à un administrateur`,
       `${ctx.authed ? "" : `<p class="ds-list-sub">Lecture seule : connectez-vous pour créer, renouveler ou libérer.</p>`}<div data-list></div>` +
         `<div class="claims-create">${dsSectionHeader("Nouvelle réservation")}${createFormHtml(ctx.authed)}</div>` +
         `<div data-msg class="ds-list-sub" role="status"></div>`,
@@ -245,7 +247,7 @@ function bindForm(root: HTMLElement, ctx: ClaimsContext, reload: () => Promise<v
     event.preventDefault();
     const data = new FormData(form);
     const taskRaw = String(data.get("task_id") ?? "").trim();
-    const ttl = Number(data.get("ttl_seconds"));
+    const ttl = Number(data.get("ttl_minutes")) * 60;
     const msg = form.querySelector("[data-create-msg]");
     const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
     if (submit !== null) submit.disabled = true;

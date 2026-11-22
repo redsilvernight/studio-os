@@ -38,6 +38,7 @@ import type {
   TaskLaunchStatus,
   TaskLaunchWithProtocol,
 } from "../taskLaunchesApi";
+import { sfx } from "../format";
 
 export interface AgentOption {
   stable_key: string;
@@ -244,7 +245,7 @@ export function ineligibilityReasonLabel(reason: IneligibilityReason): string {
 
 export function machineOptionLabel(machine: MachineEligibility): string {
   const suffix = machine.eligible
-    ? `${machine.free_slots} place(s) libre(s)`
+    ? `${machine.free_slots} place${sfx(machine.free_slots)} libre${sfx(machine.free_slots)}`
     : (machine.reasons ?? []).map(ineligibilityReasonLabel).join(", ") || "non éligible";
   return `${machine.display_name} · ${machine.status} · ${suffix}`;
 }
@@ -640,7 +641,7 @@ function howMuchText(usage: UsageSummary | null | undefined): string {
   if (usage === null) return unknown("consommation illisible");
   const total = usage.total;
   if (total.entries === 0) return unknown("aucune mesure d'usage rattachée à ce lancement");
-  return `${total.entries} mesure${total.entries > 1 ? "s" : ""} · ${usageTotalText(total)}`;
+  return `${total.entries} mesure${sfx(total.entries)} · ${usageTotalText(total)}`;
 }
 
 /**
