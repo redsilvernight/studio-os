@@ -39,6 +39,7 @@ import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
 import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
 import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
+import { syncSuspendedBanner } from "./studioSuspendedBanner";
 import { LIVE_CHANGE_EVENT, startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import type { LiveState } from "./views/mission";
 import { setApiObserver } from "./apiEvents";
@@ -293,6 +294,7 @@ async function render(): Promise<void> {
   syncNav(route, document, getDesktopShell() !== null, loadNavMode());
   syncAuthState(authed, document);
   paintShellStatus(document);
+  void syncSuspendedBanner(baseUrl, authed, route.name === "studioSuspended");
 }
 
 let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;

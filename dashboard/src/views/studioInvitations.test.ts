@@ -174,8 +174,27 @@ describe("N2 · acceptation", () => {
   it("explique l'invitation déjà utilisée sans reproche", () => {
     const html = invitationUsedHtml("Atelier Phare");
     expect(html).toContain("Cette invitation a déjà été utilisée");
+    expect(html).toContain("Vous en êtes déjà membre : rien d'autre à faire.");
+    // Sans studio_id, aucun bouton « Ouvrir » trompeur : lien vers la liste.
+    expect(html).not.toContain("data-open-accepted-studio");
+    expect(html).toContain('href="#/studios"');
+  });
+
+  it("ouvre le studio concerné quand son identifiant est connu", () => {
+    const html = invitationUsedHtml("Atelier Phare", "s1");
     expect(html).toContain("Vous êtes déjà membre de Atelier Phare : rien d'autre à faire.");
+    expect(html).toContain('data-open-accepted-studio="s1"');
     expect(html).toContain("Ouvrir Atelier Phare");
+  });
+
+  it("cite les deux adresses quand le serveur les fournit", () => {
+    const html = invitationWrongAccountHtml({ invitedEmail: "karim@exemple.fr", currentEmail: "flo@exemple.fr" });
+    expect(html).toContain("karim@exemple.fr");
+    expect(html).toContain("flo@exemple.fr");
+  });
+
+  it("explique le rôle « Lecture seule » dans l'aide du sélecteur", () => {
+    expect(inviteFormHtml(DIALOG)).toContain("Lecture seule : consulte sans rien modifier.");
   });
 
   it("distingue le jeton inconnu de l'invitation expirée", () => {

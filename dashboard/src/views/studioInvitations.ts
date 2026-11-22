@@ -107,7 +107,7 @@ export function inviteFormHtml(options: InviteDialogOptions): string {
     "invite-role",
     "Rôle",
     `<select class="ds-select" id="FIELD" name="role">${roleOptions}</select>`,
-    "Membre : travaille sur les projets. Administrateur : gère aussi l'équipe et les appareils.",
+    "Membre : travaille sur les projets. Administrateur : gère aussi l'équipe et les appareils. Lecture seule : consulte sans rien modifier.",
   );
   const seats = full
     ? bannerHtml(
@@ -246,13 +246,18 @@ export function invitationExpiredHtml(inviterName?: string): string {
 /** État « Acceptation · déjà utilisée » (410 invitation_used). */
 export function invitationUsedHtml(studioName?: string, studioId?: string): string {
   const name = studioName === undefined || studioName === "" ? "ce studio" : esc(studioName);
-  const id = studioId === undefined ? "" : esc(studioId);
+  // Sans identifiant (le serveur ne le donne pas toujours), « Ouvrir » ne
+  // saurait pas quel studio ouvrir : libellé honnête vers la liste des studios.
+  const action =
+    studioId === undefined || studioId === ""
+      ? `<a class="ds-btn ds-btn--primary" href="#/studios">Voir mes studios</a>`
+      : `<button type="button" class="ds-btn ds-btn--primary" data-open-accepted-studio="${esc(studioId)}">Ouvrir ${name}</button>`;
   return acceptSolo(
     bannerHtml(
       "info",
       "Cette invitation a déjà été utilisée",
-      `Vous êtes déjà membre de ${name} : rien d'autre à faire.` +
-        `<div class="studio-banner-actions"><button type="button" class="ds-btn ds-btn--primary" data-open-accepted-studio="${id}">Ouvrir ${name}</button></div>`,
+      `${studioId === undefined || studioId === "" ? "Vous en êtes déjà membre" : `Vous êtes déjà membre de ${name}`} : rien d'autre à faire.` +
+        `<div class="studio-banner-actions">${action}</div>`,
     ),
   );
 }
@@ -273,6 +278,14 @@ function dialogBody(root: HTMLElement): HTMLElement | null {
 function wireInviteForm(root: HTMLElement, ctx: StudioInvitationsContext, state: InvitePageState): void {
   const form = root.querySelector<HTMLFormElement>("[data-invite-form]");
   if (form === null) return;
+  // Corriger l'adresse rouvre l'envoi (le serveur revalide à la soumission).
+  form.querySelector<HTMLInputElement>('input[name="email"]')?.addEventListener("input", () => {
+    const send = form.querySelector<HTMLButtonElement>("[data-invite-send]");
+    if (send !== null && form.querySelector("[data-invite-limit-subscribe]") === null) {
+      send.disabled = false;
+      send.removeAttribute("aria-disabled");
+    }
+  });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const email = String(new FormData(form).get("email") ?? "").trim();
@@ -437,7 +450,15 @@ export async function renderStudioInvitations(root: HTMLElement, ctx: StudioInvi
   };
   root.innerHTML = studioInvitationsPageHtml(state, invitations);
   const open = root.querySelector<HTMLElement>("#invite-open");
-  if (open !== null) open.addEventListener("click", () => openDsDialog(root, INVITE_DIALOG_ID, open));
+  if (open !== null) {
+    open.addEventListener("click", () => {
+      // Réouverture : formulaire neuf, sans ancienne erreur ni e-mail résiduel.
+      const body = dialogBody(root);
+      if (body !== null) body.innerHTML = inviteFormHtml({ ...state, initialEmail: "", emailError: null, full: false, mismatch: null });
+      wireInviteForm(root, ctx, state);
+      openDsDialog(root, INVITE_DIALOG_ID, open);
+    });
+  }
   wireInviteForm(root, ctx, state);
   wirePendingRows(root, ctx, state);
 }
@@ -473,15 +494,25 @@ export function invitationUnknownHtml(): string {
  * vise une adresse précise ; le serveur refuse un compte différent. On
  * l'explique et on propose de changer de compte — jamais un refus muet.
  */
-export function invitationWrongAccountHtml(): string {
+export function invitationWrongAccountHtml(emails?: { invitedEmail?: string; currentEmail?: string }): string {
+  const { invitedEmail, currentEmail } = emails ?? {};
+  const detail =
+    invitedEmail !== undefined && currentEmail !== undefined
+      ? `Cette invitation est destinée à ${esc(invitedEmail)}. Vous êtes connecté avec ${esc(currentEmail)}.`
+      : `Vous êtes connecté avec un autre compte que celui visé par l'invitation.`;
   return acceptSolo(
     bannerHtml(
       "warning",
       "Cette invitation est destinée à une autre adresse",
-      `Vous êtes connecté avec un autre compte que celui visé par l'invitation.` +
+      detail +
         `<div class="studio-banner-actions"><a class="ds-btn ds-btn--primary" href="#/accounts">Changer de compte</a></div>`,
     ),
   );
+}
+
+function stringDetail(error: ApiError, key: string): string | undefined {
+  const value = (error.details as Record<string, unknown> | null)?.[key];
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 /**
@@ -545,14 +576,19 @@ export async function renderInvitationAccept(root: HTMLElement, ctx: { baseUrl: 
           // 410 : « invitation_expired » (expirée) ou « invitation_used »
           // (déjà utilisée). Le code d'erreur tranche, jamais le statut seul.
           const used = error.errorCode === "invitation_used";
-          root.innerHTML = used ? invitationUsedHtml(info.studioName) : invitationExpiredHtml(info.inviterName);
+          root.innerHTML = used
+            ? invitationUsedHtml(info.studioName, stringDetail(error, "studio_id"))
+            : invitationExpiredHtml(info.inviterName);
           wireAcceptFallbacks(root);
           return;
         }
         if (error instanceof ApiError && error.status === 403) {
           // Fiche N2 « Erreur · compte différent » : l'invitation vise une
           // adresse précise, le compte connecté n'est pas le bon.
-          root.innerHTML = invitationWrongAccountHtml();
+          root.innerHTML = invitationWrongAccountHtml({
+            invitedEmail: stringDetail(error, "invited_email"),
+            currentEmail: stringDetail(error, "current_email"),
+          });
           wireAcceptFallbacks(root);
           return;
         }

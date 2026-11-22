@@ -32,7 +32,7 @@ export interface SuspendedContentRow {
 
 /** Texte fixe (S3b) : motif du propriétaire, tel que la fiche le montre. */
 export const SUSPENDED_OWNER_REASON =
-  "Motif : paiement non régularisé depuis 21 jours. Régularisez-le pour rouvrir l'écriture immédiatement.";
+  "Ce studio est suspendu. Régularisez la situation pour rouvrir l'écriture immédiatement.";
 
 const READ_ONLY_SUB =
   "Lecture seule : vous pouvez consulter et exporter, mais plus rien ne peut être modifié ni envoyé.";
@@ -88,16 +88,16 @@ export function studioSuspendedOwnerHtml(
 /** Variant « Membre · explication sans reproche ». */
 export function studioSuspendedMemberHtml(
   studioName: string,
-  ownerName = "Flo",
+  ownerName?: string,
   rows: SuspendedContentRow[] = [],
   exportHref = "#/studios",
 ): string {
   return suspendedPage(
     dangerBanner(
       "Ce studio est suspendu",
-      `Le propriétaire (${esc(ownerName)}) a été prévenu. En attendant, vous gardez la lecture et l'export de vos contributions.` +
+      `${ownerName === undefined ? "Le propriétaire" : `Le propriétaire (${esc(ownerName)})`} a été prévenu. En attendant, vous gardez la lecture et l'export de vos contributions.` +
         `<div class="studio-banner-actions"><a class="ds-btn ds-btn--primary" href="${esc(exportHref)}">Exporter mes données</a>` +
-        `<button type="button" class="ds-btn ds-btn--primary" data-notify-owner>Prévenir ${esc(ownerName)}</button></div>`,
+        `<button type="button" class="ds-btn ds-btn--primary" data-notify-owner>Prévenir ${ownerName === undefined ? "le propriétaire" : esc(ownerName)}</button></div>`,
     ),
     studioName,
     rows,
@@ -199,7 +199,7 @@ export async function renderStudioSuspended(
   root.innerHTML =
     studio.role === "owner"
       ? studioSuspendedOwnerHtml(studio.name, [], exportHref)
-      : studioSuspendedMemberHtml(studio.name, "Flo", [], exportHref);
+      : studioSuspendedMemberHtml(studio.name, undefined, [], exportHref);
   // Le paiement en ligne (fiche N3) et la messagerie ne font pas de ce lot :
   // on le dit honnêtement plutôt que de simuler une régularisation.
   root.querySelectorAll<HTMLElement>("[data-regularize-payment]").forEach((button) => {
