@@ -47,9 +47,7 @@ class PlanLimitModel(Base):
 
     __tablename__ = "plan_limits"
     __table_args__ = (
-        sa.CheckConstraint(
-            "max_value IS NULL OR max_value >= 0", name="ck_plan_limits_max_value"
-        ),
+        sa.CheckConstraint("max_value IS NULL OR max_value >= 0", name="ck_plan_limits_max_value"),
     )
 
     plan_code: Mapped[str] = mapped_column(
@@ -68,9 +66,7 @@ class StudioPlanCounterModel(Base):
     direct count); `measured_at` is the time of the underlying measurement."""
 
     __tablename__ = "studio_plan_counters"
-    __table_args__ = (
-        sa.CheckConstraint("value >= 0", name="ck_studio_plan_counters_value"),
-    )
+    __table_args__ = (sa.CheckConstraint("value >= 0", name="ck_studio_plan_counters_value"),)
 
     studio_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),

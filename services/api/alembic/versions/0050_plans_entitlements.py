@@ -129,9 +129,7 @@ def upgrade() -> None:
         sa.Column("limit_key", sa.String(64), primary_key=True),
         sa.Column("max_value", sa.BigInteger(), nullable=True),
         sa.Column("unit", sa.String(16), nullable=False, server_default=""),
-        sa.CheckConstraint(
-            "max_value IS NULL OR max_value >= 0", name="ck_plan_limits_max_value"
-        ),
+        sa.CheckConstraint("max_value IS NULL OR max_value >= 0", name="ck_plan_limits_max_value"),
     )
     op.bulk_insert(
         sa.table(

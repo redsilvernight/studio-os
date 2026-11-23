@@ -404,9 +404,7 @@ async def test_multipart_upload_resumes_across_independently_uploaded_parts(
     free plan's 100 MiB per-file ceiling is raised for this scenario."""
     await db_session.execute(
         update(PlanLimitModel)
-        .where(
-            PlanLimitModel.plan_code == "free", PlanLimitModel.limit_key == "file_size_bytes"
-        )
+        .where(PlanLimitModel.plan_code == "free", PlanLimitModel.limit_key == "file_size_bytes")
         .values(max_value=1024**3)
     )
     await db_session.flush()

@@ -44,6 +44,7 @@ SSE_CONNECTIONS = "sse_connections"
 PROJECTS = "projects"
 MEMBERS = "members"
 MACHINES = "machines"
+STUDIOS_PER_ACCOUNT = "studios_per_account"
 VAULT_VERSIONS_PER_NOTE = "vault_versions_per_note"
 REQUESTS_PER_MINUTE = "requests_per_minute"
 
@@ -146,9 +147,7 @@ async def resolve_plan(session: AsyncSession, code: str | None) -> PlanModel:
     if plan is None:
         plan = await session.get(PlanModel, await default_plan_code(session))
     if plan is None:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "plan catalogue is not seeded"
-        )
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "plan catalogue is not seeded")
     return plan
 
 
@@ -163,9 +162,7 @@ async def limits_for_plan(session: AsyncSession, plan_code: str) -> list[PlanLim
             .order_by(PlanLimitModel.limit_key)
         )
     ).scalars()
-    return [
-        PlanLimit(key=row.limit_key, max_value=row.max_value, unit=row.unit) for row in rows
-    ]
+    return [PlanLimit(key=row.limit_key, max_value=row.max_value, unit=row.unit) for row in rows]
 
 
 async def max_value_for_key(
@@ -244,9 +241,7 @@ async def _measured_sse(session: AsyncSession) -> tuple[int, datetime | None]:
 
 async def _count(session: AsyncSession, model: type[Any], studio_id: uuid.UUID) -> int:
     column = model.studio_id
-    total = await session.scalar(
-        select(func.count()).select_from(model).where(column == studio_id)
-    )
+    total = await session.scalar(select(func.count()).select_from(model).where(column == studio_id))
     return int(total or 0)
 
 
@@ -376,9 +371,49 @@ async def enforce_capacity(
     counters = await refresh_counters(session, studio_id)
     current = _counter_value(counters, limit_key)
     if current + requested > maximum:
-        raise plan_limit_reached(
-            limit_key, max_value=maximum, current=current, requested=requested
+        raise plan_limit_reached(limit_key, max_value=maximum, current=current, requested=requested)
+
+
+async def enforce_studios_per_account(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Refuse a studio creation past the account's ceiling. The ceiling is the
+    most generous one among the plans of the studios the account owns (the
+    default plan when it owns none); the internal studio is not user-created
+    and never counts."""
+    owned_plans = list(
+        (
+            await session.execute(
+                select(StudioModel.plan)
+                .join(StudioMembershipModel, StudioMembershipModel.studio_id == StudioModel.id)
+                .where(
+                    StudioMembershipModel.user_id == user_id,
+                    StudioMembershipModel.role == "owner",
+                    StudioModel.is_internal.is_(False),
+                )
+            )
+        ).scalars()
+    )
+    codes = {await resolve_plan_code(session, code) for code in owned_plans}
+    codes.add(await default_plan_code(session))
+    ceilings = [
+        await session.scalar(
+            select(PlanLimitModel.max_value).where(
+                PlanLimitModel.plan_code == code,
+                PlanLimitModel.limit_key == STUDIOS_PER_ACCOUNT,
+            )
         )
+        for code in codes
+    ]
+    if any(value is None for value in ceilings):
+        return  # undeclared or unlimited on at least one plan
+    maximum = max(cast("list[int]", ceilings))
+    if len(owned_plans) + 1 > maximum:
+        raise plan_limit_reached(
+            STUDIOS_PER_ACCOUNT, max_value=maximum, current=len(owned_plans), requested=1
+        )
+
+
+async def resolve_plan_code(session: AsyncSession, code: str | None) -> str:
+    return (await resolve_plan(session, code)).code
 
 
 async def enforce_per_item(
@@ -433,9 +468,7 @@ def record_request_rate(studio_id: uuid.UUID) -> None:
         _request_windows.pop(next(iter(_request_windows)))
 
 
-async def list_studios_for_user(
-    session: AsyncSession, user_id: uuid.UUID
-) -> list[StudioSummary]:
+async def list_studios_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[StudioSummary]:
     """Studios the user is a member of, oldest first — never another tenant's.
     `plan` goes through the plans module (unknown codes fall back to the
     default plan); `role` is this user's own studio role."""

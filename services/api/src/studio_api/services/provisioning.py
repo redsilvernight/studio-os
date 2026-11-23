@@ -180,12 +180,15 @@ async def join_internal_studio(session: AsyncSession, user: UserModel) -> None:
     await entitlements_service.enforce_capacity(
         session, INTERNAL_STUDIO_ID, entitlements_service.MEMBERS, 1
     )
-    if await session.scalar(
-        select(StudioMembershipModel.studio_id).where(
-            StudioMembershipModel.studio_id == INTERNAL_STUDIO_ID,
-            StudioMembershipModel.user_id == user.id,
+    if (
+        await session.scalar(
+            select(StudioMembershipModel.studio_id).where(
+                StudioMembershipModel.studio_id == INTERNAL_STUDIO_ID,
+                StudioMembershipModel.user_id == user.id,
+            )
         )
-    ) is not None:
+        is not None
+    ):
         return
     await session.execute(
         pg_insert(StudioMembershipModel)

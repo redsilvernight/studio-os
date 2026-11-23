@@ -66,6 +66,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     # agents and user-private runtimes. Studios are the caller's memberships:
     # listing them and reading one's own entitlements are never project data.
     ("GET", "/api/v1/studios"): "own",
+    ("POST", "/api/v1/studios"): "own",
     ("GET", "/api/v1/studios/{studio_id}/entitlements"): "own",
     ("POST", "/api/v1/machines"): "own",
     ("POST", "/api/v1/machines/{machine_id}/adopt"): "own",

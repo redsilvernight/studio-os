@@ -31,9 +31,7 @@ def _auth(machine: tuple[MachineModel, str]) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _measure_storage(
-    db_session: AsyncSession, project: ProjectModel, value: int
-) -> None:
+async def _measure_storage(db_session: AsyncSession, project: ProjectModel, value: int) -> None:
     db_session.add(
         InfraMeasurementModel(
             metric="storage_bytes",
@@ -278,9 +276,7 @@ async def test_vault_versions_limit_refuses_a_write_but_not_the_history(
     # Per-item ceilings report `current=0`: the ceiling is on the requested
     # value itself (version 2), not on a cumulative counter.
     _assert_plan_limit(response, "vault_versions_per_note", 1, 0)
-    history = await client.get(
-        f"/api/v1/vault/notes/{note_id}/versions", headers=_auth(machine)
-    )
+    history = await client.get(f"/api/v1/vault/notes/{note_id}/versions", headers=_auth(machine))
     assert history.status_code == 200
     assert [v["version"] for v in history.json()["items"]] == [1]
 
@@ -293,9 +289,7 @@ async def test_sse_connections_limit_refuses_opening_without_closing_existing_cl
     # No collector run in this test: the measurement gives a deterministic
     # counter at the free plan's ceiling (5).
     db_session.add(
-        InfraMeasurementModel(
-            metric="sse_connections", value=5, measured_at=datetime.now(UTC)
-        )
+        InfraMeasurementModel(metric="sse_connections", value=5, measured_at=datetime.now(UTC))
     )
     await db_session.flush()
     before = event_stream.subscriber_count()
@@ -345,3 +339,24 @@ async def test_requests_per_minute_refuses_a_write_but_not_reads(
         assert listed.status_code == 200
     finally:
         entitlements_service.reset_request_windows()
+
+
+async def test_studios_per_account_limit_refuses_creation_but_not_listing(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_machine: tuple[MachineModel, str],
+) -> None:
+    await _set_free_limit(db_session, entitlements_service.STUDIOS_PER_ACCOUNT, 1)
+
+    first = await client.post(
+        "/api/v1/studios", headers=_auth(admin_machine), json={"name": "Atelier"}
+    )
+    assert first.status_code == 201
+    assert first.json()["role"] == "owner"
+
+    second = await client.post(
+        "/api/v1/studios", headers=_auth(admin_machine), json={"name": "Autre"}
+    )
+    _assert_plan_limit(second, "studios_per_account", 1, 1)
+    listed = await client.get("/api/v1/studios", headers=_auth(admin_machine))
+    assert listed.status_code == 200
