@@ -235,6 +235,13 @@ cle primaire, `type`, `processed_at`) : journal immuable d'idempotence, sans
 debut du delai de grace d'impaye ; apres `stripe_grace_days`, la commande
 `studios downgrade-overdue` ramene le studio au plan `free` sans rien supprimer.
 
+## Statut d'abonnement miroir (migration Alembic `0058`)
+
+Additive et reversible : `studios.billing_status` (nullable, statut Stripe de
+l'abonnement) et `studios.billing_trial_ends_at` (nullable, fin d'essai). Ecrits
+uniquement par le webhook signe ; lus par `GET /studios/{id}/billing` et la
+console operateur.
+
 ## Export complet et suppression d'un studio (migration Alembic `0051`)
 
 Additive et reversible (deux colonnes nullables, une table et deux index).

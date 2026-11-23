@@ -148,3 +148,73 @@ async def test_subscription_deleted_drops_to_free_and_unknown_customer_is_ignore
     await db_session.refresh(studio)
     assert studio.plan == "free"
     assert await _post(client, _sub_event("cus_unknown", "active")) == 200
+
+
+async def test_trialing_event_mirrors_status_and_trial_end_then_clears_on_delete(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    studio = await _studio_with_customer(db_session)
+    customer = str(studio.stripe_customer_id)
+    trial_end = int(time.time()) + 14 * 86400
+    event = _sub_event(customer, "trialing")
+    event["data"]["object"]["trial_end"] = trial_end  # type: ignore[index]
+    assert await _post(client, event) == 200
+    await db_session.refresh(studio)
+    assert (studio.plan, studio.billing_status) == ("pro", "trialing")
+    assert studio.billing_trial_ends_at == datetime.fromtimestamp(trial_end, UTC)
+    await _post(client, _sub_event(customer, "active"))
+    await db_session.refresh(studio)
+    assert (studio.billing_status, studio.billing_trial_ends_at) == ("active", None)
+    deleted = {
+        "id": f"evt_{uuid.uuid4().hex}",
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"customer": customer}},
+    }
+    await _post(client, deleted)
+    await db_session.refresh(studio)
+    assert (studio.plan, studio.billing_status) == ("free", None)
+
+
+async def test_trial_will_end_is_ignored(client: AsyncClient, db_session: AsyncSession) -> None:
+    studio = await _studio_with_customer(db_session)
+    body = json.dumps(
+        {
+            "id": f"evt_{uuid.uuid4().hex}",
+            "type": "customer.subscription.trial_will_end",
+            "data": {"object": {"customer": studio.stripe_customer_id}},
+        }
+    ).encode()
+    response = await client.post(URL, content=body, headers={"Stripe-Signature": _sign(body)})
+    assert response.json() == {"status": "ignored"}
+
+
+async def test_billing_status_endpoint_exposes_grace_end(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from studio_api.services import provisioning as provisioning_service
+
+    user = await provisioning_service.create_user(
+        db_session, "Owner", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    _, token = await provisioning_service.create_machine(db_session, user.id, "m-status")
+    headers = {"Authorization": f"Bearer {token}"}
+    created = await client.post("/api/v1/studios", json={"name": "Statut"}, headers=headers)
+    studio_id = created.json()["id"]
+    url = f"/api/v1/studios/{studio_id}/billing"
+    free = (await client.get(url, headers=headers)).json()
+    assert free["status"] is None and free["grace_ends_at"] is None
+    studio = await db_session.get(StudioModel, uuid.UUID(studio_id))
+    assert studio is not None
+    since = datetime(2026, 11, 1, tzinfo=UTC)
+    studio.plan, studio.billing_status, studio.billing_past_due_since = "pro", "past_due", since
+    await db_session.commit()
+    body = (await client.get(url, headers=headers)).json()
+    assert body["plan"] == "pro" and body["status"] == "past_due"
+    assert body["grace_days"] == 7
+    assert datetime.fromisoformat(body["grace_ends_at"]) == since + timedelta(days=7)
+    other = await provisioning_service.create_user(
+        db_session, "Other", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    _, other_token = await provisioning_service.create_machine(db_session, other.id, "m-other")
+    denied = await client.get(url, headers={"Authorization": f"Bearer {other_token}"})
+    assert denied.status_code == 403

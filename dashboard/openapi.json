@@ -1741,6 +1741,79 @@
     }
    }
   },
+  "/api/v1/studios/{studio_id}/billing": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Get Billing Status",
+    "description": "Subscription state of the studio for any member: plan, Stripe status, `past_due_since` and `grace_ends_at` (the end of the unpaid grace delay, after which the studio drops to the free plan, data kept) and `trial_ends_at` while the Pro trial runs. Read-only; no payment data.",
+    "operationId": "get_billing_status_api_v1_studios__studio_id__billing_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BillingStatus"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/billing/stripe/webhook": {
    "post": {
     "tags": [
@@ -22260,6 +22333,76 @@
      "url"
     ],
     "title": "BillingSessionRead"
+   },
+   "BillingStatus": {
+    "properties": {
+     "plan": {
+      "type": "string",
+      "title": "Plan"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "past_due_since": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Past Due Since"
+     },
+     "grace_ends_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Grace Ends At"
+     },
+     "grace_days": {
+      "type": "integer",
+      "title": "Grace Days"
+     },
+     "trial_ends_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Trial Ends At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "plan",
+     "status",
+     "past_due_since",
+     "grace_ends_at",
+     "grace_days",
+     "trial_ends_at"
+    ],
+    "title": "BillingStatus",
+    "description": "Subscription state of one studio, read-only: the plan, Stripe's status,\nthe unpaid marker with the end of its grace delay, and the trial end."
    },
    "BindingRelation": {
     "type": "string",

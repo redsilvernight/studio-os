@@ -6,6 +6,10 @@ from datetime import UTC, datetime
 from studio_operator.repository import ProtectedStudioError
 from studio_operator.schemas import (
     Alert,
+    BillingCounts,
+    BillingEvent,
+    BillingReport,
+    BillingStudio,
     BreakGlassRequest,
     BreakGlassScope,
     CostTotal,
@@ -90,6 +94,35 @@ class FakeRepository:
         self.queries: list[str | None] = []
         self.days: list[int] = []
         self.break_glass: list[BreakGlassRequest] = []
+
+    async def billing(self) -> BillingReport:
+        due = BillingStudio(
+            id=ATELIER,
+            name="Atelier Phare",
+            plan="pro",
+            status="past_due",
+            past_due_since=datetime(2026, 11, 18, tzinfo=UTC),
+            grace_ends_at=datetime(2026, 11, 25, tzinfo=UTC),
+        )
+        trial = BillingStudio(
+            id=BINAWEB,
+            name="Binaweb",
+            plan="pro",
+            status="trialing",
+            trial_ends_at=datetime(2026, 12, 5, tzinfo=UTC),
+        )
+        return BillingReport(
+            generated_at=datetime(2026, 11, 21, tzinfo=UTC),
+            grace_days=7,
+            counts=BillingCounts(pro=2, free=1, trialing=1, past_due=1),
+            past_due=[due],
+            trials=[trial],
+            recent_events=[
+                BillingEvent(
+                    type="invoice.payment_failed", processed_at=datetime(2026, 11, 18, tzinfo=UTC)
+                )
+            ],
+        )
 
     async def break_glass_queue(self, *, limit: int = 100) -> list[BreakGlassRequest]:
         return self.break_glass[:limit]

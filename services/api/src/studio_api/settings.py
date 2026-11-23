@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     stripe_price_monthly_id: str = ""
     stripe_price_annual_id: str = ""
     # 0 = no trial. Applied to a first Checkout only.
-    stripe_trial_days: int = Field(default=0, ge=0, le=90)
+    stripe_trial_days: int = Field(default=14, ge=0, le=90)
     stripe_api_base: str = "https://api.stripe.com/v1"
     # Signing secret of the webhook endpoint (`whsec_...`), environment only.
     # Unset = the webhook answers 503. Unpaid grace before the free-plan drop.

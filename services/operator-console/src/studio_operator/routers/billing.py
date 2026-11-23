@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from studio_operator.auth import require_operator
 from studio_operator.repository import OperatorRepository, get_repository
 from studio_operator.schemas import (
+    BillingReport,
     BreakGlassCreateRequest,
     BreakGlassQueue,
     BreakGlassRequest,
-    FeatureAvailability,
     SuspensionList,
 )
 from studio_operator.settings import OperatorAccount
@@ -36,22 +36,16 @@ async def suspensions(_operator: Operator, repository: Repository) -> Suspension
 
 @router.get(
     "/billing",
-    response_model=FeatureAvailability,
+    response_model=BillingReport,
     description=(
-        "Fiche C4 — billing is S4 (Stripe) and not deployed: this answers "
-        "`available=false` with the reason, and reads no subscription, invoice or "
-        "webhook row. Never a card number: Stripe alone holds payment data."
+        "Fiche C4 — subscription aggregates: studios per plan, unpaid studios "
+        "with the end of their grace delay, running trials and the latest "
+        "Stripe webhook event types. Never a card number, customer id, key or "
+        "client content: Stripe alone holds payment data."
     ),
 )
-async def billing(_operator: Operator) -> FeatureAvailability:
-    return FeatureAvailability(
-        available=False,
-        reason_code="billing_not_deployed",
-        message=(
-            "Facturation Stripe (S4) non déployée : abonnements, impayés et "
-            "événements webhook ne sont pas encore lisibles."
-        ),
-    )
+async def billing(_operator: Operator, repository: Repository) -> BillingReport:
+    return await repository.billing()
 
 
 @router.get(
