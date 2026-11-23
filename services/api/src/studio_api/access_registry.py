@@ -49,6 +49,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/auth/reset-password"): "public",
     ("POST", "/api/v1/invitations/preview"): "public",
     ("POST", "/api/v1/github/webhook"): "public",
+    ("POST", "/api/v1/billing/stripe/webhook"): "public",
     ("GET", "/openapi.json"): "public",
     ("GET", "/docs"): "public",
     ("GET", "/docs/oauth2-redirect"): "public",
@@ -77,6 +78,8 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("PATCH", "/api/v1/studios/{studio_id}/members/{user_id}"): "instance",
     ("DELETE", "/api/v1/studios/{studio_id}/members/{user_id}"): "instance",
     ("POST", "/api/v1/studios/{studio_id}/transfer-ownership"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/billing/checkout"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/billing/portal"): "instance",
     # Studio lifecycle (0051): owner-only, tenant-level, never a project's data.
     ("POST", "/api/v1/studios/{studio_id}/exports"): "instance",
     ("GET", "/api/v1/studios/{studio_id}/exports/{export_id}"): "instance",

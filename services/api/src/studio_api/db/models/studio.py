@@ -58,6 +58,12 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
             postgresql_where=sa.text("is_internal"),
         ),
         sa.Index(
+            "uq_studios_stripe_customer_id",
+            "stripe_customer_id",
+            unique=True,
+            postgresql_where=sa.text("stripe_customer_id IS NOT NULL"),
+        ),
+        sa.Index(
             "ix_studios_deletion_scheduled_at",
             "deletion_scheduled_at",
             postgresql_where=sa.text("deletion_scheduled_at IS NOT NULL"),
@@ -73,6 +79,14 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     # its grace-window end (0051). It never gates the export or the cancel
     # routes; every other write is refused.
     status: Mapped[str] = mapped_column(default="active", server_default="active")
+    # Stripe customer of the studio (0056). Set on the first Checkout; only the
+    # opaque Stripe id, never card data.
+    stripe_customer_id: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+    # Start of the unpaid grace delay (0057); NULL while paid. After the grace
+    # the studio drops to the free plan, its data untouched.
+    billing_past_due_since: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
     # Motif entered by an operator when suspending (0053); cleared on lift.
     suspension_reason: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     is_internal: Mapped[bool] = mapped_column(default=False, server_default="false")

@@ -221,6 +221,20 @@ par tout membre. Un compte auto-inscrit recoit son propre studio (`owner`,
 slug derive du nom d'affichage, unicite par suffixe) a la verification de son
 e-mail, sauf si une invitation en attente vise cette adresse : il rejoint
 alors le studio invitant avec le role invite.
+## Client Stripe d'un studio (migration Alembic `0056`)
+
+Additive et reversible : `studios.stripe_customer_id` (`String(64)`, nullable),
+pose au premier Checkout, unique quand present (index partiel
+`uq_studios_stripe_customer_id`). Identifiant opaque Stripe : aucune donnee de carte.
+
+## Webhooks Stripe (migration Alembic `0057`)
+
+Additive et reversible. Table `stripe_events` (`id` = id d'evenement Stripe en
+cle primaire, `type`, `processed_at`) : journal immuable d'idempotence, sans
+`version` ni `updated_at`. `studios.billing_past_due_since` (nullable) marque le
+debut du delai de grace d'impaye ; apres `stripe_grace_days`, la commande
+`studios downgrade-overdue` ramene le studio au plan `free` sans rien supprimer.
+
 ## Export complet et suppression d'un studio (migration Alembic `0051`)
 
 Additive et reversible (deux colonnes nullables, une table et deux index).

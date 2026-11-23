@@ -1658,6 +1658,221 @@
     }
    }
   },
+  "/api/v1/studios/{studio_id}/billing/checkout": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Checkout",
+    "description": "Stripe-hosted Checkout URL to subscribe the studio to Pro, monthly or yearly (`owner` only). `409 already_subscribed` once on Pro, `503 billing_unavailable` when Stripe is not configured. The plan changes only when Stripe's signed webhook says so, never on return.",
+    "operationId": "create_checkout_api_v1_studios__studio_id__billing_checkout_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckoutRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BillingSessionRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/billing/stripe/webhook": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Stripe Webhook",
+    "description": "Stripe webhook ingress. Authenticated by the `Stripe-Signature` HMAC over the raw body (deliberate signed exception to Bearer auth) and the only writer of a studio's paid status. Each event id is applied once: a replay answers `duplicate` and changes nothing. Unpaid starts a grace delay, then the studio drops to the free plan, data kept.",
+    "operationId": "stripe_webhook_api_v1_billing_stripe_webhook_post",
+    "parameters": [
+     {
+      "name": "Stripe-Signature",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Stripe-Signature"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StripeWebhookResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Invalid or missing signature."
+     },
+     "413": {
+      "description": "Body over the bounded ingress size."
+     },
+     "503": {
+      "description": "`STUDIO_STRIPE_WEBHOOK_SECRET` unset."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/billing/portal": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Portal",
+    "description": "Stripe-hosted customer-portal URL to manage or cancel the subscription (`owner` only). `409 no_subscription` until a Checkout created the customer.",
+    "operationId": "create_portal_api_v1_studios__studio_id__billing_portal_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BillingSessionRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/projects": {
    "get": {
     "tags": [
@@ -22033,6 +22248,19 @@
     ],
     "title": "AuthIdentity"
    },
+   "BillingSessionRead": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     }
+    },
+    "type": "object",
+    "required": [
+     "url"
+    ],
+    "title": "BillingSessionRead"
+   },
    "BindingRelation": {
     "type": "string",
     "enum": [
@@ -23298,6 +23526,21 @@
      "new_password"
     ],
     "title": "ChangePasswordRequest"
+   },
+   "CheckoutRequest": {
+    "properties": {
+     "interval": {
+      "type": "string",
+      "enum": [
+       "month",
+       "year"
+      ],
+      "title": "Interval",
+      "default": "month"
+     }
+    },
+    "type": "object",
+    "title": "CheckoutRequest"
    },
    "ClaimItem": {
     "properties": {
@@ -34550,6 +34793,24 @@
     "type": "object",
     "title": "StepUpdate",
     "description": "Content edit (`PATCH`, `If-Match-Version` = step version). On an\n`active` roadmap a *content* edit that `is_agent_write` becomes a pending\nproposal instead of being applied. Editing `tasks` never modifies or\ndeletes existing Tasks or links: a removed plan item leaves its link (and\nits `hydration_key`) in place, and re-adding it makes it `reuse` again.\nEditing `acceptance_criteria` clears the step's `criteria_checked`."
+   },
+   "StripeWebhookResult": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "applied",
+       "ignored",
+       "duplicate"
+      ],
+      "title": "Status"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "StripeWebhookResult"
    },
    "StudioCounter": {
     "properties": {

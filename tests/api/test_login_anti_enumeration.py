@@ -98,6 +98,7 @@ def test_no_public_route_can_reveal_a_duplicate() -> None:
         ("POST", "/api/v1/auth/refresh"),
         ("POST", "/api/v1/auth/logout"),
         ("POST", "/api/v1/github/webhook"),
+        ("POST", "/api/v1/billing/stripe/webhook"),
         ("POST", "/api/v1/auth/register"),
         ("POST", "/api/v1/auth/resend-verification"),
         ("POST", "/api/v1/auth/verify-email"),

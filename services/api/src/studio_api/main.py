@@ -17,6 +17,7 @@ from studio_api.routers import (
     ai_integration,
     ai_work,
     auth,
+    billing,
     bootstrap_plan,
     break_glass,
     budgets,
@@ -294,6 +295,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(accounts.router, prefix="/api/v1")
     app.include_router(studios.router)
+    app.include_router(billing.router)
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(task_launches.router)

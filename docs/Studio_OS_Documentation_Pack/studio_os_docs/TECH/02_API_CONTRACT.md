@@ -245,6 +245,9 @@ Tous sous `/api/v1`, `Idempotency-Key` sur les creations. Un studio etranger rep
 | `GET /studios/{id}/exports/{export}` | 200, 404 | `owner` : lien presigne, 15 minutes au plus |
 | `POST /studios/{id}/deletion` | 200, 409 `invalid_confirmation` | `owner` : retaper le slug ; studio en lecture seule, purge apres `deletion_grace_days` |
 | `DELETE /studios/{id}/deletion` | 204 | `owner` : annule pendant le delai de grace |
+| `POST /studios/{id}/billing/checkout` | 200, 409 `already_subscribed`, 502 `billing_provider_error`, 503 `billing_unavailable` | `owner` : corps `{interval: month\|year}`, renvoie `{url}` Stripe Checkout heberge ; le plan ne change que par webhook signe |
+| `POST /billing/stripe/webhook` | 200, 400, 401, 413, 503 | public, signe `Stripe-Signature` (HMAC, tolerance 5 min) ; seul ecrivain du statut paye ; chaque event applique une fois (`duplicate` au rejeu) ; impaye : delai de grace puis plan `free`, donnees conservees |
+| `POST /studios/{id}/billing/portal` | 200, 409 `no_subscription`, 502, 503 | `owner` : renvoie `{url}` du portail client Stripe |
 
 Studio en cours de suppression (`status = pending_deletion`) : toute ecriture (dont `POST /projects`) repond `409 studio_pending_deletion` ; lecture et export restent permis. Evenements : aucun nouvel evenement (TECH/03 inchange).
 
