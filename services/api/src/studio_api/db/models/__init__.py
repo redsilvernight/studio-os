@@ -4,6 +4,10 @@ from studio_api.db.models.account_token import AccountTokenModel
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.base import Base
+from studio_api.db.models.break_glass import (
+    BreakGlassAuditModel,
+    BreakGlassRequestModel,
+)
 from studio_api.db.models.budget import BudgetPolicyModel, BudgetReservationModel
 from studio_api.db.models.build import BuildModel, GitHubIntegrationModel, ProducerJobModel
 from studio_api.db.models.claim import ResourceClaimModel
@@ -53,6 +57,8 @@ __all__ = [
     "LaunchCredentialModel",
     "Base",
     "UserModel",
+    "BreakGlassRequestModel",
+    "BreakGlassAuditModel",
     "AccountTokenModel",
     "RefreshTokenModel",
     "MachineModel",

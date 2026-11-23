@@ -18,6 +18,7 @@ from studio_api.routers import (
     ai_work,
     auth,
     bootstrap_plan,
+    break_glass,
     budgets,
     builds,
     claims,
@@ -336,6 +337,7 @@ def create_app() -> FastAPI:
     app.include_router(initialization.router)
     app.include_router(vault.router)
     app.include_router(studio_lifecycle.router)
+    app.include_router(break_glass.router)
 
     return app
 

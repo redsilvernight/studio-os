@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from studio_operator.repository import ProtectedStudioError
 from studio_operator.schemas import (
     Alert,
+    BreakGlassRequest,
+    BreakGlassScope,
     CostTotal,
     Dashboard,
     ServiceHealth,
@@ -87,6 +89,29 @@ class FakeRepository:
         self.writes: list[tuple[uuid.UUID, str, str | None]] = []
         self.queries: list[str | None] = []
         self.days: list[int] = []
+        self.break_glass: list[BreakGlassRequest] = []
+
+    async def break_glass_queue(self, *, limit: int = 100) -> list[BreakGlassRequest]:
+        return self.break_glass[:limit]
+
+    async def request_break_glass(
+        self, studio_id: uuid.UUID, operator_ref: str, reason: str, scope: BreakGlassScope
+    ) -> BreakGlassRequest | None:
+        studio = next((item for item in self.studios if item.id == studio_id), None)
+        if studio is None:
+            return None
+        created = BreakGlassRequest(
+            id=uuid.uuid4(),
+            studio_id=studio_id,
+            studio_name=studio.name,
+            operator_ref=operator_ref,
+            reason=reason,
+            scope=scope,
+            status="requested",
+            requested_at=datetime(2026, 11, 21, tzinfo=UTC),
+        )
+        self.break_glass.insert(0, created)
+        return created
 
     async def list_studios(self, query: str | None = None, *, limit: int = 100):
         self.queries.append(query)

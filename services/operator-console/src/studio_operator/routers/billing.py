@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from studio_operator.auth import require_operator
 from studio_operator.repository import OperatorRepository, get_repository
-from studio_operator.schemas import FeatureAvailability, SuspensionList
+from studio_operator.schemas import (
+    BreakGlassCreateRequest,
+    BreakGlassQueue,
+    BreakGlassRequest,
+    FeatureAvailability,
+    SuspensionList,
+)
 from studio_operator.settings import OperatorAccount
 
 router = APIRouter(tags=["suspensions"])
@@ -50,19 +56,44 @@ async def billing(_operator: Operator) -> FeatureAvailability:
 
 @router.get(
     "/break-glass",
-    response_model=FeatureAvailability,
+    response_model=BreakGlassQueue,
     description=(
-        "Fiche C5 — the break-glass request queue belongs to its own task and is "
-        "not implemented here: no request, grant or log is read or written by this "
-        "console, which keeps the 'operator reads nothing by default' guarantee."
+        "Fiche C5 — break-glass request queue: who asked, why, the declared "
+        "scope (`metadata` or `support`, never content) and the owner's status. "
+        "The console never opens an access and never reads client content; a "
+        "request waits for the studio owner's explicit approval."
     ),
 )
-async def break_glass(_operator: Operator) -> FeatureAvailability:
-    return FeatureAvailability(
-        available=False,
-        reason_code="break_glass_not_deployed",
-        message=(
-            "Demandes break-glass non implémentées dans cette version : "
-            "l'opérateur ne lit rien par défaut."
-        ),
+async def break_glass(_operator: Operator, repository: Repository) -> BreakGlassQueue:
+    requests = await repository.break_glass_queue()
+    return BreakGlassQueue(total=len(requests), requests=requests)
+
+
+@router.post(
+    "/break-glass",
+    response_model=BreakGlassRequest,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Fiche C5 — open a motivated break-glass request for one studio. It "
+        "grants nothing: the studio owner approves, refuses or revokes, and "
+        "every transition is journaled for the client. No content is read."
+    ),
+)
+async def request_break_glass(
+    body: BreakGlassCreateRequest, operator: Operator, repository: Repository
+) -> BreakGlassRequest:
+    reason = body.stripped_reason()
+    if not reason:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error_code": "break_glass_reason_required",
+                "message": "un motif est obligatoire",
+            },
+        )
+    created = await repository.request_break_glass(
+        body.studio_id, operator.email, reason, body.scope
     )
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "studio introuvable")
+    return created

@@ -78,7 +78,8 @@ donc à la même origine : aucun CORS, aucun second déploiement pour le squelet
 | `POST`/`DELETE` | `/api/v1/studios/{id}/suspension` | C2 — suspension motivée / réactivation |
 | `GET` | `/api/v1/usage?days=` | C3 — usage global, top studios, appels API |
 | `GET` | `/api/v1/billing` | C4 — état « non disponible » (S4) |
-| `GET` | `/api/v1/suspensions` · `/api/v1/break-glass` | C5 — file des suspensions, break-glass hors périmètre |
+| `GET` | `/api/v1/suspensions` · `/api/v1/break-glass` | C5 — file des suspensions, file des demandes break-glass |
+| `POST` | `/api/v1/break-glass` | C5 — demande motivée (studio, motif, portée), aucun accès ouvert |
 
 Les erreurs suivent l'enveloppe du dépôt : `{"detail": {"error_code", "message"}}`
 (401 génériques et 422 de validation exceptés).
@@ -107,7 +108,7 @@ conservé — des nombres seulement.
 | C2 · identifiant de cellule | **différent** | UUID court (`11111111…`) au lieu de `stu_a91…` : le schéma n'a pas d'identifiant court de studio. |
 | **C3** usage | **conforme, un reste** | Stockage plateforme, **appels API réels** (compteur horaire), top studios et mesures phase M (jetons, durée, coût par devise) ; « Envois (volume) » reste « non mesuré » (pas de volume d'envois agrégé par heure — voir plus bas). |
 | **C4** facturation | **conforme** | Fiche S4 non déployée : état « non disponible » explicite, aucune lecture d'abonnement/impayé/webhook, jamais de donnée de carte. |
-| **C5** suspensions et break-glass | **partiel** | File des suspensions livrée (motif, depuis, réactivation). Break-glass hors périmètre (`2d4927e6`) : route et vue répondent `available=false`, rien n'est lu ni écrit. |
+| **C5** suspensions et break-glass | **conforme (file et demande)** | File des suspensions livrée (motif, depuis, réactivation). File des demandes break-glass réelle : studio, motif, portée (`metadata`/`support`), statut partagé avec le client. Une demande n'ouvre rien : seul le propriétaire approuve (≤ 24 h), refuse ou révoque depuis le client ; chaque transition écrit le journal append-only. Aucune route de contenu. |
 
 ## Changements côté cœur (services/api)
 
@@ -124,8 +125,10 @@ conservé — des nombres seulement.
 
 - « Envois (volume) » (C3) : nécessite un volume de transferts agrégé par
   période ; non dérivé des mesures actuelles (DISCOVERY).
-- Facturation (S4-Stripe) et demandes break-glass : à brancher quand leurs
-  services existent.
+- Facturation (S4-Stripe) : à brancher quand son service existe.
+- Décisions break-glass côté client (approbation, refus, révocation, journal
+  dans Réglages > Confidentialité) : routes `services/api` livrées ; l'écran
+  client reste hors périmètre de cette console.
 - Déploiement réel (Dockerfile/compose/Caddy) volontairement non ajouté pour
   ne pas toucher l'infrastructure partagée : la console se déploie comme un
   process séparé, derrière son propre nom d'hôte, avec `SECRETS_PATH` sur un
