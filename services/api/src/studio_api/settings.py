@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -107,6 +107,39 @@ class Settings(BaseSettings):
     # Minimum delay between two e-mails of the same kind to one User
     # (resend / forgot flooding); extra requests get the same 202, silently.
     account_email_cooldown_seconds: int = Field(default=60, ge=0)
+
+    # Anti-abuse on public self-registration (S5). Sliding-window quotas, in
+    # memory per process: at most `registration_ip_limit` registrations from
+    # one client IP and `registration_domain_limit` for one e-mail domain
+    # within `registration_limit_window_seconds`. 0 disables a scope.
+    # A multi-replica deployment needs a shared store (DEC-0106).
+    registration_ip_limit: int = Field(default=10, ge=0, le=100_000)
+    registration_domain_limit: int = Field(default=50, ge=0, le=100_000)
+    registration_limit_window_seconds: int = Field(default=3600, ge=60, le=86_400)
+    # Comma-separated, lower-case domains; subdomains are covered. Replaces
+    # the built-in list entirely, so an operator can extend or shorten it.
+    registration_disposable_email_domains: str = (
+        "10minutemail.com,guerrillamail.com,mailinator.com,sharklasers.com,"
+        "tempmail.com,throwawaymail.com,trashmail.com,yopmail.com"
+    )
+    # Bot-protection hook. No provider is wired in this build: leaving it off
+    # accepts every request, turning it on fails closed (503) until an
+    # implementation is registered in `registration_guard`.
+    registration_bot_protection_enabled: bool = False
+
+    @field_validator("registration_disposable_email_domains")
+    @classmethod
+    def _normalize_disposable_domains(cls, value: str) -> str:
+        domains: list[str] = []
+        for raw in value.split(","):
+            domain = raw.strip().lower()
+            if not domain:
+                continue
+            if "@" in domain or "/" in domain or " " in domain or "." not in domain:
+                raise ValueError(f"invalid disposable e-mail domain: {raw.strip()!r}")
+            if domain not in domains:
+                domains.append(domain)
+        return ",".join(domains)
 
     # Outgoing e-mail (A4). "disabled": nothing is sent and password recovery
     # is unavailable; "file": each message is written as .eml under
