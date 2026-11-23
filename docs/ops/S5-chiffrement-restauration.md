@@ -143,6 +143,16 @@ studio demande un export logique ciblé, à construire sur les identifiants
    pas à la main en SQL.
 6. Vérifier l'accès avec un compte de test membre du studio uniquement.
 
+### 3.2b Script de restauration (livré)
+
+`uv run python scripts/studio_restore.py <archive.zip> <email-du-propriétaire>`
+restaure une archive d'export (`studio.export/v1`, déchiffrée) dans un **nouveau**
+studio (nouveaux identifiants, propriétaire = le compte indiqué, autres membres
+non recréés, références machines/agents/builds vidées). Prouvé par
+`tests/api/test_studio_restore.py` (comptages et fichiers identiques, source
+inchangée, archive étrangère refusée). Non prouvé : chiffrement des volumes et de
+MinIO, chiffrement des archives, exercice sur un hôte de staging.
+
 ### 3.3 Vérifications après restauration
 
 - Le studio restauré n'apparaît que pour ses membres ; aucun accès croisé avec
