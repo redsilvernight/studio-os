@@ -20,6 +20,7 @@ async def test_the_directory_lists_studios_with_aggregate_measures(
         "slug",
         "plan",
         "status",
+        "suspension_reason",
         "created_at",
         "owner_email",
         "storage",
@@ -97,7 +98,8 @@ async def test_suspension_writes_only_the_studio_status(
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "suspended"
-    assert repository.writes == [(ATELIER, "suspended")]
+    assert response.json()["suspension_reason"] == "Paiement non régularisé depuis 21 jours"
+    assert repository.writes == [(ATELIER, "suspended", "Paiement non régularisé depuis 21 jours")]
 
 
 async def test_the_internal_studio_cannot_be_suspended(
@@ -142,7 +144,7 @@ async def test_suspended_studios_are_listed(
     studio = body["studios"][0]
     assert studio["name"] == "Studio OS"
     assert studio["since"] is not None
-    assert "reason" not in studio
+    assert studio["suspension_reason"] == "Impayé depuis 21 jours"
 
 
 async def test_reactivation_of_a_suspendable_studio(
@@ -157,4 +159,5 @@ async def test_reactivation_of_a_suspendable_studio(
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "active"
-    assert repository.writes[-1] == (ATELIER, "active")
+    assert response.json()["suspension_reason"] is None
+    assert repository.writes[-1] == (ATELIER, "active", None)

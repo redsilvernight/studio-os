@@ -26,9 +26,11 @@ class OperatorAccount(BaseModel):
 
     email: str
     display_name: str
-    # Base32 RFC 4648 secret. Absent/empty: the operator is listed but MFA is
-    # not configured, so the console refuses them instead of degrading to a
-    # password-only login.
+    # bcrypt hash of the operator's password (never the password itself).
+    password_hash: str | None = None
+    # Base32 RFC 4648 secret. Absent/empty: MFA is not enrolled; the operator
+    # goes through the QR enrollment flow once, and the activated secret is
+    # kept in `secrets_path`.
     totp_secret: str | None = None
 
     @field_validator("email")
@@ -38,10 +40,6 @@ class OperatorAccount(BaseModel):
         if "@" not in email or email.startswith("@") or email.endswith("@"):
             raise ValueError("operator email must look like an address")
         return email
-
-    @property
-    def has_mfa(self) -> bool:
-        return bool(self.totp_secret and self.totp_secret.strip())
 
 
 class PlanQuota(BaseModel):
@@ -73,6 +71,9 @@ class OperatorSettings(BaseSettings):
     token_ttl_minutes: int = Field(default=15, ge=1, le=15)
 
     operators: list[OperatorAccount] = Field(default_factory=list)
+    # Activated / pending TOTP secrets (JSON state file, no migration).
+    secrets_path: str = ".studio-operator-secrets.json"
+    enrollment_ttl_minutes: int = Field(default=10, ge=1, le=60)
 
     mfa_max_attempts: int = Field(default=3, ge=1, le=10)
     mfa_lockout_minutes: int = Field(default=15, ge=1, le=1440)

@@ -35,6 +35,7 @@ def _summary(
     members: int = 1,
     members_limit: int | None = 5,
     owner: str | None = "flo@example.test",
+    suspension_reason: str | None = None,
 ) -> StudioSummary:
     return StudioSummary(
         id=studio_id,
@@ -42,6 +43,7 @@ def _summary(
         slug=name.lower().replace(" ", "-"),
         plan=plan,
         status=status,
+        suspension_reason=suspension_reason,
         created_at=datetime(2026, 10, 3, tzinfo=UTC),
         owner_email=owner,
         storage=StorageUsage(
@@ -69,6 +71,7 @@ STUDIOS = [
         INTERNAL,
         "Studio OS",
         status="suspended",
+        suspension_reason="Impayé depuis 21 jours",
         used=1024**3,
         quota=2 * 1024**3,
         owner="ops@example.test",
@@ -81,7 +84,7 @@ class FakeRepository:
 
     def __init__(self) -> None:
         self.studios = list(STUDIOS)
-        self.writes: list[tuple[uuid.UUID, str]] = []
+        self.writes: list[tuple[uuid.UUID, str, str | None]] = []
         self.queries: list[str | None] = []
         self.days: list[int] = []
 
@@ -111,20 +114,26 @@ class FakeRepository:
                 members=studio.members,
                 storage=studio.storage,
                 owner_email=studio.owner_email,
+                suspension_reason=studio.suspension_reason,
                 since=datetime(2026, 11, 20, tzinfo=UTC),
             )
             for studio in self.studios
             if studio.status == "suspended"
         ]
 
-    async def set_status(self, studio_id: uuid.UUID, status: str):
+    async def set_status(self, studio_id: uuid.UUID, status: str, reason: str | None = None):
         if studio_id == INTERNAL:
             raise ProtectedStudioError(str(studio_id))
         for index, studio in enumerate(self.studios):
             if studio.id == studio_id:
-                updated = studio.model_copy(update={"status": status})
+                updated = studio.model_copy(
+                    update={
+                        "status": status,
+                        "suspension_reason": reason if status == "suspended" else None,
+                    }
+                )
                 self.studios[index] = updated
-                self.writes.append((studio_id, status))
+                self.writes.append((studio_id, status, updated.suspension_reason))
                 return updated
         return None
 
@@ -145,8 +154,10 @@ class FakeRepository:
             active_studios=2,
             new_studios_7d=1,
             storage=StorageUsage(used_bytes=412 * 1024**3, quota_bytes=570 * 1024**3, percent=72.3),
+            error_rate_5xx_24h=0.2,
+            api_latency_p50_ms=120,
             services=[
-                ServiceHealth(key="api", label="API", state="unavailable", detail="non mesurée"),
+                ServiceHealth(key="api", label="API", state="ok", detail="Réponse médiane 120 ms"),
                 ServiceHealth(
                     key="database",
                     label="Base de données",
@@ -158,7 +169,6 @@ class FakeRepository:
                 Alert(level="warning", title="Stockage à 72,3 % de la capacité", detail="seuil")
             ],
             has_measures=True,
-            error_rate_5xx_24h=None,
             unpaid_in_grace=None,
         )
 
@@ -184,6 +194,7 @@ class FakeRepository:
             generated_at=datetime(2026, 11, 21, tzinfo=UTC),
             studios=len(self.studios),
             storage=StorageUsage(used_bytes=412 * 1024**3, quota_bytes=570 * 1024**3, percent=72.3),
+            api_calls=4_200_000,
             totals=UsageTotals(
                 tokens_in=300, tokens_out=150, costs=[CostTotal(currency="EUR", amount="3.75")]
             ),

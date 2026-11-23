@@ -124,6 +124,9 @@ h1, h2, h3, h4 { margin: 0 0 6px; }
 .btn[disabled] { opacity: .55; cursor: not-allowed; }
 .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
+.qr { display: grid; place-items: center; padding: 8px 0 12px; }
+.qr img { border: 1px solid var(--bd); border-radius: var(--r1); background: #fff; padding: 8px; }
+
 .fld { display: block; margin-bottom: 14px; }
 .fld > span { display: block; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .fi { display: block; width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid var(--bdf); border-radius: var(--r1); background: var(--card); color: var(--tx); font: 16px var(--sans); }

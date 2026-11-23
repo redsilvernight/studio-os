@@ -42,6 +42,7 @@ studios = sa.Table(
     sa.Column("plan", sa.String),
     sa.Column("status", sa.String),
     sa.Column("is_internal", sa.Boolean),
+    sa.Column("suspension_reason", sa.Text),
     sa.Column("created_at", sa.DateTime(timezone=True)),
     sa.Column("updated_at", sa.DateTime(timezone=True)),
     sa.Column("version", sa.Integer),
@@ -95,6 +96,13 @@ usage_ledger_entries = sa.Table(
 
 SUSPENDED = "suspended"
 ACTIVE = "active"
+
+# Names written by `services/api/src/studio_api/services/http_metrics.py` into
+# `infra_measurements`; kept as literals so this separate app imports nothing
+# from the core service.
+HTTP_REQUESTS = "http_requests"
+HTTP_ERRORS_5XX = "http_requests_5xx"
+HTTP_LATENCY_P50 = "http_latency_p50_ms"
 
 
 class ProtectedStudioError(Exception):
@@ -177,6 +185,39 @@ class OperatorRepository:
         )
         return {row[0]: str(row[1]) for row in rows if row[1] is not None}
 
+    async def _http_metrics(self, since: datetime) -> tuple[int | None, int | None, int | None]:
+        """(requests, 5xx, median hourly p50) over the window, or None values.
+
+        Duplicate rows for one hour (two processes, a restart) collapse on
+        `max(value)`: each row already carries that hour's total, never an
+        increment, so summing them would double count."""
+        rows = await self.session.execute(
+            select(
+                infra_measurements.c.metric,
+                func.max(infra_measurements.c.value),
+            )
+            .where(
+                infra_measurements.c.metric.in_((HTTP_REQUESTS, HTTP_ERRORS_5XX, HTTP_LATENCY_P50)),
+                infra_measurements.c.measured_at >= since,
+            )
+            .group_by(infra_measurements.c.metric, infra_measurements.c.subject)
+        )
+        requests = errors = 0
+        p50_values: list[int] = []
+        measured = False
+        for metric, value in rows:
+            measured = True
+            if metric == HTTP_REQUESTS:
+                requests += int(value)
+            elif metric == HTTP_ERRORS_5XX:
+                errors += int(value)
+            else:
+                p50_values.append(int(value))
+        if not measured:
+            return None, None, None
+        latency = _median(p50_values)
+        return requests, errors, latency
+
     async def platform_storage(self) -> StorageUsage:
         latest = (
             select(infra_measurements.c.value.label("value"))
@@ -211,6 +252,7 @@ class OperatorRepository:
             studios.c.slug,
             studios.c.plan,
             studios.c.status,
+            studios.c.suspension_reason,
             studios.c.created_at,
         ).order_by(studios.c.name)
         if studio_id is not None:
@@ -254,7 +296,8 @@ class OperatorRepository:
                     slug=row[2],
                     plan=row[3],
                     status=row[4],
-                    created_at=row[5],
+                    suspension_reason=row[5],
+                    created_at=row[6],
                     owner_email=owners.get(key),
                     storage=StorageUsage(
                         used_bytes=used,
@@ -293,6 +336,7 @@ class OperatorRepository:
                 members=summary.members,
                 storage=summary.storage,
                 owner_email=summary.owner_email,
+                suspension_reason=summary.suspension_reason,
                 since=since.get(summary.id),
             )
             for summary in summaries
@@ -323,6 +367,10 @@ class OperatorRepository:
             or 0
         )
         storage = await self.platform_storage()
+        requests_24h, errors_24h, latency_p50 = await self._http_metrics(
+            generated_at - timedelta(hours=24)
+        )
+        error_rate = _error_rate(requests_24h, errors_24h)
 
         backup_at: datetime | None = await self.session.scalar(
             select(infra_measurements.c.measured_at)
@@ -347,13 +395,37 @@ class OperatorRepository:
             )
         )
 
-        services = [
-            ServiceHealth(
+        if requests_24h is None:
+            api = ServiceHealth(
                 key="api",
                 label="API",
                 state="unavailable",
-                detail="Latence non mesurée par la phase M",
-            ),
+                detail="Aucun comptage HTTP encore",
+            )
+        elif error_rate is not None and error_rate >= 1.0:
+            api = ServiceHealth(
+                key="api",
+                label="API",
+                state="degraded",
+                detail=f"{error_rate:g} % d'erreurs 5xx (24 h)",
+            )
+        elif latency_p50 is not None:
+            api = ServiceHealth(
+                key="api",
+                label="API",
+                state="ok",
+                detail=f"Réponse médiane {latency_p50} ms",
+            )
+        else:
+            api = ServiceHealth(
+                key="api",
+                label="API",
+                state="ok",
+                detail="Comptage actif, latence non mesurée",
+            )
+
+        services = [
+            api,
             database,
             ServiceHealth(
                 key="stripe_webhooks",
@@ -381,7 +453,8 @@ class OperatorRepository:
             active_studios=active,
             new_studios_7d=new_week,
             storage=storage,
-            error_rate_5xx_24h=None,
+            error_rate_5xx_24h=error_rate,
+            api_latency_p50_ms=latency_p50,
             unpaid_in_grace=None,
             services=services,
             alerts=alerts,
@@ -447,12 +520,14 @@ class OperatorRepository:
             )
 
         rows.sort(key=lambda row: -_token_total(row.usage))
+        requests, _errors, _latency = await self._http_metrics(since)
 
         return UsageReport(
             window_days=days,
             generated_at=generated_at,
             studios=await self.count_studios(),
             storage=await self.platform_storage(),
+            api_calls=requests,
             totals=totals,
             top_studios=rows[:10],
             over_quota=[
@@ -512,7 +587,9 @@ class OperatorRepository:
 
     # -- the only write ------------------------------------------------
 
-    async def set_status(self, studio_id: uuid.UUID, status: str) -> StudioSummary | None:
+    async def set_status(
+        self, studio_id: uuid.UUID, new_status: str, reason: str | None = None
+    ) -> StudioSummary | None:
         row = (
             await self.session.execute(
                 select(studios.c.is_internal).where(studios.c.id == studio_id)
@@ -526,7 +603,8 @@ class OperatorRepository:
             update(studios)
             .where(studios.c.id == studio_id)
             .values(
-                status=status,
+                status=new_status,
+                suspension_reason=reason if new_status == SUSPENDED else None,
                 version=studios.c.version + 1,
                 updated_at=func.now(),
             )
@@ -562,6 +640,22 @@ def _add_cost(costs: list[CostTotal], currency: str, amount: str) -> None:
 
 def _token_total(totals: UsageTotals) -> int:
     return (totals.tokens_in or 0) + (totals.tokens_out or 0)
+
+
+def _median(values: list[int]) -> int | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return int(round((ordered[middle - 1] + ordered[middle]) / 2))
+
+
+def _error_rate(requests: int | None, errors: int | None) -> float | None:
+    if not requests or errors is None:
+        return None
+    return round(errors * 100.0 / requests, 1)
 
 
 def get_repository(

@@ -79,10 +79,13 @@ async def get_studio(
 
 
 async def _apply_status(
-    repository: OperatorRepository, studio_id: uuid.UUID, new_status: str
+    repository: OperatorRepository,
+    studio_id: uuid.UUID,
+    new_status: str,
+    reason: str | None = None,
 ) -> StudioSummary:
     try:
-        studio = await repository.set_status(studio_id, new_status)
+        studio = await repository.set_status(studio_id, new_status, reason)
     except ProtectedStudioError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -100,10 +103,10 @@ async def _apply_status(
     "/{studio_id}/suspension",
     response_model=StudioSummary,
     description=(
-        "Fiche C2 — suspend a studio. A motif is mandatory (`422` otherwise) and "
-        "is written to the operator log; the current schema has no column for it, "
-        "so only `studios.status` changes to `suspended` — nothing is deleted and "
-        "export stays allowed. The internal studio refuses with `409`."
+        "Fiche C2 — suspend a studio. A motif is mandatory (`422` otherwise), "
+        "visible to the owner, and stored in `studios.suspension_reason` (0050); "
+        "only `studios.status` and that column change to `suspended` — nothing is "
+        "deleted and export stays allowed. The internal studio refuses with `409`."
     ),
 )
 async def suspend_studio(
@@ -112,7 +115,7 @@ async def suspend_studio(
     operator: Operator,
     repository: Repository,
 ) -> StudioSummary:
-    studio = await _apply_status(repository, studio_id, SUSPENDED)
+    studio = await _apply_status(repository, studio_id, SUSPENDED, payload.reason)
     logger.info(
         "operator %s suspended studio %s (reason: %s)",
         operator.email,

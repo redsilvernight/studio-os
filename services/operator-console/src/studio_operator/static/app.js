@@ -66,6 +66,13 @@ function percent(value) {
   return value === null || value === undefined ? "—" : `${slash(value)} %`;
 }
 
+function compact(value) {
+  if (value === null || value === undefined) return "—";
+  if (value >= 1e6) return `${slash(Math.round(value / 1e5) / 10)} M`;
+  if (value >= 1e3) return `${slash(Math.round(value / 1e2) / 10)} k`;
+  return slash(value);
+}
+
 function money(cost) {
   const symbol = { EUR: "€", USD: "$", GBP: "£" }[cost.currency];
   return symbol ? `${slash(Number(cost.amount))} ${symbol}` : `${cost.amount} ${cost.currency}`;
@@ -278,6 +285,13 @@ function renderLogin(message) {
     required: true,
     value: state.operator ? state.operator.email : "",
   });
+  const password = h("input", {
+    class: "fi",
+    type: "password",
+    name: "password",
+    autocomplete: "current-password",
+    required: true,
+  });
   const code = h("input", {
     class: "fi",
     type: "text",
@@ -312,7 +326,11 @@ function renderLogin(message) {
         try {
           const session = await api("/auth/mfa", {
             method: "POST",
-            body: JSON.stringify({ email: email.value.trim(), code: value }),
+            body: JSON.stringify({
+              email: email.value.trim(),
+              password: password.value,
+              code: value,
+            }),
           });
           state.token = session.access_token;
           state.operator = session.operator;
@@ -323,10 +341,10 @@ function renderLogin(message) {
         } catch (error) {
           submit.disabled = false;
           submit.textContent = "Vérifier";
-          code.classList.add("bad");
           if (error.code === "mfa_locked") {
             feedback.textContent = error.message;
           } else if (error.code === "mfa_invalid" && error.detail.attempts_remaining) {
+            code.classList.add("bad");
             feedback.textContent = `Code incorrect. Il vous reste ${error.detail.attempts_remaining} essai(s) avant un verrouillage.`;
           } else if (error.code === "operator_not_allowed") {
             feedback.textContent =
@@ -338,6 +356,7 @@ function renderLogin(message) {
       },
     },
     h("label", { class: "fld" }, h("span", { text: "Adresse professionnelle" }), email),
+    h("label", { class: "fld" }, h("span", { text: "Mot de passe" }), password),
     h(
       "label",
       { class: "fld" },
@@ -351,7 +370,16 @@ function renderLogin(message) {
       ),
     ),
     feedback,
-    h("div", { class: "btns" }, submit),
+    h(
+      "div",
+      { class: "btns" },
+      submit,
+      h(
+        "button",
+        { class: "btn g", type: "button", onclick: () => renderEnrollment() },
+        "Première connexion : configurer la MFA",
+      ),
+    ),
   );
 
   root.append(
@@ -374,6 +402,159 @@ function renderLogin(message) {
           form,
         ),
       ),
+    ),
+  );
+  email.focus();
+}
+
+function soloCard(title, subtitle, body) {
+  return h(
+    "div",
+    { class: "app" },
+    h(
+      "main",
+      { class: "main c" },
+      h(
+        "div",
+        { class: "card login" },
+        h("div", { class: "logo" }, h("i"), "Studi’OS"),
+        h("h1", { class: "pt", text: title }),
+        h("p", { class: "sub", text: subtitle }),
+        body,
+      ),
+    ),
+  );
+}
+
+function enrollmentQrCard(data, email) {
+  clear(root);
+  const code = h("input", {
+    class: "fi",
+    type: "text",
+    inputmode: "numeric",
+    autocomplete: "one-time-code",
+    placeholder: "482 913",
+    maxlength: "8",
+    required: true,
+  });
+  const feedback = h("p", { class: "err", role: "alert" });
+  const submit = h("button", { class: "btn p", type: "submit" }, "Activer");
+  const form = h(
+    "form",
+    {
+      novalidate: true,
+      onsubmit: async (event) => {
+        event.preventDefault();
+        feedback.textContent = "";
+        submit.disabled = true;
+        try {
+          await api("/auth/enrollment/confirm", {
+            method: "POST",
+            body: JSON.stringify({ email, code: code.value.replace(/\s/g, "") }),
+          });
+          renderLogin("MFA activée. Connectez-vous avec votre mot de passe et un nouveau code.");
+        } catch (error) {
+          submit.disabled = false;
+          feedback.textContent =
+            error.code === "enrollment_expired"
+              ? "L’enrôlement a expiré. Recommencez la configuration."
+              : error.message;
+        }
+      },
+    },
+    h(
+      "div",
+      { class: "qr" },
+      h("img", {
+        src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.qr_svg),
+        alt: "Code QR d’enrôlement MFA",
+        width: 200,
+        height: 200,
+      }),
+    ),
+    h(
+      "p",
+      { class: "muted" },
+      "Scannez ce code avec votre application d’authentification, ou saisissez le secret : ",
+      h("span", { class: "mono", text: data.secret }),
+    ),
+    h(
+      "label",
+      { class: "fld" },
+      h("span", { text: "Code à 6 chiffres" }),
+      code,
+      h("div", { class: "hint" }, `Valable ${Math.round(data.expires_in / 60)} minutes.`),
+    ),
+    feedback,
+    h(
+      "div",
+      { class: "btns" },
+      submit,
+      h("button", { class: "btn g", type: "button", onclick: () => renderLogin() }, "Retour"),
+    ),
+  );
+  root.append(
+    soloCard(
+      "Activer la MFA",
+      "La MFA est obligatoire. Scannez ce code avec votre application d’authentification.",
+      form,
+    ),
+  );
+  code.focus();
+}
+
+function renderEnrollment() {
+  clear(root);
+  const email = h("input", {
+    class: "fi",
+    type: "email",
+    autocomplete: "username",
+    required: true,
+    value: state.operator ? state.operator.email : "",
+  });
+  const password = h("input", {
+    class: "fi",
+    type: "password",
+    autocomplete: "current-password",
+    required: true,
+  });
+  const feedback = h("p", { class: "err", role: "alert" });
+  const submit = h("button", { class: "btn p", type: "submit" }, "Continuer");
+  const form = h(
+    "form",
+    {
+      novalidate: true,
+      onsubmit: async (event) => {
+        event.preventDefault();
+        feedback.textContent = "";
+        submit.disabled = true;
+        try {
+          const data = await api("/auth/enrollment", {
+            method: "POST",
+            body: JSON.stringify({ email: email.value.trim(), password: password.value }),
+          });
+          enrollmentQrCard(data, email.value.trim());
+        } catch (error) {
+          submit.disabled = false;
+          feedback.textContent = error.message;
+        }
+      },
+    },
+    h("label", { class: "fld" }, h("span", { text: "Adresse professionnelle" }), email),
+    h("label", { class: "fld" }, h("span", { text: "Mot de passe" }), password),
+    feedback,
+    h(
+      "div",
+      { class: "btns" },
+      submit,
+      h("button", { class: "btn g", type: "button", onclick: () => renderLogin() }, "Retour"),
+    ),
+  );
+  root.append(
+    soloCard(
+      "Configurer la MFA",
+      "Confirmez votre mot de passe : le code QR n’est remis qu’à l’opérateur listé.",
+      form,
     ),
   );
   email.focus();
@@ -428,7 +609,11 @@ async function viewDashboard() {
         kpi(
           "Erreurs 5xx (24 h)",
           data.error_rate_5xx_24h === null ? "—" : `${slash(data.error_rate_5xx_24h)} %`,
-          data.error_rate_5xx_24h === null ? "non mesuré" : null,
+          data.error_rate_5xx_24h === null
+            ? "non mesuré"
+            : data.error_rate_5xx_24h >= 1
+              ? "À surveiller"
+              : "Normal",
         ),
         kpi(
           "Impayés en grâce",
@@ -480,7 +665,14 @@ function studioRow(studio, extra) {
       extra ? h("div", { class: "muted", text: extra }) : null,
     ),
     h("td", { text: planLabel(studio.plan) }),
-    h("td", null, statusPill(studio.status)),
+    h(
+      "td",
+      null,
+      statusPill(studio.status),
+      studio.status === "suspended" && studio.suspension_reason
+        ? h("div", { class: "muted", text: studio.suspension_reason })
+        : null,
+    ),
     h("td", { text: storageCell(studio.storage) }),
     h("td", {
       text: studio.members_limit === null ? String(studio.members) : `${studio.members} / ${studio.members_limit}`,
@@ -631,6 +823,14 @@ async function viewStudio(id) {
       page(
         studio.name,
         `Créé le ${dateLabel(studio.created_at)} · propriétaire : ${studio.owner_email || "—"}`,
+        studio.status === "suspended"
+          ? h(
+              "div",
+              { class: "banner warn" },
+              h("b", { text: "Studio suspendu. " }),
+              studio.suspension_reason || "Motif non renseigné.",
+            )
+          : null,
         h(
           "div",
           { class: "kpis" },
@@ -738,7 +938,11 @@ async function viewUsage() {
             `${percent(data.storage.percent)} de ${bytes(data.storage.quota_bytes)}`,
           ),
           kpi("Envois (volume)", "—", "non mesuré"),
-          kpi("Appels API", "—", "non mesuré"),
+          kpi(
+            "Appels API",
+            compact(data.api_calls),
+            data.api_calls === null ? "non mesuré" : "sur 30 jours",
+          ),
         ),
         h("h3", { class: "h3", text: "Mesures phase M" }),
         h(
@@ -840,6 +1044,7 @@ async function viewSuspensions() {
                 h("th", { text: "Studio" }),
                 h("th", { text: "Plan" }),
                 h("th", { text: "Statut" }),
+                h("th", { text: "Motif" }),
                 h("th", { text: "Depuis" }),
                 h("th"),
               ),
@@ -859,6 +1064,7 @@ async function viewSuspensions() {
                   ),
                   h("td", { text: planLabel(studio.plan) }),
                   h("td", null, statusPill("suspended")),
+                  h("td", { class: "muted", text: studio.suspension_reason || "—" }),
                   h("td", { text: sinceLabel(studio.since) }),
                   h(
                     "td",

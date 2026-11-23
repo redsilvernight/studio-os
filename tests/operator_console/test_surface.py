@@ -8,6 +8,8 @@ from studio_operator.main import app
 # until it is deliberately added here and reviewed against the mockups.
 EXPECTED_API_ROUTES = {
     ("/api/v1/auth/mfa", "POST"),
+    ("/api/v1/auth/enrollment", "POST"),
+    ("/api/v1/auth/enrollment/confirm", "POST"),
     ("/api/v1/auth/me", "GET"),
     ("/api/v1/auth/logout", "POST"),
     ("/api/v1/dashboard", "GET"),

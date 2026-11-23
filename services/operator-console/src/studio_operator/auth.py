@@ -10,7 +10,9 @@ revokes access immediately.
 
 from __future__ import annotations
 
+import base64
 import math
+import os
 import time
 import uuid
 from collections.abc import Callable
@@ -18,18 +20,22 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated, Any
+from urllib.parse import quote, urlencode
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from studio_operator.mfa import verify_totp
+from studio_operator.passwords import verify_password
+from studio_operator.secrets_store import SecretStore, get_secret_store
 from studio_operator.settings import OperatorAccount, OperatorSettings, get_settings
 
 ALGORITHM = "HS256"
 AUDIENCE = "studio-operator-console"
 ISSUER = "studio-operator-console"
 TOKEN_TYPE = "operator_access"
+OTP_ISSUER = "Studio OS Operator"
 
 
 def create_access_token(account: OperatorAccount, settings: OperatorSettings) -> str:
@@ -83,7 +89,7 @@ class AttemptTracker:
     _states: dict[str, _AttemptState] = field(default_factory=dict)
 
     def _state(self, email: str) -> _AttemptState:
-        return self._states.setdefault(email.lower(), _AttemptState())
+        return self._states.setdefault(email.strip().lower(), _AttemptState())
 
     def locked_for(self, email: str) -> int:
         state = self._state(email)
@@ -109,7 +115,7 @@ class AttemptTracker:
         return self.max_attempts - state.failures
 
     def reset(self, email: str) -> None:
-        self._states.pop(email.lower(), None)
+        self._states.pop(email.strip().lower(), None)
 
 
 @lru_cache(maxsize=8)
@@ -126,14 +132,14 @@ def get_attempt_tracker(
 
 
 def _refused() -> HTTPException:
-    """Generic refusal: listed status and MFA configuration are never told
-    apart to the caller (fiche C0, 'aucun détail par sécurité')."""
+    """Generic refusal: unknown account, wrong password and missing MFA are
+    never told apart to the caller (fiche C0, 'aucun détail par sécurité')."""
     return HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={
             "error_code": "operator_not_allowed",
             "message": (
-                "Ce compte n'est pas autorisé à utiliser la console, "
+                "Accès refusé. Ce compte n'est pas autorisé à utiliser la console, "
                 "ou la MFA n'est pas configurée."
             ),
         },
@@ -153,23 +159,44 @@ def _locked(seconds: int) -> HTTPException:
     )
 
 
+def effective_secret(account: OperatorAccount, store: SecretStore) -> str | None:
+    """Enrolled secret first (state file), then the configured one."""
+    stored = store.active_secret(account.email)
+    if stored:
+        return stored
+    if account.totp_secret and account.totp_secret.strip():
+        return account.totp_secret.strip()
+    return None
+
+
 def authenticate(
     settings: OperatorSettings,
     tracker: AttemptTracker,
+    store: SecretStore,
     email: str,
+    password: str,
     code: str,
 ) -> tuple[OperatorAccount, str, int]:
-    """Verify operator + MFA. Returns (account, token, ttl_seconds)."""
-    account = settings.operator(email)
-    if account is None or not account.has_mfa:
-        raise _refused()
+    """Verify account + password + TOTP. Returns (account, token, ttl_seconds).
 
-    locked_for = tracker.locked_for(account.email)
+    A wrong password, an unknown account and a missing MFA share one refusal
+    and the same failure counter; only a valid password with a wrong code
+    answers `mfa_invalid` (so the UI can show the attempts left, as fiche C0
+    asks)."""
+    locked_for = tracker.locked_for(email)
     if locked_for:
         raise _locked(locked_for)
 
-    assert account.totp_secret is not None  # has_mfa
-    if not verify_totp(account.totp_secret, code):
+    account = settings.operator(email)
+    password_ok = verify_password(password, account.password_hash if account else None)
+    secret = effective_secret(account, store) if account else None
+    if account is None or not password_ok or secret is None:
+        remaining = tracker.record_failure(email)
+        if remaining == 0:
+            raise _locked(tracker.locked_for(email))
+        raise _refused()
+
+    if not verify_totp(secret, code):
         remaining = tracker.record_failure(account.email)
         if remaining == 0:
             raise _locked(tracker.locked_for(account.email))
@@ -190,12 +217,116 @@ def authenticate(
     )
 
 
+def _new_secret() -> str:
+    return base64.b32encode(os.urandom(20)).decode("ascii").rstrip("=")
+
+
+def otpauth_uri(account: OperatorAccount, secret: str) -> str:
+    label = quote(f"{OTP_ISSUER}:{account.email}", safe="")
+    query = urlencode(
+        {
+            "secret": secret,
+            "issuer": OTP_ISSUER,
+            "algorithm": "SHA1",
+            "digits": 6,
+            "period": 30,
+        }
+    )
+    return f"otpauth://totp/{label}?{query}"
+
+
+def start_enrollment(
+    settings: OperatorSettings,
+    tracker: AttemptTracker,
+    store: SecretStore,
+    email: str,
+    password: str,
+) -> tuple[OperatorAccount, str, str, int]:
+    """Password-gated enrollment start. Returns (account, secret, uri, ttl)."""
+    locked_for = tracker.locked_for(email)
+    if locked_for:
+        raise _locked(locked_for)
+
+    account = settings.operator(email)
+    if account is None or not verify_password(password, account.password_hash if account else None):
+        remaining = tracker.record_failure(email)
+        if remaining == 0:
+            raise _locked(tracker.locked_for(email))
+        raise _refused()
+    if effective_secret(account, store) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "mfa_already_active",
+                "message": "La MFA est déjà activée pour ce compte.",
+            },
+        )
+
+    tracker.reset(account.email)
+    secret = _new_secret()
+    ttl_seconds = settings.enrollment_ttl_minutes * 60
+    store.start_pending(account.email, secret, ttl_seconds=ttl_seconds)
+    return account, secret, otpauth_uri(account, secret), ttl_seconds
+
+
+def confirm_enrollment(
+    settings: OperatorSettings,
+    tracker: AttemptTracker,
+    store: SecretStore,
+    email: str,
+    code: str,
+) -> OperatorAccount:
+    """Confirm the pending secret with a first 6-digit code, then activate it."""
+    locked_for = tracker.locked_for(email)
+    if locked_for:
+        raise _locked(locked_for)
+
+    account = settings.operator(email)
+    if account is None:
+        raise _refused()
+    if effective_secret(account, store) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "mfa_already_active",
+                "message": "La MFA est déjà activée pour ce compte.",
+            },
+        )
+    pending = store.pending_secret(account.email)
+    if pending is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "enrollment_expired",
+                "message": "Aucun enrôlement en cours. Recommencez la configuration.",
+            },
+        )
+    if not verify_totp(pending, code):
+        remaining = tracker.record_failure(account.email)
+        if remaining == 0:
+            store.clear_pending(account.email)
+            raise _locked(tracker.locked_for(account.email))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error_code": "mfa_invalid",
+                "message": "Code incorrect.",
+                "attempts_remaining": remaining,
+            },
+        )
+
+    store.activate(account.email, pending)
+    tracker.reset(account.email)
+    return account
+
+
 _BEARER = HTTPBearer(auto_error=False)
 
 
 async def require_operator(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_BEARER)],
     settings: Annotated[OperatorSettings, Depends(get_settings)],
+    store: Annotated[SecretStore, Depends(get_secret_store)],
 ) -> OperatorAccount:
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -203,6 +334,6 @@ async def require_operator(
     if email is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     account = settings.operator(email)
-    if account is None or not account.has_mfa:
+    if account is None or account.password_hash is None or effective_secret(account, store) is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     return account

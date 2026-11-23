@@ -27,6 +27,7 @@ from studio_operator.auth import (  # noqa: E402
 )
 from studio_operator.main import app  # noqa: E402
 from studio_operator.repository import get_repository  # noqa: E402
+from studio_operator.secrets_store import SecretStore, get_secret_store  # noqa: E402
 from studio_operator.settings import (  # noqa: E402
     OperatorAccount,
     OperatorSettings,
@@ -37,6 +38,9 @@ from tests.operator_console.fakes import FakeRepository  # noqa: E402
 
 TOTP_SECRET = "JBSWY3DPEHPK3PXP"
 EMAIL = "flo@example.test"
+PASSWORD = "correct horse battery staple"
+# bcrypt hash of PASSWORD at the cheapest work factor, for test speed only.
+PASSWORD_HASH = "$2b$04$xvuOOX318uTpHCG6hO6jo.ztUTiGTEhDJzxJryKgcNvp845cQqG7m"
 JWT_SECRET = "operator-test-secret-0123456789abcdef"
 
 
@@ -45,8 +49,24 @@ def operator_settings(**overrides: object) -> OperatorSettings:
         "environment": "test",
         "jwt_secret": JWT_SECRET,
         "operators": [
-            OperatorAccount(email=EMAIL, display_name="Flo Opérateur", totp_secret=TOTP_SECRET),
-            OperatorAccount(email="sans-mfa@example.test", display_name="Sans MFA"),
+            OperatorAccount(
+                email=EMAIL,
+                display_name="Flo Opérateur",
+                password_hash=PASSWORD_HASH,
+                totp_secret=TOTP_SECRET,
+            ),
+            # Listed, correct password, no MFA yet: must enroll through the QR.
+            OperatorAccount(
+                email="a-enroler@example.test",
+                display_name="À enrôler",
+                password_hash=PASSWORD_HASH,
+            ),
+            # Listed, MFA configured, no password: refused.
+            OperatorAccount(
+                email="sans-mdp@example.test",
+                display_name="Sans mot de passe",
+                totp_secret=TOTP_SECRET,
+            ),
         ],
     }
     values.update(overrides)
@@ -59,14 +79,13 @@ def settings() -> OperatorSettings:
 
 
 @pytest.fixture
-def now() -> float:
-    """Fixed TOTP instant, so the codes are deterministic."""
-    return 1_700_000_000.0
+def repository() -> FakeRepository:
+    return FakeRepository()
 
 
 @pytest.fixture
-def repository() -> FakeRepository:
-    return FakeRepository()
+def store(tmp_path) -> SecretStore:
+    return SecretStore(tmp_path / "operator-secrets.json")
 
 
 @pytest.fixture
@@ -78,10 +97,16 @@ def tracker(settings: OperatorSettings) -> AttemptTracker:
 
 
 @pytest_asyncio.fixture
-async def client(settings: OperatorSettings, repository: FakeRepository, tracker: AttemptTracker):
+async def client(
+    settings: OperatorSettings,
+    repository: FakeRepository,
+    tracker: AttemptTracker,
+    store: SecretStore,
+):
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_repository] = lambda: repository
     app.dependency_overrides[get_attempt_tracker] = lambda: tracker
+    app.dependency_overrides[get_secret_store] = lambda: store
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://console.test") as http:
         yield http

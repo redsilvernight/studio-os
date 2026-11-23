@@ -29,7 +29,25 @@ class OperatorSession(BaseModel):
     operator: OperatorProfile
 
 
-class MfaRequest(BaseModel):
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+    code: str = Field(min_length=6, max_length=8)
+
+
+class EnrollmentRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class EnrollmentStart(BaseModel):
+    otpauth_uri: str
+    secret: str
+    qr_svg: str
+    expires_in: int
+
+
+class EnrollmentConfirm(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     code: str = Field(min_length=6, max_length=8)
 
@@ -46,6 +64,7 @@ class StudioSummary(BaseModel):
     slug: str
     plan: str
     status: str
+    suspension_reason: str | None = None
     created_at: datetime
     owner_email: str | None = None
     storage: StorageUsage
@@ -88,9 +107,9 @@ class StudioDetail(BaseModel):
 
 
 class SuspensionRequest(BaseModel):
-    """Motif obligatoire. It is not persisted yet (no column): see the
-    console README — only `studios.status` is written, the motif goes to the
-    operator log until the dedicated migration lands."""
+    """Motif obligatoire, visible du client (fiche C2). Stored in
+    `studios.suspension_reason` (migration 0050) and exposed to the studio's
+    own members by `GET /api/v1/studio`; cleared when the suspension is lifted."""
 
     reason: str = Field(min_length=3, max_length=500)
 
@@ -115,6 +134,7 @@ class Dashboard(BaseModel):
     new_studios_7d: int
     storage: StorageUsage
     error_rate_5xx_24h: float | None = None
+    api_latency_p50_ms: int | None = None
     unpaid_in_grace: int | None = None
     services: list[ServiceHealth]
     alerts: list[Alert]
@@ -126,6 +146,7 @@ class UsageReport(BaseModel):
     generated_at: datetime
     studios: int
     storage: StorageUsage
+    api_calls: int | None = None
     totals: UsageTotals
     top_studios: list[StudioUsageRow]
     over_quota: list[StudioUsageRow]
@@ -140,6 +161,7 @@ class SuspendedStudio(BaseModel):
     members: int
     storage: StorageUsage
     owner_email: str | None = None
+    suspension_reason: str | None = None
     since: datetime | None = None
 
 

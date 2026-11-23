@@ -16,8 +16,9 @@ async def test_dashboard_exposes_health_and_phase_m_measures(
     assert body["storage"]["percent"] == 72.3
     assert [service["key"] for service in body["services"]] == ["api", "database"]
     assert body["alerts"][0]["level"] == "warning"
-    # Sources the phase M does not measure are explicit, never a fabricated figure.
-    assert body["error_rate_5xx_24h"] is None
+    assert body["error_rate_5xx_24h"] == 0.2
+    assert body["api_latency_p50_ms"] == 120
+    # Billing is not deployed: absent, never a fabricated figure.
     assert body["unpaid_in_grace"] is None
 
 
@@ -51,6 +52,7 @@ async def test_usage_aggregates_by_studio_and_globally(
     assert body["studios"] == 3
     assert body["totals"]["tokens_in"] == 300
     assert body["totals"]["costs"] == [{"currency": "EUR", "amount": "3.75"}]
+    assert body["api_calls"] == 4_200_000
     assert len(body["top_studios"]) == 3
     assert body["over_quota"][0]["name"] == "Atelier Phare"
     assert repository.days[-1] == 30

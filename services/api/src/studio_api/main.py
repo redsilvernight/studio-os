@@ -218,18 +218,23 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    from studio_api.services import infra_measurements
+    from studio_api.services import http_metrics, infra_measurements
     from studio_api.services.event_listener import EventListener
     from studio_api.settings import get_settings
 
     settings = get_settings()
     tasks: list[asyncio.Task[None]] = []
+    # A fresh process starts its hourly counters from zero; the last hours it
+    # did not see stay in `infra_measurements`.
+    http_metrics.METRICS.reset()
     if settings.realtime_listener_enabled:
         listener = EventListener(settings.database_url)
         app.state.event_listener = listener
         tasks.append(asyncio.create_task(listener.run()))
     if settings.infra_measure_interval_seconds > 0:
         tasks.append(asyncio.create_task(infra_measurements.run_forever(settings)))
+    if settings.http_measure_enabled and settings.http_measure_flush_seconds > 0:
+        tasks.append(asyncio.create_task(http_metrics.run_forever(settings)))
     try:
         yield
     finally:
