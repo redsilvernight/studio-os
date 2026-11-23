@@ -10,7 +10,7 @@ when. A trigger refuses UPDATE and DELETE, so the journal is append-only. No
 content column exists in either table.
 
 Revision ID: 0055
-Revises: 0053
+Revises: 0054
 Create Date: 2026-11-23
 """
 
@@ -23,7 +23,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0055"
-down_revision: str | None = "0053"
+down_revision: str | None = "0054"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
