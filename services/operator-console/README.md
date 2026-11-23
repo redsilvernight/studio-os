@@ -111,7 +111,7 @@ conservé — des nombres seulement.
 
 ## Changements côté cœur (services/api)
 
-- **Migration `0050_studio_suspension_reason`** (`down_revision = "0049"`,
+- **Migration `0051_studio_suspension_reason`** (`down_revision = "0050"`,
   réversible) : ajoute `studios.suspension_reason` (texte, nullable). Une autre
   branche peut ajouter une tête en parallèle — la fusion des têtes est laissée
   à l'orchestrateur.

@@ -135,7 +135,7 @@ export interface paths {
         put?: never;
         /**
          * Register
-         * @description Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account.
+         * @description Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account. Disposable e-mail domains and per-IP / per-domain quotas are rejected with a distinct error before anything is created.
          */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
@@ -2545,6 +2545,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Active Studio
+         * @description The active studio of the caller (any member, `viewer` and above): identity, plan and lifecycle status. `suspension_reason` is the motif an operator entered when suspending it, shown to the studio's own members so the N5 suspended view can explain the state; `null` while active. No project, file or note is part of the response.
+         */
+        get: operations["get_active_studio_api_v1_studio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/studios": {
         parameters: {
             query?: never;
@@ -2558,7 +2578,11 @@ export interface paths {
          */
         get: operations["list_studios_api_v1_studios_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Studio
+         * @description Creates a studio on the default plan; the caller becomes its `owner`. Creating one past the account's `studios_per_account` ceiling answers `402 plan_limit_reached`; listing studios is never blocked.
+         */
+        post: operations["create_studio_api_v1_studios_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9139,6 +9163,11 @@ export interface components {
             /** Measured At */
             measured_at?: string | null;
         };
+        /** StudioCreate */
+        StudioCreate: {
+            /** Name */
+            name: string;
+        };
         /**
          * StudioEntitlements
          * @description Plan, limits and counters of one studio: exactly what the Subscription
@@ -9163,6 +9192,49 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+        };
+        /**
+         * StudioRead
+         * @description Active studio seen by its own members (C2 / N5 support).
+         *
+         *     Declared here rather than in `studio-contracts` because it is consumed only
+         *     by this route for now; `suspension_reason` is the motif an operator entered
+         *     when suspending the studio (0050), cleared on lift. No project, file, note
+         *     or message is part of it.
+         */
+        StudioRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Plan */
+            plan: string;
+            /** Status */
+            status: string;
+            /** Suspension Reason */
+            suspension_reason?: string | null;
+            /**
+             * Is Internal
+             * @default false
+             */
+            is_internal: boolean;
+            /** Version */
+            version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * StudioSummary
@@ -11565,7 +11637,7 @@ export interface operations {
                     "application/json": components["schemas"]["AcceptedResponse"];
                 };
             };
-            /** @description `idempotency_key_required`. */
+            /** @description `email_domain_not_allowed`: disposable e-mail domain. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11594,6 +11666,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description `registration_rate_limited`: quota exceeded for `scope` (`ip` or `domain`); the `Retry-After` header gives the wait in seconds. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_bot_protection_unavailable`: the bot-protection hook is enabled but no provider is wired. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -23023,6 +23109,72 @@ export interface operations {
             };
         };
     };
+    get_active_studio_api_v1_studio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioRead"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     list_studios_api_v1_studios_get: {
         parameters: {
             query?: never;
@@ -23053,6 +23205,74 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_studio_api_v1_studios_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioSummary"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "plan_limit_reached",
+                     *         "limit": "storage_bytes",
+                     *         "upgrade_url": "/settings/subscription",
+                     *         "max_value": 2147483648,
+                     *         "current": 2147483648,
+                     *         "requested": 1024
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -239,7 +239,7 @@
      "auth"
     ],
     "summary": "Register",
-    "description": "Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account.",
+    "description": "Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account. Disposable e-mail domains and per-IP / per-domain quotas are rejected with a distinct error before anything is created.",
     "operationId": "register_api_v1_auth_register_post",
     "parameters": [
      {
@@ -286,10 +286,16 @@
       "description": "`registration_unavailable`: public registration is closed."
      },
      "400": {
-      "description": "`idempotency_key_required`."
+      "description": "`email_domain_not_allowed`: disposable e-mail domain."
      },
      "409": {
       "description": "`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`."
+     },
+     "429": {
+      "description": "`registration_rate_limited`: quota exceeded for `scope` (`ip` or `domain`); the `Retry-After` header gives the wait in seconds."
+     },
+     "503": {
+      "description": "`registration_bot_protection_unavailable`: the bot-protection hook is enabled but no provider is wired."
      },
      "422": {
       "description": "Validation Error",
@@ -14264,6 +14270,67 @@
     }
    }
   },
+  "/api/v1/studio": {
+   "get": {
+    "tags": [
+     "studio"
+    ],
+    "summary": "Get Active Studio",
+    "description": "The active studio of the caller (any member, `viewer` and above): identity, plan and lifecycle status. `suspension_reason` is the motif an operator entered when suspending it, shown to the studio's own members so the N5 suspended view can explain the state; `null` while active. No project, file or note is part of the response.",
+    "operationId": "get_active_studio_api_v1_studio_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/studios": {
    "get": {
     "tags": [
@@ -14293,6 +14360,78 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   },
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Studio",
+    "description": "Creates a studio on the default plan; the caller becomes its `owner`. Creating one past the account's `studios_per_account` ceiling answers `402 plan_limit_reached`; listing studios is never blocked.",
+    "operationId": "create_studio_api_v1_studios_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StudioCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioSummary"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
         }
        }
       }
@@ -32215,6 +32354,22 @@
     "title": "StudioCounter",
     "description": "Consumption of one limit for one studio. `source` says where the value\ncame from: `measured` (phase-M `infra_measurements`), `live` (direct count)\nor `default` (nothing measured yet)."
    },
+   "StudioCreate": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "StudioCreate"
+   },
    "StudioEntitlements": {
     "properties": {
      "studio_id": {
@@ -32261,6 +32416,74 @@
     ],
     "title": "StudioEntitlements",
     "description": "Plan, limits and counters of one studio: exactly what the Subscription\nand Usage screens display. `upgrade_url` is the subscription screen used by\nevery `plan_limit_reached` refusal."
+   },
+   "StudioRead": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "plan": {
+      "type": "string",
+      "title": "Plan"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "suspension_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Suspension Reason"
+     },
+     "is_internal": {
+      "type": "boolean",
+      "title": "Is Internal",
+      "default": false
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "slug",
+     "name",
+     "plan",
+     "status",
+     "version",
+     "created_at",
+     "updated_at"
+    ],
+    "title": "StudioRead",
+    "description": "Active studio seen by its own members (C2 / N5 support).\n\nDeclared here rather than in `studio-contracts` because it is consumed only\nby this route for now; `suspension_reason` is the motif an operator entered\nwhen suspending the studio (0050), cleared on lift. No project, file, note\nor message is part of it."
    },
    "StudioSummary": {
     "properties": {
