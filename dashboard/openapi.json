@@ -893,6 +893,79 @@
     }
    }
   },
+  "/api/v1/studios/{studio_id}/retention": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Get Studio Retention",
+    "description": "Open retention announcements of one studio, for any member. Each notice names its `kind` (`events|timeline|usage|transfers|snapshots`), the `cutoff` fixed from the plan's duration, `announced_at` and the earliest purge date `purge_after` (7 days later); `exported_hint` says whether an export archive already exists. `export_url` is the owner-only export endpoint. Nothing is ever purged without an elapsed notice, and an unlimited plan duration announces nothing. Read-only, never blocked by a limit.",
+    "operationId": "get_studio_retention_api_v1_studios__studio_id__retention_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioRetentionRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/studios/{studio_id}/invitations": {
    "post": {
     "tags": [
@@ -20191,6 +20264,549 @@
      }
     }
    }
+  },
+  "/api/v1/studios/{studio_id}/break-glass/requests": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Request",
+    "description": "Open a motivated break-glass request for one studio. Instance operator only (`is_operator`); the request grants nothing by itself \u2014 the studio owner must approve it. `scope` is `metadata` or `support`; there is no content scope. Every request appends one audit row.",
+    "operationId": "create_request_api_v1_studios__studio_id__break_glass_requests_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BreakGlassCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BreakGlassRequestRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "List Requests",
+    "description": "Break-glass requests of this studio, newest first (`owner`/`admin`), with their status. Pending requests past 24 hours and elapsed approved windows are expired here, each appending its own audit row.",
+    "operationId": "list_requests_api_v1_studios__studio_id__break_glass_requests_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/BreakGlassRequestRead"
+         },
+         "title": "Response List Requests Api V1 Studios  Studio Id  Break Glass Requests Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/break-glass/requests/{request_id}/approve": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Approve Request",
+    "description": "Approve a pending request for a bounded window (`duration_hours`, 1 to 24). Studio `owner` only; another studio's request answers 404 and an already decided one `409 break_glass_not_pending`.",
+    "operationId": "approve_request_api_v1_studios__studio_id__break_glass_requests__request_id__approve_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "request_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Request Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BreakGlassApproval"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BreakGlassRequestRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The request is no longer awaiting a decision."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/break-glass/requests/{request_id}/deny": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Deny Request",
+    "description": "Refuse a pending request: nothing is opened and the refusal is journaled. Studio `owner` only; another studio's request answers 404.",
+    "operationId": "deny_request_api_v1_studios__studio_id__break_glass_requests__request_id__deny_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "request_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Request Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BreakGlassRequestRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The request is no longer awaiting a decision."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/break-glass/requests/{request_id}/revoke": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Revoke Request",
+    "description": "Revoke an approved window at any time. Studio `owner` only; a request without an open window answers `409 break_glass_not_open`.",
+    "operationId": "revoke_request_api_v1_studios__studio_id__break_glass_requests__request_id__revoke_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "request_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Request Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BreakGlassRequestRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "No open window to revoke."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/break-glass/audit": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "List Audit",
+    "description": "Append-only break-glass journal of this studio, oldest first, visible to the studio's `owner`/`admin` (R\u00e9glages > Confidentialit\u00e9): request, decision, expiry and revocation, with the actor and the timestamp. Never a content excerpt.",
+    "operationId": "list_audit_api_v1_studios__studio_id__break_glass_audit_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/BreakGlassAuditRead"
+         },
+         "title": "Response List Audit Api V1 Studios  Studio Id  Break Glass Audit Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -21618,6 +22234,176 @@
     ],
     "title": "BootstrapSegment",
     "description": "Common (Studio-wide or user-owned) versus project-owned artifact."
+   },
+   "BreakGlassApproval": {
+    "properties": {
+     "duration_hours": {
+      "type": "integer",
+      "maximum": 24.0,
+      "minimum": 1.0,
+      "title": "Duration Hours"
+     }
+    },
+    "type": "object",
+    "required": [
+     "duration_hours"
+    ],
+    "title": "BreakGlassApproval"
+   },
+   "BreakGlassAuditRead": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "event": {
+      "type": "string",
+      "title": "Event"
+     },
+     "request_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Request Id"
+     },
+     "studio_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Studio Id"
+     },
+     "actor": {
+      "type": "string",
+      "title": "Actor"
+     },
+     "at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "event",
+     "request_id",
+     "studio_id",
+     "actor",
+     "at"
+    ],
+    "title": "BreakGlassAuditRead"
+   },
+   "BreakGlassCreate": {
+    "properties": {
+     "reason": {
+      "type": "string",
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reason"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/BreakGlassScope",
+      "default": "metadata"
+     }
+    },
+    "type": "object",
+    "required": [
+     "reason"
+    ],
+    "title": "BreakGlassCreate"
+   },
+   "BreakGlassRequestRead": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "studio_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Studio Id"
+     },
+     "operator_ref": {
+      "type": "string",
+      "title": "Operator Ref"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     },
+     "scope": {
+      "type": "string",
+      "title": "Scope"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "decided_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decided By User Id"
+     },
+     "decided_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decided At"
+     },
+     "expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expires At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "studio_id",
+     "operator_ref",
+     "reason",
+     "scope",
+     "requested_at",
+     "status",
+     "decided_by_user_id",
+     "decided_at",
+     "expires_at"
+    ],
+    "title": "BreakGlassRequestRead"
+   },
+   "BreakGlassScope": {
+    "type": "string",
+    "enum": [
+     "metadata",
+     "support"
+    ],
+    "title": "BreakGlassScope",
+    "description": "What the operator may consult. There is deliberately no `content`."
    },
    "BudgetAlert": {
     "properties": {
@@ -30248,6 +31034,59 @@
     ],
     "title": "ResourceType"
    },
+   "RetentionKind": {
+    "type": "string",
+    "enum": [
+     "events",
+     "timeline",
+     "usage",
+     "transfers",
+     "snapshots"
+    ],
+    "title": "RetentionKind",
+    "description": "Retention limit applied; the stored value is the plan limit key without\nits `_retention_days` suffix."
+   },
+   "RetentionNoticeRead": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/RetentionKind"
+     },
+     "cutoff": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Cutoff"
+     },
+     "announced_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Announced At"
+     },
+     "purge_after": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Purge After"
+     },
+     "exported_hint": {
+      "type": "boolean",
+      "title": "Exported Hint"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "kind",
+     "cutoff",
+     "announced_at",
+     "purge_after",
+     "exported_hint"
+    ],
+    "title": "RetentionNoticeRead"
+   },
    "ReviewDecision": {
     "type": "string",
     "enum": [
@@ -33938,6 +34777,33 @@
     ],
     "title": "StudioRead",
     "description": "Active studio seen by its own members (C2 / N5 support).\n\nDeclared here rather than in `studio-contracts` because it is consumed only\nby this route for now; `suspension_reason` is the motif an operator entered\nwhen suspending the studio (0050), cleared on lift. No project, file, note\nor message is part of it."
+   },
+   "StudioRetentionRead": {
+    "properties": {
+     "studio_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Studio Id"
+     },
+     "notices": {
+      "items": {
+       "$ref": "#/components/schemas/RetentionNoticeRead"
+      },
+      "type": "array",
+      "title": "Notices"
+     },
+     "export_url": {
+      "type": "string",
+      "title": "Export Url"
+     }
+    },
+    "type": "object",
+    "required": [
+     "studio_id",
+     "notices",
+     "export_url"
+    ],
+    "title": "StudioRetentionRead"
    },
    "StudioRole": {
     "type": "string",

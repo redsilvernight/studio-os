@@ -498,3 +498,7 @@ _.reset_request_windows  # studio_api/services/entitlements.py
 
 _.restore_studio_archive  # studio_api/services/studio_restore.py
 _.count_studio_rows  # studio_api/services/studio_restore.py
+
+# SUPPORT : portée valide d'une demande break-glass, lue par valeur depuis la console opérateur.
+
+_.SUPPORT  # studio_api/db/models/break_glass.py

@@ -18,6 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, Request, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from studio_api.db.models.retention import RetentionKind, RetentionPurgeNoticeModel
 from studio_api.db.models.studio import (
     StudioInvitationModel,
     StudioMembershipModel,
@@ -35,6 +36,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import entitlements as entitlements_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services import retention as retention_service
 from studio_api.services import studios as studios_service
 from studio_api.services.authz import (
     Principal,
@@ -73,6 +75,21 @@ class StudioDetail(StudioSummary):
         default=None,
         description=("When the studio is scheduled for deletion, or null."),
     )
+
+
+class RetentionNoticeRead(BaseModel):
+    id: uuid.UUID
+    kind: RetentionKind
+    cutoff: datetime
+    announced_at: datetime
+    purge_after: datetime
+    exported_hint: bool
+
+
+class StudioRetentionRead(BaseModel):
+    studio_id: uuid.UUID
+    notices: list[RetentionNoticeRead]
+    export_url: str
 
 
 class StudioCreateRequest(BaseModel):
@@ -278,6 +295,46 @@ async def get_studio_entitlements(
     # The counters are a cache: persist the refreshed values, the response is a read.
     await session.commit()
     return entitlements
+
+
+def _retention_notice(notice: RetentionPurgeNoticeModel) -> RetentionNoticeRead:
+    return RetentionNoticeRead(
+        id=notice.id,
+        kind=RetentionKind(notice.kind),
+        cutoff=notice.cutoff,
+        announced_at=notice.announced_at,
+        purge_after=notice.purge_after,
+        exported_hint=notice.exported_hint,
+    )
+
+
+@router.get(
+    "/studios/{studio_id}/retention",
+    response_model=StudioRetentionRead,
+    description=(
+        "Open retention announcements of one studio, for any member. Each notice "
+        "names its `kind` (`events|timeline|usage|transfers|snapshots`), the "
+        "`cutoff` fixed from the plan's duration, `announced_at` and the earliest "
+        "purge date `purge_after` (7 days later); `exported_hint` says whether an "
+        "export archive already exists. `export_url` is the owner-only export "
+        "endpoint. Nothing is ever purged without an elapsed notice, and an "
+        "unlimited plan duration announces nothing. Read-only, never blocked by a "
+        "limit."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def get_studio_retention(
+    studio_id: uuid.UUID, session: DbSession, principal: CurrentPrincipal
+) -> StudioRetentionRead:
+    role = await studio_role_for_user(session, principal.user.id, studio_id)
+    if role is None:
+        raise forbidden("studio", "read")
+    notices = await retention_service.open_notices(session, studio_id)
+    return StudioRetentionRead(
+        studio_id=studio_id,
+        notices=[_retention_notice(notice) for notice in notices],
+        export_url=retention_service.export_url(studio_id),
+    )
 
 
 @router.post(

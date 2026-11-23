@@ -7,7 +7,7 @@ from typing import Annotated, Any
 
 import sqlalchemy as sa
 from fastapi import Depends
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.infra import InfraMeasurementsReport, InfraPoint, InfraSeries
@@ -15,6 +15,8 @@ from studio_contracts.infra import InfraMeasurementsReport, InfraPoint, InfraSer
 from studio_operator.db import get_session
 from studio_operator.schemas import (
     Alert,
+    BreakGlassRequest,
+    BreakGlassScope,
     CostTotal,
     Dashboard,
     ServiceHealth,
@@ -94,8 +96,35 @@ usage_ledger_entries = sa.Table(
     sa.Column("duration_seconds", sa.Numeric(14, 3)),
 )
 
+break_glass_requests = sa.Table(
+    "break_glass_requests",
+    _metadata,
+    sa.Column("id", PGUUID(as_uuid=True), primary_key=True),
+    sa.Column("studio_id", PGUUID(as_uuid=True)),
+    sa.Column("operator_ref", sa.Text),
+    sa.Column("reason", sa.Text),
+    sa.Column("scope", sa.String),
+    sa.Column("requested_at", sa.DateTime(timezone=True)),
+    sa.Column("status", sa.String),
+    sa.Column("decided_by_user_id", PGUUID(as_uuid=True)),
+    sa.Column("decided_at", sa.DateTime(timezone=True)),
+    sa.Column("expires_at", sa.DateTime(timezone=True)),
+)
+
+break_glass_audit = sa.Table(
+    "break_glass_audit",
+    _metadata,
+    sa.Column("id", PGUUID(as_uuid=True), primary_key=True),
+    sa.Column("event", sa.String),
+    sa.Column("request_id", PGUUID(as_uuid=True)),
+    sa.Column("studio_id", PGUUID(as_uuid=True)),
+    sa.Column("actor", sa.Text),
+    sa.Column("at", sa.DateTime(timezone=True)),
+)
+
 SUSPENDED = "suspended"
 ACTIVE = "active"
+BREAK_GLASS_REQUEST_WINDOW = timedelta(hours=24)
 
 # Names written by `services/api/src/studio_api/services/http_metrics.py` into
 # `infra_measurements`; kept as literals so this separate app imports nothing
@@ -584,6 +613,138 @@ class OperatorRepository:
             )
         ]
         return InfraMeasurementsReport(window_days=days, generated_at=generated_at, series=series)
+
+    # -- break-glass (C5) ----------------------------------------------
+
+    async def _expire_due_break_glass(self, now: datetime) -> None:
+        rows = (
+            await self.session.execute(
+                select(break_glass_requests.c.id, break_glass_requests.c.studio_id)
+                .where(
+                    or_(
+                        (
+                            (break_glass_requests.c.status == "requested")
+                            & (
+                                break_glass_requests.c.requested_at
+                                <= now - BREAK_GLASS_REQUEST_WINDOW
+                            )
+                        ),
+                        (
+                            (break_glass_requests.c.status == "approved")
+                            & (break_glass_requests.c.expires_at <= now)
+                        ),
+                    )
+                )
+                .with_for_update()
+            )
+        ).all()
+        if not rows:
+            return
+        ids = [row[0] for row in rows]
+        await self.session.execute(
+            update(break_glass_requests)
+            .where(break_glass_requests.c.id.in_(ids))
+            .values(status="expired")
+        )
+        await self.session.execute(
+            insert(break_glass_audit),
+            [
+                {
+                    "id": uuid.uuid4(),
+                    "event": "expired",
+                    "request_id": row[0],
+                    "studio_id": row[1],
+                    "actor": "system",
+                    "at": now,
+                }
+                for row in rows
+            ],
+        )
+        await self.session.commit()
+
+    async def break_glass_queue(self, *, limit: int = 100) -> list[BreakGlassRequest]:
+        now = datetime.now(UTC)
+        await self._expire_due_break_glass(now)
+        rows = (
+            await self.session.execute(
+                select(
+                    break_glass_requests.c.id,
+                    break_glass_requests.c.studio_id,
+                    studios.c.name,
+                    break_glass_requests.c.operator_ref,
+                    break_glass_requests.c.reason,
+                    break_glass_requests.c.scope,
+                    break_glass_requests.c.status,
+                    break_glass_requests.c.requested_at,
+                    break_glass_requests.c.decided_at,
+                    break_glass_requests.c.expires_at,
+                )
+                .join(studios, studios.c.id == break_glass_requests.c.studio_id)
+                .order_by(
+                    break_glass_requests.c.requested_at.desc(),
+                    break_glass_requests.c.id.desc(),
+                )
+                .limit(limit)
+            )
+        ).all()
+        return [
+            BreakGlassRequest(
+                id=row[0],
+                studio_id=row[1],
+                studio_name=row[2],
+                operator_ref=row[3],
+                reason=row[4],
+                scope=row[5],
+                status=row[6],
+                requested_at=row[7],
+                decided_at=row[8],
+                expires_at=row[9],
+            )
+            for row in rows
+        ]
+
+    async def request_break_glass(
+        self, studio_id: uuid.UUID, operator_ref: str, reason: str, scope: BreakGlassScope
+    ) -> BreakGlassRequest | None:
+        studio_name = await self.session.scalar(
+            select(studios.c.name).where(studios.c.id == studio_id)
+        )
+        if studio_name is None:
+            return None
+        now = datetime.now(UTC)
+        request_id = uuid.uuid4()
+        await self.session.execute(
+            insert(break_glass_requests).values(
+                id=request_id,
+                studio_id=studio_id,
+                operator_ref=operator_ref,
+                reason=reason,
+                scope=scope,
+                requested_at=now,
+                status="requested",
+            )
+        )
+        await self.session.execute(
+            insert(break_glass_audit).values(
+                id=uuid.uuid4(),
+                event="requested",
+                request_id=request_id,
+                studio_id=studio_id,
+                actor=f"operator:{operator_ref}",
+                at=now,
+            )
+        )
+        await self.session.commit()
+        return BreakGlassRequest(
+            id=request_id,
+            studio_id=studio_id,
+            studio_name=studio_name,
+            operator_ref=operator_ref,
+            reason=reason,
+            scope=scope,
+            status="requested",
+            requested_at=now,
+        )
 
     # -- the only write ------------------------------------------------
 

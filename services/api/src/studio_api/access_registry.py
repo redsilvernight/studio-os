@@ -82,10 +82,20 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("GET", "/api/v1/studios/{studio_id}/exports/{export_id}"): "instance",
     ("POST", "/api/v1/studios/{studio_id}/deletion"): "instance",
     ("DELETE", "/api/v1/studios/{studio_id}/deletion"): "instance",
+    # Break-glass (0055, DEC-0384): tenant-level request/decision/journal. The
+    # operator opens a request; the studio owner decides. Never project data,
+    # never content.
+    ("POST", "/api/v1/studios/{studio_id}/break-glass/requests"): "instance",
+    ("GET", "/api/v1/studios/{studio_id}/break-glass/requests"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/break-glass/requests/{request_id}/approve"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/break-glass/requests/{request_id}/deny"): "instance",
+    ("POST", "/api/v1/studios/{studio_id}/break-glass/requests/{request_id}/revoke"): "instance",
+    ("GET", "/api/v1/studios/{studio_id}/break-glass/audit"): "instance",
     # Own: the caller's machines (self-service, A5 — admin for any User),
     # agents and user-private runtimes. Studios are the caller's memberships:
     # listing them and reading one's own entitlements are never project data.
     ("GET", "/api/v1/studios/{studio_id}/entitlements"): "own",
+    ("GET", "/api/v1/studios/{studio_id}/retention"): "own",
     ("POST", "/api/v1/machines"): "own",
     ("POST", "/api/v1/machines/{machine_id}/adopt"): "own",
     ("PUT", "/api/v1/machines/{machine_id}/workstation"): "own",
