@@ -485,3 +485,11 @@ _.DERIVED_FROM  # studio_contracts/vault.py
 
 _.daemon_threads  # studio_client/daemon/service.py
 _.CursorResult  # studio_api/admin_cli.py
+
+# --- Atelier : champs écrits ou appelés hors des chemins analysés ---------------------------------
+
+# suspension_reason : colonne écrite par la console opérateur, exposée par StudioRead ;
+# reset_request_windows : réinitialisation du budget de requêtes, appelée par tests/conftest.py.
+
+_.suspension_reason  # studio_api/db/models/studio.py, routers/users.py
+_.reset_request_windows  # studio_api/services/entitlements.py

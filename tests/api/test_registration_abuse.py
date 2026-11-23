@@ -116,9 +116,7 @@ async def test_ip_quota_blocks_a_second_registration(
         headers={"Idempotency-Key": str(uuid.uuid4())},
     )
     assert response.status_code == 429
-    assert response.json() == {
-        "detail": {"error_code": "registration_rate_limited", "scope": "ip"}
-    }
+    assert response.json() == {"detail": {"error_code": "registration_rate_limited", "scope": "ip"}}
     assert int(response.headers["retry-after"]) >= 1
     assert await _count_users(db_session, blocked) == 0
 
@@ -134,9 +132,7 @@ async def test_domain_quota_is_shared_by_distinct_addresses(
     assert body == {"detail": {"error_code": "registration_rate_limited", "scope": "domain"}}
 
 
-async def test_disabled_quotas_do_not_block(
-    client: AsyncClient, settings: Settings
-) -> None:
+async def test_disabled_quotas_do_not_block(client: AsyncClient, settings: Settings) -> None:
     _configure(settings, registration_ip_limit=0, registration_domain_limit=0)
     for _ in range(3):
         assert await _register(client, _email()) == (202, {"status": "accepted"})
@@ -161,9 +157,7 @@ async def test_subdomain_of_a_disposable_domain_is_rejected(
     assert body == {"detail": {"error_code": "email_domain_not_allowed"}}
 
 
-async def test_disposable_list_is_configurable(
-    client: AsyncClient, settings: Settings
-) -> None:
+async def test_disposable_list_is_configurable(client: AsyncClient, settings: Settings) -> None:
     # Replaces the built-in list: spam.test is blocked, mailinator.com is not.
     _configure(settings, registration_disposable_email_domains="spam.test")
 
@@ -178,9 +172,7 @@ async def test_invalid_disposable_domain_setting_fails_fast() -> None:
         _settings(registration_disposable_email_domains="not a domain")
 
 
-async def test_bot_protection_is_off_by_default(
-    client: AsyncClient, settings: Settings
-) -> None:
+async def test_bot_protection_is_off_by_default(client: AsyncClient, settings: Settings) -> None:
     assert settings.registration_bot_protection_enabled is False
     assert await _register(client, _email()) == (202, {"status": "accepted"})
 
@@ -192,4 +184,3 @@ async def test_enabled_bot_protection_without_provider_fails_closed(
     status_code, body = await _register(client, _email())
     assert status_code == 503
     assert body == {"detail": {"error_code": "registration_bot_protection_unavailable"}}
-

@@ -44,10 +44,6 @@ export function getActiveStudio(): Studio | null {
   return studios.find((studio) => studio.id === activeId) ?? studios[0] ?? null;
 }
 
-export function getActiveStudioId(): string | null {
-  return getActiveStudio()?.id ?? null;
-}
-
 /** Change de studio sans recharger : persiste + notifie (le shell repeint). */
 export function selectStudio(id: string): Studio | null {
   if (!studios.some((studio) => studio.id === id)) return null;

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.plan import PlanLimitModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.studio import INTERNAL_STUDIO_ID
 from studio_api.db.models.transfer import TransferModel
@@ -154,3 +155,15 @@ def client_config() -> ClientConfig:
         backoff_initial=0.001,
         backoff_max=0.002,
     )
+
+
+@pytest_asyncio.fixture
+async def large_files_allowed(db_session: AsyncSession) -> None:
+    """Multi-hundred-MiB acceptance uploads exceed the free plan's per-file
+    ceiling; lift it for this test only (the transaction is rolled back)."""
+    await db_session.execute(
+        update(PlanLimitModel)
+        .where(PlanLimitModel.plan_code == "free", PlanLimitModel.limit_key == "file_size_bytes")
+        .values(max_value=None)
+    )
+    await db_session.flush()

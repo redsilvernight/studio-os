@@ -44,6 +44,7 @@ async def test_a_suspended_studio_exposes_its_reason(
     studio.status = "suspended"
     studio.suspension_reason = "Paiement non régularisé depuis 21 jours"
     await db_session.flush()
+    await db_session.refresh(studio)
 
     response = await client.get("/api/v1/studio", headers=auth_headers)
 
