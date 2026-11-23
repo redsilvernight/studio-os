@@ -493,3 +493,8 @@ _.CursorResult  # studio_api/admin_cli.py
 
 _.suspension_reason  # studio_api/db/models/studio.py, routers/users.py
 _.reset_request_windows  # studio_api/services/entitlements.py
+
+# restore_studio_archive, count_studio_rows : appelées par scripts/studio_restore.py (hors chemins analysés).
+
+_.restore_studio_archive  # studio_api/services/studio_restore.py
+_.count_studio_rows  # studio_api/services/studio_restore.py
