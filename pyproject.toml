@@ -49,8 +49,9 @@ ignore_decorators = [
 ]
 # Noms imposés par un protocole : BaseHTTPMiddleware.dispatch, Pydantic (model_config,
 # settings_customise_sources), sqlite3 (row_factory), PEP 562 (__getattr__/__dir__ de module),
-# arguments de __exit__/__aexit__.
+# arguments de __exit__/__aexit__, colonne d'audit remplie par la base (stripe_events.processed_at).
 ignore_names = [
+    "processed_at",
     "dispatch",
     "model_config",
     "settings_customise_sources",

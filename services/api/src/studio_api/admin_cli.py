@@ -26,6 +26,7 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
 from studio_api.services import agents as agents_service
+from studio_api.services import billing as billing_service
 from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
@@ -250,6 +251,20 @@ async def _purge_due_studios(dry_run: bool) -> None:
             f"{result.backup_purge_at.isoformat()}"
         )
     print(f"{len(results)} studio(s) {'would be purged' if dry_run else 'purged'}")
+
+
+async def _downgrade_overdue_studios() -> None:
+    """Unpaid grace worker (S4-stripe) — run on a schedule. Studios unpaid for
+    more than `STUDIO_STRIPE_GRACE_DAYS` return to the free plan; no data is
+    deleted."""
+    async with get_session_factory()() as session:
+        downgraded = await billing_service.downgrade_overdue_studios(
+            session, get_settings().stripe_grace_days
+        )
+        await session.commit()
+    for studio_id in downgraded:
+        print(f"downgraded studio {studio_id} to free")
+    print(f"{len(downgraded)} studio(s) downgraded")
 
 
 async def _run_retention() -> None:
@@ -628,6 +643,10 @@ def main() -> None:
         help="Delete studios whose deletion grace window elapsed (DB rows + MinIO)",
     )
     studios_purge.add_argument("--dry-run", action="store_true")
+    studios_sub.add_parser(
+        "downgrade-overdue",
+        help="Return studios unpaid past the grace delay to the free plan (no data deleted)",
+    )
 
     snapshots_parser = sub.add_parser("snapshots", help="Manage execution snapshots")
     snapshots_sub = snapshots_parser.add_subparsers(dest="snapshots_command", required=True)
@@ -743,6 +762,8 @@ def main() -> None:
             asyncio.run(_abort_stale_multipart_uploads(args.older_than_days, args.dry_run))
         elif args.command == "studios" and args.studios_command == "purge-due":
             asyncio.run(_purge_due_studios(args.dry_run))
+        elif args.command == "studios" and args.studios_command == "downgrade-overdue":
+            asyncio.run(_downgrade_overdue_studios())
         elif args.command == "snapshots" and args.snapshots_command == "purge-expired":
             asyncio.run(_purge_execution_snapshots())
         elif args.command == "retention-run":

@@ -44,6 +44,7 @@ from studio_api.db.models.roadmap import (
     RoadmapStepTaskLinkModel,
 )
 from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
+from studio_api.db.models.stripe_event import StripeEventModel
 from studio_api.db.models.studio import StudioMembershipModel, StudioModel
 from studio_api.db.models.studio_export import StudioExportModel
 from studio_api.db.models.task import TaskModel
@@ -75,6 +76,7 @@ __all__ = [
     "PlanLimitModel",
     "StudioPlanCounterModel",
     "StudioExportModel",
+    "StripeEventModel",
     "MachineLaunchGrantModel",
     "ProjectMembershipModel",
     "ProjectRepositoryModel",

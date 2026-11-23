@@ -476,6 +476,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studios/{studio_id}/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Checkout
+         * @description Stripe-hosted Checkout URL to subscribe the studio to Pro, monthly or yearly (`owner` only). `409 already_subscribed` once on Pro, `503 billing_unavailable` when Stripe is not configured. The plan changes only when Stripe's signed webhook says so, never on return.
+         */
+        post: operations["create_checkout_api_v1_studios__studio_id__billing_checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/stripe/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stripe Webhook
+         * @description Stripe webhook ingress. Authenticated by the `Stripe-Signature` HMAC over the raw body (deliberate signed exception to Bearer auth) and the only writer of a studio's paid status. Each event id is applied once: a replay answers `duplicate` and changes nothing. Unpaid starts a grace delay, then the studio drops to the free plan, data kept.
+         */
+        post: operations["stripe_webhook_api_v1_billing_stripe_webhook_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/studios/{studio_id}/billing/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Portal
+         * @description Stripe-hosted customer-portal URL to manage or cancel the subscription (`owner` only). `409 no_subscription` until a Checkout created the customer.
+         */
+        post: operations["create_portal_api_v1_studios__studio_id__billing_portal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -4166,6 +4226,11 @@ export interface components {
              */
             machine_id: string;
         };
+        /** BillingSessionRead */
+        BillingSessionRead: {
+            /** Url */
+            url: string;
+        };
         /**
          * BindingRelation
          * @description Closed vocabulary of Library Binding types.
@@ -4741,6 +4806,15 @@ export interface components {
              * @description 12 characters to 72 UTF-8 bytes.
              */
             new_password: string;
+        };
+        /** CheckoutRequest */
+        CheckoutRequest: {
+            /**
+             * Interval
+             * @default month
+             * @enum {string}
+             */
+            interval: "month" | "year";
         };
         /** ClaimItem */
         ClaimItem: {
@@ -9707,6 +9781,14 @@ export interface components {
             tasks?: components["schemas"]["TaskPlanItem"][] | null;
             provenance?: components["schemas"]["WriteProvenance"];
         };
+        /** StripeWebhookResult */
+        StripeWebhookResult: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "ignored" | "duplicate";
+        };
         /**
          * StudioCounter
          * @description Consumption of one limit for one studio. `source` says where the value
@@ -13371,6 +13453,188 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberRead"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_checkout_api_v1_studios__studio_id__billing_checkout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSessionRead"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stripe_webhook_api_v1_billing_stripe_webhook_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Stripe-Signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StripeWebhookResult"];
+                };
+            };
+            /** @description Invalid or missing signature. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body over the bounded ingress size. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description `STUDIO_STRIPE_WEBHOOK_SECRET` unset. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_portal_api_v1_studios__studio_id__billing_portal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSessionRead"];
                 };
             };
             /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */

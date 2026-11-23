@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,20 @@ class Settings(BaseSettings):
     # Plans and limits (DEC-0401/DEC-0402): the single subscription screen every
     # `plan_limit_reached` response points at. Relative path = dashboard route.
     billing_upgrade_url: str = "/settings/subscription"
+    # Stripe (S4-stripe): the key lives in the environment only (never in the
+    # repo or the logs). Unset = billing disabled, the routes answer 503.
+    stripe_secret_key: SecretStr | None = None
+    stripe_price_monthly_id: str = ""
+    stripe_price_annual_id: str = ""
+    # 0 = no trial. Applied to a first Checkout only.
+    stripe_trial_days: int = Field(default=0, ge=0, le=90)
+    stripe_api_base: str = "https://api.stripe.com/v1"
+    # Signing secret of the webhook endpoint (`whsec_...`), environment only.
+    # Unset = the webhook answers 503. Unpaid grace before the free-plan drop.
+    stripe_webhook_secret: SecretStr | None = None
+    stripe_grace_days: int = Field(default=7, ge=0, le=60)
+    # Dashboard origin Stripe sends the customer back to (success/cancel/portal).
+    billing_return_origin: str = "http://localhost:5173"
     # Studio export / deletion (0051). A deletion request is a grace window: the
     # studio turns read-only now and `purge_due_studios` deletes it once
     # `deletion_grace_days` elapsed (the owner may cancel meanwhile).
