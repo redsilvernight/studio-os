@@ -129,6 +129,9 @@ IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 # has actually been verified; the rate limiter only trusts a token as a bucket
 # key after seeing this flag (scope["state"] is shared with the middleware).
 AUTHENTICATED_STATE_FLAG = "bearer_authenticated"
+# Resolved client IP (trusted-proxy aware), published for endpoint-level
+# guards so they never re-implement the X-Forwarded-For trust chain.
+CLIENT_IP_STATE = "client_ip"
 
 
 def parse_trusted_proxies(spec: str) -> tuple[IPNetwork, ...]:
@@ -285,6 +288,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if path in {"/healthz", "/metrics", "/version"}:
             return await call_next(request)
+
+        # One trusted-proxy resolution per request, reused by endpoint guards.
+        setattr(request.state, CLIENT_IP_STATE, self.client_ip(request))
 
         # The GitHub webhook has its own bucket (DEC-0059): it carries no
         # machine token, so the default per-token key would collapse every

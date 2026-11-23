@@ -67,6 +67,10 @@ def _settings(**overrides: object) -> Settings:
         "email_backend": "file",
         "email_from": "studio@example.test",
         "account_email_cooldown_seconds": 0,
+        # Quotas are exercised in test_registration_abuse.py; this module sends
+        # more registrations than production defaults allow in one window.
+        "registration_ip_limit": 0,
+        "registration_domain_limit": 0,
     }
     values.update(overrides)
     return Settings(**values)  # type: ignore[arg-type]
