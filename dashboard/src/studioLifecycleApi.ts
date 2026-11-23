@@ -114,7 +114,7 @@ export interface StudioDeletion {
   deletion_scheduled_at: string;
 }
 
-async function request<T>(
+export async function request<T>(
   baseUrl: string,
   path: string,
   method: "GET" | "POST" | "PATCH" | "DELETE",

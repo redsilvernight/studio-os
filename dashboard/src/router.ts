@@ -56,7 +56,7 @@ function notFound(hash: string): Route {
 }
 
 export function parseRoute(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, "").split("/").filter((p) => p !== "");
+  const parts = hash.replace(/\?.*$/, "").replace(/^#\/?/, "").split("/").filter((p) => p !== "");
   if (parts.length === 0) return { name: "dashboard" };
   if (parts[0] === "projects" && parts.length === 1) return { name: "projects" };
   if (parts[0] === "projects" && parts[1] !== undefined) {
