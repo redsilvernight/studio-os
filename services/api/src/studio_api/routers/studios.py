@@ -40,6 +40,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_studio_role,
     forbidden,
+    studio_role_for_user,
 )
 from studio_api.services.entitlements import StudioEntitlements
 from studio_api.settings import Settings, get_settings
@@ -270,7 +271,7 @@ async def get_studio(
 async def get_studio_entitlements(
     studio_id: uuid.UUID, session: DbSession, principal: CurrentPrincipal
 ) -> StudioEntitlements:
-    role = await studios_service.studio_role_for_user(session, principal.user.id, studio_id)
+    role = await studio_role_for_user(session, principal.user.id, studio_id)
     if role is None:
         raise forbidden("studio", "read")
     entitlements = await entitlements_service.studio_entitlements(session, studio_id)
