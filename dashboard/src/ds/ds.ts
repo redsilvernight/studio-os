@@ -364,7 +364,7 @@ function wireDsDialog(root: ParentNode, dialogId: string): void {
     const first = items[0] as HTMLElement;
     const last = items[items.length - 1] as HTMLElement;
     const active = overlay.ownerDocument.activeElement;
-    if (event.shiftKey && (active === first || !overlay.contains(active))) {
+    if (event.shiftKey && (active === first || active === overlay.querySelector("h2") || !overlay.contains(active))) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && active === last) {

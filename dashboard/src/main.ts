@@ -205,7 +205,7 @@ async function renderRoute(
       await (await load(() => import("./views/workspacesPage"))).renderWorkspaces(staging, getPlatform(), { client, authed });
       break;
     case "subscription":
-      (await load(() => import("./views/subscription"))).renderSubscription(staging, getActiveStudio()?.role ?? "owner");
+      (await load(() => import("./views/subscription"))).renderSubscription(staging, getActiveStudio()?.role ?? "owner", { baseUrl });
       break;
     case "help":
       (await load(() => import("./views/help"))).renderHelp(staging);
