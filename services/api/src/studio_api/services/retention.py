@@ -64,7 +64,6 @@ _EVENTS_KINDS = (RetentionKind.EVENTS, RetentionKind.TIMELINE)
 class RetentionPurgeOutcome:
     """What one executed purge removed, for the CLI log."""
 
-    notice_id: uuid.UUID
     studio_id: uuid.UUID
     kind: RetentionKind
     rows_deleted: int
@@ -309,7 +308,6 @@ async def purge_announced(
         )
         outcomes.append(
             RetentionPurgeOutcome(
-                notice_id=notice.id,
                 studio_id=notice.studio_id,
                 kind=kind,
                 rows_deleted=rows_deleted,

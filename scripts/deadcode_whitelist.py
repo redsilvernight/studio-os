@@ -493,3 +493,7 @@ _.CursorResult  # studio_api/admin_cli.py
 
 _.suspension_reason  # studio_api/db/models/studio.py, routers/users.py
 _.reset_request_windows  # studio_api/services/entitlements.py
+
+# SUPPORT : portée valide d'une demande break-glass, lue par valeur depuis la console opérateur.
+
+_.SUPPORT  # studio_api/db/models/break_glass.py
