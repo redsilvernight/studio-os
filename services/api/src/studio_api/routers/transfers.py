@@ -19,6 +19,7 @@ from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
     RESP_409_IDEMPOTENCY,
@@ -67,10 +68,13 @@ async def list_transfers(
         "uploads directly to object storage. Oversize files fail with "
         "`413 transfer_too_large`; an exhausted quota fails with `507 "
         "quota_exceeded` (check `GET /transfers/consumption` first for "
-        "large uploads)."
+        "large uploads). A plan limit refuses the write with `402 "
+        "plan_limit_reached` (`limit`, `upgrade_url`); listing and "
+        "downloading are never blocked."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
+        **RESP_402_PLAN_LIMIT,
         **RESP_403_FORBIDDEN,
         **RESP_409_IDEMPOTENCY,
         **RESP_413_TRANSFER_TOO_LARGE,

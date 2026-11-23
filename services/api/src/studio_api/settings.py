@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     transfer_project_quota_bytes: int = 100 * 1024**3
     multipart_abandon_after_days: int = 7
 
+    # Plans and limits (DEC-0401/DEC-0402): the single subscription screen every
+    # `plan_limit_reached` response points at. Relative path = dashboard route.
+    billing_upgrade_url: str = "/settings/subscription"
+
     # Execution snapshots (DEC-0199): kept this long after capture, then purged.
     execution_snapshot_retention_days: int = Field(default=90, ge=1, le=3650)
 

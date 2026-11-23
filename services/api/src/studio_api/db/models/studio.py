@@ -57,7 +57,9 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
 
     slug: Mapped[str]
     name: Mapped[str]
-    plan: Mapped[str] = mapped_column(default="free", server_default="free")
+    plan: Mapped[str] = mapped_column(
+        ForeignKey("plans.code", ondelete="RESTRICT"), default="free", server_default="free"
+    )
     status: Mapped[str] = mapped_column(default="active", server_default="active")
     is_internal: Mapped[bool] = mapped_column(default=False, server_default="false")
 

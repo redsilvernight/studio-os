@@ -45,6 +45,7 @@ from studio_api.routers import (
     runtimes,
     sessions,
     start_work,
+    studios,
     sync,
     task_launches,
     tasks,
@@ -123,6 +124,10 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
     ),
     "infra": (
         "Internal infrastructure cost measurements (sizes and counts, never content). Admin only."
+    ),
+    "studios": (
+        "Studios of the authenticated user and their plan entitlements. One module "
+        "decides every limit; reads are never blocked by a limit."
     ),
     "budgets": (
         "Explicit per-project launch budget: alert-only by default, `enforce` only once "
@@ -319,6 +324,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_integration.router)
     app.include_router(users.router)
     app.include_router(users.studio_router)
+    app.include_router(studios.router)
     app.include_router(roadmaps.router)
     app.include_router(admission.router)
     app.include_router(initialization.router)
