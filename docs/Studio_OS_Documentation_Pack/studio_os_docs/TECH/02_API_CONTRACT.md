@@ -248,6 +248,9 @@ Tous sous `/api/v1`, `Idempotency-Key` sur les creations. Un studio etranger rep
 
 Studio en cours de suppression (`status = pending_deletion`) : toute ecriture (dont `POST /projects`) repond `409 studio_pending_deletion` ; lecture et export restent permis. Evenements : aucun nouvel evenement (TECH/03 inchange).
 
+### Limites du plan (S3, additif, DEC-0387)
+Erreur unique, produite par `services/entitlements.py` : `402 {"detail": {"error_code": "plan_limit_reached", "limit", "upgrade_url", "max_value", "current", "requested"}}`. `limit` nomme le plafond, `upgrade_url` l'action humaine, `current` et `requested` expliquent le refus sans exposer un autre studio. Elle ne concerne que les ecritures (projets, studios par compte, machines, utilisateurs, vault, transferts, ouverture SSE) ; le debit ne vise que `POST/PUT/PATCH/DELETE`. Lecture, liste, telechargement et export ne sont jamais refuses. Aucun changement d'enveloppe d'evenement ; `Idempotency-Key` conserve (TECH/03 inchange).
+
 ### Projects
 - GET /projects — uniquement les projets accessibles (membership ou `admin`,
   DEC-0103) ; liste vide valide pour un compte sans membership.
