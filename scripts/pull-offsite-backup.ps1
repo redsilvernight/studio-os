@@ -35,7 +35,7 @@ try {
         Write-Log "à jour : $latest déjà présent"
     } else {
         # Contrôle distant : sha256 du dump, nombre de fichiers, octets.
-        $remote = & ssh @ssh $RemoteHost "cd '$RemoteRoot/$latest' && sha256sum postgres/studio.dump | cut -d' ' -f1 && find . -type f | wc -l && find . -type f -printf '%s\n' | awk '{s+=`$1} END {print s+0}'"
+        $remote = & ssh @ssh $RemoteHost "cd '$RemoteRoot/$latest' && f=postgres/studio.dump; [ -f `$f.age ] && f=`$f.age; sha256sum `$f | cut -d' ' -f1 && find . -type f | wc -l && find . -type f -printf '%s\n' | awk '{s+=`$1} END {print s+0}'"
         if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 3) { throw "contrôle distant impossible pour $latest" }
         $partial = Join-Path $Destination ".partial-$latest"
         if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Recurse -Force }
@@ -43,7 +43,7 @@ try {
         & scp @ssh -q -r "${RemoteHost}:$RemoteRoot/$latest/*" $partial
         if ($LASTEXITCODE -ne 0) { throw "scp a échoué ($LASTEXITCODE)" }
         $files = Get-ChildItem -LiteralPath $partial -Recurse -File
-        $hash = (Get-FileHash -LiteralPath (Join-Path $partial 'postgres\studio.dump') -Algorithm SHA256).Hash.ToLower()
+        $hash = (Get-FileHash -LiteralPath (Join-Path $partial $(if (Test-Path -LiteralPath (Join-Path $partial 'postgres\studio.dump.age')) { 'postgres\studio.dump.age' } else { 'postgres\studio.dump' })) -Algorithm SHA256).Hash.ToLower()
         $bytes = ($files | Measure-Object Length -Sum).Sum
         if ($hash -ne $remote[0].Trim() -or $files.Count -ne [int]$remote[1] -or $bytes -ne [long]$remote[2]) {
             throw "copie incohérente : sha=$hash/$($remote[0]) fichiers=$($files.Count)/$($remote[1]) octets=$bytes/$($remote[2])"
