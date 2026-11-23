@@ -30,6 +30,7 @@ export const ADMIN_FAMILIES: readonly AdminFamily[] = [
   { href: "#/library", title: UI_LABEL.library, hint: "Règles, savoir-faire et configurations", icon: "book" },
   { href: "#/configuration/runtimes", title: UI_LABEL.configuration, hint: "Runtimes, liaisons, projet, appli, IA", icon: "settings" },
   { href: "#/workspaces", title: "Espaces de travail", hint: "Dossiers suivis sur ce poste", icon: "folder" },
+  { href: "#/inspector", title: "Inspecteur", hint: "Voir quel niveau de configuration gagne", icon: "inspector" },
   { href: "#/administration/mesures", title: "Mesures d'infrastructure", hint: "Tailles et comptes de l'instance", icon: "settings" },
 ];
 
