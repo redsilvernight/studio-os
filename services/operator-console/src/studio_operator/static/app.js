@@ -859,7 +859,7 @@ async function viewStudio(id) {
                 ),
             h(
               "button",
-              { class: "btn", type: "button", disabled: true, title: "Hors périmètre : demande break-glass (C5/C6)" },
+              { class: "btn", type: "button", onclick: () => breakGlassDialog(studio.id) },
               "Demander un accès d’exception",
             ),
           ),
@@ -1106,24 +1106,193 @@ async function viewSuspensions() {
 
 // -- break-glass (C5) -------------------------------------------------------
 
+const BREAK_GLASS_SCOPES = {
+  metadata: "Métadonnées (état des services, sans contenu)",
+  support: "Support (journaux techniques, sans contenu)",
+};
+
+const BREAK_GLASS_STATUSES = {
+  requested: ["En attente", "wa"],
+  approved: ["Accordé", "ok"],
+  denied: ["Refusé", "nd"],
+  expired: ["Expiré", "nd"],
+  revoked: ["Révoqué", "nd"],
+};
+
+function breakGlassPill(status) {
+  const [label, kind] = BREAK_GLASS_STATUSES[status] || [status, "nd"];
+  return h("span", { class: `pill ${kind}`, text: label });
+}
+
+function scopedLabel(scope) {
+  return BREAK_GLASS_SCOPES[scope] || scope;
+}
+
+async function breakGlassDialog(studioId) {
+  const select = h("select", { class: "fi", name: "studio", required: true });
+  const reason = h("textarea", { class: "fi", name: "reason", required: true, maxlength: "2000" });
+  const scope = h(
+    "select",
+    { class: "fi", name: "scope" },
+    Object.entries(BREAK_GLASS_SCOPES).map(([value, label]) =>
+      h("option", { value, text: label }),
+    ),
+  );
+  const feedback = h("p", { class: "err", role: "alert" });
+  const submit = h("button", { class: "btn p", type: "submit" }, "Envoyer la demande");
+  const dialog = h(
+    "dialog",
+    { "aria-labelledby": "break-glass-title" },
+    h("h3", { class: "h3", id: "break-glass-title", text: "Demander un accès d’exception" }),
+    h(
+      "p",
+      { class: "muted" },
+      "La demande n’ouvre rien : le propriétaire du studio doit l’accepter, pour 24 heures au maximum. ",
+      "Aucun contenu client n’est lisible par la console.",
+    ),
+    h(
+      "form",
+      {
+        onsubmit: async (event) => {
+          event.preventDefault();
+          const text = reason.value.trim();
+          if (!select.value) {
+            feedback.textContent = "Choisissez un studio.";
+            return;
+          }
+          if (text.length < 3) {
+            feedback.textContent = "Un motif d’au moins 3 caractères est obligatoire.";
+            return;
+          }
+          submit.disabled = true;
+          try {
+            await api("/break-glass", {
+              method: "POST",
+              body: JSON.stringify({
+                studio_id: select.value,
+                reason: text,
+                scope: scope.value,
+              }),
+            });
+            dialog.close();
+            viewBreakGlass();
+          } catch (error) {
+            submit.disabled = false;
+            feedback.textContent = error.message;
+          }
+        },
+      },
+      h("label", { class: "fld" }, h("span", { text: "Studio" }), select),
+      h("label", { class: "fld" }, h("span", { text: "Motif (visible du client)" }), reason),
+      h("label", { class: "fld" }, h("span", { text: "Portée" }), scope),
+      feedback,
+      h(
+        "div",
+        { class: "dialog-actions" },
+        h("button", { class: "btn", type: "button", onclick: () => dialog.close() }, "Annuler"),
+        submit,
+      ),
+    ),
+  );
+  document.body.append(dialog);
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.showModal();
+  try {
+    const data = await api("/studios?limit=200");
+    for (const studio of data.studios) {
+      select.append(h("option", { value: studio.id, text: `${studio.name} · ${planLabel(studio.plan)}` }));
+    }
+    if (studioId) select.value = studioId;
+  } catch (error) {
+    feedback.textContent = error.message;
+  }
+  reason.focus();
+}
+
 async function viewBreakGlass() {
   mount("break-glass", page("Demandes break-glass", "", loadingCard()));
   try {
     const data = await api("/break-glass");
+    const newButton = h(
+      "button",
+      { class: "btn p", type: "button", onclick: () => breakGlassDialog() },
+      "Nouvelle demande",
+    );
+    if (data.requests.length === 0) {
+      mount(
+        "break-glass",
+        page(
+          "Demandes break-glass",
+          "Aucun accès sans accord du propriétaire.",
+          h(
+            "div",
+            { class: "card" },
+            h("h3", { class: "h3", text: "Aucune demande" }),
+            h(
+              "p",
+              { class: "muted" },
+              "Une demande non traitée expire seule au bout de 24 heures.",
+            ),
+            h("div", { class: "btns" }, newButton),
+          ),
+        ),
+      );
+      return;
+    }
     mount(
       "break-glass",
       page(
         "Demandes break-glass",
-        "Aucun accès sans accord du propriétaire.",
+        `${data.total} demande(s). Aucun accès sans accord du propriétaire.`,
+        h(
+          "div",
+          { class: "btns" },
+          newButton,
+        ),
         h(
           "div",
           { class: "card" },
-          h("h3", { class: "h3", text: "File non disponible" }),
-          h("p", { class: "muted", text: data.message }),
           h(
-            "p",
-            { class: "muted" },
-            "Aucune demande, aucun accord et aucun journal d’accès n’est lu ni écrit ici.",
+            "table",
+            { class: "tbl" },
+            h(
+              "thead",
+              null,
+              h(
+                "tr",
+                null,
+                h("th", { text: "Studio" }),
+                h("th", { text: "Motif" }),
+                h("th", { text: "Portée" }),
+                h("th", { text: "Statut" }),
+                h("th", { text: "Demandée" }),
+                h("th", { text: "Décision" }),
+              ),
+            ),
+            h(
+              "tbody",
+              null,
+              data.requests.map((item) =>
+                h(
+                  "tr",
+                  null,
+                  h(
+                    "td",
+                    null,
+                    h("div", { text: item.studio_name || shortId(item.studio_id) }),
+                    h("div", { class: "mono", text: item.operator_ref }),
+                  ),
+                  h("td", { class: "muted", text: item.reason }),
+                  h("td", { class: "muted", text: scopedLabel(item.scope) }),
+                  h("td", null, breakGlassPill(item.status)),
+                  h("td", { text: dateLabel(item.requested_at) }),
+                  h(
+                    "td",
+                    { class: "muted", text: item.decided_at ? dateLabel(item.decided_at) : "—" },
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
