@@ -116,6 +116,25 @@ RESP_404_NOT_FOUND: ErrorResponses = {
     )
 }
 
+RESP_402_PLAN_LIMIT: ErrorResponses = {
+    402: _json_response(
+        "The studio's plan limit is reached, so this write is refused. "
+        "`limit` names the ceiling, `upgrade_url` the subscription screen a "
+        "human can use to lift it. Reading, downloading and exporting are "
+        "never blocked by a plan limit.",
+        {
+            "detail": {
+                "error_code": "plan_limit_reached",
+                "limit": "storage_bytes",
+                "upgrade_url": "/settings/subscription",
+                "max_value": 2147483648,
+                "current": 2147483648,
+                "requested": 1024,
+            }
+        },
+    )
+}
+
 RESP_409_VERSION_CONFLICT: ErrorResponses = {
     409: _json_response(
         "Stale `If-Match-Version`: another writer changed the object "

@@ -1,7 +1,8 @@
 /**
  * UX V2 P03-shell: adaptive shell at the three target widths (icon rail under
- * 1400 px, full sidebar above), Administration separated at the foot, a single
- * connection status (C4) and the Ctrl K « Aller à… » palette.
+ * 1400 px, full sidebar above), Atelier navigation (7 daily entries + Studio
+ * group at the foot), a single connection status (C4) and the Ctrl K
+ * « Aller à… » palette.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
 
@@ -32,7 +33,7 @@ const WIDTHS = [
 ];
 
 for (const { width, rail } of WIDTHS) {
-  test(`shell at ${width}px: ${rail ? "icon rail" : "full sidebar"}, Administration at the foot`, async ({ page }) => {
+  test(`shell at ${width}px: ${rail ? "icon rail" : "full sidebar"}, Studio group at the foot`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await login(page);
     const sidebar = page.locator(".app-sidebar");
@@ -41,25 +42,37 @@ for (const { width, rail } of WIDTHS) {
     if (rail) expect(box?.width).toBeLessThan(100);
     else expect(box?.width).toBeGreaterThan(200);
 
-    // Daily entries stay visible; the short label is used in the rail.
-    const daily = page.locator(".app-navgroup").first().locator("a");
-    await expect(daily).toHaveCount(5);
+    // The seven daily entries stay visible; the short label is used in the rail.
+    const daily = page.locator(".app-navgroup").first().locator("a.app-navlink");
+    await expect(daily).toHaveCount(7);
+    expect(await daily.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")))).toEqual([
+      "#/",
+      "#/projects",
+      "#/tasks",
+      "#/decisions",
+      "#/agents",
+      "#/library",
+      "#/vault",
+    ]);
     for (const link of await daily.all()) await expect(link).toBeVisible();
     await expect(page.locator('.app-sidebar a[href="#/decisions"] .app-lbl-short')).toBeVisible({ visible: rail });
     await expect(page.locator('.app-sidebar a[href="#/decisions"]')).toHaveAccessibleName("À valider");
 
-    // Administration sits below the daily group, separated at the foot.
-    const admin = page.locator("details.app-navgroup--admin");
+    // Studio sits below the daily group, separated at the foot (E1 mockup).
+    const studio = page.locator("section.app-navgroup--admin");
     const dailyBox = await page.locator(".app-navgroup").first().boundingBox();
-    const adminBox = await admin.boundingBox();
-    expect((adminBox?.y ?? 0) - ((dailyBox?.y ?? 0) + (dailyBox?.height ?? 0))).toBeGreaterThan(16);
-    // P05-admin: one Administration entry + 6 families, experts outside it.
-    await expect(page.locator('.app-sidebar a[href="#/administration"]')).toHaveCount(1);
-    await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveCount(1);
-    await admin.evaluate((el) => {
-      (el as HTMLDetailsElement).open = true;
-    });
-    await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveAccessibleName(/Espaces de travail/);
+    const studioBox = await studio.boundingBox();
+    // La coque Atelier sépare les deux groupes de 8 px (au lieu du grand
+    // intervalle de l'ancien Administration repliable).
+    expect((studioBox?.y ?? 0) - ((dailyBox?.y ?? 0) + (dailyBox?.height ?? 0))).toBeGreaterThanOrEqual(8);
+    await expect(page.locator(".app-nav > .app-navgroup").last()).toHaveClass(/app-navgroup--admin/);
+    await expect(studio.locator("a.app-navlink")).toHaveCount(3);
+    for (const href of ["#/administration", "#/abonnement", "#/aide"]) {
+      await expect(page.locator(`.app-sidebar a[href="${href}"]`)).toHaveCount(1);
+    }
+    // Expert families live in Réglages, no longer in a sidebar details group.
+    await expect(page.locator(".app-sidebar details")).toHaveCount(0);
+    await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveCount(0);
 
     // Exactly one connection status, in the avatar block; no top bar on desktop.
     await expect(page.locator('[data-testid="connection-status"]')).toHaveCount(1);
@@ -69,17 +82,28 @@ for (const { width, rail } of WIDTHS) {
   });
 }
 
-test("Ctrl K opens the « Aller à… » palette and navigates", async ({ page }) => {
+test("Ctrl K opens the « Aller à… » palette and navigates to the Studio group", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await login(page);
   await page.keyboard.press("Control+k");
   const input = page.locator("#app-palette-input");
+  const options = page.locator("#app-palette-list [role=option]");
   await expect(input).toBeFocused();
+  // The palette mirrors the shell (no global search): "configuration" is a
+  // family of Réglages, not a standalone destination anymore.
   await input.fill("configuration");
-  await expect(page.locator("#app-palette-list [role=option]")).toHaveCount(1);
+  await expect(options).toHaveCount(0);
+  await input.fill("réglages");
+  await expect(options).toHaveCount(1);
+  await expect(options.first()).toHaveAttribute("data-href", "#/administration");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/#\/configuration\/runtimes$/);
+  await expect(page).toHaveURL(/#\/administration$/);
   await expect(page.locator("#app-palette")).toBeHidden();
+
+  // The former "configuration" destination stays one click away in Réglages.
+  await expect(page.locator("#view h1")).toContainText("Administration");
+  await page.locator('#view .admin-fams a[href="#/configuration/runtimes"]').click();
+  await expect(page).toHaveURL(/#\/configuration\/runtimes$/);
 
   await page.locator("#palette-open").click();
   await expect(input).toBeFocused();

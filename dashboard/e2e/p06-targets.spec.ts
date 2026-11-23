@@ -8,7 +8,8 @@
  * - C2 : aucun UUID ni préfixe hex de 8 caractères dans innerText / title /
  *        aria-label / placeholder par défaut (sections repliées).
  * - C3 : ≤ 7 éléments [data-major] visibles hors sections repliées par page,
- *        navigation principale = 5 quotidiennes + 1 entrée Administration.
+ *        navigation principale = 7 quotidiennes + groupe Studio (Réglages,
+ *        Abonnement, Aide).
  * - C4 : exactement 1 [data-testid=connection-status] par page.
  *
  * Contrainte : aucun fichier de dashboard/src n'est modifié. Si un critère
@@ -212,7 +213,7 @@ async function checkC2(page: Page, where: string): Promise<string[]> {
   return [];
 }
 
-/** C3 — ≤ 7 éléments majeurs visibles + navigation 5 quotidiennes + Administration. */
+/** C3 — ≤ 7 éléments majeurs visibles + navigation 7 quotidiennes + groupe Studio. */
 async function checkC3(page: Page, where: string): Promise<string[]> {
   const failures: string[] = [];
 
@@ -240,12 +241,16 @@ async function checkC3(page: Page, where: string): Promise<string[]> {
   }
 
   const dailyCount = await page.locator(".app-navgroup").first().locator("a.app-navlink").count();
-  if (dailyCount !== 5) {
-    failures.push(`C3 échec nav ${where} : ${dailyCount} entrées quotidiennes (attendu 5)`);
+  if (dailyCount !== 7) {
+    failures.push(`C3 échec nav ${where} : ${dailyCount} entrées quotidiennes (attendu 7)`);
   }
   const adminCount = await page.locator('.app-sidebar a[href="#/administration"]').count();
   if (adminCount !== 1) {
-    failures.push(`C3 échec nav ${where} : ${adminCount} entrée(s) Administration (attendu 1)`);
+    failures.push(`C3 échec nav ${where} : ${adminCount} entrée(s) Réglages (attendu 1)`);
+  }
+  const studioCount = await page.locator("section.app-navgroup--admin a.app-navlink").count();
+  if (studioCount !== 3) {
+    failures.push(`C3 échec nav ${where} : ${studioCount} entrée(s) Studio (attendu 3 : Réglages, Abonnement, Aide)`);
   }
 
   return failures;

@@ -26,9 +26,11 @@ from studio_api.deps import CurrentPrincipal, DbSession, require_project_provisi
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
 )
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import project_repositories as project_repositories_service
 from studio_api.services import projects as projects_service
@@ -80,10 +82,12 @@ async def list_projects(session: DbSession, principal: CurrentPrincipal) -> list
         "immediately); a URL already linked to another project fails with "
         "`409 repository_already_linked` and an invalid one with `422 "
         "invalid_repository_url`, both before the project is written. "
-        "Accepts `Idempotency-Key` for safe retries."
+        "Accepts `Idempotency-Key` for safe retries. The studio's plan "
+        "project ceiling refuses the write with `402 plan_limit_reached`."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
+        **RESP_402_PLAN_LIMIT,
         **RESP_403_FORBIDDEN,
         status.HTTP_409_CONFLICT: {
             "description": (
@@ -143,6 +147,11 @@ async def create_project(
     ),
 ) -> Project:
     async def _create() -> Project:
+        # The plan ceiling is applied by the single entitlements module, before
+        # any write; a replayed request never reaches it (idempotency wrapper).
+        await entitlements_service.enforce_capacity(
+            session, principal.studio_id, entitlements_service.PROJECTS, 1
+        )
         # The remote is validated before the project is written, so a refused
         # URL leaves nothing behind (same codes as the standalone link route).
         # The link itself goes through `link_repository`, which normalizes the

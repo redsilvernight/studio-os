@@ -30,6 +30,8 @@ export type Route =
   | { name: "configApplication" }
   | { name: "configIntegrations"; workspaceId?: string }
   | { name: "workspaces" }
+  | { name: "subscription" }
+  | { name: "help" }
   | { name: "studios"; create?: boolean }
   | { name: "studioInvitations" }
   | { name: "invitationAccept"; token: string | null }
@@ -131,6 +133,8 @@ export function parseRoute(hash: string): Route {
     return notFound(hash);
   }
   if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
+  if (parts[0] === "abonnement" && parts.length === 1) return { name: "subscription" };
+  if (parts[0] === "aide" && parts.length === 1) return { name: "help" };
   if (parts[0] === "studios") {
     if (parts.length === 1) return { name: "studios" };
     if (parts.length === 2 && parts[1] === "create") return { name: "studios", create: true };

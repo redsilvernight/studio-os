@@ -13,6 +13,14 @@ from studio_api.db.session import get_session
 from studio_api.deps import CurrentPrincipal
 from studio_api.mailer import EmailSender, OutgoingEmail, deliver, get_email_sender
 from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, ErrorResponses
+from studio_api.registration_guard import (
+    RegistrationBotProtection,
+    RegistrationGuard,
+    enforce_registration_limits,
+    get_registration_bot_protection,
+    get_registration_guard,
+    reject_disposable_domain,
+)
 from studio_api.security import hash_token
 from studio_api.services import accounts as accounts_service
 from studio_api.services import idempotency as idempotency_service
@@ -181,6 +189,21 @@ _TOKEN_ERRORS: ErrorResponses = {
     400: {"description": "`invalid_or_expired_token`: unknown, expired or already used."},
     409: {"description": "`idempotency_key_payload_mismatch`: same secret, different body."},
 }
+_ABUSE_ERRORS: ErrorResponses = {
+    400: {"description": "`email_domain_not_allowed`: disposable e-mail domain."},
+    429: {
+        "description": (
+            "`registration_rate_limited`: quota exceeded for `scope` (`ip` or "
+            "`domain`); the `Retry-After` header gives the wait in seconds."
+        )
+    },
+    503: {
+        "description": (
+            "`registration_bot_protection_unavailable`: the bot-protection hook "
+            "is enabled but no provider is wired."
+        )
+    },
+}
 
 
 @router.post(
@@ -192,9 +215,11 @@ _TOKEN_ERRORS: ErrorResponses = {
         "address only. Creates a `pending` `readonly` User without password nor "
         "project membership and e-mails a single-use verification link; the "
         "password and display name are chosen when that link is consumed. The "
-        "answer is identical whether or not the address already has an account."
+        "answer is identical whether or not the address already has an account. "
+        "Disposable e-mail domains and per-IP / per-domain quotas are rejected "
+        "with a distinct error before anything is created."
     ),
-    responses={**_UNAVAILABLE_REGISTRATION, **_KEY_ERRORS},
+    responses={**_UNAVAILABLE_REGISTRATION, **_KEY_ERRORS, **_ABUSE_ERRORS},
 )
 async def register(
     payload: EmailField,
@@ -206,9 +231,16 @@ async def register(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
     sender: EmailSender = Depends(get_email_sender),
+    guard: RegistrationGuard = Depends(get_registration_guard),
+    bot_protection: RegistrationBotProtection = Depends(get_registration_bot_protection),
 ) -> AcceptedResponse:
     _require_registration(settings)
     key = _require_key(idempotency_key)
+    await bot_protection.verify(request, payload.email)
+    reject_disposable_domain(request=request, settings=settings, email=payload.email)
+    enforce_registration_limits(
+        request=request, settings=settings, guard=guard, email=payload.email
+    )
     return await _accepted(
         session,
         request,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import replace
 from typing import Annotated
 
@@ -21,6 +21,7 @@ from studio_api.middleware import AUTHENTICATED_STATE_FLAG
 from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.security_log import security_event
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services.authz import (
     Principal,
     ensure_operator,
@@ -46,6 +47,10 @@ memberships by `resolve_active_studio`."""
 JWT_STUDIO_STATE = "jwt_studio_id"
 """`request.state` attribute holding the optional `studio_id` claim of a JWT
 principal, so `get_current_principal` can prefer it without decoding again."""
+
+_PLAN_RATE_LIMITED_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+"""Plan request budgets gate writes only: reads, downloads and exports never
+call the limiter."""
 
 
 async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | None:
@@ -134,15 +139,26 @@ CurrentMachine = Annotated[MachineModel, Depends(get_current_machine)]
 
 async def get_current_principal(
     request: Request, machine: CurrentMachine, session: DbSession
-) -> Principal:
+) -> AsyncIterator[Principal]:
     """Studio + transverse role + resource ownership all start here (TECH/04
     Autorisation, DEC-0036, DEC-0382) — the owner of the authenticated machine,
-    loaded once per request, in the active studio."""
+    loaded once per request, in the active studio. The write budget is checked
+    here but consumed only when the write actually succeeds: a `403` or any
+    other refusal must not spend a slot or change its canonical answer."""
     principal = await load_principal(session, machine, requested_studio_id(request))
-    return replace(
-        principal,
-        human_authenticated=hasattr(request.state, JWT_AUTH_VERSION_STATE),
-    )
+    limited = request.method in _PLAN_RATE_LIMITED_METHODS
+    if limited:
+        await entitlements_service.enforce_request_rate(session, principal.studio_id)
+    try:
+        yield replace(
+            principal,
+            human_authenticated=hasattr(request.state, JWT_AUTH_VERSION_STATE),
+        )
+    except BaseException:
+        raise
+    else:
+        if limited:
+            entitlements_service.record_request_rate(principal.studio_id)
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

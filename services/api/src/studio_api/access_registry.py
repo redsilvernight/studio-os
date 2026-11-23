@@ -57,6 +57,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/projects"): "instance",
     ("GET", "/api/v1/internal/infra-measurements"): "instance",
     ("GET", "/api/v1/users"): "instance",
+    ("GET", "/api/v1/studio"): "instance",
     ("GET", "/api/v1/studio/members"): "instance",
     ("POST", "/api/v1/users"): "instance",
     ("POST", "/api/v1/users/{user_id}/disable"): "instance",
@@ -82,7 +83,9 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/studios/{studio_id}/deletion"): "instance",
     ("DELETE", "/api/v1/studios/{studio_id}/deletion"): "instance",
     # Own: the caller's machines (self-service, A5 — admin for any User),
-    # agents and user-private runtimes.
+    # agents and user-private runtimes. Studios are the caller's memberships:
+    # listing them and reading one's own entitlements are never project data.
+    ("GET", "/api/v1/studios/{studio_id}/entitlements"): "own",
     ("POST", "/api/v1/machines"): "own",
     ("POST", "/api/v1/machines/{machine_id}/adopt"): "own",
     ("PUT", "/api/v1/machines/{machine_id}/workstation"): "own",

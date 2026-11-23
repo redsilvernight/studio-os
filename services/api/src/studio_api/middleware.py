@@ -31,9 +31,44 @@ from studio_contracts.version import (
 from studio_api.compat import check_client, client_status, family_latest, family_minimum
 from studio_api.observability import MetricsMiddleware
 from studio_api.security_log import security_event
+from studio_api.services import http_metrics
 from studio_api.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+
+class HttpMetricsMiddleware(BaseHTTPMiddleware):
+    """Feed the hourly operator counters (fiche C1/C3): request count, 5xx and
+    latency. Probes, docs and `/metrics` are not client API calls and are
+    skipped. Only numbers are kept — never a path, a query string or a body.
+    Streaming responses are timed to their headers, which is what a caller
+    waits for before the first byte.
+    """
+
+    _SKIP_PATHS = frozenset(
+        {
+            "/healthz",
+            "/readyz",
+            "/metrics",
+            "/version",
+            "/openapi.json",
+            "/docs",
+            "/docs/oauth2-redirect",
+            "/redoc",
+        }
+    )
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path in self._SKIP_PATHS:
+            return await call_next(request)
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            http_metrics.METRICS.record(500, (time.perf_counter() - started) * 1000)
+            raise
+        http_metrics.METRICS.record(response.status_code, (time.perf_counter() - started) * 1000)
+        return response
 
 
 class ClientVersionGuardMiddleware(BaseHTTPMiddleware):
@@ -129,6 +164,9 @@ IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 # has actually been verified; the rate limiter only trusts a token as a bucket
 # key after seeing this flag (scope["state"] is shared with the middleware).
 AUTHENTICATED_STATE_FLAG = "bearer_authenticated"
+# Resolved client IP (trusted-proxy aware), published for endpoint-level
+# guards so they never re-implement the X-Forwarded-For trust chain.
+CLIENT_IP_STATE = "client_ip"
 
 
 def parse_trusted_proxies(spec: str) -> tuple[IPNetwork, ...]:
@@ -286,6 +324,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path in {"/healthz", "/metrics", "/version"}:
             return await call_next(request)
 
+        # One trusted-proxy resolution per request, reused by endpoint guards.
+        setattr(request.state, CLIENT_IP_STATE, self.client_ip(request))
+
         # The GitHub webhook has its own bucket (DEC-0059): it carries no
         # machine token, so the default per-token key would collapse every
         # GitHub retry onto one IP bucket and throttle legitimate
@@ -381,6 +422,8 @@ def setup_middleware(app: FastAPI, settings: Settings) -> None:
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware, header_name=settings.request_id_header)
     app.add_middleware(ClientVersionGuardMiddleware, settings=settings)
+    if settings.http_measure_enabled:
+        app.add_middleware(HttpMetricsMiddleware)
     app.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=settings.rate_limit_requests_per_minute,

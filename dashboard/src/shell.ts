@@ -15,6 +15,7 @@ import type { NavMode } from "./navMode";
 import type { Route } from "./router";
 import { THEME_LABELS, THEME_MODES, type ThemeMode } from "./theme";
 import { esc } from "./ui";
+import { studioRoleLabel, type Studio, type StudioRole } from "./studiosApi";
 import brandLogoUrl from "./assets/studio-os-logo.png";
 
 export interface ShellNavItem {
@@ -24,6 +25,8 @@ export interface ShellNavItem {
   short?: string;
   icon: string;
   active: boolean;
+  /** Pastille de formule (Abonnement) : texte seul, jamais la couleur seule. */
+  pill?: string;
 }
 
 export interface ShellNavGroup {
@@ -52,60 +55,83 @@ export function icon(name: string): string {
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h11"/>',
     goto: '<path d="M5 12h12M13 7l5 5-5 5"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+    help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+    chev: '<path d="M6 9l6 6 6-6"/>',
     shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   };
   const body = paths[name] ?? '<circle cx="12" cy="12" r="8"/>';
   return `<svg class="app-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-const CONFIG_ROUTES: readonly Route["name"][] = [
-  "configRuntimes",
-  "configRuntime",
-  "configBindings",
-  "configProject",
-  "configApplication",
-  "configIntegrations",
-];
-
 /**
- * Groupes de navigation : routes existantes uniquement. Cinq destinations
- * quotidiennes ; l'Administration regroupe sa vue d'ensemble + ses 6
- * familles (P05-admin, ≤ 2 interactions : 1 clic vers la famille, 2 vers
- * le détail) ; les outils experts (Graphes, Inspecteur) vivent hors de
- * l'entrée Administration. `desktop` n'ajoute rien : les Espaces de
- * travail sont visibles partout (la page dit honnêtement web vs Desktop).
- * Mode « complet » (P06) : mêmes destinations, groupes secondaires déployés.
+ * Groupes de navigation (R2-coque, fiche E1) : 7 entrées quotidiennes puis
+ * le groupe « Studio » (Réglages, Abonnement, Aide). Libellés et ordre de la
+ * maquette : Aujourd'hui, Projets, Tâches, À valider, Équipe IA,
+ * Connaissances, Fichiers — Réglages, Abonnement, Aide.
+ *
+ * Correspondances : Équipe IA → Agents (+ Inspecteur historique) ;
+ * Connaissances → Bibliothèque ; Fichiers → Vault (+ atlas). Les routes
+ * expertes et d'administration historiques restent routées (liens directs,
+ * palette) et activent l'entrée Studio la plus proche — jamais de page sans
+ * repère actif. `role` pilote l'entrée Abonnement (propriétaire seul, E1) ;
+ * `plan` habille sa pastille (texte, jamais la couleur seule).
  */
-export function shellNavGroups(route: Route, desktop = false, mode: NavMode = "simple"): ShellNavGroup[] {
+export function shellNavGroups(
+  route: Route,
+  desktop = false,
+  mode: NavMode = "simple",
+  role: StudioRole = "owner",
+  plan = "Gratuit",
+): ShellNavGroup[] {
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
   void desktop;
-  const admin: ShellNavItem[] = [
-    { href: "#/administration", label: "Vue d'ensemble", short: "Admin", icon: "shield", active: is("admin", "adminMeasures") },
-    { href: "#/machines", label: "Postes", icon: "machines", active: is("machines") },
-    { href: "#/accounts", label: "Comptes", icon: "person", active: is("accounts") },
-    { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
-    { href: "#/vault", label: "Vault", icon: "vault", active: is("vault", "vaultDetail", "vaultAtlas") },
-    { href: "#/library", label: "Bibliothèque", icon: "book", active: is("library", "libraryDetail") },
-    { href: "#/configuration/runtimes", label: "Configuration", icon: "settings", active: is(...CONFIG_ROUTES) },
-    { href: "#/workspaces", label: "Espaces de travail", short: "Espaces", icon: "folder", active: is("workspaces") },
+  void mode;
+  const main: ShellNavItem[] = [
+    { href: "#/", label: "Aujourd'hui", short: "Auj.", icon: "home", active: is("dashboard") },
+    { href: "#/projects", label: "Projets", icon: "folder", active: is("projects", "project") },
+    { href: "#/tasks", label: "Tâches", icon: "tasks", active: is("tasks", "task") },
+    { href: "#/decisions", label: "À valider", short: "Valider", icon: "decision", active: is("decisions") },
+    { href: "#/agents", label: "Équipe IA", short: "Équipe", icon: "agents", active: is("agents", "agent", "inspector") },
+    { href: "#/library", label: "Connaissances", short: "Savoirs", icon: "book", active: is("library", "libraryDetail") },
+    { href: "#/vault", label: "Fichiers", icon: "file", active: is("vault", "vaultDetail", "vaultAtlas") },
   ];
-  const experts: ShellNavItem[] = [
-    { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
-  ];
-  const collapsible = mode === "simple";
-  return [
+  const studio: ShellNavItem[] = [
     {
-      title: "Principal",
-      items: [
-        { href: "#/", label: "Accueil", icon: "home", active: is("dashboard", "notFound") },
-        { href: "#/projects", label: "Projets", icon: "folder", active: is("projects", "project") },
-        { href: "#/tasks", label: "Travail", icon: "tasks", active: is("tasks", "task") },
-        { href: "#/decisions", label: "À valider", short: "Valider", icon: "decision", active: is("decisions") },
-        { href: "#/agents", label: "Agents", icon: "agents", active: is("agents", "agent") },
-      ],
+      href: "#/administration",
+      label: "Réglages",
+      icon: "settings",
+      active: is(
+        "admin",
+        "adminMeasures",
+        "machines",
+        "accounts",
+        "transfers",
+        "configRuntimes",
+        "configRuntime",
+        "configBindings",
+        "configProject",
+        "configApplication",
+        "configIntegrations",
+        "workspaces",
+      ),
     },
-    { title: "Outils experts", collapsible, items: experts },
-    { title: "Administration", collapsible, items: admin },
+    { href: "#/aide", label: "Aide", icon: "help", active: is("help") },
+  ];
+  if (role === "owner") {
+    studio.splice(1, 0, {
+      href: "#/abonnement",
+      label: "Abonnement",
+      short: "Abon.",
+      icon: "card",
+      active: is("subscription"),
+      pill: plan,
+    });
+  }
+  return [
+    { title: "Principal", items: main },
+    { title: "Studio", items: studio },
   ];
 }
 
@@ -120,21 +146,91 @@ function labelHtml(label: string, short?: string): string {
 
 function navItemHtml(item: ShellNavItem): string {
   const current = item.active ? ' aria-current="page"' : "";
-  return `<li><a class="app-navlink${item.active ? " active" : ""}" href="${esc(item.href)}"${current}>${icon(item.icon)}${labelHtml(item.label, item.short)}</a></li>`;
+  const pill = item.pill === undefined ? "" : `<span class="app-navpill">${esc(item.pill)}</span>`;
+  return `<li><a class="app-navlink${item.active ? " active" : ""}" href="${esc(item.href)}"${current}>${icon(item.icon)}${labelHtml(item.label, item.short)}${pill}</a></li>`;
 }
 
 function navGroupHtml(group: ShellNavGroup, index: number): string {
   const items = group.items.map(navItemHtml).join("");
-  const placement = group.title === "Administration" ? " app-navgroup--admin" : "";
-  if (group.collapsible === true) {
-    const open = group.items.some((item) => item.active) ? " open" : "";
-    const summaryIcon = group.title === "Outils experts" ? "graph" : "settings";
-    const short = group.title === "Outils experts" ? "Outils" : "Admin";
-    return `<details class="app-navgroup app-navgroup--secondary${placement}"${open}><summary>${icon(summaryIcon)}${labelHtml(group.title, short)}</summary><ul>${items}</ul></details>`;
-  }
-  // Groupe secondaire déployé (mode complet) : titre visible ; « Principal » reste muet.
+  // Le groupe « Studio » est repoussé en pied (même placement que
+  // l'Administration historique) ; « Principal » reste sans titre visible.
+  const placement = group.title === "Studio" ? " app-navgroup--admin" : "";
   const titleClass = group.title === "Principal" ? "ds-sr-only" : "app-navgroup-title";
   return `<section class="app-navgroup${placement}" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="${titleClass}">${esc(group.title)}</h2><ul>${items}</ul></section>`;
+}
+
+/**
+ * Sélecteur de studio (E1) : bouton de menu + rôle sous le nom. Clavier :
+ * Entrée/Espace ouvre, flèches haut/bas déplacent, Entrée choisit, Échap
+ * ferme (câblé par main.ts). Changer de studio ne recharge pas la page.
+ * Studio unique → pas de menu, pas de flèche. Suspendu → mention textuelle.
+ */
+
+export type StudioSelectorState =
+  | { status: "loading" }
+  | { status: "ready"; studios: Studio[]; activeId: string }
+  | { status: "error" };
+
+function studioInitial(name: string): string {
+  const letter = name.trim().slice(0, 1).toUpperCase();
+  return letter === "" ? "?" : letter;
+}
+
+function studioRoleLine(studio: Studio): string {
+  const role = studioRoleLabel(studio.role);
+  return studio.status === "suspended" ? `${role} · Suspendu` : role;
+}
+
+export function studioSelectorHtml(state: StudioSelectorState): string {
+  if (state.status === "loading") {
+    return `<div class="app-studio" data-testid="studio-selector"><span class="app-studio-loading" role="status">Chargement du studio…</span></div>`;
+  }
+  if (state.status === "error") {
+    return (
+      `<div class="app-studio" data-testid="studio-selector">` +
+      `<p class="app-studio-error" role="alert">Studios indisponibles</p>` +
+      `<button class="app-studio-retry" type="button" id="studio-retry">Réessayer</button></div>`
+    );
+  }
+  const active = state.studios.find((studio) => studio.id === state.activeId) ?? state.studios[0];
+  if (active === undefined) {
+    return `<div class="app-studio" data-testid="studio-selector"><span class="app-studio-loading" role="status">Aucun studio</span></div>`;
+  }
+  const avatar = `<span class="app-studio-avatar" aria-hidden="true">${esc(studioInitial(active.name))}</span>`;
+  const text =
+    `<span class="app-studio-text"><span class="app-studio-name">${esc(active.name)}</span>` +
+    `<span class="app-studio-role">${esc(studioRoleLine(active))}</span></span>`;
+  if (state.studios.length === 1) {
+    return (
+      `<div class="app-studio" data-testid="studio-selector" title="Studio unique">` +
+      `<span class="app-studio-current">${avatar}${text}</span></div>`
+    );
+  }
+  const options = state.studios
+    .map(
+      (studio) =>
+        `<li role="none"><button class="app-studio-option${studio.id === active.id ? " active" : ""}" type="button" role="menuitemradio" ` +
+        `aria-checked="${studio.id === active.id ? "true" : "false"}" data-studio-id="${esc(studio.id)}">` +
+        `<span class="app-studio-avatar" aria-hidden="true">${esc(studioInitial(studio.name))}</span>` +
+        `<span class="app-studio-text"><span class="app-studio-name">${esc(studio.name)}</span>` +
+        `<span class="app-studio-role">${esc(studioRoleLabel(studio.role))} · ${esc(studio.plan)}</span></span></button></li>`,
+    )
+    .join("");
+  return (
+    `<div class="app-studio" data-testid="studio-selector">` +
+    `<button class="app-studio-btn" type="button" id="studio-button" aria-haspopup="menu" aria-expanded="false" aria-controls="studio-menu">` +
+    `${avatar}${text}${icon("chev")}</button>` +
+    `<ul class="app-studio-menu" id="studio-menu" role="menu" aria-labelledby="studio-button" hidden>${options}</ul></div>`
+  );
+}
+
+/** Remplace le sélecteur en place (changement de studio, erreur, chargement). */
+export function syncStudioSelector(root: ParentNode, state: StudioSelectorState): void {
+  const slot = root.querySelector("#studio-slot");
+  if (slot === null) return;
+  const holder = document.createElement("template");
+  holder.innerHTML = studioSelectorHtml(state);
+  slot.replaceChildren(...Array.from(holder.content.childNodes));
 }
 
 /**
@@ -244,6 +340,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
   <div class="app-scrim" id="app-scrim" hidden></div>
   <aside class="app-sidebar" id="app-sidebar">
     <div class="app-brand"><img class="app-brand-mark" src="${esc(brandLogoUrl)}" alt="" aria-hidden="true" width="36" height="36"><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
+    <div id="studio-slot">${studioSelectorHtml({ status: "loading" })}</div>
     <button class="app-cmdk" type="button" id="palette-open" aria-haspopup="dialog" aria-controls="app-palette" aria-keyshortcuts="Control+K" title="Aller à… (Ctrl K)">${icon("goto")}<span class="app-lbl-full">Aller à…</span><kbd class="app-lbl-full" aria-hidden="true">Ctrl K</kbd></button>
     <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
     ${themeSelectorHtml(theme)}
@@ -271,10 +368,17 @@ ${paletteHtml()}
 }
 
 /** État actif seul (évite de reconstruire le shell à chaque rendu). */
-export function syncNav(route: Route, root: ParentNode, desktop = false, mode: NavMode = "simple"): void {
+export function syncNav(
+  route: Route,
+  root: ParentNode,
+  desktop = false,
+  mode: NavMode = "simple",
+  role: StudioRole = "owner",
+  plan = "Gratuit",
+): void {
   const links = root.querySelectorAll<HTMLAnchorElement>(".app-sidebar a.app-navlink");
   const targets = new Map<string, boolean>();
-  for (const group of shellNavGroups(route, desktop, mode)) {
+  for (const group of shellNavGroups(route, desktop, mode, role, plan)) {
     for (const item of group.items) targets.set(item.href, item.active);
   }
   for (const link of links) {
@@ -282,7 +386,6 @@ export function syncNav(route: Route, root: ParentNode, desktop = false, mode: N
     link.classList.toggle("active", active);
     if (active) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
-    if (active && !railMode()) link.closest("details")?.setAttribute("open", "");
   }
 }
 

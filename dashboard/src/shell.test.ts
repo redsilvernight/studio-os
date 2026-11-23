@@ -1,69 +1,67 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { parseRoute } from "./router";
-import { mountAdminFlyout, paintConnection, shellHtml, shellNavGroups, connectionStatusHtml } from "./shell";
+import {
+  mountAdminFlyout,
+  paintConnection,
+  shellHtml,
+  shellNavGroups,
+  studioSelectorHtml,
+  connectionStatusHtml,
+  syncStudioSelector,
+} from "./shell";
 import { notFoundHtml } from "./views/notFound";
 
 function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
   return shellHtml(routeName, true);
 }
 
-describe("shellNavGroups (UI-2)", () => {
-  it("covers the target navigation with existing routes only", () => {
+describe("shellNavGroups (R2-coque, fiche E1)", () => {
+  it("exposes the 7 daily entries in the mockup order", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups.map((group) => group.title)).toEqual(["Principal", "Outils experts", "Administration"]);
+    expect(groups.map((group) => group.title)).toEqual(["Principal", "Studio"]);
     expect(groups[0]?.items.map((item) => [item.label, item.href])).toEqual([
-      ["Accueil", "#/"],
+      ["Aujourd'hui", "#/"],
       ["Projets", "#/projects"],
-      ["Travail", "#/tasks"],
+      ["Tâches", "#/tasks"],
       ["À valider", "#/decisions"],
-      ["Agents", "#/agents"],
+      ["Équipe IA", "#/agents"],
+      ["Connaissances", "#/library"],
+      ["Fichiers", "#/vault"],
     ]);
-    expect(groups[1]?.collapsible).toBe(true);
-    expect(groups[2]?.items.map((item) => item.href)).toEqual([
-      "#/administration",
-      "#/machines",
-      "#/accounts",
-      "#/transfers",
-      "#/vault",
-      "#/library",
-      "#/configuration/runtimes",
-      "#/workspaces",
-    ]);
-    expect(groups[1]?.items.map((item) => item.href)).toEqual(["#/inspector"]);
+    expect(groups[0]?.items).toHaveLength(7);
   });
 
-  it("keeps Administration collapsed unless the active page belongs to it", () => {
-    expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>');
-    expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary app-navgroup--admin" open>');
-    expect(shellHtml({ name: "admin" }, true)).toContain('href="#/administration" aria-current="page"');
+  it("shows Réglages, Abonnement and Aide in the Studio group for the owner", () => {
+    const groups = shellNavGroups({ name: "dashboard" }, false, "simple", "owner", "Gratuit");
+    expect(groups[1]?.items.map((item) => item.label)).toEqual(["Réglages", "Abonnement", "Aide"]);
+    expect(groups[1]?.items.map((item) => item.href)).toEqual(["#/administration", "#/abonnement", "#/aide"]);
+    const subscription = groups[1]?.items.find((item) => item.label === "Abonnement");
+    expect(subscription?.pill).toBe("Gratuit");
   });
 
-  it("shows Espaces de travail in Administration on web and desktop, keeping five daily entries", () => {
-    for (const desktop of [false, true]) {
-      const groups = shellNavGroups({ name: "dashboard" }, desktop);
-      expect(groups[0]?.items).toHaveLength(5);
-      expect(groups[2]?.items.map((item) => item.label)).toEqual([
-        "Vue d'ensemble",
-        "Postes",
-        "Comptes",
-        "Transferts",
-        "Vault",
-        "Bibliothèque",
-        "Configuration",
-        "Espaces de travail",
-      ]);
+  it("hides Abonnement for non-owner roles and keeps the plan pill for the owner", () => {
+    for (const role of ["admin", "member", "viewer"] as const) {
+      const groups = shellNavGroups({ name: "dashboard" }, false, "simple", role);
+      expect(groups[1]?.items.map((item) => item.label)).toEqual(["Réglages", "Aide"]);
     }
+    const pro = shellNavGroups({ name: "dashboard" }, false, "simple", "owner", "Pro");
+    expect(pro[1]?.items.find((item) => item.label === "Abonnement")?.pill).toBe("Pro");
   });
 
-  it("keeps expert tools out of the Administration entry", () => {
-    const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups[2]?.items.map((item) => item.href)).not.toContain("#/vault/atlas");
-    expect(groups[2]?.items.map((item) => item.href)).not.toContain("#/inspector");
-    expect(groups[1]?.title).toBe("Outils experts");
+  it("keeps one active item on legacy pages via the closest Studio entry", () => {
+    const regales = (route: Parameters<typeof shellNavGroups>[0]): string[] =>
+      shellNavGroups(route).flatMap((group) => group.items.filter((item) => item.active).map((item) => item.label));
+    expect(regales({ name: "machines" })).toEqual(["Réglages"]);
+    expect(regales({ name: "accounts" })).toEqual(["Réglages"]);
+    expect(regales({ name: "admin" })).toEqual(["Réglages"]);
+    expect(regales({ name: "configApplication" })).toEqual(["Réglages"]);
+    expect(regales({ name: "inspector", stableKey: null })).toEqual(["Équipe IA"]);
+    expect(regales({ name: "subscription" })).toEqual(["Abonnement"]);
+    expect(regales({ name: "help" })).toEqual(["Aide"]);
   });
 
-  it("marks exactly one active item per route", () => {
+  it("marks exactly one active item per routed page", () => {
     for (const route of [
       { name: "dashboard" },
       { name: "projects" },
@@ -73,35 +71,97 @@ describe("shellNavGroups (UI-2)", () => {
       { name: "libraryDetail", kind: "rules", id: "x" },
       { name: "vault" },
       { name: "vaultDetail", id: "n-1" },
+      { name: "subscription" },
+      { name: "help" },
     ] as const) {
       const active = shellNavGroups(route).flatMap((group) => group.items).filter((item) => item.active);
       expect(active).toHaveLength(1);
     }
+    // 404 : aucun repère actif inventé.
+    expect(shellNavGroups({ name: "notFound", hash: "#/nope" }).flatMap((g) => g.items).filter((i) => i.active)).toHaveLength(0);
   });
 
-  it("activates Configuration inside Administration on every configuration route", () => {
-    const active = shellNavGroups({ name: "configBindings" })
-      .flatMap((group) => group.items)
-      .filter((item) => item.active);
-    expect(active.map((item) => item.label)).toEqual(["Configuration"]);
-    expect(shellHtml({ name: "configApplication" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
-    expect(shellHtml({ name: "configIntegrations" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
-    expect(shellHtml({ name: "configBindings" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
+  it("maps Connaissances to the library and Fichiers to the vault", () => {
+    const active = (route: Parameters<typeof shellNavGroups>[0]): string[] =>
+      shellNavGroups(route).flatMap((group) => group.items.filter((item) => item.active).map((item) => item.label));
+    expect(active({ name: "library", kind: null })).toEqual(["Connaissances"]);
+    expect(active({ name: "vaultAtlas" })).toEqual(["Fichiers"]);
+    expect(active({ name: "decisions" })).toEqual(["À valider"]);
   });
 });
 
-describe("shellHtml (UI-2)", () => {
-  it("labels navigation and landmarks in French", () => {
+describe("studioSelectorHtml (R2-coque, fiche E1)", () => {
+  const studios = [
+    { id: "a", name: "Atelier Phare", slug: "phare", plan: "Gratuit", status: "active" as const, role: "owner" as const },
+    { id: "b", name: "Binaweb", slug: "binaweb", plan: "Pro", status: "active" as const, role: "member" as const },
+    { id: "c", name: "ForkandFood", slug: "fork", plan: "Gratuit", status: "active" as const, role: "viewer" as const },
+  ];
+
+  it("renders a menu button with the role under the name", () => {
+    const html = studioSelectorHtml({ status: "ready", studios, activeId: "a" });
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain("Atelier Phare");
+    expect(html).toContain("Propriétaire");
+    expect(html).toContain('role="menu"');
+    expect(html).toContain('role="menuitemradio"');
+    expect(html).toContain("Membre · Pro");
+    expect(html).toContain("Lecture seule");
+    expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
+  });
+
+  it("shows no menu and no chevron for a single studio", () => {
+    const html = studioSelectorHtml({ status: "ready", studios: studios.slice(0, 1), activeId: "a" });
+    expect(html).toContain('data-testid="studio-selector"');
+    expect(html).not.toContain('aria-haspopup="menu"');
+    expect(html).not.toContain("studio-menu");
+  });
+
+  it("announces suspended studios in text, never by color alone", () => {
+    const html = studioSelectorHtml({
+      status: "ready",
+      studios: [{ ...studios[0]!, status: "suspended" as const }],
+      activeId: "a",
+    });
+    expect(html).toContain("Propriétaire · Suspendu");
+  });
+
+  it("covers loading and error states with a retry", () => {
+    expect(studioSelectorHtml({ status: "loading" })).toContain("Chargement du studio");
+    const error = studioSelectorHtml({ status: "error" });
+    expect(error).toContain("role=\"alert\"");
+    expect(error).toContain('id="studio-retry"');
+  });
+
+  it("replaces the slot content in place", () => {
+    document.body.innerHTML = shellHtml({ name: "dashboard" }, true);
+    expect(document.querySelector("#studio-slot")?.textContent).toContain("Chargement du studio");
+    syncStudioSelector(document, { status: "ready", studios, activeId: "b" });
+    expect(document.querySelector("#studio-slot")?.textContent).toContain("Binaweb");
+    expect(document.querySelectorAll("#studio-slot [data-testid='studio-selector']")).toHaveLength(1);
+  });
+});
+
+describe("shellHtml (R2-coque, fiche E1)", () => {
+  it("labels navigation and landmarks in French, mockup wording", () => {
     const html = authedShell({ name: "dashboard" });
     expect(html).toContain('aria-label="Navigation principale"');
-    expect(html).toContain("Accueil");
-    expect(html).toContain("Bibliothèque");
-    expect(html).toContain("Travail");
+    expect(html).toContain("Aujourd'hui");
     expect(html).toContain("À valider");
-    expect(html).toContain("Configuration");
-    expect(html).toContain("Espaces de travail");
+    expect(html).toContain("Équipe IA");
+    expect(html).toContain("Connaissances");
+    expect(html).toContain("Fichiers");
+    expect(html).toContain("Réglages");
+    expect(html).toContain("Abonnement");
+    expect(html).toContain("Aide");
+    expect(html).toContain("Studio");
     expect(html).toContain("Aller au contenu");
     expect(html).toContain("Se déconnecter");
+  });
+
+  it("renders the studio slot with a loading selector", () => {
+    expect(authedShell({ name: "dashboard" })).toContain('id="studio-slot"');
+    expect(authedShell({ name: "dashboard" })).toContain("Chargement du studio");
   });
 
   it("names the nav landmark, not the complementary aside (UI-14)", () => {
@@ -120,18 +180,6 @@ describe("shellHtml (UI-2)", () => {
     const html = authedShell({ name: "dashboard" });
     expect(html).not.toMatch(/type="search"/i);
     expect(html).not.toMatch(/notification|cloche|recherche globale/i);
-  });
-
-  it("links Agents to the real page, no longer upcoming", () => {
-    const html = authedShell({ name: "dashboard" });
-    expect(html).toContain('<span class="app-navlabel">Agents</span>');
-    expect(html).toContain('href="#/agents"');
-    expect(html).not.toContain("Bientôt");
-  });
-
-  it("marks the agents link active on list and detail", () => {
-    expect(authedShell({ name: "agents" })).toContain('href="#/agents" aria-current="page"');
-    expect(authedShell({ name: "agent", id: "a-1" })).toContain('href="#/agents" aria-current="page"');
   });
 
   it("sets aria-current on the active link only", () => {
@@ -184,15 +232,16 @@ describe("shellHtml (P03-shell)", () => {
     expect(doc.querySelector('input[type="search"]')).toBeNull();
   });
 
-  it("separates Administration after the daily entries, with Configuration inside", () => {
+  it("lists seven daily entries then the Studio group", () => {
     const doc = parse(shellHtml(parseRoute("#/"), true));
     const groups = [...doc.querySelectorAll(".app-navgroup")];
-    expect(groups).toHaveLength(3);
-    expect(groups[1]?.tagName).toBe("DETAILS");
-    expect(groups[0]?.querySelectorAll("a")).toHaveLength(5);
-    expect(groups[1]?.textContent).toContain("Inspecteur");
-    expect(groups[2]?.textContent).toContain("Configuration");
-    expect(groups[2]?.classList.contains("app-navgroup--admin")).toBe(true);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.querySelectorAll("a")).toHaveLength(7);
+    expect(groups[1]?.textContent).toContain("Studio");
+    expect(groups[1]?.textContent).toContain("Réglages");
+    expect(groups[1]?.textContent).toContain("Abonnement");
+    expect(groups[1]?.textContent).toContain("Aide");
+    expect(groups[1]?.classList.contains("app-navgroup--admin")).toBe(true);
   });
 
   it("offers sign-out from the avatar block only when signed in", () => {
@@ -225,7 +274,7 @@ describe("shellHtml (P03-shell)", () => {
   });
 });
 
-describe("parseRoute notFound (UI-2)", () => {
+describe("parseRoute (R2-coque)", () => {
   it("routes unknown hashes to an explicit 404 instead of the dashboard", () => {
     expect(parseRoute("#/unknown")).toEqual({ name: "notFound", hash: "#/unknown" });
     expect(parseRoute("#/machines/extra")).toEqual({ name: "notFound", hash: "#/machines/extra" });
@@ -240,9 +289,11 @@ describe("parseRoute notFound (UI-2)", () => {
     expect(parseRoute("#/projects/abc/nope")).toEqual({ name: "project", id: "abc", tab: "overview" });
   });
 
-  it("routes the Administration entry to its overview", () => {
+  it("routes the Studio entries to their overview", () => {
     expect(parseRoute("#/administration")).toEqual({ name: "admin" });
     expect(parseRoute("#/admin")).toEqual({ name: "admin" });
+    expect(parseRoute("#/abonnement")).toEqual({ name: "subscription" });
+    expect(parseRoute("#/aide")).toEqual({ name: "help" });
   });
 });
 
@@ -259,25 +310,11 @@ describe("notFoundHtml (UI-2)", () => {
   });
 });
 
-describe("mountAdminFlyout (P03-shell)", () => {
-  it("keeps the rail flyout closed on admin pages and closes it on outside click or Escape", () => {
-    expect(window.matchMedia("(min-width: 901px) and (max-width: 1399.98px)").matches).toBe(true);
+describe("mountAdminFlyout (P03-shell, legacy)", () => {
+  it("is a no-op without collapsible groups but keeps the rail contract", () => {
     document.body.innerHTML = shellHtml(parseRoute("#/inspector"), true);
-    const groups = [...document.querySelectorAll("details.app-navgroup--secondary")] as HTMLDetailsElement[];
-    expect(groups).toHaveLength(2);
-    const admin = groups[0] as HTMLDetailsElement;
-    expect(admin.open).toBe(true);
-    mountAdminFlyout();
-    expect(admin.open).toBe(false);
-
-    admin.open = true;
-    document.getElementById("view")?.click();
-    expect(admin.open).toBe(false);
-
-    admin.open = true;
-    const link = admin.querySelector("a") as HTMLAnchorElement;
-    link.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(admin.open).toBe(false);
-    expect(document.activeElement).toBe(admin.querySelector("summary"));
+    expect(document.querySelectorAll("details.app-navgroup--secondary")).toHaveLength(0);
+    expect(() => mountAdminFlyout()).not.toThrow();
+    expect(document.querySelector('[href="#/agents"]')?.getAttribute("aria-current")).toBe("page");
   });
 });

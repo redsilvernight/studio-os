@@ -38,6 +38,7 @@ from studio_api.db.models.studio import (
 from studio_api.db.models.user import UserModel
 from studio_api.mailer import OutgoingEmail
 from studio_api.security import hash_token
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services.authz import (
     Principal,
     forbidden,
@@ -232,6 +233,14 @@ async def provision_verified_account(session: AsyncSession, user: UserModel) -> 
     own studio as `owner`. Returns the studio id. The caller commits."""
     invitation = await _pending_invitation(session, user.email)
     if invitation is not None:
+        # Joining is a member write. A full studio must not block the sign-up:
+        # the invitation stays usable and the account gets its own studio.
+        try:
+            await entitlements_service.enforce_capacity(
+                session, invitation.studio_id, entitlements_service.MEMBERS, 1
+            )
+        except HTTPException:
+            return (await create_studio_for_user(session, user)).id
         consumed = await _consume(session, invitation.id)
         if consumed is not None:
             membership = await _join(session, user, consumed)
@@ -449,6 +458,11 @@ async def accept_invitation(
                 "message": "this invitation was issued for another address",
             },
         )
+    # Joining is a member write: the plan's ceiling is checked before the secret
+    # is consumed, so a refused join leaves the invitation usable.
+    await entitlements_service.enforce_capacity(
+        session, invitation.studio_id, entitlements_service.MEMBERS, 1
+    )
     consumed = await _consume(session, invitation.id)
     if consumed is None:
         # Lost the race against a concurrent consumer: report why, never a 500.

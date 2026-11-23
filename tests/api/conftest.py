@@ -65,6 +65,13 @@ async def _cleanup_transfer_storage(db_session: AsyncSession) -> AsyncIterator[N
     uploads those transfers point at (.claude/rules/storage-transfers.md) -
     without this, the shared test bucket accumulates orphans across runs."""
     yield
+    # Non-infra tests can still create TransferModel rows from API calls whose
+    # storage work is deferred. With MinIO absent there is nothing to clean:
+    # do not turn a missing optional service into a teardown error.
+    from tests import infra_probe
+
+    if not infra_probe.probe("minio").reachable:
+        return
     storage = get_storage()
     object_keys = (await db_session.execute(select(TransferModel.object_key))).scalars().all()
     for object_key in object_keys:

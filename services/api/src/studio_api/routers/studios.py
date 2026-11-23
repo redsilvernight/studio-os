@@ -30,14 +30,19 @@ from studio_api.mailer import EmailSender, OutgoingEmail, deliver, get_email_sen
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
 )
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import studios as studios_service
 from studio_api.services.authz import (
     Principal,
     ensure_studio_role,
+    forbidden,
+    studio_role_for_user,
 )
+from studio_api.services.entitlements import StudioEntitlements
 from studio_api.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1", tags=["studios"])
@@ -198,9 +203,11 @@ async def list_studios(session: DbSession, principal: CurrentPrincipal) -> list[
         "Create a studio; the caller becomes its `owner`. The slug is derived "
         "from the name, lower-cased, and made unique by suffixing (`-2`, ...). "
         "`Idempotency-Key` is optional: replaying the same key with the same "
-        "body returns the original studio instead of creating a second one."
+        "body returns the original studio instead of creating a second one. "
+        "Past the account's `studios_per_account` ceiling it answers `402 "
+        "plan_limit_reached`; listing studios is never blocked."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_402_PLAN_LIMIT},
 )
 async def create_studio(
     payload: StudioCreateRequest,
@@ -212,6 +219,7 @@ async def create_studio(
     ),
 ) -> StudioSummary:
     async def _create() -> dict[str, Any]:
+        await entitlements_service.enforce_studios_per_account(session, principal.user.id)
         studio = await studios_service.create_studio(session, principal.user, payload.name)
         await session.commit()
         return _summary(studio, StudioRole.OWNER).model_dump(mode="json")
@@ -244,6 +252,32 @@ async def get_studio(
     studio, role = await studios_service.get_user_studio(session, principal.user.id, studio_id)
     summary = _summary(studio, role).model_dump()
     return StudioDetail(**summary, deletion_scheduled_at=studio.deletion_scheduled_at)
+
+
+@router.get(
+    "/studios/{studio_id}/entitlements",
+    response_model=StudioEntitlements,
+    description=(
+        "Plan, declarative limits and measured counters of one studio, for "
+        "any member (`viewer` included): this is a read, never blocked by a "
+        "limit. `limits` is exactly what the plan declares (`max_value: "
+        "null` means unlimited); `counters` is the studio consumption fed by "
+        "the phase-M measurements (storage, SSE) and direct counts (projects, "
+        "members, machines). `upgrade_url` is the subscription screen used by "
+        "every `plan_limit_reached` refusal."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def get_studio_entitlements(
+    studio_id: uuid.UUID, session: DbSession, principal: CurrentPrincipal
+) -> StudioEntitlements:
+    role = await studio_role_for_user(session, principal.user.id, studio_id)
+    if role is None:
+        raise forbidden("studio", "read")
+    entitlements = await entitlements_service.studio_entitlements(session, studio_id)
+    # The counters are a cache: persist the refreshed values, the response is a read.
+    await session.commit()
+    return entitlements
 
 
 @router.post(

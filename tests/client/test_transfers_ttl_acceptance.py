@@ -43,6 +43,7 @@ def _short_presigned_ttl(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_storage.cache_clear()
 
 
+@pytest.mark.usefixtures("large_files_allowed")
 async def test_multipart_upload_resumes_after_real_ttl_expiration_and_client_restart(
     tmp_path: Path,
     app_transport: ASGITransport,

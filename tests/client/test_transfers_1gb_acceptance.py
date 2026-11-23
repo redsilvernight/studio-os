@@ -65,6 +65,7 @@ def _read_part(path: Path, part_number: int) -> bytes:
 
 
 @pytest.mark.timeout(1800)
+@pytest.mark.usefixtures("large_files_allowed")
 async def test_multipart_upload_1gb_streamed_real_interruption_and_resume(
     tmp_path: Path,
     app_transport: ASGITransport,

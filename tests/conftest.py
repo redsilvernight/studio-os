@@ -100,6 +100,18 @@ os.environ["STUDIO_TEST_DATABASE_URL"] = _resolve_test_database_url()
 OUTSIDER_PREFIX = "Outsider"
 
 
+@pytest.fixture(autouse=True)
+def _reset_plan_request_windows() -> Iterator[None]:
+    """The plan's requests/minute budget is an in-process sliding window keyed
+    by studio, and every test shares the internal studio. Reset it around each
+    test so one suite's successful writes cannot spend another's budget."""
+    from studio_api.services import entitlements
+
+    entitlements.reset_request_windows()
+    yield
+    entitlements.reset_request_windows()
+
+
 def load_fixture(name: str) -> list[dict[str, object]]:
     raw = json.loads((FIXTURES_DIR / f"{name}.json").read_text(encoding="utf-8"))
     return cast(list[dict[str, object]], raw)

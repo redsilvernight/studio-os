@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from studio_contracts.auth import User, UserCreate
 from studio_contracts.projects import ProjectMember
 
-from studio_api.db.models.studio import StudioRole
+from studio_api.db.models.studio import StudioModel, StudioRole
 from studio_api.deps import CurrentMachine, DbSession, require_operator, require_studio_role
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
 )
@@ -22,6 +25,27 @@ OperatorPrincipal = Annotated[Principal, Depends(require_operator)]
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 studio_router = APIRouter(prefix="/api/v1/studio", tags=["studio"])
+
+
+class StudioRead(BaseModel):
+    """Active studio seen by its own members (C2 / N5 support).
+
+    Declared here rather than in `studio-contracts` because it is consumed only
+    by this route for now; `suspension_reason` is the motif an operator entered
+    when suspending the studio (0050), cleared on lift. No project, file, note
+    or message is part of it.
+    """
+
+    id: UUID
+    slug: str
+    name: str
+    plan: str
+    status: str
+    suspension_reason: str | None = None
+    is_internal: bool = False
+    version: int
+    created_at: datetime
+    updated_at: datetime
 
 
 @router.get(
@@ -70,6 +94,31 @@ async def list_studio_members(
     return [User.model_validate(u) for u in users]
 
 
+@studio_router.get(
+    "",
+    response_model=StudioRead,
+    description=(
+        "The active studio of the caller (any member, `viewer` and above): "
+        "identity, plan and lifecycle status. `suspension_reason` is the motif an "
+        "operator entered when suspending it, shown to the studio's own members so "
+        "the N5 suspended view can explain the state; `null` while active. No "
+        "project, file or note is part of the response."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def get_active_studio(
+    session: DbSession,
+    principal: Annotated[Principal, Depends(require_studio_role(StudioRole.VIEWER))],
+) -> StudioRead:
+    studio = await session.get(StudioModel, principal.studio_id)
+    if studio is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": "studio_not_found", "message": "Studio introuvable."},
+        )
+    return StudioRead.model_validate(studio, from_attributes=True)
+
+
 @router.post(
     "",
     response_model=User,
@@ -81,9 +130,11 @@ async def list_studio_members(
         "stored trimmed and lower-cased and is unique regardless of case: "
         "reusing one fails with 409. Deliberately "
         "not replayable: no `Idempotency-Key`. The very first (admin) "
-        "user is created out of band, never through this endpoint."
+        "user is created out of band, never through this endpoint. Joining "
+        "the studio is a member write: a full studio answers `402 "
+        "plan_limit_reached` (the account directory stays readable)."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_402_PLAN_LIMIT, **RESP_403_FORBIDDEN},
 )
 async def create_user(
     user_in: UserCreate,

@@ -239,7 +239,7 @@
      "auth"
     ],
     "summary": "Register",
-    "description": "Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account.",
+    "description": "Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account. Disposable e-mail domains and per-IP / per-domain quotas are rejected with a distinct error before anything is created.",
     "operationId": "register_api_v1_auth_register_post",
     "parameters": [
      {
@@ -286,10 +286,16 @@
       "description": "`registration_unavailable`: public registration is closed."
      },
      "400": {
-      "description": "`idempotency_key_required`."
+      "description": "`email_domain_not_allowed`: disposable e-mail domain."
      },
      "409": {
       "description": "`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`."
+     },
+     "429": {
+      "description": "`registration_rate_limited`: quota exceeded for `scope` (`ip` or `domain`); the `Retry-After` header gives the wait in seconds."
+     },
+     "503": {
+      "description": "`registration_bot_protection_unavailable`: the bot-protection hook is enabled but no provider is wired."
      },
      "422": {
       "description": "Validation Error",
@@ -653,7 +659,7 @@
      "studios"
     ],
     "summary": "Create Studio",
-    "description": "Create a studio; the caller becomes its `owner`. The slug is derived from the name, lower-cased, and made unique by suffixing (`-2`, ...). `Idempotency-Key` is optional: replaying the same key with the same body returns the original studio instead of creating a second one.",
+    "description": "Create a studio; the caller becomes its `owner`. The slug is derived from the name, lower-cased, and made unique by suffixing (`-2`, ...). `Idempotency-Key` is optional: replaying the same key with the same body returns the original studio instead of creating a second one. Past the account's `studios_per_account` ceiling it answers `402 plan_limit_reached`; listing studios is never blocked.",
     "operationId": "create_studio_api_v1_studios_post",
     "security": [
      {
@@ -711,6 +717,23 @@
        }
       }
      },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
+        }
+       }
+      }
+     },
      "422": {
       "description": "Validation Error",
       "content": {
@@ -756,6 +779,79 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/StudioDetail"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/entitlements": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Get Studio Entitlements",
+    "description": "Plan, declarative limits and measured counters of one studio, for any member (`viewer` included): this is a read, never blocked by a limit. `limits` is exactly what the plan declares (`max_value: null` means unlimited); `counters` is the studio consumption fed by the phase-M measurements (storage, SSE) and direct counts (projects, members, machines). `upgrade_url` is the subscription screen used by every `plan_limit_reached` refusal.",
+    "operationId": "get_studio_entitlements_api_v1_studios__studio_id__entitlements_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioEntitlements"
         }
        }
       }
@@ -1534,7 +1630,7 @@
      "projects"
     ],
     "summary": "Create Project",
-    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. The optional `repository` is registered with the project in the same call (`resolve-repository` finds it immediately); a URL already linked to another project fails with `409 repository_already_linked` and an invalid one with `422 invalid_repository_url`, both before the project is written. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. The optional `repository` is registered with the project in the same call (`resolve-repository` finds it immediately); a URL already linked to another project fails with `409 repository_already_linked` and an invalid one with `422 invalid_repository_url`, both before the project is written. Accepts `Idempotency-Key` for safe retries. The studio's plan project ceiling refuses the write with `402 plan_limit_reached`.",
     "operationId": "create_project_api_v1_projects_post",
     "security": [
      {
@@ -1588,6 +1684,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -12376,7 +12489,7 @@
      "events"
     ],
     "summary": "Stream Events",
-    "description": "Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) \u2014 there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.",
+    "description": "Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) \u2014 there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project. Opening a connection is a writable resource: a full SSE connection budget answers `402 plan_limit_reached` before any client subscribes \u2014 already-open streams stay intact, and `GET /events` is never blocked.",
     "operationId": "stream_events_api_v1_events_stream_get",
     "security": [
      {
@@ -12473,6 +12586,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -12578,7 +12708,7 @@
      "transfers"
     ],
     "summary": "Create Transfer",
-    "description": "Start a transfer: declares filename, size and participants, and reserves quota. Requires a writer role. Accepts `Idempotency-Key` for safe retries. File bytes never pass through this API: the next steps hand back short-lived signed URLs, and the client uploads directly to object storage. Oversize files fail with `413 transfer_too_large`; an exhausted quota fails with `507 quota_exceeded` (check `GET /transfers/consumption` first for large uploads).",
+    "description": "Start a transfer: declares filename, size and participants, and reserves quota. Requires a writer role. Accepts `Idempotency-Key` for safe retries. File bytes never pass through this API: the next steps hand back short-lived signed URLs, and the client uploads directly to object storage. Oversize files fail with `413 transfer_too_large`; an exhausted quota fails with `507 quota_exceeded` (check `GET /transfers/consumption` first for large uploads). A plan limit refuses the write with `402 plan_limit_reached` (`limit`, `upgrade_url`); listing and downloading are never blocked.",
     "operationId": "create_transfer_api_v1_transfers_post",
     "security": [
      {
@@ -12632,6 +12762,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -13484,7 +13631,7 @@
      "machines"
     ],
     "summary": "Create Machine",
-    "description": "Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once \u2014 store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint. Optional `workstation_id` attaches the new machine to an active, unattached machine of the same owner: another User's machine answers 404 like a missing one, a revoked or attached one `409 workstation_invalid`.",
+    "description": "Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once \u2014 store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint. Optional `workstation_id` attaches the new machine to an active, unattached machine of the same owner: another User's machine answers 404 like a missing one, a revoked or attached one `409 workstation_invalid`. The studio's plan machine ceiling refuses the registration with `402 plan_limit_reached`.",
     "operationId": "create_machine_api_v1_machines_post",
     "requestBody": {
      "content": {
@@ -13513,6 +13660,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -14563,7 +14727,7 @@
      "users"
     ],
     "summary": "Create User",
-    "description": "Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` \u2014 the role alone decides what the user's machines may do). Requires the instance operator. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.",
+    "description": "Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` \u2014 the role alone decides what the user's machines may do). Requires the instance operator. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint. Joining the studio is a member write: a full studio answers `402 plan_limit_reached` (the account directory stays readable).",
     "operationId": "create_user_api_v1_users_post",
     "security": [
      {
@@ -14597,6 +14761,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -15058,6 +15239,67 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/studio": {
+   "get": {
+    "tags": [
+     "studio"
+    ],
+    "summary": "Get Active Studio",
+    "description": "The active studio of the caller (any member, `viewer` and above): identity, plan and lifecycle status. `suspension_reason` is the motif an operator entered when suspending it, shown to the studio's own members so the N5 suspended view can explain the state; `null` while active. No project, file or note is part of the response.",
+    "operationId": "get_active_studio_api_v1_studio_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
    }
   },
   "/api/v1/projects/{project_id}/roadmaps": {
@@ -18684,7 +18926,7 @@
      "vault"
     ],
     "summary": "Create Note",
-    "description": "Create a vault note. The server assigns `id`, `version`, `content_hash` and the author (the caller's user); a `decision` note also gets a `readable_id` from the shared DEC sequence. A slug already taken by a non-archived note of the same scope is `409 vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Create a vault note. The server assigns `id`, `version`, `content_hash` and the author (the caller's user); a `decision` note also gets a `readable_id` from the shared DEC sequence. A slug already taken by a non-archived note of the same scope is `409 vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries. The plan's versions-per-note ceiling refuses the write with `402 plan_limit_reached`; reading a note never calls it.",
     "operationId": "create_note_api_v1_vault_notes_post",
     "security": [
      {
@@ -18738,6 +18980,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -18871,7 +19130,7 @@
      "vault"
     ],
     "summary": "Update Note",
-    "description": "Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale.",
+    "description": "Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale. The plan's versions-per-note ceiling refuses the write with `402 plan_limit_reached`; the version history stays readable.",
     "operationId": "update_note_api_v1_vault_notes__note_id__patch",
     "security": [
      {
@@ -18935,6 +19194,23 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
         }
        }
       }
@@ -27835,6 +28111,64 @@
     "type": "object",
     "title": "PhaseUpdate"
    },
+   "PlanLimit": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "max_value": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max Value"
+     },
+     "unit": {
+      "type": "string",
+      "title": "Unit",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key"
+    ],
+    "title": "PlanLimit",
+    "description": "One declared ceiling. `max_value = None` means explicitly unlimited;\n`unit` is a display hint (`bytes`, `days`, `versions`, ...)."
+   },
+   "PlanSummary": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "title": "Code"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "rank": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Rank"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "code",
+     "name",
+     "rank"
+    ],
+    "title": "PlanSummary",
+    "description": "One plan of the catalogue: `code` is the stable machine value stored on\n`studios.plan`, `rank` orders plans from most restricted to most permissive."
+   },
    "PreparedContext": {
     "additionalProperties": true,
     "type": "object"
@@ -33378,6 +33712,49 @@
     "title": "StepUpdate",
     "description": "Content edit (`PATCH`, `If-Match-Version` = step version). On an\n`active` roadmap a *content* edit that `is_agent_write` becomes a pending\nproposal instead of being applied. Editing `tasks` never modifies or\ndeletes existing Tasks or links: a removed plan item leaves its link (and\nits `hydration_key`) in place, and re-adding it makes it `reuse` again.\nEditing `acceptance_criteria` clears the step's `criteria_checked`."
    },
+   "StudioCounter": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "value": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Value"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "measured",
+       "live",
+       "default"
+      ],
+      "title": "Source",
+      "default": "live"
+     },
+     "measured_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Measured At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "value"
+    ],
+    "title": "StudioCounter",
+    "description": "Consumption of one limit for one studio. `source` says where the value\ncame from: `measured` (phase-M `infra_measurements`), `live` (direct count)\nor `default` (nothing measured yet)."
+   },
    "StudioCreateRequest": {
     "properties": {
      "name": {
@@ -33446,6 +33823,121 @@
      "role"
     ],
     "title": "StudioDetail"
+   },
+   "StudioEntitlements": {
+    "properties": {
+     "studio_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Studio Id"
+     },
+     "plan": {
+      "$ref": "#/components/schemas/PlanSummary"
+     },
+     "limits": {
+      "items": {
+       "$ref": "#/components/schemas/PlanLimit"
+      },
+      "type": "array",
+      "title": "Limits"
+     },
+     "counters": {
+      "items": {
+       "$ref": "#/components/schemas/StudioCounter"
+      },
+      "type": "array",
+      "title": "Counters"
+     },
+     "upgrade_url": {
+      "type": "string",
+      "title": "Upgrade Url"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "studio_id",
+     "plan",
+     "limits",
+     "counters",
+     "upgrade_url",
+     "generated_at"
+    ],
+    "title": "StudioEntitlements",
+    "description": "Plan, limits and counters of one studio: exactly what the Subscription\nand Usage screens display. `upgrade_url` is the subscription screen used by\nevery `plan_limit_reached` refusal."
+   },
+   "StudioRead": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "plan": {
+      "type": "string",
+      "title": "Plan"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "suspension_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Suspension Reason"
+     },
+     "is_internal": {
+      "type": "boolean",
+      "title": "Is Internal",
+      "default": false
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "slug",
+     "name",
+     "plan",
+     "status",
+     "version",
+     "created_at",
+     "updated_at"
+    ],
+    "title": "StudioRead",
+    "description": "Active studio seen by its own members (C2 / N5 support).\n\nDeclared here rather than in `studio-contracts` because it is consumed only\nby this route for now; `suspension_reason` is the motif an operator entered\nwhen suspending the studio (0050), cleared on lift. No project, file, note\nor message is part of it."
    },
    "StudioRole": {
     "type": "string",
@@ -38496,6 +38988,10 @@
   {
    "name": "infra",
    "description": "Internal infrastructure cost measurements (sizes and counts, never content). Admin only."
+  },
+  {
+   "name": "studios",
+   "description": "Studios of the authenticated user and their plan entitlements. One module decides every limit; reads are never blocked by a limit."
   },
   {
    "name": "budgets",

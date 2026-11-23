@@ -6,8 +6,12 @@ import uuid
 
 import httpx
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioModel
 from studio_api.services import transfers as transfers_service
 from studio_api.storage.provider import get_storage
 
@@ -15,6 +19,16 @@ pytestmark = pytest.mark.infra("minio")
 
 MULTIPART_SIZE_BYTES = transfers_service.MULTIPART_THRESHOLD_BYTES + 1  # -> 3 parts
 PART_SIZE_BYTES = transfers_service.PART_SIZE_BYTES
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _pro_plan(db_session: AsyncSession) -> None:
+    """Multipart starts at 128 MiB, above the free 100 MiB per-file ceiling:
+    the scenario belongs to the Pro plan (DEC-0401/DEC-0402)."""
+    await db_session.execute(
+        update(StudioModel).where(StudioModel.id == INTERNAL_STUDIO_ID).values(plan="pro")
+    )
+    await db_session.flush()
 
 
 async def _create_multipart_transfer(

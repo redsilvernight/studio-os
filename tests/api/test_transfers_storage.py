@@ -9,7 +9,9 @@ import httpx
 import pytest
 from botocore.exceptions import ClientError
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.db.models.plan import PlanLimitModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.storage.provider import StorageProvider
 
@@ -392,13 +394,21 @@ async def test_delete_rejects_recipient_and_readonly_including_replay(
 
 
 async def test_multipart_upload_resumes_across_independently_uploaded_parts(
-    client: AsyncClient, auth_headers: dict[str, str]
+    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession
 ) -> None:
     """Large-file path (TECH/06_STORAGE_TRANSFER_SPEC.md): parts are uploaded
     independently straight to storage and can be completed after being
     gathered out of order, without re-uploading finished parts. No
     `content_md5` involved — the multipart path has no whole-object checksum
-    (DEC-0025)."""
+    (DEC-0025). The payload is above the 128 MiB multipart threshold, so the
+    free plan's 100 MiB per-file ceiling is raised for this scenario."""
+    await db_session.execute(
+        update(PlanLimitModel)
+        .where(PlanLimitModel.plan_code == "free", PlanLimitModel.limit_key == "file_size_bytes")
+        .values(max_value=1024**3)
+    )
+    await db_session.flush()
+
     part_size = 64 * 1024 * 1024
     part_1 = uuid.uuid4().bytes * (part_size // 16)
     part_2 = uuid.uuid4().bytes * (part_size // 16)

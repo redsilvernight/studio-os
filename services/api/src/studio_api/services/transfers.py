@@ -20,6 +20,7 @@ from studio_contracts.transfers import (
 
 from studio_api.db.models.build import BuildModel
 from studio_api.db.models.transfer import TransferModel
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services.authz import (
     Principal,
     ProjectAction,
@@ -85,6 +86,16 @@ async def _enforce_transfer_limits(
     size_bytes: int,
     studio_id: uuid.UUID | None = None,
 ) -> None:
+    if studio_id is not None:
+        # Plan limits are applied from the single entitlements module: a
+        # per-file ceiling first, then the studio storage counter. A read or a
+        # download never reaches this function.
+        await entitlements_service.enforce_per_item(
+            session, studio_id, entitlements_service.FILE_SIZE_BYTES, size_bytes
+        )
+        await entitlements_service.enforce_capacity(
+            session, studio_id, entitlements_service.STORAGE_BYTES, size_bytes
+        )
     if size_bytes > settings.transfer_max_size_bytes:
         raise HTTPException(
             status.HTTP_413_CONTENT_TOO_LARGE,

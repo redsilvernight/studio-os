@@ -46,31 +46,35 @@ async function login(page: Page, hash: string): Promise<void> {
 }
 
 for (const width of [1600, 1100, 390]) {
-  test(`Administration en bas, accessible au clavier à ${width}px`, async ({ page }, testInfo) => {
+  test(`Studio en bas, accessible au clavier à ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await prepare(page);
     await login(page, "#/design-system");
     if (width <= 900) await page.locator("#nav-open").click();
     const groups = page.locator(".app-nav > .app-navgroup");
     await expect(groups.last()).toHaveClass(/app-navgroup--admin/);
-    const admin = groups.last();
-    await admin.locator("summary").focus();
-    await page.keyboard.press("Enter");
-    await expect(admin).toHaveAttribute("open", "");
-    await expect(admin.getByRole("link", { name: "Comptes", exact: true })).toBeVisible();
+    const studio = groups.last();
+    await expect(page.locator(".app-sidebar details")).toHaveCount(0);
+    // Coque Atelier : le groupe Studio est une section toujours déployée,
+    // ses trois liens restent atteignables au clavier.
+    const reglages = studio.getByRole("link", { name: "Réglages", exact: true });
+    await reglages.focus();
+    await expect(reglages).toBeFocused();
+    await expect(studio.getByRole("link", { name: "Abonnement" })).toBeVisible();
+    await expect(studio.getByRole("link", { name: "Aide", exact: true })).toBeVisible();
     const scan = await new AxeBuilder({ page }).include(".app-sidebar").analyze();
     expect(scan.violations).toEqual([]);
-    await page.screenshot({ path: testInfo.outputPath(`administration-${width}.png`) });
-    if (width === 1100) {
-      await page.keyboard.press("Escape");
-      await expect(admin).not.toHaveAttribute("open", "");
-      await expect(admin.locator("summary")).toBeFocused();
-      await page.keyboard.press("Enter");
-    }
-    await admin.getByRole("link", { name: "Comptes", exact: true }).click();
+    await page.screenshot({ path: testInfo.outputPath(`studio-${width}.png`) });
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/#\/administration$/);
+    await expect(reglages).toHaveAttribute("aria-current", "page");
+    // Les anciennes familles restent à un clic de Réglages.
+    const comptes = page.locator('#view .admin-fams a[href="#/accounts"]');
+    await expect(comptes).toBeVisible();
+    await comptes.click();
     await expect(page).toHaveURL(/#\/accounts$/);
-    await expect(admin.locator('a[href="#/accounts"]')).toHaveAttribute("aria-current", "page");
-    if (width === 1100) await expect(admin).not.toHaveAttribute("open", "");
+    await expect(reglages).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(".app-sidebar details")).toHaveCount(0);
   });
 }
 

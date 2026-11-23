@@ -434,8 +434,9 @@ test.describe("UI-14 clavier et focus", () => {
       await page.keyboard.press("Tab");
       stops.push(await activeId(page));
     }
-    // P03-shell : la palette « Aller à… » est en tête de la barre latérale.
-    expect(stops).toEqual(["#palette-open", "Accueil", "Projets", "Travail", "À valider", "Agents"]);
+    // Coque Atelier : la palette « Aller à… » est en tête de la barre latérale,
+    // puis les entrées quotidiennes dans l'ordre de la maquette E1.
+    expect(stops).toEqual(["#palette-open", "Aujourd'hui", "Projets", "Tâches", "À valider", "Équipe IA"]);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });

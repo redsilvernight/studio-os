@@ -22,7 +22,7 @@ from studio_contracts.infra import InfraMeasurementsReport, InfraPoint, InfraSer
 from studio_api.db.models.infra_measurement import InfraMeasurementModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.session import get_session_factory
-from studio_api.services import event_stream
+from studio_api.services import entitlements, event_stream
 from studio_api.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -120,6 +120,9 @@ async def run_once(settings: Settings) -> int:
     async with get_session_factory()() as session:
         rows = await collect(session, settings)
         await purge(session, settings)
+        # The per-studio plan counters are a cache of these measurements: refresh
+        # them in the same transaction so a limit check never rescans the history.
+        await entitlements.refresh_all_counters(session)
         await session.commit()
         return len(rows)
 

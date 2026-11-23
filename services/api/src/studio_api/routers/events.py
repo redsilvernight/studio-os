@@ -12,9 +12,11 @@ from studio_contracts.events import EventCreate, EventEnvelope
 from studio_api.deps import JWT_AUTH_VERSION_STATE, CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_409_EVENT_IDENTITY,
 )
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services import event_stream
 from studio_api.services import events as events_service
 
@@ -139,7 +141,10 @@ async def get_events(
         "authentication as the rest of the API. An inaccessible `project` "
         "answers `403 forbidden` before the stream opens; an idle stream "
         "receives an SSE comment keep-alive, and the stream closes once "
-        "the caller loses access to the project."
+        "the caller loses access to the project. Opening a connection is a "
+        "writable resource: a full SSE connection budget answers `402 "
+        "plan_limit_reached` before any client subscribes — already-open "
+        "streams stay intact, and `GET /events` is never blocked."
     ),
     responses={
         200: {
@@ -159,6 +164,7 @@ async def get_events(
             },
         },
         **RESP_401_UNAUTHORIZED,
+        **RESP_402_PLAN_LIMIT,
         **RESP_403_FORBIDDEN,
     },
 )
@@ -205,6 +211,11 @@ async def stream_events(
     # The stream's studio, resolved at connection time and then frozen: every
     # delivered event must belong to it, whatever its project (DEC-0382).
     studio_id = principal.studio_id
+    # Refuse at opening time, before subscribe(): an existing subscriber is
+    # never disconnected and the refusal is a plain 402, not a closed stream.
+    await entitlements_service.enforce_capacity(
+        session, studio_id, entitlements_service.SSE_CONNECTIONS, 1
+    )
     jwt_auth_version: int | None = getattr(request.state, JWT_AUTH_VERSION_STATE, None)
 
     async def generate() -> AsyncIterator[bytes]:

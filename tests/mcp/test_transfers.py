@@ -79,7 +79,7 @@ async def test_create_transfer_metadata_rejects_over_quota_size(auth_ctx: FakeCo
     result = await studio_create_transfer_metadata(
         "huge.bin", "application/octet-stream", 10**15, "temporary", auth_ctx
     )
-    assert result["error_code"] == "transfer_too_large"
+    assert result["error_code"] == "plan_limit_reached"
 
 
 async def test_get_transfers_lists_created_transfer(

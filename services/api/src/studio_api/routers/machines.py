@@ -17,6 +17,7 @@ from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IF_MATCH_VERSION_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
     RESP_409_VERSION_CONFLICT,
@@ -90,9 +91,16 @@ async def get_own_machine(machine: CurrentMachine) -> Machine:
         "through this endpoint. Optional `workstation_id` "
         "attaches the new machine to an active, unattached machine of the "
         "same owner: another User's machine answers 404 like a missing one, "
-        "a revoked or attached one `409 workstation_invalid`."
+        "a revoked or attached one `409 workstation_invalid`. The studio's "
+        "plan machine ceiling refuses the registration with `402 "
+        "plan_limit_reached`."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_402_PLAN_LIMIT,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+    },
 )
 async def create_machine(
     machine_in: MachineCreate, session: DbSession, principal: CurrentPrincipal
@@ -103,7 +111,11 @@ async def create_machine(
     if owner_user_id != principal.user.id and not principal.is_operator:
         raise forbidden("machine", "create")
     new_machine, token = await provisioning_service.create_machine(
-        session, owner_user_id, machine_in.display_name, machine_in.workstation_id
+        session,
+        owner_user_id,
+        machine_in.display_name,
+        machine_in.workstation_id,
+        studio_id=principal.studio_id,
     )
     return MachineCreated(**Machine.model_validate(new_machine).model_dump(), credential=token)
 
