@@ -36,6 +36,7 @@ from studio_api.db.models.vault import (
     VaultNoteModel,
     VaultNoteVersionModel,
 )
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services.authz import (
     Principal,
     StudioWide,
@@ -301,6 +302,11 @@ async def create_note(
     ):
         # Missing and foreign projects answer the same 404 for a manager.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    # Every accepted write appends one version (creation included): the note's
+    # first version is checked like any other by the entitlements module.
+    await entitlements_service.enforce_per_item(
+        session, principal.studio_id, entitlements_service.VAULT_VERSIONS_PER_NOTE, 1
+    )
     await _ensure_slug_available(session, principal, note_in)
     await _validate_links(session, principal, note_in.project_id, note_in.links)
     readable_id = (
@@ -387,6 +393,12 @@ async def update_note(
     await ensure_optional_project_in_studio(session, principal, note.project_id, "write")
     if note.version != note_in.expected_version:
         raise _version_conflict(note.version)
+    await entitlements_service.enforce_per_item(
+        session,
+        principal.studio_id,
+        entitlements_service.VAULT_VERSIONS_PER_NOTE,
+        note.version + 1,
+    )
 
     current_links = await load_links(session, note.id)
     links = current_links if note_in.links is None else note_in.links

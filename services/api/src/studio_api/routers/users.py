@@ -11,6 +11,7 @@ from studio_api.db.models.studio import StudioRole
 from studio_api.deps import CurrentMachine, DbSession, require_operator, require_studio_role
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
 )
@@ -81,9 +82,11 @@ async def list_studio_members(
         "stored trimmed and lower-cased and is unique regardless of case: "
         "reusing one fails with 409. Deliberately "
         "not replayable: no `Idempotency-Key`. The very first (admin) "
-        "user is created out of band, never through this endpoint."
+        "user is created out of band, never through this endpoint. Joining "
+        "the studio is a member write: a full studio answers `402 "
+        "plan_limit_reached` (the account directory stays readable)."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_402_PLAN_LIMIT, **RESP_403_FORBIDDEN},
 )
 async def create_user(
     user_in: UserCreate,

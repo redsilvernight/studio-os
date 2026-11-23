@@ -10,12 +10,16 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.infra_measurement import InfraMeasurementModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.plan import PlanLimitModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioMembershipModel, StudioModel
+from studio_api.services import entitlements as entitlements_service
+from studio_api.services import event_stream
 from studio_api.services import provisioning as provisioning_service
 
 GIB = 1024**3
@@ -39,6 +43,25 @@ async def _measure_storage(
         )
     )
     await db_session.flush()
+
+
+async def _set_free_limit(db_session: AsyncSession, key: str, value: int) -> None:
+    await db_session.execute(
+        update(PlanLimitModel)
+        .where(PlanLimitModel.plan_code == "free", PlanLimitModel.limit_key == key)
+        .values(max_value=value)
+    )
+    await db_session.flush()
+
+
+def _assert_plan_limit(response: Response, limit: str, max_value: int, current: int) -> None:
+    assert response.status_code == 402
+    detail = response.json()["detail"]
+    assert detail["error_code"] == "plan_limit_reached"
+    assert detail["limit"] == limit
+    assert detail["max_value"] == max_value
+    assert detail["current"] == current
+    assert detail["upgrade_url"] == "/settings/subscription"
 
 
 async def test_list_studios_returns_only_the_callers_memberships(
@@ -186,3 +209,139 @@ async def test_file_size_limit_refuses_the_write(
     assert detail["error_code"] == "plan_limit_reached"
     assert detail["limit"] == "file_size_bytes"
     assert detail["max_value"] == 100 * MIB
+
+
+async def test_members_limit_refuses_a_new_member_but_not_the_directory(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_machine: tuple[MachineModel, str],
+) -> None:
+    # The operator's own membership already fills the lowered ceiling. The
+    # test harness backfills a membership for every new User on flush, so the
+    # rejected account is already counted when the guard runs (current=2).
+    await _set_free_limit(db_session, entitlements_service.MEMBERS, 1)
+
+    response = await client.post(
+        "/api/v1/users",
+        headers=_auth(admin_machine),
+        json={"display_name": "Another", "email": f"{uuid.uuid4()}@example.test"},
+    )
+
+    _assert_plan_limit(response, "members", 1, 2)
+    listed = await client.get("/api/v1/users", headers=_auth(admin_machine))
+    assert listed.status_code == 200
+
+
+async def test_machines_limit_refuses_registration_but_not_listing(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    admin_machine: tuple[MachineModel, str],
+) -> None:
+    await _set_free_limit(db_session, entitlements_service.MACHINES, 1)
+
+    response = await client.post(
+        "/api/v1/machines",
+        headers=_auth(admin_machine),
+        json={"display_name": "second-machine"},
+    )
+
+    _assert_plan_limit(response, "machines", 1, 1)
+    listed = await client.get("/api/v1/machines", headers=_auth(admin_machine))
+    assert listed.status_code == 200
+
+
+async def test_vault_versions_limit_refuses_a_write_but_not_the_history(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+) -> None:
+    await _set_free_limit(db_session, entitlements_service.VAULT_VERSIONS_PER_NOTE, 1)
+    created = await client.post(
+        "/api/v1/vault/notes",
+        headers=_auth(machine),
+        json={
+            "scope": "studio",
+            "slug": f"limit-{uuid.uuid4().hex[:8]}",
+            "title": "One version",
+            "body": "body",
+        },
+    )
+    assert created.status_code == 201
+    note_id = created.json()["id"]
+
+    response = await client.patch(
+        f"/api/v1/vault/notes/{note_id}",
+        headers=_auth(machine),
+        json={"expected_version": 1, "title": "Second version"},
+    )
+
+    # Per-item ceilings report `current=0`: the ceiling is on the requested
+    # value itself (version 2), not on a cumulative counter.
+    _assert_plan_limit(response, "vault_versions_per_note", 1, 0)
+    history = await client.get(
+        f"/api/v1/vault/notes/{note_id}/versions", headers=_auth(machine)
+    )
+    assert history.status_code == 200
+    assert [v["version"] for v in history.json()["items"]] == [1]
+
+
+async def test_sse_connections_limit_refuses_opening_without_closing_existing_clients(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+) -> None:
+    # No collector run in this test: the measurement gives a deterministic
+    # counter at the free plan's ceiling (5).
+    db_session.add(
+        InfraMeasurementModel(
+            metric="sse_connections", value=5, measured_at=datetime.now(UTC)
+        )
+    )
+    await db_session.flush()
+    before = event_stream.subscriber_count()
+
+    response = await client.get("/api/v1/events/stream", headers=_auth(machine))
+
+    _assert_plan_limit(response, "sse_connections", 5, 5)
+    assert event_stream.subscriber_count() == before
+    listed = await client.get("/api/v1/events", headers=_auth(machine))
+    assert listed.status_code == 200
+
+
+async def test_requests_per_minute_refuses_a_write_but_not_reads(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+) -> None:
+    entitlements_service.reset_request_windows()
+    await _set_free_limit(db_session, entitlements_service.REQUESTS_PER_MINUTE, 2)
+    try:
+        for index in range(2):
+            created = await client.post(
+                "/api/v1/vault/notes",
+                headers=_auth(machine),
+                json={
+                    "scope": "studio",
+                    "slug": f"rpm-{uuid.uuid4().hex[:8]}",
+                    "title": f"Write {index}",
+                    "body": "body",
+                },
+            )
+            assert created.status_code == 201
+
+        response = await client.post(
+            "/api/v1/vault/notes",
+            headers=_auth(machine),
+            json={
+                "scope": "studio",
+                "slug": f"rpm-{uuid.uuid4().hex[:8]}",
+                "title": "Too many",
+                "body": "body",
+            },
+        )
+
+        _assert_plan_limit(response, "requests_per_minute", 2, 2)
+        listed = await client.get("/api/v1/vault/tree", headers=_auth(machine))
+        assert listed.status_code == 200
+    finally:
+        entitlements_service.reset_request_windows()

@@ -2034,7 +2034,7 @@ export interface paths {
         };
         /**
          * Stream Events
-         * @description Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) — there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
+         * @description Live event push as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is optional: without it, the stream carries only the project-less Studio `library.*` events (contract v2, visible to every authenticated principal); with it, that project's events (plus the project-less Studio events only with `include_global=true`, off by default so deployed readers keep parsing `project_id` as a non-null UUID) — there is still no global cross-project stream, a subscriber never sees another project's rows. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project. Opening a connection is a writable resource: a full SSE connection budget answers `402 plan_limit_reached` before any client subscribes — already-open streams stay intact, and `GET /events` is never blocked.
          */
         get: operations["stream_events_api_v1_events_stream_get"];
         put?: never;
@@ -2228,7 +2228,7 @@ export interface paths {
         put?: never;
         /**
          * Create Machine
-         * @description Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint. Optional `workstation_id` attaches the new machine to an active, unattached machine of the same owner: another User's machine answers 404 like a missing one, a revoked or attached one `409 workstation_invalid`.
+         * @description Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint. Optional `workstation_id` attaches the new machine to an active, unattached machine of the same owner: another User's machine answers 404 like a missing one, a revoked or attached one `409 workstation_invalid`. The studio's plan machine ceiling refuses the registration with `402 plan_limit_reached`.
          */
         post: operations["create_machine_api_v1_machines_post"];
         delete?: never;
@@ -2436,7 +2436,7 @@ export interface paths {
         put?: never;
         /**
          * Create User
-         * @description Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` — the role alone decides what the user's machines may do). Requires the instance operator. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.
+         * @description Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` — the role alone decides what the user's machines may do). Requires the instance operator. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint. Joining the studio is a member write: a full studio answers `402 plan_limit_reached` (the account directory stays readable).
          */
         post: operations["create_user_api_v1_users_post"];
         delete?: never;
@@ -3162,7 +3162,7 @@ export interface paths {
         put?: never;
         /**
          * Create Note
-         * @description Create a vault note. The server assigns `id`, `version`, `content_hash` and the author (the caller's user); a `decision` note also gets a `readable_id` from the shared DEC sequence. A slug already taken by a non-archived note of the same scope is `409 vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries.
+         * @description Create a vault note. The server assigns `id`, `version`, `content_hash` and the author (the caller's user); a `decision` note also gets a `readable_id` from the shared DEC sequence. A slug already taken by a non-archived note of the same scope is `409 vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries. The plan's versions-per-note ceiling refuses the write with `402 plan_limit_reached`; reading a note never calls it.
          */
         post: operations["create_note_api_v1_vault_notes_post"];
         delete?: never;
@@ -3190,7 +3190,7 @@ export interface paths {
         head?: never;
         /**
          * Update Note
-         * @description Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale.
+         * @description Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale. The plan's versions-per-note ceiling refuses the write with `402 plan_limit_reached`; the version history stays readable.
          */
         patch: operations["update_note_api_v1_vault_notes__note_id__patch"];
         trace?: never;
@@ -20657,6 +20657,27 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "plan_limit_reached",
+                     *         "limit": "storage_bytes",
+                     *         "upgrade_url": "/settings/subscription",
+                     *         "max_value": 2147483648,
+                     *         "current": 2147483648,
+                     *         "requested": 1024
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
@@ -21632,6 +21653,27 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "plan_limit_reached",
+                     *         "limit": "storage_bytes",
+                     *         "upgrade_url": "/settings/subscription",
+                     *         "max_value": 2147483648,
+                     *         "current": 2147483648,
+                     *         "requested": 1024
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
@@ -22554,6 +22596,27 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "plan_limit_reached",
+                     *         "limit": "storage_bytes",
+                     *         "upgrade_url": "/settings/subscription",
+                     *         "max_value": 2147483648,
+                     *         "current": 2147483648,
+                     *         "requested": 1024
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -26256,6 +26319,27 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "plan_limit_reached",
+                     *         "limit": "storage_bytes",
+                     *         "upgrade_url": "/settings/subscription",
+                     *         "max_value": 2147483648,
+                     *         "current": 2147483648,
+                     *         "requested": 1024
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
@@ -26422,6 +26506,27 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "plan_limit_reached",
+                     *         "limit": "storage_bytes",
+                     *         "upgrade_url": "/settings/subscription",
+                     *         "max_value": 2147483648,
+                     *         "current": 2147483648,
+                     *         "requested": 1024
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

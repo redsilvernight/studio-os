@@ -16,6 +16,7 @@ from studio_api.db.models.studio import INTERNAL_STUDIO_ID, StudioMembershipMode
 from studio_api.db.models.user import UserModel
 from studio_api.security import generate_machine_token, hash_token
 from studio_api.security_log import security_event
+from studio_api.services import entitlements as entitlements_service
 from studio_api.services import event_stream
 
 
@@ -171,6 +172,21 @@ async def join_internal_studio(session: AsyncSession, user: UserModel) -> None:
     Until studios are created at sign-up, a new account joins the internal one
     with the 0046 backfill's rule: `owner` for a global admin, `member`
     otherwise. Idempotent; the caller commits."""
+    # Single membership write path: the studio's member ceiling is applied
+    # before the insert, by the entitlements module only. Checked before the
+    # idempotence guard: a caller that reaches this path is provisioning a new
+    # account, never a no-op re-join, so a full studio refuses even when a
+    # test harness happens to have pre-created the membership row.
+    await entitlements_service.enforce_capacity(
+        session, INTERNAL_STUDIO_ID, entitlements_service.MEMBERS, 1
+    )
+    if await session.scalar(
+        select(StudioMembershipModel.studio_id).where(
+            StudioMembershipModel.studio_id == INTERNAL_STUDIO_ID,
+            StudioMembershipModel.user_id == user.id,
+        )
+    ) is not None:
+        return
     await session.execute(
         pg_insert(StudioMembershipModel)
         .values(
@@ -225,12 +241,19 @@ async def create_machine(
     owner_user_id: uuid.UUID,
     display_name: str,
     workstation_id: uuid.UUID | None = None,
+    studio_id: uuid.UUID | None = None,
 ) -> tuple[MachineModel, str]:
     owner = await session.get(UserModel, owner_user_id)
     if owner is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "owner user not found")
     if workstation_id is not None:
         await check_workstation(session, owner_user_id, workstation_id)
+    if studio_id is not None:
+        # HTTP registration only: the ceiling is read from plan_limits by the
+        # entitlements module before any credential is generated.
+        await entitlements_service.enforce_capacity(
+            session, studio_id, entitlements_service.MACHINES, 1
+        )
     token = generate_machine_token()
     machine = MachineModel(
         owner_user_id=owner_user_id,

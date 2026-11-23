@@ -16,7 +16,9 @@ Rules this module owns:
 
 from __future__ import annotations
 
+import time
 import uuid
+from collections import deque
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
@@ -42,9 +44,15 @@ SSE_CONNECTIONS = "sse_connections"
 PROJECTS = "projects"
 MEMBERS = "members"
 MACHINES = "machines"
+VAULT_VERSIONS_PER_NOTE = "vault_versions_per_note"
+REQUESTS_PER_MINUTE = "requests_per_minute"
 
 MEASURED_STORAGE_METRIC = "storage_bytes"
 MEASURED_SSE_METRIC = "sse_connections"
+
+_REQUEST_WINDOW_SECONDS = 60.0
+_REQUEST_WINDOW_MAX_STUDIOS = 10_000
+_request_windows: dict[uuid.UUID, deque[float]] = {}
 
 
 class PlanSummary(ContractModel):
@@ -242,6 +250,17 @@ async def _count(session: AsyncSession, model: type[Any], studio_id: uuid.UUID) 
     return int(total or 0)
 
 
+async def _count_machines(session: AsyncSession, studio_id: uuid.UUID) -> int:
+    """Machines owned by this studio's members. `machines.studio_id` is only
+    the last selected studio (nullable), so it cannot define a tenant quota."""
+    total = await session.scalar(
+        select(func.count(func.distinct(MachineModel.id)))
+        .join(StudioMembershipModel, StudioMembershipModel.user_id == MachineModel.owner_user_id)
+        .where(StudioMembershipModel.studio_id == studio_id)
+    )
+    return int(total or 0)
+
+
 def _counter_value(counters: list[StudioCounter], key: str) -> int:
     return next((counter.value for counter in counters if counter.key == key), 0)
 
@@ -283,7 +302,7 @@ async def refresh_counters(
         ),
         StudioCounter(
             key=MACHINES,
-            value=await _count(session, MachineModel, studio_id),
+            value=await _count_machines(session, studio_id),
             source="live",
             measured_at=measured_at,
         ),
@@ -372,6 +391,46 @@ async def enforce_per_item(
         return
     if requested > maximum:
         raise plan_limit_reached(limit_key, max_value=maximum, current=0, requested=requested)
+
+
+def reset_request_windows() -> None:
+    """Drop the in-memory request windows (tests, process restart)."""
+    _request_windows.clear()
+
+
+async def enforce_request_rate(session: AsyncSession, studio_id: uuid.UUID) -> None:
+    """Refuse a write that would exceed the plan's requests-per-minute ceiling.
+
+    Only *successful* writes are counted (`record_request_rate`), so a `401`/
+    `403` or another limit refusal never consumes a slot: the fail-closed
+    authorization matrix keeps its canonical answers.
+
+    shortcut: mono-instance — a bounded sliding window in this process, keyed
+    by studio. A multi-replica deployment needs a shared store; the ceiling
+    itself always comes from `plan_limits` through this module.
+    """
+    maximum = await max_value_for_key(session, studio_id, REQUESTS_PER_MINUTE)
+    if maximum is None:
+        return
+    now = time.monotonic()
+    window = _request_windows.setdefault(studio_id, deque())
+    while window and now - window[0] >= _REQUEST_WINDOW_SECONDS:
+        window.popleft()
+    if len(window) >= maximum:
+        raise plan_limit_reached(
+            REQUESTS_PER_MINUTE, max_value=maximum, current=len(window), requested=1
+        )
+
+
+def record_request_rate(studio_id: uuid.UUID) -> None:
+    """Count one completed write in the studio's sliding minute window."""
+    now = time.monotonic()
+    window = _request_windows.setdefault(studio_id, deque())
+    while window and now - window[0] >= _REQUEST_WINDOW_SECONDS:
+        window.popleft()
+    window.append(now)
+    if len(_request_windows) > _REQUEST_WINDOW_MAX_STUDIOS:
+        _request_windows.pop(next(iter(_request_windows)))
 
 
 async def list_studios_for_user(

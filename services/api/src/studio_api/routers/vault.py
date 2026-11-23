@@ -25,6 +25,7 @@ from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
+    RESP_402_PLAN_LIMIT,
     RESP_403_FORBIDDEN,
     RESP_404_NOT_FOUND,
     RESP_409_IDEMPOTENCY,
@@ -49,10 +50,13 @@ router = APIRouter(prefix="/api/v1/vault", tags=["vault"])
         "`content_hash` and the author (the caller's user); a `decision` note "
         "also gets a `readable_id` from the shared DEC sequence. A slug already "
         "taken by a non-archived note of the same scope is `409 "
-        "vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries."
+        "vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries. "
+        "The plan's versions-per-note ceiling refuses the write with `402 "
+        "plan_limit_reached`; reading a note never calls it."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
+        **RESP_402_PLAN_LIMIT,
         **RESP_403_FORBIDDEN,
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_VAULT_SLUG),
         **RESP_422_VAULT,
@@ -109,10 +113,13 @@ async def get_note(note_id: UUID, session: DbSession, principal: CurrentPrincipa
         "change. No DELETE exists: archiving is a `status` write. Accepts "
         "`Idempotency-Key` for safe retries: replaying the same key with the "
         "identical body returns the first response instead of writing a new "
-        "version, even though `expected_version` is now stale."
+        "version, even though `expected_version` is now stale. The plan's "
+        "versions-per-note ceiling refuses the write with `402 "
+        "plan_limit_reached`; the version history stays readable."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
+        **RESP_402_PLAN_LIMIT,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_VERSION_CONFLICT),
