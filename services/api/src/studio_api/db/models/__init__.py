@@ -26,6 +26,11 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.project_repository import ProjectRepositoryModel
 from studio_api.db.models.refresh_token import RefreshTokenModel
+from studio_api.db.models.retention import (
+    RetentionKind,
+    RetentionPurgeLogModel,
+    RetentionPurgeNoticeModel,
+)
 from studio_api.db.models.roadmap import (
     RoadmapModel,
     RoadmapPhaseModel,
@@ -101,4 +106,7 @@ __all__ = [
     "TransferModel",
     "IdempotencyKeyModel",
     "InfraMeasurementModel",
+    "RetentionKind",
+    "RetentionPurgeNoticeModel",
+    "RetentionPurgeLogModel",
 ]
