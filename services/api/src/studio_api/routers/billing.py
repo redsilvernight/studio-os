@@ -64,6 +64,25 @@ async def create_checkout(
     return BillingSessionRead(url=url)
 
 
+@router.get(
+    "/studios/{studio_id}/billing",
+    response_model=billing_service.BillingStatus,
+    description=(
+        "Subscription state of the studio for any member: plan, Stripe status, "
+        "`past_due_since` and `grace_ends_at` (the end of the unpaid grace "
+        "delay, after which the studio drops to the free plan, data kept) and "
+        "`trial_ends_at` while the Pro trial runs. Read-only; no payment data."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+)
+async def get_billing_status(
+    studio_id: uuid.UUID, session: DbSession, principal: CurrentPrincipal
+) -> billing_service.BillingStatus:
+    await studios_service.studio_principal(session, principal, studio_id)
+    studio = await billing_service.load_studio(session, studio_id)
+    return billing_service.billing_status(studio)
+
+
 class StripeWebhookResult(BaseModel):
     status: Literal["applied", "ignored", "duplicate"]
 

@@ -20,6 +20,7 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -249,6 +250,13 @@ async def apply_event(
     now = now or datetime.now(UTC)
     if event_type in {"customer.subscription.created", "customer.subscription.updated"}:
         sub_status = obj.get("status")
+        studio.billing_status = sub_status if isinstance(sub_status, str) else None
+        trial_end = obj.get("trial_end")
+        studio.billing_trial_ends_at = (
+            datetime.fromtimestamp(trial_end, UTC)
+            if sub_status == "trialing" and isinstance(trial_end, int)
+            else None
+        )
         if sub_status in _SUBSCRIPTION_PAID:
             studio.plan, studio.billing_past_due_since = PAID_PLAN_CODE, None
         elif sub_status in _SUBSCRIPTION_UNPAID:
@@ -269,6 +277,32 @@ async def apply_event(
 
 def _drop_to_free(studio: StudioModel) -> None:
     studio.plan, studio.billing_past_due_since = FREE_PLAN_CODE, None
+    studio.billing_status, studio.billing_trial_ends_at = None, None
+
+
+class BillingStatus(BaseModel):
+    """Subscription state of one studio, read-only: the plan, Stripe's status,
+    the unpaid marker with the end of its grace delay, and the trial end."""
+
+    plan: str
+    status: str | None
+    past_due_since: datetime | None
+    grace_ends_at: datetime | None
+    grace_days: int
+    trial_ends_at: datetime | None
+
+
+def billing_status(studio: StudioModel, *, settings: Settings | None = None) -> BillingStatus:
+    grace_days = (settings or get_settings()).stripe_grace_days
+    since = studio.billing_past_due_since
+    return BillingStatus(
+        plan=studio.plan,
+        status=studio.billing_status,
+        past_due_since=since,
+        grace_ends_at=since + timedelta(days=grace_days) if since else None,
+        grace_days=grace_days,
+        trial_ends_at=studio.billing_trial_ends_at,
+    )
 
 
 async def downgrade_overdue_studios(

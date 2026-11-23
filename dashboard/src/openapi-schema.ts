@@ -496,6 +496,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/studios/{studio_id}/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Billing Status
+         * @description Subscription state of the studio for any member: plan, Stripe status, `past_due_since` and `grace_ends_at` (the end of the unpaid grace delay, after which the studio drops to the free plan, data kept) and `trial_ends_at` while the Pro trial runs. Read-only; no payment data.
+         */
+        get: operations["get_billing_status_api_v1_studios__studio_id__billing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/billing/stripe/webhook": {
         parameters: {
             query?: never;
@@ -4230,6 +4250,25 @@ export interface components {
         BillingSessionRead: {
             /** Url */
             url: string;
+        };
+        /**
+         * BillingStatus
+         * @description Subscription state of one studio, read-only: the plan, Stripe's status,
+         *     the unpaid marker with the end of its grace delay, and the trial end.
+         */
+        BillingStatus: {
+            /** Plan */
+            plan: string;
+            /** Status */
+            status: string | null;
+            /** Past Due Since */
+            past_due_since: string | null;
+            /** Grace Ends At */
+            grace_ends_at: string | null;
+            /** Grace Days */
+            grace_days: number;
+            /** Trial Ends At */
+            trial_ends_at: string | null;
         };
         /**
          * BindingRelation
@@ -13520,6 +13559,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BillingSessionRead"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_billing_status_api_v1_studios__studio_id__billing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingStatus"];
                 };
             };
             /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */

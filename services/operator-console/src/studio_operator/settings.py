@@ -82,6 +82,8 @@ class OperatorSettings(BaseSettings):
     storage_capacity_bytes: int = Field(default=570 * GIB, ge=0)
     storage_alert_percent: int = Field(default=70, ge=1, le=100)
     usage_alert_percent: int = Field(default=90, ge=1, le=100)
+    # Unpaid grace of the core API (`STUDIO_STRIPE_GRACE_DAYS`), to show its end.
+    billing_grace_days: int = Field(default=7, ge=0, le=60)
     plan_quotas: dict[str, PlanQuota] = Field(default_factory=_default_plan_quotas)
 
     def operator(self, email: str) -> OperatorAccount | None:

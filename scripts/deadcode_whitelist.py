@@ -502,3 +502,9 @@ _.count_studio_rows  # studio_api/services/studio_restore.py
 # SUPPORT : portée valide d'une demande break-glass, lue par valeur depuis la console opérateur.
 
 _.SUPPORT  # studio_api/db/models/break_glass.py
+
+# BillingStatus : champs lus via la sérialisation de GET /studios/{id}/billing.
+
+_.past_due_since  # studio_api/services/billing.py
+_.grace_ends_at  # studio_api/services/billing.py
+_.trial_ends_at  # studio_api/services/billing.py

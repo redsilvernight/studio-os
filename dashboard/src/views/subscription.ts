@@ -9,10 +9,15 @@
  * modale de confirmation (jamais de popup native) puis redirige ; « Gérer »
  * ouvre le portail. Le plan ne change que par webhook signé : au retour
  * (`?checkout=success|portal`) on affiche « en attente de confirmation » tant
- * que le plan n'a pas changé, sans rien modifier localement. L'état impayé /
- * délai de grâce n'est pas exposé par l'API : il n'est pas affiché.
+ * que le plan n'a pas changé, sans rien modifier localement.
+ *
+ * `GET /studios/{id}/billing` (S4b) donne l'état Stripe : essai en cours (fin
+ * de l'essai), impayé (fin du délai de grâce avant retour au plan gratuit,
+ * données conservées). L'onglet « Usage » montre les compteurs du plan
+ * (`GET /studios/{id}/entitlements`), lisibles par tout membre.
  */
-import { dsBadge, dsModalHtml, dsPageHeader, dsStateHtml, closeDsDialog, focusDsErrorBox, openDsDialog } from "../ds/ds";
+import { dsBadge, dsModalHtml, dsProgress, dsTabsHtml, initDsTabs, dsPageHeader, dsStateHtml, closeDsDialog, focusDsErrorBox, openDsDialog } from "../ds/ds";
+import { formatNumber, formatVolume } from "../format";
 import { esc } from "../ui";
 import { getActiveStudio } from "../studioStore";
 import type { StudioRole } from "../studiosApi";
@@ -21,9 +26,13 @@ import {
   billingErrorMessage,
   createCheckout,
   createPortal,
+  getBillingStatus,
+  getEntitlements,
   parseCheckoutReturn,
   type BillingInterval,
+  type BillingStatus,
   type CheckoutReturn,
+  type StudioEntitlements,
 } from "../billingApi";
 
 export interface SubscriptionOptions {
@@ -53,11 +62,44 @@ function returnNotice(checkoutReturn: CheckoutReturn | null | undefined, pro: bo
   return "";
 }
 
+const dayLabel = (iso: string): string => new Date(iso).toLocaleDateString("fr-FR");
+
+/** Essai en cours ou impayé : seuls états de `GET .../billing` qui demandent un avis. */
+export function billingNoticeHtml(status: BillingStatus): string {
+  if (status.past_due_since !== null && status.grace_ends_at !== null)
+    return `<div class="ds-notice ds-notice--danger"><strong>Paiement en échec.</strong> Mettez à jour votre moyen de paiement avant le ${esc(dayLabel(status.grace_ends_at))} (${status.grace_days} jours de grâce) : passé ce délai, le studio repasse au plan gratuit. Vos données sont conservées.</div>`;
+  if (status.status === "trialing" && status.trial_ends_at !== null)
+    return `<div class="ds-notice ds-notice--info"><strong>Essai gratuit en cours.</strong> Il se termine le ${esc(dayLabel(status.trial_ends_at))} ; le premier paiement a lieu à cette date, résiliable avant depuis le portail.</div>`;
+  return "";
+}
+
+const USAGE_LABELS: Record<string, string> = {
+  storage_bytes: "Stockage",
+  projects: "Projets",
+  members: "Membres",
+  machines: "Appareils",
+};
+
+/** Compteurs du plan face à leurs plafonds ; seules les clés connues sont listées. */
+export function usageHtml(entitlements: StudioEntitlements): string {
+  const rows = Object.entries(USAGE_LABELS).flatMap(([key, label]) => {
+    const counter = entitlements.counters.find((item) => item.key === key);
+    if (counter === undefined) return [];
+    const max = entitlements.limits.find((item) => item.key === key)?.max_value ?? null;
+    const fmt = (value: number): string => (key === "storage_bytes" ? formatVolume(value) : formatNumber(value));
+    const text = max === null ? `${fmt(counter.value)} · illimité` : `${fmt(counter.value)} sur ${fmt(max)}`;
+    return [`<li><strong>${esc(label)}</strong>${max === null ? `<span>${esc(text)}</span>` : dsProgress(counter.value, max, `${label} : ${text}`)}</li>`];
+  });
+  return rows.length === 0
+    ? `<p>Aucun compteur disponible pour le moment.</p>`
+    : `<ul class="sub-usage">${rows.join("")}</ul>`;
+}
+
 function freeCard(): string {
   return (
     `<section class="app-card" aria-labelledby="sub-pro"><div class="app-card-text">` +
     `<h2 id="sub-pro">Passer à Pro</h2>` +
-    `<p>100 Gio · 25 places · appareils illimités.</p>` +
+    `<p>100 Gio · 25 places · appareils illimités. Essai gratuit de 14 jours, sans engagement.</p>` +
     `<fieldset class="ds-field"><legend>Facturation</legend>` +
     `<label><input type="radio" name="sub-interval" value="month" checked> Mensuelle · ${esc(BILLING_PRICES.month)}</label> ` +
     `<label><input type="radio" name="sub-interval" value="year"> Annuelle · ${esc(BILLING_PRICES.year)}</label></fieldset>` +
@@ -110,10 +152,19 @@ export function subscriptionHtml(role: StudioRole, checkoutReturn?: CheckoutRetu
       { label: "Continuer", id: "sub-confirm-ok", variant: "primary" },
     ],
   });
+  const plan = current + (pro ? proCard() : freeCard());
+  const usage = `<div id="sub-usage" aria-live="polite"><p>Chargement de l'usage…</p></div>`;
   return (
-    `${header}<div id="sub-feedback">${returnNotice(checkoutReturn, pro)}</div>` +
-    current +
-    (pro ? proCard() : freeCard()) +
+    `${header}<div id="sub-feedback">${returnNotice(checkoutReturn, pro)}</div><div id="sub-billing" role="status"></div>` +
+    dsTabsHtml(
+      "sub",
+      [
+        { id: "plan", label: "Abonnement", panel: plan },
+        { id: "usage", label: "Usage", panel: usage },
+      ],
+      "plan",
+      "Abonnement et usage",
+    ) +
     modal
   );
 }
@@ -124,6 +175,23 @@ export function renderSubscription(view: HTMLElement, role: StudioRole, options?
   view.innerHTML = subscriptionHtml(role, checkoutReturn);
   const studio = getActiveStudio();
   if (options === undefined || studio === null || role !== "owner") return;
+  initDsTabs(view, "sub");
+  const billing = view.querySelector<HTMLElement>("#sub-billing");
+  const usage = view.querySelector<HTMLElement>("#sub-usage");
+  getBillingStatus(options.baseUrl, studio.id).then(
+    (status) => {
+      if (billing !== null) billing.innerHTML = billingNoticeHtml(status);
+    },
+    () => undefined,
+  );
+  getEntitlements(options.baseUrl, studio.id).then(
+    (entitlements) => {
+      if (usage !== null) usage.innerHTML = usageHtml(entitlements);
+    },
+    (error: unknown) => {
+      if (usage !== null) usage.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert">${esc(billingErrorMessage(error))}</div>`;
+    },
+  );
   const redirect = options.redirect ?? ((url: string) => window.location.assign(url));
   const feedback = view.querySelector<HTMLElement>("#sub-feedback");
   const ok = view.querySelector<HTMLButtonElement>("#sub-confirm-ok");

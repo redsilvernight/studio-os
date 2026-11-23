@@ -617,8 +617,8 @@ async function viewDashboard() {
         ),
         kpi(
           "Impayés en grâce",
-          data.unpaid_in_grace === null ? "—" : slash(data.unpaid_in_grace),
-          data.unpaid_in_grace === null ? "S4 non déployé" : "À suivre",
+          slash(data.unpaid_in_grace),
+          "À suivre",
         ),
       ),
       h("h3", { class: "h3", text: "Services" }),
@@ -975,26 +975,65 @@ async function viewUsage() {
 
 // -- facturation (C4) -------------------------------------------------------
 
+function billingTable(rows, dateKey, dateHeader) {
+  return h(
+    "table",
+    { class: "table" },
+    h("thead", {}, h("tr", {}, h("th", { text: "Studio" }), h("th", { text: "Formule" }), h("th", { text: dateHeader }))),
+    h(
+      "tbody",
+      {},
+      ...rows.map((row) =>
+        h(
+          "tr",
+          {},
+          h("td", { text: row.name }),
+          h("td", { text: row.plan }),
+          h("td", { text: dateLabel(row[dateKey]) }),
+        ),
+      ),
+    ),
+  );
+}
+
 async function viewBilling() {
   mount("billing", page("Facturation", "", loadingCard()));
   try {
     const data = await api("/billing");
+    const section = (title, rows, dateKey, dateHeader, empty) =>
+      h(
+        "div",
+        { class: "card" },
+        h("h3", { class: "h3", text: title }),
+        rows.length ? billingTable(rows, dateKey, dateHeader) : h("p", { class: "muted", text: empty }),
+      );
     mount(
       "billing",
       page(
         "Facturation",
-        "Source : événements Stripe signés.",
+        "Source : événements Stripe signés. Aucun numéro de carte : Stripe seul le détient.",
+        h(
+          "div",
+          { class: "kpis" },
+          kpi("Studios Pro", slash(data.counts.pro), `${slash(data.counts.free)} gratuits`),
+          kpi("Impayés en grâce", slash(data.counts.past_due), `Délai de grâce : ${data.grace_days} j`),
+          kpi("Essais en cours", slash(data.counts.trialing), "Pro, 14 jours"),
+        ),
+        section("Impayés", data.past_due, "grace_ends_at", "Fin de la grâce", "Aucun impayé en cours."),
+        section("Essais", data.trials, "trial_ends_at", "Fin de l’essai", "Aucun essai en cours."),
         h(
           "div",
           { class: "card" },
-          h("h3", { class: "h3", text: "Facturation non disponible" }),
-          h("p", { class: "muted", text: data.message }),
-          h(
-            "p",
-            { class: "muted" },
-            "Aucun abonnement, impayé ni événement webhook n’est lu par cette console ",
-            "(S4-Stripe). Aucun numéro de carte n’est jamais affiché : Stripe seul le détient.",
-          ),
+          h("h3", { class: "h3", text: "Derniers événements webhook" }),
+          data.recent_events.length
+            ? h(
+                "div",
+                {},
+                ...data.recent_events.map((event) =>
+                  h("p", { class: "muted", text: `${dateLabel(event.processed_at)} · ${event.type}` }),
+                ),
+              )
+            : h("p", { class: "muted", text: "Aucun événement reçu pour l’instant." }),
         ),
       ),
     );

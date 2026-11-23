@@ -78,6 +78,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("PATCH", "/api/v1/studios/{studio_id}/members/{user_id}"): "instance",
     ("DELETE", "/api/v1/studios/{studio_id}/members/{user_id}"): "instance",
     ("POST", "/api/v1/studios/{studio_id}/transfer-ownership"): "instance",
+    ("GET", "/api/v1/studios/{studio_id}/billing"): "instance",
     ("POST", "/api/v1/studios/{studio_id}/billing/checkout"): "instance",
     ("POST", "/api/v1/studios/{studio_id}/billing/portal"): "instance",
     # Studio lifecycle (0051): owner-only, tenant-level, never a project's data.

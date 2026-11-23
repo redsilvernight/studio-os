@@ -61,18 +61,24 @@ async def test_usage_aggregates_by_studio_and_globally(
     assert repository.days[-1] == 30
 
 
-async def test_billing_is_reported_unavailable_not_faked(
+async def test_billing_reports_subscription_aggregates_only(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     response = await client.get("/api/v1/billing", headers=auth_headers)
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["available"] is False
-    assert body["reason_code"] == "billing_not_deployed"
-    assert "S4" in body["message"]
-    # No subscription, invoice or webhook payload field exists.
-    assert set(body) == {"available", "reason_code", "message"}
+    assert body["counts"] == {"pro": 2, "free": 1, "trialing": 1, "past_due": 1}
+    assert body["grace_days"] == 7
+    assert body["past_due"][0]["grace_ends_at"].startswith("2026-11-25")
+    assert body["trials"][0]["trial_ends_at"].startswith("2026-12-05")
+    assert body["recent_events"] == [
+        {"type": "invoice.payment_failed", "processed_at": "2026-11-18T00:00:00Z"}
+    ]
+    # Aggregates only: no card, customer id, key or event id anywhere.
+    flat = response.text.lower()
+    for forbidden in ("card", "cus_", "sk_", "evt_", "customer"):
+        assert forbidden not in flat
 
 
 async def test_break_glass_queue_lists_requests_and_status(

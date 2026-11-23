@@ -96,6 +96,7 @@ async def test_checkout_creates_customer_once_and_returns_hosted_url(
     session_form = next(form for path, form, _ in stripe.calls if path.endswith("/sessions"))
     assert session_form["line_items[0][price]"] == "price_year"
     assert session_form["customer"] == "cus_test_1"
+    assert session_form["subscription_data[trial_period_days]"] == "14"
     assert session_form["client_reference_id"] == studio_id
     assert all(h["authorization"] == f"Bearer {SECRET}" for _, _, h in stripe.calls)
     studio = await db_session.get(StudioModel, uuid.UUID(studio_id))

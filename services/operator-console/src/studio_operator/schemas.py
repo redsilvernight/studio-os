@@ -170,13 +170,40 @@ class SuspensionList(BaseModel):
     studios: list[SuspendedStudio]
 
 
-class FeatureAvailability(BaseModel):
-    """An operator view whose source is not deployed yet (S4-Stripe for
-    billing, the break-glass service for C5)."""
+class BillingStudio(BaseModel):
+    """One subscription line of the C4 sheet: identity, plan and Stripe state.
+    No card, invoice amount, customer id or key: Stripe alone holds those."""
 
-    available: bool
-    reason_code: str
-    message: str
+    id: uuid.UUID
+    name: str
+    plan: str
+    status: str | None = None
+    past_due_since: datetime | None = None
+    grace_ends_at: datetime | None = None
+    trial_ends_at: datetime | None = None
+
+
+class BillingEvent(BaseModel):
+    """A recent Stripe webhook event: its type and when it was applied."""
+
+    type: str
+    processed_at: datetime
+
+
+class BillingCounts(BaseModel):
+    pro: int
+    free: int
+    trialing: int
+    past_due: int
+
+
+class BillingReport(BaseModel):
+    generated_at: datetime
+    grace_days: int
+    counts: BillingCounts
+    past_due: list[BillingStudio]
+    trials: list[BillingStudio]
+    recent_events: list[BillingEvent]
 
 
 BreakGlassScope = Literal["metadata", "support"]

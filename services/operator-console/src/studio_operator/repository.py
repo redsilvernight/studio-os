@@ -15,6 +15,10 @@ from studio_contracts.infra import InfraMeasurementsReport, InfraPoint, InfraSer
 from studio_operator.db import get_session
 from studio_operator.schemas import (
     Alert,
+    BillingCounts,
+    BillingEvent,
+    BillingReport,
+    BillingStudio,
     BreakGlassRequest,
     BreakGlassScope,
     CostTotal,
@@ -45,9 +49,20 @@ studios = sa.Table(
     sa.Column("status", sa.String),
     sa.Column("is_internal", sa.Boolean),
     sa.Column("suspension_reason", sa.Text),
+    sa.Column("billing_status", sa.String),
+    sa.Column("billing_past_due_since", sa.DateTime(timezone=True)),
+    sa.Column("billing_trial_ends_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True)),
     sa.Column("updated_at", sa.DateTime(timezone=True)),
     sa.Column("version", sa.Integer),
+)
+
+stripe_events = sa.Table(
+    "stripe_events",
+    _metadata,
+    sa.Column("id", sa.String, primary_key=True),
+    sa.Column("type", sa.String),
+    sa.Column("processed_at", sa.DateTime(timezone=True)),
 )
 
 studio_memberships = sa.Table(
@@ -371,6 +386,64 @@ class OperatorRepository:
             for summary in summaries
         ]
 
+    async def billing(self, *, now: datetime | None = None, events: int = 20) -> BillingReport:
+        """Subscription aggregates and the latest webhook event types. Reads
+        no card, customer id, invoice or event payload (none is stored)."""
+        now = now or datetime.now(UTC)
+        grace = timedelta(days=self.settings.billing_grace_days)
+        rows = (
+            await self.session.execute(
+                select(
+                    studios.c.id,
+                    studios.c.name,
+                    studios.c.plan,
+                    studios.c.billing_status,
+                    studios.c.billing_past_due_since,
+                    studios.c.billing_trial_ends_at,
+                ).order_by(studios.c.name)
+            )
+        ).all()
+        lines = [
+            BillingStudio(
+                id=r[0],
+                name=r[1],
+                plan=r[2],
+                status=r[3],
+                past_due_since=r[4],
+                grace_ends_at=r[4] + grace if r[4] else None,
+                trial_ends_at=r[5],
+            )
+            for r in rows
+        ]
+        past_due = sorted(
+            (line for line in lines if line.past_due_since),
+            key=lambda line: line.past_due_since or now,
+        )
+        trials = sorted(
+            (line for line in lines if line.status == "trialing" and line.trial_ends_at),
+            key=lambda line: line.trial_ends_at or now,
+        )
+        recent = (
+            await self.session.execute(
+                select(stripe_events.c.type, stripe_events.c.processed_at)
+                .order_by(stripe_events.c.processed_at.desc())
+                .limit(events)
+            )
+        ).all()
+        return BillingReport(
+            generated_at=now,
+            grace_days=self.settings.billing_grace_days,
+            counts=BillingCounts(
+                pro=sum(1 for line in lines if line.plan == "pro"),
+                free=sum(1 for line in lines if line.plan == "free"),
+                trialing=len(trials),
+                past_due=len(past_due),
+            ),
+            past_due=past_due,
+            trials=trials,
+            recent_events=[BillingEvent(type=r[0], processed_at=r[1]) for r in recent],
+        )
+
     async def has_measures(self) -> bool:
         infra = await self.session.scalar(select(infra_measurements.c.value).limit(1))
         if infra is not None:
@@ -484,7 +557,14 @@ class OperatorRepository:
             storage=storage,
             error_rate_5xx_24h=error_rate,
             api_latency_p50_ms=latency_p50,
-            unpaid_in_grace=None,
+            unpaid_in_grace=int(
+                await self.session.scalar(
+                    select(func.count())
+                    .select_from(studios)
+                    .where(studios.c.billing_past_due_since.is_not(None))
+                )
+                or 0
+            ),
             services=services,
             alerts=alerts,
             has_measures=await self.has_measures(),

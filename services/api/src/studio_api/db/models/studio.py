@@ -87,6 +87,12 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     billing_past_due_since: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
+    # Mirror of Stripe's subscription `status` and `trial_end` (0058), written
+    # only by the signed webhook; NULL without subscription.
+    billing_status: Mapped[str | None] = mapped_column(sa.String(32), default=None)
+    billing_trial_ends_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
     # Motif entered by an operator when suspending (0053); cleared on lift.
     suspension_reason: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     is_internal: Mapped[bool] = mapped_column(default=False, server_default="false")

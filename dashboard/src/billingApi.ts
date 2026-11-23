@@ -9,7 +9,11 @@
  * webhook signé, jamais au retour : aucune logique de statut ici.
  */
 import { ApiError } from "./api";
+import type { components } from "./openapi-schema";
 import { request } from "./studioLifecycleApi";
+
+export type BillingStatus = components["schemas"]["BillingStatus"];
+export type StudioEntitlements = components["schemas"]["StudioEntitlements"];
 
 export type BillingInterval = "month" | "year";
 
@@ -29,6 +33,14 @@ export function createCheckout(baseUrl: string, studioId: string, interval: Bill
 
 export function createPortal(baseUrl: string, studioId: string): Promise<BillingSession> {
   return request<BillingSession>(baseUrl, billingPath(studioId, "portal"), "POST");
+}
+
+export function getBillingStatus(baseUrl: string, studioId: string): Promise<BillingStatus> {
+  return request<BillingStatus>(baseUrl, `/studios/${encodeURIComponent(studioId)}/billing`, "GET");
+}
+
+export function getEntitlements(baseUrl: string, studioId: string): Promise<StudioEntitlements> {
+  return request<StudioEntitlements>(baseUrl, `/studios/${encodeURIComponent(studioId)}/entitlements`, "GET");
 }
 
 /** Message utilisateur d'une erreur de facturation (jamais un code brut). */
