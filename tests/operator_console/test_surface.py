@@ -22,6 +22,7 @@ EXPECTED_API_ROUTES = {
     ("/api/v1/billing", "GET"),
     ("/api/v1/suspensions", "GET"),
     ("/api/v1/break-glass", "GET"),
+    ("/api/v1/break-glass", "POST"),
 }
 
 FORBIDDEN_SEGMENTS = (

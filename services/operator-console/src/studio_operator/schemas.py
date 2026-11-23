@@ -177,3 +177,37 @@ class FeatureAvailability(BaseModel):
     available: bool
     reason_code: str
     message: str
+
+
+BreakGlassScope = Literal["metadata", "support"]
+BreakGlassStatus = Literal["requested", "approved", "denied", "expired", "revoked"]
+
+
+class BreakGlassRequest(BaseModel):
+    """One request in the C5 queue: who asked, why, the declared scope and the
+    owner's decision. Never a content excerpt."""
+
+    id: uuid.UUID
+    studio_id: uuid.UUID
+    studio_name: str | None = None
+    operator_ref: str
+    reason: str
+    scope: BreakGlassScope
+    status: BreakGlassStatus
+    requested_at: datetime
+    decided_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class BreakGlassQueue(BaseModel):
+    total: int
+    requests: list[BreakGlassRequest]
+
+
+class BreakGlassCreateRequest(BaseModel):
+    studio_id: uuid.UUID
+    reason: str = Field(min_length=1, max_length=2000)
+    scope: BreakGlassScope = "metadata"
+
+    def stripped_reason(self) -> str:
+        return self.reason.strip()

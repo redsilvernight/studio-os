@@ -30,6 +30,7 @@ from studio_api.services import execution_snapshots as snapshots_service
 from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services import retention as retention_service
 from studio_api.services import studio_deletion as studio_deletion_service
 from studio_api.services import transfers as transfers_service
 from studio_api.services import vault_decision_import as decision_import
@@ -249,6 +250,30 @@ async def _purge_due_studios(dry_run: bool) -> None:
             f"{result.backup_purge_at.isoformat()}"
         )
     print(f"{len(results)} studio(s) {'would be purged' if dry_run else 'purged'}")
+
+
+async def _run_retention() -> None:
+    """Retention worker (0054) — run on a schedule, same model as
+    `_expire_transfers`. Announces what exceeds each studio's plan durations,
+    then executes only the notices whose 7-day window elapsed."""
+    storage = get_storage()
+    async with get_session_factory()() as session:
+        announced = await retention_service.announce_due(session)
+        await session.commit()
+        outcomes = await retention_service.purge_announced(session, storage)
+        await session.commit()
+    for notice in announced:
+        print(
+            f"retention announced: studio {notice.studio_id} {notice.kind} "
+            f"older than {notice.cutoff.isoformat()}, purge after "
+            f"{notice.purge_after.isoformat()}"
+        )
+    for outcome in outcomes:
+        print(
+            f"retention purged: studio {outcome.studio_id} {outcome.kind.value} "
+            f"{outcome.rows_deleted} row(s), {outcome.objects_deleted} object(s)"
+        )
+    print(f"{len(announced)} notice(s) announced, {len(outcomes)} purge(s) executed")
 
 
 async def _abort_stale_multipart_uploads(older_than_days: int, dry_run: bool) -> None:
@@ -610,6 +635,11 @@ def main() -> None:
         "purge-expired", help="Delete execution snapshots past their retention"
     )
 
+    sub.add_parser(
+        "retention-run",
+        help="Announce plan retention overages, then purge the notices due",
+    )
+
     builds_parser = sub.add_parser("builds", help="Manage builds")
     builds_sub = builds_parser.add_subparsers(dest="builds_command", required=True)
     builds_sub.add_parser(
@@ -715,6 +745,8 @@ def main() -> None:
             asyncio.run(_purge_due_studios(args.dry_run))
         elif args.command == "snapshots" and args.snapshots_command == "purge-expired":
             asyncio.run(_purge_execution_snapshots())
+        elif args.command == "retention-run":
+            asyncio.run(_run_retention())
         elif args.command == "builds" and args.builds_command == "reconcile":
             asyncio.run(_reconcile_builds())
         elif args.command == "merge-machines":

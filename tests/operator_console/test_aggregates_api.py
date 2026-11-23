@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import uuid
+
 from httpx import AsyncClient
 
-from tests.operator_console.fakes import FakeRepository
+from tests.operator_console.conftest import EMAIL
+from tests.operator_console.fakes import ATELIER, FakeRepository
 
 
 async def test_dashboard_exposes_health_and_phase_m_measures(
@@ -72,13 +75,77 @@ async def test_billing_is_reported_unavailable_not_faked(
     assert set(body) == {"available", "reason_code", "message"}
 
 
-async def test_break_glass_is_out_of_scope_and_reads_nothing(
+async def test_break_glass_queue_lists_requests_and_status(
+    client: AsyncClient, repository: FakeRepository, auth_headers: dict[str, str]
+) -> None:
+    empty = await client.get("/api/v1/break-glass", headers=auth_headers)
+    assert empty.status_code == 200, empty.text
+    assert empty.json() == {"total": 0, "requests": []}
+
+    created = await client.post(
+        "/api/v1/break-glass",
+        json={
+            "studio_id": str(ATELIER),
+            "reason": "Incident support 42",
+            "scope": "metadata",
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["status"] == "requested"
+    assert body["studio_name"] == "Atelier Phare"
+    assert body["operator_ref"] == EMAIL
+    assert set(body) == {
+        "id",
+        "studio_id",
+        "studio_name",
+        "operator_ref",
+        "reason",
+        "scope",
+        "status",
+        "requested_at",
+        "decided_at",
+        "expires_at",
+    }
+
+    queue = await client.get("/api/v1/break-glass", headers=auth_headers)
+    assert queue.status_code == 200, queue.text
+    assert queue.json()["total"] == 1
+    assert queue.json()["requests"][0]["status"] == "requested"
+
+
+async def test_break_glass_request_validates_studio_reason_and_scope(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    response = await client.get("/api/v1/break-glass", headers=auth_headers)
+    unknown = await client.post(
+        "/api/v1/break-glass",
+        json={"studio_id": str(uuid.uuid4()), "reason": "Incident 7", "scope": "metadata"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code == 404
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["available"] is False
-    assert body["reason_code"] == "break_glass_not_deployed"
-    assert set(body) == {"available", "reason_code", "message"}
+    blank = await client.post(
+        "/api/v1/break-glass",
+        json={"studio_id": str(ATELIER), "reason": "   ", "scope": "metadata"},
+        headers=auth_headers,
+    )
+    assert blank.status_code == 422
+    assert blank.json()["detail"]["error_code"] == "break_glass_reason_required"
+
+    content_scope = await client.post(
+        "/api/v1/break-glass",
+        json={"studio_id": str(ATELIER), "reason": "Incident 7", "scope": "content"},
+        headers=auth_headers,
+    )
+    assert content_scope.status_code == 422
+
+
+async def test_break_glass_requires_the_console_token(client: AsyncClient) -> None:
+    assert (await client.get("/api/v1/break-glass")).status_code == 401
+    assert (
+        await client.post(
+            "/api/v1/break-glass",
+            json={"studio_id": str(ATELIER), "reason": "Incident 7", "scope": "metadata"},
+        )
+    ).status_code == 401
