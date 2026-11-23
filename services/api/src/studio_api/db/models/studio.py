@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import StrEnum
 
 import sqlalchemy as sa
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,6 +61,8 @@ class StudioModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
         ForeignKey("plans.code", ondelete="RESTRICT"), default="free", server_default="free"
     )
     status: Mapped[str] = mapped_column(default="active", server_default="active")
+    # Motif entered by an operator when suspending (0050); cleared on lift.
+    suspension_reason: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     is_internal: Mapped[bool] = mapped_column(default=False, server_default="false")
 
 

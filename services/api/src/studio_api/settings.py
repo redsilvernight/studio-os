@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # Directory holding the database backups, when the host has one (optional).
     infra_backup_dir: str | None = None
 
+    # Hourly HTTP counters (operator console C1/C3): request count, 5xx and
+    # latency percentiles, persisted through `infra_measurements`. Numbers
+    # only, never a path or a body. 0 disables persistence.
+    http_measure_enabled: bool = True
+    http_measure_flush_seconds: int = Field(default=300, ge=0, le=86400)
+
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
 
