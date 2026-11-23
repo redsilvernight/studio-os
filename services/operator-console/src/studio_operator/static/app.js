@@ -4,11 +4,11 @@
 // propres). Vues agrégats uniquement : aucun contenu client, aucun nom de
 // projet ni de fichier n'est affiché.
 
-const TOKEN_KEY = "studio-operator-token";
+const SESSION_STORAGE_KEY = "studio-operator-token";
 const OPERATOR_KEY = "studio-operator-profile";
 
 const root = document.getElementById("root");
-const state = { token: sessionStorage.getItem(TOKEN_KEY), operator: loadOperator() };
+const state = { token: sessionStorage.getItem(SESSION_STORAGE_KEY), operator: loadOperator() };
 
 function loadOperator() {
   try {
@@ -128,7 +128,7 @@ async function api(path, options = {}) {
 function sessionExpired() {
   state.token = null;
   state.operator = null;
-  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_STORAGE_KEY);
   sessionStorage.removeItem(OPERATOR_KEY);
   renderLogin("Votre session a expiré. Saisissez un nouveau code.");
 }
@@ -334,7 +334,7 @@ function renderLogin(message) {
           });
           state.token = session.access_token;
           state.operator = session.operator;
-          sessionStorage.setItem(TOKEN_KEY, session.access_token);
+          sessionStorage.setItem(SESSION_STORAGE_KEY, session.access_token);
           sessionStorage.setItem(OPERATOR_KEY, JSON.stringify(session.operator));
           location.hash = "#/dashboard";
           route();
