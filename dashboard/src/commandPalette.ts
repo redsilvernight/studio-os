@@ -8,6 +8,7 @@
  */
 import type { Route } from "./router";
 import { icon, shellNavGroups, type ShellNavItem } from "./shell";
+import type { StudioRole } from "./studiosApi";
 import { esc } from "./ui";
 
 export interface PaletteEntry {
@@ -17,8 +18,8 @@ export interface PaletteEntry {
   icon: string;
 }
 
-export function paletteEntries(route: Route, desktop = false): PaletteEntry[] {
-  return shellNavGroups(route, desktop).flatMap((group) =>
+export function paletteEntries(route: Route, desktop = false, role: StudioRole = "owner", plan = "Gratuit"): PaletteEntry[] {
+  return shellNavGroups(route, desktop, "simple", role, plan).flatMap((group) =>
     group.items.map((item: ShellNavItem) => ({ href: item.href, label: item.label, group: group.title, icon: item.icon })),
   );
 }

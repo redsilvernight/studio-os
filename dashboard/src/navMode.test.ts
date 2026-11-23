@@ -41,15 +41,15 @@ describe("navMode (P06 rollout)", () => {
     expect(NAV_MODE_STORAGE_KEY).toBe("studio-os.nav-mode");
   });
 
-  it("changes presentation only: same destinations in both modes, nothing collapsed in complete", () => {
+  it("changes presentation only: same destinations in both modes, nothing collapsed", () => {
     const hrefs = (mode: "simple" | "complete"): string[] =>
       shellNavGroups({ name: "dashboard" }, false, mode).flatMap((group) => group.items.map((item) => item.href));
     expect(hrefs("complete")).toEqual(hrefs("simple"));
     const complete = shellNavGroups({ name: "dashboard" }, false, "complete");
-    expect(complete.map((group) => group.collapsible === true)).toEqual([false, false, false]);
+    expect(complete.map((group) => group.collapsible === true)).toEqual([false, false]);
 
     const simpleHtml = shellHtml({ name: "dashboard" }, true, false, "simple");
-    expect(simpleHtml).toContain("<details");
+    expect(simpleHtml).not.toContain("<details");
     expect(simpleHtml).toContain('aria-pressed="false"');
     const completeHtml = shellHtml({ name: "dashboard" }, true, false, "complete");
     expect(completeHtml).not.toContain("<details");

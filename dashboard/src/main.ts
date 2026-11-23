@@ -37,7 +37,14 @@ import { parseRoute } from "./router";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
 import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
 import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
-import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
+import { mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
+import { listStudios, probeServer, type StudiosClient } from "./studiosApi";
+import {
+  STUDIO_CHANGE_EVENT,
+  getActiveStudio,
+  selectStudio,
+  setStudios,
+} from "./studioStore";
 import { createRenderGuard } from "./renderGuard";
 import { LIVE_CHANGE_EVENT, startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import type { LiveState } from "./views/mission";
@@ -196,6 +203,12 @@ async function renderRoute(
     case "workspaces":
       await (await load(() => import("./views/workspacesPage"))).renderWorkspaces(staging, getPlatform(), { client, authed });
       break;
+    case "subscription":
+      (await load(() => import("./views/subscription"))).renderSubscription(staging, getActiveStudio()?.role ?? "owner");
+      break;
+    case "help":
+      (await load(() => import("./views/help"))).renderHelp(staging);
+      break;
     case "onboarding":
       await (await load(() => import("./onboarding/view"))).renderOnboarding(staging, getPlatform());
       break;
@@ -275,8 +288,7 @@ async function render(): Promise<void> {
   staging.id = "view";
   staging.tabIndex = -1;
   old.replaceWith(staging);
-  syncNav(route, document, getDesktopShell() !== null, loadNavMode());
-  syncAuthState(authed, document);
+  paintNavAndConnection(route, authed);
   paintShellStatus(document);
 }
 
@@ -407,6 +419,161 @@ export function isDrawerOpen(): boolean {
   return document.getElementById("app-sidebar")?.classList.contains("open") ?? false;
 }
 
+/**
+ * Coque Atelier (R2, fiche E1) : navigation selon le rôle du studio actif,
+ * connexion web prouvée par sonde /healthz (jamais un défaut).
+ *
+ * `webReachable` : null = sonde en cours (« Connexion… »), true = « Connecté »,
+ * false = « Serveur injoignable » + Réessayer. Le Desktop garde son propre
+ * moniteur (paintShellStatus repeint après nous).
+ */
+let webReachable: boolean | null = null;
+
+function studioRole(): "owner" | "admin" | "member" | "viewer" {
+  return getActiveStudio()?.role ?? "owner";
+}
+
+function studioPlan(): string {
+  return getActiveStudio()?.plan ?? "Gratuit";
+}
+
+/** État de connexion côté navigateur : jeton + sonde serveur réelle. */
+export function webConnectionView(authed: boolean): Parameters<typeof paintConnection>[0] {
+  if (!authed) return { level: "info", label: "Non connecté" };
+  if (webReachable === false) {
+    return {
+      level: "error",
+      label: "Serveur injoignable",
+      title: "Serveur injoignable — vos modifications sont gardées sur cet appareil et partiront au retour de la connexion.",
+      action: { kind: "retry", label: "Réessayer" },
+    };
+  }
+  if (webReachable === null) return { level: "info", label: "Connexion…" };
+  return { level: "ok", label: "Connecté" };
+}
+
+function paintNavAndConnection(route: Route, authed: boolean): void {
+  syncNav(route, document, getDesktopShell() !== null, loadNavMode(), studioRole(), studioPlan());
+  if (getDesktopShell() === null) paintConnection(webConnectionView(authed), document);
+  else syncAuthState(authed, document);
+}
+
+/** Sonde /healthz puis repeint l'unique indicateur (web uniquement). */
+async function probeWebServer(baseUrl: string, authed: boolean): Promise<void> {
+  if (getDesktopShell() !== null || !authed) return;
+  webReachable = null;
+  paintConnection(webConnectionView(true), document);
+  webReachable = await probeServer(baseUrl);
+  paintConnection(webConnectionView(true), document);
+}
+
+/** Menu du sélecteur : Entrée/flèches/Échap (E1), choix sans rechargement. */
+function setStudioMenu(open: boolean, focusFirst = false): void {
+  const button = document.getElementById("studio-button");
+  const menu = document.getElementById("studio-menu");
+  if (button === null || menu === null) return;
+  button.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) {
+    menu.hidden = false;
+    if (focusFirst) menu.querySelector<HTMLButtonElement>("[role='menuitemradio']")?.focus();
+  } else {
+    menu.hidden = true;
+  }
+}
+
+function studioOptions(): HTMLButtonElement[] {
+  return [...document.querySelectorAll<HTMLButtonElement>("#studio-menu [role='menuitemradio']")];
+}
+
+function focusStudioOption(current: Element | null, delta: number): void {
+  const options = studioOptions();
+  if (options.length === 0) return;
+  const index = options.findIndex((option) => option === current);
+  const next = options[(index + delta + options.length) % options.length];
+  next?.focus();
+}
+
+/** Charge les studios, peint le sélecteur, câble menu + réessais. */
+function mountStudioSelector(client: ReturnType<typeof createApiClient>): void {
+  syncStudioSelector(document, { status: "loading" });
+  void listStudios(client as unknown as StudiosClient).then(
+    (result) => {
+      setStudios(result.studios);
+      const active = getActiveStudio();
+      if (active === null) {
+        syncStudioSelector(document, { status: "error" });
+        return;
+      }
+      syncStudioSelector(document, { status: "ready", studios: result.studios, activeId: active.id });
+      // La barre dépend du rôle (Abonnement) et du plan (pastille) : repeint.
+      paintNavAndConnection(parseRoute(location.hash), hasToken());
+      mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null, studioRole(), studioPlan()));
+    },
+    () => {
+      syncStudioSelector(document, { status: "error" });
+    },
+  );
+
+  const slot = document.getElementById("studio-slot");
+  if (slot === null || slot.hasAttribute("data-studio-wired")) return;
+  slot.setAttribute("data-studio-wired", "true");
+  slot.addEventListener("click", (event) => {
+    const target = event.target as Element | null;
+    const button = target?.closest("#studio-button");
+    if (button !== null) {
+      const menu = document.getElementById("studio-menu");
+      setStudioMenu(menu?.hidden ?? false, true);
+      return;
+    }
+    if (target?.closest("#studio-retry") !== null) {
+      mountStudioSelector(client);
+      return;
+    }
+    const option = target?.closest<HTMLButtonElement>("[data-studio-id]");
+    if (option !== null) {
+      const chosen = selectStudio(option.dataset["studioId"] ?? "");
+      if (chosen !== null) {
+        // Changement sans rechargement : la barre (rôle/plan) puis la vue.
+        mountShell();
+        document.getElementById("studio-button")?.focus();
+      }
+    }
+  });
+  slot.addEventListener("keydown", (event) => {
+    if (!(event instanceof KeyboardEvent)) return;
+    const target = event.target as Element | null;
+    if (target?.closest("#studio-button") !== null && (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      setStudioMenu(true, true);
+      return;
+    }
+    if (target?.closest("#studio-menu") === null) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setStudioMenu(false);
+      document.getElementById("studio-button")?.focus();
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusStudioOption(target, 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusStudioOption(target, -1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      studioOptions()[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      studioOptions().at(-1)?.focus();
+    }
+  });
+  // Clic ailleurs : referme le menu sans voler le focus.
+  document.addEventListener("click", (event) => {
+    const menu = document.getElementById("studio-menu");
+    if (menu === null || menu.hidden) return;
+    if ((event.target as Element | null)?.closest("#studio-slot") === null) setStudioMenu(false);
+  });
+}
+
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
@@ -420,8 +587,11 @@ function mountShell(): void {
   paintShellStatus(document);
   mountSkillsSync(getPlatform());
   paintUpdateBanner(document);
-  mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null));
+  mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null, studioRole(), studioPlan()));
   mountAdminFlyout();
+  const shellClient = createApiClient(resolveApiUrl(apiBaseUrl()));
+  mountStudioSelector(shellClient);
+  if (getDesktopShell() === null && hasToken()) void probeWebServer(resolveApiUrl(apiBaseUrl()), true);
 
   // P06 : bascule de présentation seule — même route, mêmes données ; le shell
   // est reconstruit puis la vue courante repeinte (aucune navigation).
@@ -457,6 +627,17 @@ function mountShell(): void {
     });
     subscribe(() => {
       syncRealtimeConnection();
+      void render();
+    });
+    // « Réessayer » de l'indicateur web : re-sonde le serveur, sans recharger.
+    document.addEventListener("click", (event) => {
+      const retry = (event.target as Element | null)?.closest('[data-action="retry-status"]');
+      if (retry === null || retry === undefined) return;
+      if (getDesktopShell() !== null) return;
+      void probeWebServer(resolveApiUrl(apiBaseUrl()), hasToken());
+    });
+    // Changement de studio (sélecteur) : repeint la vue courante, sans recharger.
+    window.addEventListener(STUDIO_CHANGE_EVENT, () => {
       void render();
     });
     window.addEventListener("hashchange", () => {

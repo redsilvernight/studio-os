@@ -12,18 +12,30 @@ import {
 import { parseRoute } from "./router";
 import { shellHtml } from "./shell";
 
-describe("paletteEntries (P03-shell)", () => {
+describe("paletteEntries (R2-coque)", () => {
   it("lists exactly the sidebar destinations, daily first", () => {
     const entries = paletteEntries(parseRoute("#/"));
-    expect(entries.slice(0, 5).map((e) => e.label)).toEqual(["Accueil", "Projets", "Travail", "À valider", "Agents"]);
-    expect(entries.some((e) => e.label === "Configuration" && e.group === "Administration")).toBe(true);
-    expect(entries.some((e) => e.label === "Vue d'ensemble" && e.group === "Administration")).toBe(true);
-    expect(entries.some((e) => e.label === "Espaces de travail" && e.group === "Administration")).toBe(true);
-    expect(entries.some((e) => e.label === "Inspecteur" && e.group === "Outils experts")).toBe(true);
+    expect(entries.slice(0, 7).map((e) => e.label)).toEqual([
+      "Aujourd'hui",
+      "Projets",
+      "Tâches",
+      "À valider",
+      "Équipe IA",
+      "Connaissances",
+      "Fichiers",
+    ]);
+    expect(entries.some((e) => e.label === "Réglages" && e.group === "Studio")).toBe(true);
+    expect(entries.some((e) => e.label === "Abonnement" && e.group === "Studio")).toBe(true);
+    expect(entries.some((e) => e.label === "Aide" && e.group === "Studio")).toBe(true);
     expect(new Set(entries.map((e) => e.href)).size).toBe(entries.length);
   });
 
-  it("adds no extra entry on desktop: Espaces is always visible", () => {
+  it("hides Abonnement for non-owners", () => {
+    expect(paletteEntries(parseRoute("#/"), false, "viewer").some((e) => e.label === "Abonnement")).toBe(false);
+    expect(paletteEntries(parseRoute("#/"), false, "owner").some((e) => e.label === "Abonnement")).toBe(true);
+  });
+
+  it("adds no extra entry on desktop", () => {
     expect(paletteEntries(parseRoute("#/"), true).length).toBe(paletteEntries(parseRoute("#/")).length);
   });
 });
@@ -37,14 +49,14 @@ describe("filterPalette", () => {
 
   it("ignores accents and case", () => {
     expect(filterPalette(entries, "a VALIDER").map((e) => e.label)).toEqual(["À valider"]);
-    expect(filterPalette(entries, "parametres")).toEqual([]);
-    expect(filterPalette(entries, "configuration").map((e) => e.label)).toEqual(["Configuration"]);
+    expect(filterPalette(entries, "equipe").map((e) => e.label)).toEqual(["Équipe IA"]);
+    expect(filterPalette(entries, "abonnement").map((e) => e.label)).toEqual(["Abonnement"]);
   });
 
   it("requires every word and ranks label prefixes first", () => {
-    const hits = filterPalette(entries, "admin");
+    const hits = filterPalette(entries, "studio");
     expect(hits.length).toBeGreaterThan(1);
-    expect(hits.every((e) => e.group === "Administration")).toBe(true);
+    expect(hits.every((e) => e.group === "Studio")).toBe(true);
     expect(filterPalette(entries, "agents zzz")).toEqual([]);
     const pro = filterPalette(entries, "pro");
     expect(pro[0]?.label).toBe("Projets");

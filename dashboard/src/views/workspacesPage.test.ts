@@ -234,13 +234,13 @@ describe("Espaces de travail navigation", () => {
     expect(parseRoute("#/workspaces/x").name).toBe("notFound");
   });
 
-  it("is visible on web and desktop: one Administration entry", () => {
+  it("keeps legacy pages reachable with the closest Studio entry active", () => {
     const web = shellNavGroups({ name: "dashboard" }).flatMap((g) => g.items.map((i) => i.href));
-    expect(web).toContain("#/workspaces");
-    expect(shellHtml({ name: "dashboard" }, true)).toContain("Espaces de travail");
+    expect(web).toContain("#/administration");
+    expect(shellHtml({ name: "dashboard" }, true)).toContain("Réglages");
     const desktop = shellNavGroups({ name: "workspaces" }, true).flatMap((g) => g.items);
-    expect(desktop.filter((i) => i.href === "#/workspaces" && i.active)).toHaveLength(1);
-    expect(shellHtml({ name: "dashboard" }, true, true)).toContain("Espaces de travail");
+    expect(desktop.filter((i) => i.href === "#/administration" && i.active)).toHaveLength(1);
+    expect(shellHtml({ name: "dashboard" }, true, true)).toContain("Réglages");
   });
 
   it("titles the page Espaces de travail with a folded technical block", () => {

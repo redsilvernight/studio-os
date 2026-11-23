@@ -30,6 +30,8 @@ export type Route =
   | { name: "configApplication" }
   | { name: "configIntegrations"; workspaceId?: string }
   | { name: "workspaces" }
+  | { name: "subscription" }
+  | { name: "help" }
   | { name: "onboarding" }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
@@ -126,6 +128,8 @@ export function parseRoute(hash: string): Route {
     return notFound(hash);
   }
   if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
+  if (parts[0] === "abonnement" && parts.length === 1) return { name: "subscription" };
+  if (parts[0] === "aide" && parts.length === 1) return { name: "help" };
   if (parts[0] === "bienvenue" && parts.length === 1) return { name: "onboarding" };
   // L'ancien onglet Graph est fusionné dans le Vault : `#/graphs/*` mène à l'atlas.
   if (parts[0] === "graphs") return { name: "vaultAtlas" };
