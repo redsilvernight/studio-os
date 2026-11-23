@@ -40,6 +40,8 @@ import type {
 } from "../atlas/types";
 import { VAULT_STATUS_LABEL, VAULT_TYPE_LABEL, vaultModeNavHtml, vaultScopeLabel } from "./vault";
 import "./vaultAtlas.css";
+import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 type Project = components["schemas"]["Project"];
 
@@ -87,7 +89,7 @@ export function measureAtlasStep<T>(label: string, fn: () => T): { value: T; ms:
 }
 
 export function atlasPerfText(notes: number, edges: number, timings: AtlasTimings): string {
-  return `${notes} note(s) · ${edges} lien(s) · construction ${timings.buildMs.toFixed(1)} ms` +
+  return `${notes} note${sfx(notes)} · ${edges} lien${sfx(edges)} · construction ${timings.buildMs.toFixed(1)} ms` +
     ` · disposition ${timings.layoutMs.toFixed(1)} ms · filtre ${timings.filterMs.toFixed(1)} ms` +
     ` · dessin ${timings.drawMs.toFixed(1)} ms`;
 }
@@ -122,7 +124,7 @@ const LINK_LABEL: Record<string, string> = {
 };
 
 function header(): string {
-  return dsPageHeader("Vault", HEADER_DESC) + vaultModeNavHtml("atlas");
+  return dsPageHeader(UI_LABEL.vault, HEADER_DESC) + vaultModeNavHtml("atlas");
 }
 
 function nodeTitle(node: AtlasNode): string {
@@ -150,7 +152,7 @@ export function atlasToolbarHtml(
     checkbox("status", status, VAULT_STATUS_LABEL[status], filters.statuses.length === 0 || filters.statuses.includes(status)),
   ).join("");
   const scopes = (["studio", "project"] as const)
-    .map((scope) => checkbox("scope", scope, scope === "studio" ? "Studio" : "Projet", filters.scopes.length === 0 || filters.scopes.includes(scope)))
+    .map((scope) => checkbox("scope", scope, scope === "studio" ? "Studio" : UI_LABEL.project, filters.scopes.length === 0 || filters.scopes.includes(scope)))
     .join("");
   return `<div class="vault-atlas-toolbar" role="search" aria-label="Filtrer l'atlas">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
@@ -186,14 +188,14 @@ export function atlasStatusLine(view: AtlasView, graph: AtlasGraph, selected: st
   const notes = view.clusters.length > 0
     ? view.clusters.reduce((sum, c) => sum + c.count, 0)
     : view.nodes.filter((n) => n.kind === "note").length;
-  const parts = [`${notes} note(s) visible(s) sur ${graph.nodes.filter((n) => n.kind === "note").length}`];
+  const parts = [`${notes} note${sfx(notes)} visible${sfx(notes)} sur ${graph.nodes.filter((n) => n.kind === "note").length}`];
   if (view.clusters.length > 0) parts.push(`regroupées en ${view.clusters.length} amas`);
-  if (view.groups.length > 0) parts.push(`${view.groups.length} zone(s)`);
-  if (view.communities.length > 0) parts.push(`${view.communities.length} communauté(s)`);
-  if (view.matches.size > 0) parts.push(`${view.matches.size} correspondance(s)`);
+  if (view.groups.length > 0) parts.push(`${view.groups.length} zone${sfx(view.groups.length)}`);
+  if (view.communities.length > 0) parts.push(`${view.communities.length} communauté${sfx(view.communities.length)}`);
+  if (view.matches.size > 0) parts.push(`${view.matches.size} correspondance${sfx(view.matches.size)}`);
   if (selected !== null) {
     const neighbors = graph.neighbors.get(selected)?.size ?? 0;
-    if (neighbors > 0) parts.push(`${neighbors} voisin(s) surligné(s)`);
+    if (neighbors > 0) parts.push(`${neighbors} voisin${sfx(neighbors)} surligné${sfx(neighbors)}`);
   }
   if (graph.truncated) parts.push("chargement plafonné, affinez par projet");
   return `${parts.join(" — ")}.`;
@@ -214,7 +216,7 @@ export function atlasVisibleListHtml(view: AtlasView, selected: string | null, g
     return `<li><button type="button" class="${classes}" data-atlas-pick="${esc(node.id)}"${isSelected ? ' aria-current="true"' : ""}><span class="vault-atlas-dot" data-type="${esc(node.kind === "note" ? node.noteType : "anchor")}" aria-hidden="true"></span>${esc(nodeTitle(node))}${isNeighbor ? ' <span class="vault-atlas-neighbor">voisin</span>' : ""}</button></li>`;
   }).join("");
   const more = ordered.length > VISIBLE_LIST_MAX
-    ? `<p class="ds-list-sub">${ordered.length - VISIBLE_LIST_MAX} autre(s) : affinez la recherche.</p>`
+    ? `<p class="ds-list-sub">${ordered.length - VISIBLE_LIST_MAX} autre${sfx(ordered.length - VISIBLE_LIST_MAX)} : affinez la recherche.</p>`
     : "";
   return `<ul class="vault-atlas-items" role="list">${items}</ul>${more}`;
 }
@@ -361,7 +363,7 @@ function prefersReducedMotion(): boolean {
 
 export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext): Promise<void> {
   if (!ctx.authed) {
-    root.innerHTML = header() + dsEmptyState("Connectez-vous", "Saisissez votre jeton machine pour charger le vault.");
+    root.innerHTML = header() + dsEmptyState(UI_LABEL.signIn, "Saisissez votre jeton machine pour charger le vault.");
     return;
   }
   root.innerHTML = header() + dsSkeleton(4);

@@ -32,7 +32,8 @@ import type {
 import { agentRef } from "../actorNames";
 import { ApiError, type StudioClient } from "../api";
 import { describeError, esc, fmtTime } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { plural, sfx } from "../format";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 import { renderAdmissionPanelInto } from "./admissionPanel";
 
 export type RoadmapMode = "plan" | "execution";
@@ -53,18 +54,18 @@ export interface RoadmapViewContext {
 }
 
 const STATUS_LABELS: Record<RoadmapStatus, string> = {
-  draft: "Brouillon",
+  draft: UI_LABEL.draft,
   proposed: "À examiner",
   active: "Active",
-  completed: "Terminée",
+  completed: UI_LABEL.done,
   archived: "Archivée",
 };
 
 const STEP_LABELS: Record<string, string> = {
   not_started: "À venir",
-  in_progress: "En cours",
+  in_progress: UI_LABEL.inProgress,
   blocked: "Bloquée",
-  done: "Terminée",
+  done: UI_LABEL.done,
   skipped: "Ignorée",
 };
 
@@ -129,11 +130,11 @@ export function roadmapDonePhasesHtml(roadmap: Roadmap, selectedKey: string | nu
     const steps = phase.steps ?? [];
     return `<details class="roadmap-done-phase" data-done-phase="${esc(phase.key)}"><summary>` +
       `<span class="roadmap-done-ok" aria-hidden="true">✓</span><span><span class="roadmap-eyebrow">Phase ${index + 1} · Terminée</span>` +
-      `<strong>${esc(phase.title)}</strong><span class="ds-list-sub">${steps.length} étape${steps.length > 1 ? "s" : ""} · ${phaseProgress(phase)} %</span></span></summary>` +
+      `<strong>${esc(phase.title)}</strong><span class="ds-list-sub">${steps.length} étape${sfx(steps.length)} · ${phaseProgress(phase)} %</span></span></summary>` +
       `<div class="roadmap-done-content">${phase.objective ? `<p>${esc(phase.objective)}</p>` : ""}` +
       `<div class="roadmap-step-list">${steps.map((step) => stepButtonHtml(step, step.key === selectedKey)).join("")}</div></div></details>`;
   }).join("");
-  return `<section class="roadmap-done-phases" aria-label="Phases terminées"><h3>${done.length} phase${done.length > 1 ? "s" : ""} terminée${done.length > 1 ? "s" : ""}</h3>${contents}</section>`;
+  return `<section class="roadmap-done-phases" aria-label="Phases terminées"><h3>${done.length} phase${sfx(done.length)} terminée${sfx(done.length)}</h3>${contents}</section>`;
 }
 
 export function roadmapPlanHtml(roadmap: Roadmap, selectedKey: string | null): string {
@@ -165,7 +166,7 @@ export function roadmapPhaseStripHtml(roadmap: Roadmap): string {
   return `<section class="roadmap-phase-strip" data-major aria-label="Progression des phases">` +
     `<div class="roadmap-strip-top"><span><strong>${percent(roadmap.progress?.ratio)} %</strong>` +
     `<span class="ds-list-sub"> ${roadmap.progress?.done ?? 0} étapes sur ${roadmap.progress?.total ?? allSteps(roadmap).length}</span></span>` +
-    (position > 0 ? `<span class="ds-list-sub">Phase ${position} sur ${phases.length}</span>` : `<span class="ds-list-sub">${doneCount} terminée${doneCount > 1 ? "s" : ""}</span>`) +
+    (position > 0 ? `<span class="ds-list-sub">Phase ${position} sur ${phases.length}</span>` : `<span class="ds-list-sub">${doneCount} terminée${sfx(doneCount)}</span>`) +
     `</div><div class="roadmap-strip-track" aria-hidden="true">${track}</div></section>`;
 }
 
@@ -242,7 +243,7 @@ export function roadmapStepDetailHtml(step: RoadmapStep | null, roadmap: Roadmap
   return `<aside class="roadmap-detail" aria-label="Détail de l'étape ${esc(step.title)}">` +
     `<header><div><p class="roadmap-eyebrow">${esc(step.key)}</p><h2>${esc(step.title)}</h2></div>${dsBadge(STEP_LABELS[state] ?? state, stepTone(state))}</header>` +
     `<section><h3>Objectif</h3><p>${esc(step.objective?.trim() || "Objectif non renseigné.")}</p>${step.context ? `<p class="roadmap-context">${esc(step.context)}</p>` : ""}</section>` +
-    `<section><h3>Tâches</h3>${taskListHtml(step)}${totalTasks > 0 ? dsProgress(completedTasks, totalTasks, `${completedTasks} sur ${totalTasks} terminée(s)`) : ""}</section>` +
+    `<section><h3>Tâches</h3>${taskListHtml(step)}${totalTasks > 0 ? dsProgress(completedTasks, totalTasks, `${completedTasks} sur ${totalTasks} terminée${sfx(completedTasks)}`) : ""}</section>` +
     `<section><h3>Critères d'acceptation</h3>${criteriaHtml(step)}</section>` +
     `<section><h3>Dépendances</h3>${dependencies.length === 0 ? `<p class="ds-list-sub">Aucune dépendance.</p>` : `<p>${dependencies.map(esc).join(", ")}</p>`}` +
     (waiting.length > 0 ? `<div class="ds-notice ds-notice--warning" role="status"><strong>En attente de :</strong> ${waiting.map(esc).join(", ")}</div>` : "") + `</section>` +
@@ -353,7 +354,7 @@ const DIFF_CHANGE_LABELS: Record<RoadmapDiffChange, string> = {
 };
 
 const DIFF_SCOPE_LABELS: Record<string, string> = {
-  roadmap: "Roadmap",
+  roadmap: UI_LABEL.roadmap,
   phase: "Phase",
   step: "Étape",
   dependency: "Dépendance",
@@ -418,13 +419,13 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
       const linkedCount = step.linked_tasks?.length ?? 0;
       const tasks = plannedTasks.length === 0 && linkedCount === 0
         ? `<p>Aucune tâche liée.</p>`
-        : `<ul>${plannedTasks.map((task) => `<li>${esc(task.title)}</li>`).join("")}${linkedCount > 0 ? `<li>${linkedCount} tâche(s) liée(s)</li>` : ""}</ul>`;
+        : `<ul>${plannedTasks.map((task) => `<li>${esc(task.title)}</li>`).join("")}${linkedCount > 0 ? `<li>${plural(linkedCount, "tâche")} liée${sfx(linkedCount)}</li>` : ""}</ul>`;
       const dependencies = (step.depends_on ?? []).length === 0 ? "Aucune" : (step.depends_on ?? []).map(esc).join(", ");
       const criteria = (step.acceptance_criteria ?? []).length === 0
         ? `<p>Aucun critère défini.</p>`
         : `<ul>${(step.acceptance_criteria ?? []).map((criterion) => `<li>${esc(criterion)}</li>`).join("")}</ul>`;
       return `<article class="roadmap-print-step"><header><h3>${phaseIndex + 1}.${stepIndex + 1} ${esc(step.title)}</h3><span>${esc(STEP_LABELS[state] ?? state)}</span></header>` +
-        `<p><strong>Objectif :</strong> ${esc(step.objective?.trim() || "Non renseigné")}</p>` +
+        `<p><strong>Objectif :</strong> ${esc(step.objective?.trim() || UI_LABEL.notProvided)}</p>` +
         `<div><strong>Tâches</strong>${tasks}</div><p><strong>Dépendances :</strong> ${dependencies}</p>` +
         `<div><strong>Critères d'acceptation</strong>${criteria}</div></article>`;
     }).join("");
@@ -483,11 +484,11 @@ export function roadmapShellHtml(
 function documentEditorHtml(document: RoadmapDocument): string {
   const phases = document.phases.map((phase, phaseIndex) => `<fieldset class="roadmap-editor-phase" data-editor-phase="${phaseIndex}"><legend>Phase ${phaseIndex + 1}</legend>` +
     dsField(`phase-${phaseIndex}-key`, "Clé", `<input id="FIELD" name="phase.${phaseIndex}.key" value="${esc(phase.key)}" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}">`) +
-    dsField(`phase-${phaseIndex}-title`, "Titre", `<input id="FIELD" name="phase.${phaseIndex}.title" value="${esc(phase.title)}" required>`) +
+    dsField(`phase-${phaseIndex}-title`, UI_LABEL.title, `<input id="FIELD" name="phase.${phaseIndex}.title" value="${esc(phase.title)}" required>`) +
     dsField(`phase-${phaseIndex}-objective`, "Objectif", `<textarea id="FIELD" name="phase.${phaseIndex}.objective">${esc(phase.objective ?? "")}</textarea>`) +
     `<div class="roadmap-editor-steps">${phase.steps.map((step, stepIndex) => `<fieldset class="roadmap-editor-step" data-editor-step="${stepIndex}"><legend>Étape ${stepIndex + 1}</legend>` +
       dsField(`step-${phaseIndex}-${stepIndex}-key`, "Clé", `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.key" value="${esc(step.key)}" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}">`) +
-      dsField(`step-${phaseIndex}-${stepIndex}-title`, "Titre", `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.title" value="${esc(step.title)}" required>`) +
+      dsField(`step-${phaseIndex}-${stepIndex}-title`, UI_LABEL.title, `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.title" value="${esc(step.title)}" required>`) +
       dsField(`step-${phaseIndex}-${stepIndex}-objective`, "Objectif", `<textarea id="FIELD" name="step.${phaseIndex}.${stepIndex}.objective">${esc(step.objective ?? "")}</textarea>`) +
       dsField(`step-${phaseIndex}-${stepIndex}-depends`, "Dépend de", `<input id="FIELD" name="step.${phaseIndex}.${stepIndex}.depends" value="${esc(step.depends_on.join(", "))}">`, "Clés séparées par des virgules.") +
       dsField(`step-${phaseIndex}-${stepIndex}-criteria`, "Critères d'acceptation", `<textarea id="FIELD" name="step.${phaseIndex}.${stepIndex}.criteria">${esc(step.acceptance_criteria.join("\n"))}</textarea>`, "Un critère par ligne.") +
@@ -495,7 +496,7 @@ function documentEditorHtml(document: RoadmapDocument): string {
     `<div class="roadmap-editor-row"><button class="ds-btn" type="button" data-add-step="${phaseIndex}">Ajouter une étape</button><button class="ds-btn ds-btn--ghost" type="button" data-remove-phase="${phaseIndex}">Retirer la phase</button></div></fieldset>`).join("");
   return `<div class="roadmap-editor"><div class="ds-notice ds-notice--info" role="note"><strong>Édition locale.</strong> Rien n'est envoyé au serveur dans cette version.</div>` +
     `<form data-roadmap-editor>` +
-    dsField("roadmap-title", "Titre", `<input id="FIELD" name="title" value="${esc(document.title)}" required maxlength="200">`) +
+    dsField("roadmap-title", UI_LABEL.title, `<input id="FIELD" name="title" value="${esc(document.title)}" required maxlength="200">`) +
     dsField("roadmap-objective", "Objectif", `<textarea id="FIELD" name="objective" maxlength="2000">${esc(document.objective ?? "")}</textarea>`) +
     dsField("roadmap-context", "Contexte", `<textarea id="FIELD" name="context" maxlength="4000">${esc(document.context ?? "")}</textarea>`) +
     `<div data-editor-phases>${phases}</div><button class="ds-btn" type="button" data-add-phase>Ajouter une phase</button>` +

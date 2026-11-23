@@ -287,20 +287,7 @@ export function filterMachineRows(rows: MachineRow[], state: MachinesPageState):
   });
 }
 
-/** Durée relative française ("il y a 4 min"). `null` si horodatage absent. */
-export function formatRelativeFr(iso: string | null | undefined, now: number): string | null {
-  if (iso === null || iso === undefined || iso === "") return null;
-  const time = new Date(iso).getTime();
-  if (Number.isNaN(time)) return null;
-  const seconds = Math.max(Math.floor((now - time) / 1000), 0);
-  if (seconds < 60) return "à l'instant";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `il y a ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `il y a ${hours} h`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? "il y a 1 jour" : `il y a ${days} jours`;
-}
+export { formatRelative as formatRelativeFr } from "./format";
 
 /**
  * Canonical machines read. Returns `null` when the endpoint is absent

@@ -104,7 +104,7 @@ async def _apply_status(
     response_model=StudioSummary,
     description=(
         "Fiche C2 — suspend a studio. A motif is mandatory (`422` otherwise), "
-        "visible to the owner, and stored in `studios.suspension_reason` (0050); "
+        "visible to the owner, and stored in `studios.suspension_reason` (0053); "
         "only `studios.status` and that column change to `suspended` — nothing is "
         "deleted and export stays allowed. The internal studio refuses with `409`."
     ),

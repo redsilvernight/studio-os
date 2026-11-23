@@ -108,7 +108,7 @@ class StudioDetail(BaseModel):
 
 class SuspensionRequest(BaseModel):
     """Motif obligatoire, visible du client (fiche C2). Stored in
-    `studios.suspension_reason` (migration 0050) and exposed to the studio's
+    `studios.suspension_reason` (migration 0053) and exposed to the studio's
     own members by `GET /api/v1/studio`; cleared when the suspension is lifted."""
 
     reason: str = Field(min_length=3, max_length=500)

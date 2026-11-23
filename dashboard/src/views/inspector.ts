@@ -31,6 +31,8 @@ import { uiState } from "../store";
 import { describeError, esc, isOfflineError } from "../ui";
 import { dsEmptyState, dsPageHeader, dsSkeleton, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
 import "./inspector.css";
+import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface InspectorContext {
   client: StudioClient;
@@ -135,7 +137,7 @@ function verdictHtml(resolved: ResolvedAgentDefinition): string {
   const unsatisfied = runtime.unsatisfied ?? [];
   return unsatisfied.length === 0
     ? dsStatus("success", "Compatible")
-    : dsStatus("danger", `Incompatible — ${unsatisfied.length} exigence(s) non satisfaite(s)`);
+    : dsStatus("danger", `Incompatible — ${unsatisfied.length} exigence${sfx(unsatisfied.length)} non satisfaite${sfx(unsatisfied.length)}`);
 }
 
 export function identityHtml(resolved: ResolvedAgentDefinition): string {
@@ -149,8 +151,8 @@ export function identityHtml(resolved: ResolvedAgentDefinition): string {
     `</dl>` +
     dsTechDetails(
       [
-        { label: "Identifiant", value: agent.resource_id, mono: true },
-        ...(agent.title !== "" ? [{ label: "Titre", value: agent.title }] : []),
+        { label: UI_LABEL.identifier, value: agent.resource_id, mono: true },
+        ...(agent.title !== "" ? [{ label: UI_LABEL.title, value: agent.title }] : []),
       ],
       "Identifiant de la ressource",
     )
@@ -603,7 +605,7 @@ function offlineResultHtml(error: unknown): string {
   return dsStateHtml("offline", {
     title: "Serveur injoignable",
     message: "L'inspection n'a pas pu partir : le serveur n'a rien décidé. Vérifiez la connexion, puis réessayez.",
-    action: { label: "Réessayer", id: "inspector-retry" },
+    action: { label: UI_LABEL.retry, id: "inspector-retry" },
     details: [{ label: "Cause", value: error instanceof Error ? error.message : String(error), mono: true }],
   });
 }

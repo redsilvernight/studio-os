@@ -98,18 +98,6 @@ class StudioEntitlements(ContractModel):
     generated_at: AwareDatetime
 
 
-class StudioSummary(ContractModel):
-    """One studio the caller is a member of (`GET /studios`); `role` is the
-    caller's own studio role, never another member's."""
-
-    id: uuid.UUID
-    name: str
-    slug: str
-    plan: str
-    status: str
-    role: Literal["owner", "admin", "member", "viewer"]
-
-
 def upgrade_url() -> str:
     """Customer-facing subscription screen, the `upgrade_url` of every
     `plan_limit_reached` response."""
@@ -466,30 +454,3 @@ def record_request_rate(studio_id: uuid.UUID) -> None:
     window.append(now)
     if len(_request_windows) > _REQUEST_WINDOW_MAX_STUDIOS:
         _request_windows.pop(next(iter(_request_windows)))
-
-
-async def list_studios_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[StudioSummary]:
-    """Studios the user is a member of, oldest first — never another tenant's.
-    `plan` goes through the plans module (unknown codes fall back to the
-    default plan); `role` is this user's own studio role."""
-    known_codes = set((await session.execute(select(PlanModel.code))).scalars().all())
-    fallback = await default_plan_code(session)
-    rows = (
-        await session.execute(
-            select(StudioModel, StudioMembershipModel.role)
-            .join(StudioMembershipModel, StudioMembershipModel.studio_id == StudioModel.id)
-            .where(StudioMembershipModel.user_id == user_id)
-            .order_by(StudioModel.created_at, StudioModel.id)
-        )
-    ).all()
-    return [
-        StudioSummary(
-            id=studio.id,
-            name=studio.name,
-            slug=studio.slug,
-            plan=studio.plan if studio.plan in known_codes else fallback,
-            status=studio.status,
-            role=cast("Literal['owner', 'admin', 'member', 'viewer']", role),
-        )
-        for studio, role in rows
-    ]

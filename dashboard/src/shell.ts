@@ -357,6 +357,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
       <span class="app-brand-name app-topbar-brand">Studi'OS</span>
     </header>
     <div id="conflict-banner" class="conflict-banner" role="status" hidden></div>
+    <div id="studio-suspended-banner" class="studio-suspended-banner" hidden></div>
     <div id="client-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
     <div id="desktop-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
     <main id="view" tabindex="-1"></main>

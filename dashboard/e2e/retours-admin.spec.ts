@@ -62,5 +62,5 @@ test("administration : erreurs et refus ne sont pas présentés comme un état s
   await adminFixture(page, "error");
   await expect(page.locator(".admin-indicator").filter({ hasText: "État inconnu" })).toHaveCount(4);
   await expect(page.locator(".admin .ds-hero")).not.toContainText("Aucun problème détecté");
-  await expect(page.locator(".admin")).toContainText("4 point(s) à vérifier");
+  await expect(page.locator(".admin")).toContainText("4 points à vérifier");
 });

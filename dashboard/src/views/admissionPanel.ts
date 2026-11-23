@@ -10,6 +10,7 @@
  */
 import { dsBadge, dsEmptyState, dsNotify, dsSectionHeader, dsSkeleton } from "../ds/ds";
 import { describeError, esc, fmtTime } from "../ui";
+import { formatRelative, sfx } from "../format";
 import type { StudioClient } from "../api";
 import { DEFAULT_LAUNCH_TTL_SECONDS } from "../taskLaunchesApi";
 import type {
@@ -115,11 +116,8 @@ function resolveStorage(injected: Storage | undefined): Storage {
 function ageLabel(iso: string): string {
   const at = Date.parse(iso);
   if (Number.isNaN(at)) return "âge inconnu";
-  const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
-  if (seconds < 60) return `évalué il y a ${seconds} s`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `évalué il y a ${minutes} min`;
-  return `évalué le ${fmtTime(iso)}`;
+  const age = formatRelative(iso, Date.now());
+  return age === null ? "âge inconnu" : `évalué ${age}`;
 }
 
 function machineDisplayName(plan: AdmissionDryRun, machineId: string): string {
@@ -246,10 +244,10 @@ function confirmationHtml(state: PanelState, uid: string): string {
   const count = body.items.length;
   const submit = state.submitting
     ? `<button class="ds-btn ds-btn--primary" type="button" data-admission-submit disabled>Envoi…</button>`
-    : `<button class="ds-btn ds-btn--primary" type="button" data-admission-submit>Lancer ${count} tâche${count > 1 ? "s" : ""}</button>`;
+    : `<button class="ds-btn ds-btn--primary" type="button" data-admission-submit>Lancer ${count} tâche${sfx(count)}</button>`;
   return `<div class="ds-overlay" data-admission-confirmation role="alertdialog" aria-modal="true" aria-labelledby="admission-confirmation-${uid}">` +
     `<div class="ds-modal"><h3 id="admission-confirmation-${uid}">Confirmer le lancement</h3>` +
-    `<p>${count} tâche${count > 1 ? "s" : ""} sur le harnais <code class="mono">${esc(body.harness_id)}</code> · empreinte du plan <code class="mono">${esc(shortDigest(body.plan_digest))}</code></p>` +
+    `<p>${count} tâche${sfx(count)} sur le harnais <code class="mono">${esc(body.harness_id)}</code> · empreinte du plan <code class="mono">${esc(shortDigest(body.plan_digest))}</code></p>` +
     `<ul class="admission-confirmation-tasks">${rows}</ul>` +
     `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-admission-cancel>Annuler</button>${submit}</div>` +
     `</div></div>`;
@@ -273,7 +271,7 @@ function planBodyHtml(state: PanelState): string {
     : `<div class="ds-notice ds-notice--danger" role="alert" data-admission-error><strong>Lancement impossible.</strong> ${esc(state.error)}${retry}</div>`;
   const result = state.launches === null
     ? ""
-    : `<div class="ds-notice ds-notice--success" role="status" data-admission-result><strong>${state.launches} lancement${state.launches > 1 ? "s" : ""} créé${state.launches > 1 ? "s" : ""}.</strong></div>`;
+    : `<div class="ds-notice ds-notice--success" role="status" data-admission-result><strong>${state.launches} lancement${sfx(state.launches)} créé${sfx(state.launches)}.</strong></div>`;
   const refusals = state.refusals.length === 0
     ? ""
     : `<div class="ds-notice ds-notice--danger" role="alert"><strong>Lot refusé, rien n'a été créé.</strong><ul data-admission-refusals>${state.refusals.map(refusalItemHtml).join("")}</ul></div>`;
@@ -294,7 +292,7 @@ function planBodyHtml(state: PanelState): string {
   const overflow = tooMany
     ? `<div class="ds-notice ds-notice--warning" role="status" data-admission-overflow><strong>Lot trop grand.</strong> Le serveur accepte ${MAX_BATCH_ITEMS} tâches par lot : décochez-en ${checked - MAX_BATCH_ITEMS} pour continuer.</div>`
     : "";
-  const confirm = `<div class="admission-actions"><button class="ds-btn ds-btn--primary" type="button" data-admission-confirm${canConfirm ? "" : " disabled"}>Lancer ${checked} tâche${checked > 1 ? "s" : ""}</button></div>`;
+  const confirm = `<div class="admission-actions"><button class="ds-btn ds-btn--primary" type="button" data-admission-confirm${canConfirm ? "" : " disabled"}>Lancer ${checked} tâche${sfx(checked)}</button></div>`;
 
   return stale + error + result + refusals + overflow +
     `<p class="ds-list-sub" data-admission-digest>Empreinte du plan <code class="mono">${esc(shortDigest(plan.plan_digest))}</code> · ${esc(ageLabel(plan.evaluated_at))}</p>` +
@@ -393,7 +391,7 @@ export async function renderAdmissionPanelInto(root: HTMLElement, ctx: Admission
       state.stale = false;
       state.refusals = [];
       state.launches = result.launches?.length ?? 0;
-      dsNotify(`${state.launches} lancement${state.launches > 1 ? "s" : ""} demandé${state.launches > 1 ? "s" : ""}.`, "success");
+      dsNotify(`${state.launches} lancement${sfx(state.launches)} demandé${sfx(state.launches)}.`, "success");
       await refresh(state.harnessId === "" ? null : state.harnessId);
     } catch (error) {
       state.submitting = false;

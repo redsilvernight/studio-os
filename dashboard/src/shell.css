@@ -417,7 +417,8 @@ a.app-connection:hover .app-connection-label {
      mesure (bord gauche commun). */
   margin-inline: auto;
 }
-.app-col .conflict-banner {
+.app-col .conflict-banner,
+.app-col .studio-suspended-banner {
   margin: var(--ds-space-4) auto 0;
   width: calc(100% - 2 * var(--ds-space-8));
   max-width: calc(var(--ds-content-wide) - 2 * var(--ds-space-8));
@@ -583,7 +584,8 @@ a.app-connection:hover .app-connection-label {
     /* Le skip-link amène le focus ici : ne jamais laisser le haut sous la barre collante. */
     scroll-margin-top: 60px;
   }
-  .app-col .conflict-banner {
+  .app-col .conflict-banner,
+  .app-col .studio-suspended-banner {
     width: calc(100% - 2 * var(--ds-space-4));
   }
 }

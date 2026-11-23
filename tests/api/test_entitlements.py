@@ -139,14 +139,14 @@ async def test_entitlements_refuse_a_studio_the_caller_does_not_belong_to(
     assert response.json()["detail"]["error_code"] == "forbidden"
 
 
-async def test_entitlements_unknown_studio_is_404(
+async def test_entitlements_unknown_studio_is_refused(
     client: AsyncClient, machine: tuple[MachineModel, str]
 ) -> None:
     response = await client.get(
         f"/api/v1/studios/{uuid.uuid4()}/entitlements", headers=_auth(machine)
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 403
 
 
 async def test_storage_limit_refuses_the_write_and_never_blocks_reads(

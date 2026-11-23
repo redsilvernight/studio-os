@@ -72,11 +72,12 @@ import {
   type DsStatusState,
 } from "../ds/ds";
 import { describeError, esc, fmtTime } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 import { fetchIdentity, type AuthIdentity } from "../identityApi";
 import "./listRows.css";
 import "./transfers.css";
+import { sfx } from "../format";
 
 type Project = components["schemas"]["Project"];
 
@@ -131,7 +132,7 @@ export function transfersLoadingHtml(): string {
   return (
     `<div class="transfers">` +
     `<p class="ds-hero-eyebrow">Administration / Transferts</p>` +
-    `${dsPageHeader("Transferts", "Fichiers échangés entre postes.")}` +
+    `${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.")}` +
     `${dsSkeleton(4)}</div>`
   );
 }
@@ -244,9 +245,9 @@ export function transferDrawerBodyHtml(
     fact("Taille", esc(humanBytes(transfer.size_bytes))) +
     fact("Expéditeur", esc(senderLabelFr(transfer))) +
     fact("Destinataire", esc(recipientLabelFr(transfer))) +
-    fact("Projet", project) +
-    fact("Tâche", task) +
-    fact("Créé le", fmtTime(transfer.created_at)) +
+    fact(UI_LABEL.project, project) +
+    fact(UI_LABEL.task, task) +
+    fact(UI_LABEL.createdOn, fmtTime(transfer.created_at)) +
     fact("Envoyé le", fmtTime(transfer.uploaded_at)) +
     fact("Téléchargé le", fmtTime(transfer.downloaded_at)) +
     fact("Expiration", esc(expiryLabelFr(transfer.expires_at, ctx.now))) +
@@ -255,7 +256,7 @@ export function transferDrawerBodyHtml(
   const technical =
     `<details class="transfer-technical"><summary>Informations techniques</summary>` +
     `<dl class="transfer-facts">` +
-    fact("Identifiant", `<code class="mono">${esc(transfer.id)}</code>`) +
+    fact(UI_LABEL.identifier, `<code class="mono">${esc(transfer.id)}</code>`) +
     fact("Statut technique", `<code class="mono">${esc(transfer.status)}</code>${status.derivedExpiry ? " (expiration déduite)" : ""}`) +
     fact("Référence de stockage", `<code class="mono">${esc(transfer.object_key)}</code>`) +
     fact("Type MIME", esc(transfer.content_type)) +
@@ -335,7 +336,7 @@ export function transfersToolbarHtml(
     `<label class="transfers-filter"><span>Catégorie</span><select class="ds-select" id="transfers-category">${categoryOptions}</select></label>` +
     `<label class="transfers-filter"><span>Projet</span><select class="ds-select" id="transfers-project">${projectOptionsHtml(transfers, state, ctx)}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isTransfersDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} transfert(s) affiché(s) sur ${transfers.length} chargé(s) — recherche et filtres locaux.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} transfert${sfx(shown)} affiché${sfx(shown)} sur ${transfers.length} chargé${sfx(transfers.length)} — recherche et filtres locaux.</p>` +
     `</div>`
   );
 }
@@ -434,7 +435,7 @@ export function transfersPageHtml(data: TransfersPageData): string {
   const header =
     `<p class="ds-hero-eyebrow">Administration / Transferts</p>` +
     dsPageHeader(
-      "Transferts",
+      UI_LABEL.transfers,
       "Fichiers échangés entre postes — chaque transfert relie un fichier à un expéditeur et, éventuellement, à un destinataire ou un projet.",
       [{ label: "Envoyer un fichier", id: "transfer-upload-open", variant: "primary" }],
     );
@@ -455,13 +456,13 @@ export function transfersPageHtml(data: TransfersPageData): string {
     id: "transfer-drawer",
     title: "Détail du transfert",
     body: `<div id="transfer-drawer-body"></div>`,
-    actions: [{ label: "Fermer", variant: "primary" }],
+    actions: [{ label: UI_LABEL.close, variant: "primary" }],
   });
   const modal = dsModalHtml({
     id: "transfer-upload",
     title: "Envoyer un fichier",
     body: uploadModalBodyHtml(data.projects, data.consumption),
-    actions: [{ label: "Annuler" }],
+    actions: [{ label: UI_LABEL.cancel }],
   });
   return (
     `<div class="transfers">${header}${degraded}${toolbar}` +
@@ -477,7 +478,7 @@ export function transfersPageHtml(data: TransfersPageData): string {
 export async function renderTransfers(root: HTMLElement, ctx: TransfersContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader("Transferts", "Fichiers échangés entre postes.")}` +
+      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.")}` +
       `<div class="ds-empty" role="status"><span class="ds-empty-icon" aria-hidden="true">○</span>` +
       `<h3>Connexion requise</h3><p>Définissez un jeton pour voir les transferts visibles pour ce jeton.</p></div></div>`;
     return;
@@ -494,7 +495,7 @@ export async function renderTransfers(root: HTMLElement, ctx: TransfersContext):
 
   if (!transfersResult.ok) {
     root.innerHTML =
-      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader("Transferts", "Fichiers échangés entre postes.", [{ label: "Actualiser", id: "transfers-reload" }])}` +
+      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.", [{ label: UI_LABEL.refresh, id: "transfers-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les transferts : ${esc(describeError(transfersResult.error))}</div></div>`;
     root.querySelector("#transfers-reload")?.addEventListener("click", () => {
       void renderTransfers(root, ctx);

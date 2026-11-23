@@ -102,7 +102,7 @@ describe("projectsPageHtml nominal", () => {
     expect(html).toContain("Nouveau projet");
     expect(html).toContain('role="search"');
     expect(html).toContain("filtre appliqué aux projets chargés");
-    expect(html).toContain("2 projet(s) affiché(s) sur 2 chargé(s)");
+    expect(html).toContain("2 projets affichés sur 2 chargés");
   });
 
   it("présente des cartes (nom, description, état, slug) sans tableau base de données", () => {
@@ -155,7 +155,7 @@ describe("projectsPageHtml états", () => {
   it("filtre sans résultat : distingue du vide réel", () => {
     const html = projectsPageHtml({ projects: all, state: { query: "zzz", stateFilter: "all" }, authed: true });
     expect(html).toContain("ne correspond au filtre");
-    expect(html).toContain("0 projet(s) affiché(s) sur 2 chargé(s)");
+    expect(html).toContain("0 projet affiché sur 2 chargés");
   });
 
   it("chargement : squelette DS en français", () => {

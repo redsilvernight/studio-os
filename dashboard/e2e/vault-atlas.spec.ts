@@ -146,8 +146,8 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await expect(list).not.toContainText("Cache mémoire locale");
 
   /* Zones et communautés étiquetées/colorées. */
-  await expect(page.locator("#atlas-status")).toContainText(/zone\(s\)/);
-  await expect(page.locator("#atlas-status")).toContainText(/communauté\(s\)/);
+  await expect(page.locator("#atlas-status")).toContainText("zones");
+  await expect(page.locator("#atlas-status")).toContainText("communauté");
   const regions = page.locator("#atlas-regions");
   await expect(regions).toContainText("Studio ·");
   await expect(regions).toContainText("Communauté 1");
@@ -215,7 +215,7 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   }
   await expect(current).toContainText("Stratégie de cache Redis");
   await expect(detail).toContainText("DEC-0002");
-  await expect(page.locator("#atlas-status")).toContainText("voisin(s) surligné(s)");
+  await expect(page.locator("#atlas-status")).toContainText("surligné");
   await expect(page.locator("#atlas-list .is-neighbor").first()).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(detail).toContainText("DEC-0002");

@@ -27,6 +27,7 @@ import {
   type SkillsPreviewResult,
   type SkillResolution,
 } from "./skillsApi";
+import { sfx } from "./format";
 
 const NOTIFIED_KEY = "studio.skills-sync.notified";
 const RUNNING_POLL_MS = 3000;
@@ -130,8 +131,8 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
   const conflicts = known ? (status.conflicts ?? []).length : 0;
   const updates = known ? (status.updated ?? []).length + (status.added ?? []).length : 0;
   const parts = [
-    conflicts > 0 ? `${conflicts} conflit${conflicts > 1 ? "s" : ""}` : "",
-    updates > 0 ? `${updates} mise${updates > 1 ? "s" : ""} à jour` : "",
+    conflicts > 0 ? `${conflicts} conflit${sfx(conflicts)}` : "",
+    updates > 0 ? `${updates} mise${sfx(updates)} à jour` : "",
   ].filter(Boolean);
   const suffix = known && parts.length && status.state !== "up_to_date" ? ` (${parts.join(", ")})` : "";
   return (
@@ -153,7 +154,7 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
   const published = pending.filter((skill) => choices.get(entryId(skill)) === "publish");
   const compatible = pending.every((skill) => Boolean(skill.preview_hash));
   const message = status === null || failed ? SYNC_STATE_MESSAGES.not_synced : SYNC_STATE_MESSAGES[status.state];
-  const subtitle = pending.length ? `${pending.length} élément${pending.length > 1 ? "s" : ""} à vérifier avant la mise à jour` : message;
+  const subtitle = pending.length ? `${pending.length} élément${sfx(pending.length)} à vérifier avant la mise à jour` : message;
   const confirmation = confirming
     ? `<section class="skills-sync-confirmation" aria-labelledby="skills-sync-confirm-title"><h3 id="skills-sync-confirm-title">Vérifier les choix</h3>` +
       `<p>${replacements.length ? "Ces copies seront remplacées par la Library, après sauvegarde :" : "Vos versions locales seront conservées pour cette synchronisation."}</p>` +
@@ -179,7 +180,7 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
     (status?.updated?.length ? `<h3>Mis à jour</h3>${nameList(status.updated)}` : "") +
     (status ? `<button class="ds-btn ds-btn--ghost" type="button" data-skills-action="toggle"${busy ? " disabled" : ""}>${status.auto_sync_enabled ? "Désactiver" : "Activer"} la synchronisation automatique</button>` : "") +
     `<button class="ds-btn ds-btn--ghost" type="button" data-skills-action="refresh"${busy || previewLoading ? " disabled" : ""}>Vérifier de nouveau</button></details></div>` +
-    `<footer class="skills-sync-footer"><span class="skills-sync-progress" aria-live="polite">${count ? `${count} choix prêt${count > 1 ? "s" : ""} · ${pending.length - count} en attente` : "Les éléments sans choix restent en attente."}</span>` +
+    `<footer class="skills-sync-footer"><span class="skills-sync-progress" aria-live="polite">${count ? `${count} choix prêt${sfx(count)} · ${pending.length - count} en attente` : "Les éléments sans choix restent en attente."}</span>` +
     `<div class="skills-sync-actions">` +
     (confirming ? `<button class="ds-btn" type="button" data-skills-action="back"${busy ? " disabled" : ""}>Revenir aux choix</button>` : `<button class="ds-btn" type="button" data-ds-close>${pending.length ? "Plus tard" : "Fermer"}</button>`) +
     (pending.length && compatible ? `<button class="ds-btn ds-btn--${confirming && replacements.length ? "danger" : "primary"}" type="button" data-skills-action="${confirming ? "confirm" : "apply"}"${busy || count === 0 || previewLoading ? " disabled" : ""}>${busy ? "Application…" : confirming ? replacements.length ? "Confirmer le remplacement" : "Confirmer les choix" : `Appliquer ${count || "les"} choix`}</button>` : "") +
@@ -211,12 +212,12 @@ function notifyIfChanged(status: SkillsSyncStatus): void {
   }
   if (status.state === "updated") {
     const count = (status.added ?? []).length + (status.updated ?? []).length;
-    dsNotify(`Library synchronisée : ${count} élément(s) ajouté(s) ou mis à jour.`, "success");
+    dsNotify(`Library synchronisée : ${count} élément${sfx(count)} ajouté${sfx(count)} ou mis à jour.`, "success");
   } else if (status.state === "update_pending") {
     const count = (status.added ?? []).length + (status.updated ?? []).length;
-    dsNotify(`Library : ${count} mise(s) à jour à confirmer.`, "info");
+    dsNotify(`Library : ${count} mise${sfx(count)} à jour à confirmer.`, "info");
   } else if (status.state === "conflicts") {
-    dsNotify(`Library : ${(status.conflicts ?? []).length} conflit(s) à résoudre.`, "warning");
+    dsNotify(`Library : ${(status.conflicts ?? []).length} conflit${sfx((status.conflicts ?? []).length)} à résoudre.`, "warning");
   } else {
     dsNotify("Library non synchronisée (hors ligne, non connecté ou erreur).", "warning");
   }
@@ -305,7 +306,7 @@ function bindActions(platform: Platform): void {
     const apply = root.querySelector<HTMLButtonElement>('[data-skills-action="apply"]');
     if (apply) { apply.disabled = count === 0; apply.textContent = `Appliquer ${count || "les"} choix`; }
     const progress = root.querySelector<HTMLElement>(".skills-sync-progress");
-    if (progress) progress.textContent = `${count} choix prêt${count > 1 ? "s" : ""} · ${pendingSkills(preview).length - count} en attente`;
+    if (progress) progress.textContent = `${count} choix prêt${sfx(count)} · ${pendingSkills(preview).length - count} en attente`;
   }));
   root.querySelector('[data-skills-action="apply"]')?.addEventListener("click", () => {
     if (busy || choices.size === 0) return;
@@ -337,7 +338,7 @@ function bindActions(platform: Platform): void {
           const kept = selection.filter((item) => item.choice === "local").length;
           const shared = selection.filter((item) => item.choice === "publish").length;
           const notes = [
-            shared ? `${shared} version${shared > 1 ? "s" : ""} publiée${shared > 1 ? "s" : ""} dans votre Library personnelle.` : "",
+            shared ? `${shared} version${sfx(shared)} publiée${sfx(shared)} dans votre Library personnelle.` : "",
             kept ? "Les versions locales conservées restent personnalisées et seront signalées aux prochaines vérifications." : "Les autres éléments restent en attente.",
           ].filter(Boolean);
           operationNote = `Choix appliqués. ${notes.join(" ")}`;
@@ -365,7 +366,7 @@ function bindActions(platform: Platform): void {
       try {
         const outcome = await applyProjectProjections(platform, workspaceId);
         operationNote = outcome.ok
-          ? `Dépôt mis à jour : ${outcome.value.written?.length ?? 0} fichier(s) écrit(s).`
+          ? `Dépôt mis à jour : ${outcome.value.written?.length ?? 0} fichier${sfx(outcome.value.written?.length ?? 0)} écrit${sfx(outcome.value.written?.length ?? 0)}.`
           : harnessErrorMessage(outcome.error);
       } catch {
         operationNote = "Impossible d'écrire dans le dépôt. Vérifiez que l'assistant local est démarré puis réessayez.";

@@ -1,4 +1,4 @@
-"""Migration 0050: plans catalogue, declarative limits, per-studio counters,
+"""Migration 0052: plans catalogue, declarative limits, per-studio counters,
 and the `studios.plan` foreign key — reversible."""
 
 from __future__ import annotations
@@ -31,11 +31,11 @@ def _asyncpg_url(url: str) -> str:
 
 @pytest.mark.infra
 @pytest.mark.timeout(300)
-async def test_0050_upgrade_seeds_limits_and_downgrade_round_trip(
+async def test_0052_upgrade_seeds_limits_and_downgrade_round_trip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     base = urlsplit(os.environ["STUDIO_TEST_DATABASE_URL"])
-    name = f"mig0050_{uuid.uuid4().hex[:8]}"
+    name = f"mig0052_{uuid.uuid4().hex[:8]}"
     admin = await asyncpg.connect(
         host=base.hostname,
         port=base.port,
@@ -47,8 +47,8 @@ async def test_0050_upgrade_seeds_limits_and_downgrade_round_trip(
     url = urlunsplit(base._replace(path=f"/{name}"))
     monkeypatch.setenv("STUDIO_DATABASE_URL", url)
     try:
-        await asyncio.to_thread(_alembic, "upgrade", "0049")
-        await asyncio.to_thread(_alembic, "upgrade", "0050")
+        await asyncio.to_thread(_alembic, "upgrade", "0051")
+        await asyncio.to_thread(_alembic, "upgrade", "0052")
 
         conn = await asyncpg.connect(_asyncpg_url(url))
         try:
@@ -104,7 +104,7 @@ async def test_0050_upgrade_seeds_limits_and_downgrade_round_trip(
         finally:
             await conn.close()
 
-        await asyncio.to_thread(_alembic, "downgrade", "0049")
+        await asyncio.to_thread(_alembic, "downgrade", "0051")
         conn = await asyncpg.connect(_asyncpg_url(url))
         try:
             tables = await conn.fetch(
@@ -120,7 +120,7 @@ async def test_0050_upgrade_seeds_limits_and_downgrade_round_trip(
         finally:
             await conn.close()
 
-        await asyncio.to_thread(_alembic, "upgrade", "0050")
+        await asyncio.to_thread(_alembic, "upgrade", "0052")
     finally:
         await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
         await admin.close()

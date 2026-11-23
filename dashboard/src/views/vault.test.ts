@@ -137,7 +137,7 @@ describe("vaultPageHtml (page #/vault)", () => {
 
   it("annonce les résultats et la troncature quand une recherche court", () => {
     const html = vaultPageHtml(blank, [], [summary()], { searching: true, truncated: true, total: 12 });
-    expect(html).toContain("12 résultat(s)");
+    expect(html).toContain("12 résultats");
     expect(html).toContain("liste tronquée");
     expect(html).toContain("recherche serveur");
   });

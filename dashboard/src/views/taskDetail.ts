@@ -99,6 +99,8 @@ import {
   type LaunchPanelData,
   type LaunchPanelState,
 } from "./taskLaunchPanel";
+import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export interface TaskDetailContext {
   client: StudioClient;
@@ -139,12 +141,12 @@ async function fetchJson<T>(
 }
 
 export function taskDetailLoadingHtml(taskId: string): string {
-  return `${dsPageHeader("Tâche", "Chargement de la tâche…")}${dsSkeleton(4)}`;
+  return `${dsPageHeader(UI_LABEL.task, "Chargement de la tâche…")}${dsSkeleton(4)}`;
 }
 
 export function taskDetailErrorHtml(taskId: string, message: string): string {
   return (
-    `${dsPageHeader("Tâche", "Tâche introuvable")}` +
+    `${dsPageHeader(UI_LABEL.task, "Tâche introuvable")}` +
     `<div class="ds-notice ds-notice--danger" role="alert"><strong>Tâche indisponible.</strong> ${esc(message)}</div>`
   );
 }
@@ -187,8 +189,8 @@ export function aiWorkStatusTone(status: string): "neutral" | "success" | "warni
 
 export function sessionStateLabel(session: SessionRow): { label: string; tone: "info" | "neutral" } {
   return session.ended_at === null || session.ended_at === undefined || session.ended_at === ""
-    ? { label: "En cours", tone: "info" }
-    : { label: "Terminée", tone: "neutral" };
+    ? { label: UI_LABEL.inProgress, tone: "info" }
+    : { label: UI_LABEL.done, tone: "neutral" };
 }
 
 /** Confirmation de libération : nomme la machine (et l'agent) détenteurs. */
@@ -326,7 +328,7 @@ export function nextActionText(task: Task, pendingReview: number): string {
       break;
   }
   if (pendingReview > 0) {
-    return `Faire la relecture : ${pendingReview} travail(s) attendent votre avis (voir « Validation »).`;
+    return `Faire la relecture : ${pendingReview} travail${sfx(pendingReview)} attendent votre avis (voir « Validation »).`;
   }
   return held
     ? "Poursuivre le travail, puis marquer « Terminé » ou « Bloqué » selon le constat."
@@ -350,7 +352,7 @@ function validationSectionHtml(worklogs: WorkRow[] | null): string {
   } else {
     const pending = worklogs.filter((work) => work.status === "review_requested");
     if (pending.length === 0) {
-      body = dsEmptyState("Rien à valider", "Aucun travail IA n'attend de relecture pour cette tâche.");
+      body = dsEmptyState(UI_LABEL.nothingToReview, "Aucun travail IA n'attend de relecture pour cette tâche.");
     } else {
       body =
         `<ul class="ds-list">` +
@@ -495,8 +497,8 @@ function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
           if (work.model !== null && work.model !== undefined && work.model !== "") context.push(work.model);
           const files = work.changed_files?.length ?? 0;
           const tests = work.tests_run?.length ?? 0;
-          if (files > 0) context.push(`${files} fichier(s)`);
-          if (tests > 0) context.push(`${tests} test(s)`);
+          if (files > 0) context.push(`${files} fichier${sfx(files)}`);
+          if (tests > 0) context.push(`${tests} test${sfx(tests)}`);
           const summary = work.summary.length > 140 ? `${work.summary.slice(0, 140)}…` : work.summary;
           return `<li class="ds-list-item"><div class="grow">` +
             `<div class="ds-list-title">${esc(summary)}</div>` +
@@ -547,9 +549,9 @@ function propsAsideHtml(task: Task): string {
 function techDetailsHtml(task: Task): string {
   return dsTechDetails(
     [
-      { label: "Identifiant", value: task.id, mono: true },
+      { label: UI_LABEL.identifier, value: task.id, mono: true },
       ...(task.readable_id ? [{ label: "Référence lisible", value: task.readable_id, mono: true }] : []),
-      { label: "Projet", value: task.project_id, mono: true },
+      { label: UI_LABEL.project, value: task.project_id, mono: true },
       { label: "Version", value: String(task.version), mono: true },
       { label: "Statut interne", value: task.status, mono: true },
       {
@@ -594,13 +596,13 @@ export function taskEditFormHtml(task: Task, authed: boolean): string {
     )
     .join("");
   return `<form id="task-edit-form" novalidate>` +
-    dsField("task-edit-title", "Titre", `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" value="${esc(task.title)}"${authed ? "" : " disabled"} />`) +
+    dsField("task-edit-title", UI_LABEL.title, `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" value="${esc(task.title)}"${authed ? "" : " disabled"} />`) +
     dsField(
       "task-edit-desc",
-      "Description (facultative)",
+      UI_LABEL.descriptionOptional,
       `<textarea class="ds-textarea" id="FIELD" name="description" rows="4"${authed ? "" : " disabled"}>${esc(task.description ?? "")}</textarea>`,
     ) +
-    dsField("task-edit-status", "Statut", `<select class="ds-select" id="FIELD" name="status"${authed ? "" : " disabled"}>${statusOptions}</select>`) +
+    dsField("task-edit-status", UI_LABEL.status, `<select class="ds-select" id="FIELD" name="status"${authed ? "" : " disabled"}>${statusOptions}</select>`) +
     `<p class="ds-list-sub">Modification protégée par la version ${task.version} : si la tâche change ailleurs, vos changements ne sont pas écrasés — rechargez puis réappliquez.</p>` +
     `<div class="ds-field-error" id="task-edit-error" role="alert" hidden></div>` +
     `<div class="ds-dialog-actions"><button class="ds-btn ds-btn--primary" type="submit" id="task-edit-submit"${authed ? "" : " disabled"}>Enregistrer</button></div>` +
@@ -647,7 +649,7 @@ function heroHtml(task: Task, data: TaskDetailData, held: boolean): string {
       : "";
   const description = (task.description ?? "").trim();
   const eyebrow = `${task.readable_id !== null && task.readable_id !== undefined && task.readable_id !== "" ? `${esc(task.readable_id)} · ` : ""}Tâche`;
-  return `<section class="ds-hero task-detail-hero" aria-label="Tâche">` +
+  return `<section class="ds-hero task-detail-hero" aria-label=UI_LABEL.task>` +
     `<p class="ds-hero-eyebrow">${eyebrow} · <a class="ds-hero-link" href="#/projects/${esc(task.project_id)}">Ouvrir le projet</a></p>` +
     `<h1>${esc(task.title)}</h1>` +
     `<p class="ds-hero-status">${dsStatus(taskDetailStatusState(task.status), taskStatusLabel(task.status))}` +
@@ -817,7 +819,7 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
     const formData = new FormData(form);
     const title = String(formData.get("title") ?? "").trim();
     if (title === "") {
-      setEditError(root, "Le titre est obligatoire.");
+      setEditError(root, UI_LABEL.titleRequired);
       root.querySelector<HTMLElement>("#task-edit-title")?.focus();
       return;
     }

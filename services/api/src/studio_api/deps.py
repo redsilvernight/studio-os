@@ -26,6 +26,7 @@ from studio_api.services.authz import (
     Principal,
     ensure_operator,
     ensure_studio_role,
+    ensure_studio_writable,
     forbidden,
     is_studio_manager,
     load_principal,
@@ -201,7 +202,8 @@ async def require_operator(principal: CurrentPrincipal) -> Principal:
 async def require_project_provisioner(principal: CurrentPrincipal) -> UserModel:
     """Project creation gate (DEC-0012): an `owner`/`admin` of the active studio
     or an account `developer`. Runs as a dependency so its 403 still precedes
-    body validation."""
+    body validation. A studio scheduled for deletion is read-only (0051)."""
+    ensure_studio_writable(principal)
     if is_studio_manager(principal) or principal.role == Role.DEVELOPER:
         return principal.user
     raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient role")

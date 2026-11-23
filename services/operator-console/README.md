@@ -26,7 +26,7 @@ Elle n'est pas montée par `services/api` et n'importe rien de `studio_api`.
   cœur : `studios`, `studio_memberships`, `users`, `projects`,
   `usage_ledger_entries`, `infra_measurements`. Le seul écrit est
   `studios.status` + `studios.suspension_reason` (colonne de la migration
-  `0050`, voir plus bas) — rien d'autre, aucune suppression, export permis.
+  `0053`, voir plus bas) — rien d'autre, aucune suppression, export permis.
 
 ## Configuration (préfixe `STUDIO_OPERATOR_`)
 
@@ -111,7 +111,7 @@ conservé — des nombres seulement.
 
 ## Changements côté cœur (services/api)
 
-- **Migration `0051_studio_suspension_reason`** (`down_revision = "0050"`,
+- **Migration `0053_studio_suspension_reason`** (`down_revision = "0052"`,
   réversible) : ajoute `studios.suspension_reason` (texte, nullable). Une autre
   branche peut ajouter une tête en parallèle — la fusion des têtes est laissée
   à l'orchestrateur.

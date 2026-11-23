@@ -614,6 +614,977 @@
     ]
    }
   },
+  "/api/v1/studios": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "List Studios",
+    "description": "Studios the caller belongs to, oldest membership first, each with the caller's `role` there (`owner|admin|member|viewer`). This is how a client picks the value it later sends as `X-Studio-Id`.",
+    "operationId": "list_studios_api_v1_studios_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/StudioSummary"
+         },
+         "title": "Response List Studios Api V1 Studios Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Studio",
+    "description": "Create a studio; the caller becomes its `owner`. The slug is derived from the name, lower-cased, and made unique by suffixing (`-2`, ...). `Idempotency-Key` is optional: replaying the same key with the same body returns the original studio instead of creating a second one. Past the account's `studios_per_account` ceiling it answers `402 plan_limit_reached`; listing studios is never blocked.",
+    "operationId": "create_studio_api_v1_studios_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StudioCreateRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioSummary"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "plan_limit_reached",
+          "limit": "storage_bytes",
+          "upgrade_url": "/settings/subscription",
+          "max_value": 2147483648,
+          "current": 2147483648,
+          "requested": 1024
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Get Studio",
+    "description": "One studio the caller belongs to, with the caller's `role` there. Another studio answers the same `403 forbidden` as an unknown one. `deletion_scheduled_at` is the purge date once a deletion is scheduled, else null.",
+    "operationId": "get_studio_api_v1_studios__studio_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioDetail"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/entitlements": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Get Studio Entitlements",
+    "description": "Plan, declarative limits and measured counters of one studio, for any member (`viewer` included): this is a read, never blocked by a limit. `limits` is exactly what the plan declares (`max_value: null` means unlimited); `counters` is the studio consumption fed by the phase-M measurements (storage, SSE) and direct counts (projects, members, machines). `upgrade_url` is the subscription screen used by every `plan_limit_reached` refusal.",
+    "operationId": "get_studio_entitlements_api_v1_studios__studio_id__entitlements_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StudioEntitlements"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/invitations": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Invitation",
+    "description": "Invite one address to the studio (`owner`/`admin` only). The role is `admin`, `member` or `viewer` \u2014 ownership is granted by `transfer-ownership` only. The response never reveals whether the address already has an account; the single-use secret is sent by e-mail only. A new invitation for the same address invalidates the previous pending one.",
+    "operationId": "create_invitation_api_v1_studios__studio_id__invitations_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InvitationCreateRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InvitationRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "List Invitations",
+    "description": "Invitations issued for this studio, newest first, consumed and expired ones included for auditing (`owner`/`admin` only). Secrets are never returned: only their hash is stored.",
+    "operationId": "list_invitations_api_v1_studios__studio_id__invitations_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/InvitationRead"
+         },
+         "title": "Response List Invitations Api V1 Studios  Studio Id  Invitations Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/invitations/{invitation_id}": {
+   "delete": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Delete Invitation",
+    "description": "Revoke a pending invitation (`owner`/`admin` only). The link stops working immediately; the row is removed. Unknown id: 404.",
+    "operationId": "delete_invitation_api_v1_studios__studio_id__invitations__invitation_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "invitation_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Invitation Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/invitations/preview": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Preview Invitation",
+    "description": "Public, non-consuming preview of an invitation link: `state` is `valid`, `expired`, `used` or `unknown`. Only the studio name, the invited role and the inviter's display name are returned, all null when the secret is unknown. Nothing else is ever disclosed and the secret is not consumed.",
+    "operationId": "preview_invitation_api_v1_invitations_preview_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InvitationPreviewRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InvitationPreviewResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/invitations/accept": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Accept Invitation",
+    "description": "Consume an invitation secret and join its studio with the invited role. Requires an authenticated caller whose account e-mail is the invited address (`403 invitation_email_mismatch`, nothing consumed, otherwise). A secret works once; unknown, expired and already consumed secrets answer `410` with `invitation_unknown`, `invitation_expired` or `invitation_used`.",
+    "operationId": "accept_invitation_api_v1_invitations_accept_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InvitationAcceptRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InvitationAccepted"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
+  "/api/v1/studios/{studio_id}/members": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "List Members",
+    "description": "Members of the studio and their role, oldest grant first. Readable by every member of that studio, including `viewer`.",
+    "operationId": "list_members_api_v1_studios__studio_id__members_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/MemberRead"
+         },
+         "title": "Response List Members Api V1 Studios  Studio Id  Members Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/members/{user_id}": {
+   "patch": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Update Member Role",
+    "description": "Change a member's role (`owner`/`admin` only). Promoting to `owner` requires an `owner`; demoting or removing the last `owner` answers `409 last_owner_required`. A caller can never change its own role (`403 self_modification_forbidden`).",
+    "operationId": "update_member_role_api_v1_studios__studio_id__members__user_id__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "User Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MemberRoleRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MemberRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Remove Member",
+    "description": "Remove a member from the studio (`owner`/`admin` only). Removing the last `owner` answers `409 last_owner_required`; a caller can never remove itself this way (`403 self_modification_forbidden`).",
+    "operationId": "remove_member_api_v1_studios__studio_id__members__user_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/transfer-ownership": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Transfer Ownership",
+    "description": "Transfer ownership (`owner` only): the target becomes `owner` and the caller becomes `admin` in the same commit, so the studio never has zero owners. Targeting another studio member is required (404 otherwise); transferring to oneself is refused.",
+    "operationId": "transfer_ownership_api_v1_studios__studio_id__transfer_ownership_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TransferOwnershipRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MemberRead"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/projects": {
    "get": {
     "tags": [
@@ -14331,202 +15302,6 @@
     ]
    }
   },
-  "/api/v1/studios": {
-   "get": {
-    "tags": [
-     "studios"
-    ],
-    "summary": "List Studios",
-    "description": "Studios the authenticated user is a member of, oldest first. Each entry carries the studio `id`, `name`, `slug`, its `plan` code (resolved by the plans module, falling back to the default plan when the stored code is unknown), its `status` (`active` or `suspended`) and the caller's own `role` in that studio. Isolation is absolute: a studio the caller is not a member of never appears, even for the instance operator.",
-    "operationId": "list_studios_api_v1_studios_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {
-         "items": {
-          "$ref": "#/components/schemas/StudioSummary"
-         },
-         "type": "array",
-         "title": "Response List Studios Api V1 Studios Get"
-        }
-       }
-      }
-     },
-     "401": {
-      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
-      "content": {
-       "application/json": {
-        "example": {
-         "detail": "missing bearer token"
-        }
-       }
-      }
-     }
-    },
-    "security": [
-     {
-      "MachineBearer": []
-     }
-    ]
-   },
-   "post": {
-    "tags": [
-     "studios"
-    ],
-    "summary": "Create Studio",
-    "description": "Creates a studio on the default plan; the caller becomes its `owner`. Creating one past the account's `studios_per_account` ceiling answers `402 plan_limit_reached`; listing studios is never blocked.",
-    "operationId": "create_studio_api_v1_studios_post",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/StudioCreate"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "201": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/StudioSummary"
-        }
-       }
-      }
-     },
-     "401": {
-      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
-      "content": {
-       "application/json": {
-        "example": {
-         "detail": "missing bearer token"
-        }
-       }
-      }
-     },
-     "402": {
-      "description": "The studio's plan limit is reached, so this write is refused. `limit` names the ceiling, `upgrade_url` the subscription screen a human can use to lift it. Reading, downloading and exporting are never blocked by a plan limit.",
-      "content": {
-       "application/json": {
-        "example": {
-         "detail": {
-          "error_code": "plan_limit_reached",
-          "limit": "storage_bytes",
-          "upgrade_url": "/settings/subscription",
-          "max_value": 2147483648,
-          "current": 2147483648,
-          "requested": 1024
-         }
-        }
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    },
-    "security": [
-     {
-      "MachineBearer": []
-     }
-    ]
-   }
-  },
-  "/api/v1/studios/{studio_id}/entitlements": {
-   "get": {
-    "tags": [
-     "studios"
-    ],
-    "summary": "Get Studio Entitlements",
-    "description": "Plan, declarative limits and measured counters of one studio, for any member (`viewer` included): this is a read, never blocked by a limit. `limits` is exactly what the plan declares (`max_value: null` means unlimited); `counters` is the studio consumption fed by the phase-M measurements (storage, SSE) and direct counts (projects, members, machines). `upgrade_url` is the subscription screen used by every `plan_limit_reached` refusal.",
-    "operationId": "get_studio_entitlements_api_v1_studios__studio_id__entitlements_get",
-    "security": [
-     {
-      "MachineBearer": []
-     }
-    ],
-    "parameters": [
-     {
-      "name": "studio_id",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "format": "uuid",
-       "title": "Studio Id"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/StudioEntitlements"
-        }
-       }
-      }
-     },
-     "401": {
-      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
-      "content": {
-       "application/json": {
-        "example": {
-         "detail": "missing bearer token"
-        }
-       }
-      }
-     },
-     "403": {
-      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
-      "content": {
-       "application/json": {
-        "example": {
-         "detail": {
-          "error_code": "forbidden",
-          "resource": "task",
-          "action": "write"
-         }
-        }
-       }
-      }
-     },
-     "404": {
-      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
-      "content": {
-       "application/json": {
-        "example": {
-         "detail": "task not found"
-        }
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
   "/api/v1/projects/{project_id}/roadmaps": {
    "get": {
     "tags": [
@@ -19064,6 +19839,358 @@
      }
     }
    }
+  },
+  "/api/v1/studios/{studio_id}/exports": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Create Export",
+    "description": "Export the whole studio as a dated ZIP archive (all projects, tasks, decisions, roadmaps, members, file metadata and the stored files), written to object storage. `owner` only; never blocked by a plan or quota overage (read-only recovery path). The archive is downloadable through `GET /studios/{studio_id}/exports/{export_id}`.",
+    "operationId": "create_export_api_v1_studios__studio_id__exports_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Create Export Api V1 Studios  Studio Id  Exports Post"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/exports/{export_id}": {
+   "get": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Get Export",
+    "description": "Short-lived presigned download link of one export archive (at most 15 minutes). `owner` only; an export of another studio or an expired one answers 404.",
+    "operationId": "get_export_api_v1_studios__studio_id__exports__export_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     },
+     {
+      "name": "export_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Export Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Get Export Api V1 Studios  Studio Id  Exports  Export Id  Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/studios/{studio_id}/deletion": {
+   "post": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Request Deletion",
+    "description": "Request the deletion of the studio: the body must retype the studio slug (`409 invalid_confirmation` otherwise). The studio becomes read-only (`status = pending_deletion`) for a configurable grace window (7 days by default) and is really purged once it elapses. `owner` only; never allowed on the internal studio. Idempotent: asking again keeps the first schedule.",
+    "operationId": "request_deletion_api_v1_studios__studio_id__deletion_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeletionConfirmation"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Request Deletion Api V1 Studios  Studio Id  Deletion Post"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "The retyped slug does not match (`invalid_confirmation`)."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "studios"
+    ],
+    "summary": "Cancel Deletion",
+    "description": "Cancel a deletion during the grace window: the schedule is cleared and the studio returns to `active`. `owner` only; idempotent when nothing is scheduled.",
+    "operationId": "cancel_deletion_api_v1_studios__studio_id__deletion_delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "studio_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Studio Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -22543,6 +23670,20 @@
     "title": "DecisionSupersede",
     "description": "Body of the supersede transition. Every field is optional: an absent or\nempty body keeps the historical behavior (the Decision is simply\nsuperseded, no replacement recorded). `superseded_by` names the replacing\nDecision and is what the `supersedes` link is made of \u2014 a claim about\nintent, never a validity gate on the transition."
    },
+   "DeletionConfirmation": {
+    "properties": {
+     "confirmation": {
+      "type": "string",
+      "title": "Confirmation"
+     }
+    },
+    "type": "object",
+    "required": [
+     "confirmation"
+    ],
+    "title": "DeletionConfirmation",
+    "description": "The owner retypes the studio slug: a destructive action needs a\ndeliberate, non-replayable confirmation."
+   },
    "DependencyChange": {
     "properties": {
      "step_key": {
@@ -24683,6 +25824,199 @@
     "title": "InitializationTask",
     "description": "A standalone task the plan asks for. `key` is a plan-local stable\nidentifier (error reporting, duplicate detection), never persisted;\nreplay-safety comes from the task `title` within the project (an existing\ntask with the same title is `reused`, never duplicated). An optional\n`roadmap_step_key` links the task to a step of the plan's roadmap (the\nlink is created through the roadmap link service, same project)."
    },
+   "InvitationAcceptRequest": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token"
+    ],
+    "title": "InvitationAcceptRequest"
+   },
+   "InvitationAccepted": {
+    "properties": {
+     "studio_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Studio Id"
+     },
+     "role": {
+      "type": "string",
+      "title": "Role"
+     }
+    },
+    "type": "object",
+    "required": [
+     "studio_id",
+     "role"
+    ],
+    "title": "InvitationAccepted"
+   },
+   "InvitationCreateRequest": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "maxLength": 254,
+      "minLength": 3,
+      "pattern": "^[^@\\s]+@[^@\\s]+$",
+      "title": "Email",
+      "examples": [
+       "ada@example.com"
+      ]
+     },
+     "role": {
+      "$ref": "#/components/schemas/StudioRole",
+      "default": "member"
+     }
+    },
+    "type": "object",
+    "required": [
+     "email"
+    ],
+    "title": "InvitationCreateRequest"
+   },
+   "InvitationPreviewRequest": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token"
+    ],
+    "title": "InvitationPreviewRequest"
+   },
+   "InvitationPreviewResponse": {
+    "properties": {
+     "state": {
+      "type": "string",
+      "enum": [
+       "valid",
+       "expired",
+       "used",
+       "unknown"
+      ],
+      "title": "State"
+     },
+     "studio_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Studio Name"
+     },
+     "role": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Role"
+     },
+     "inviter_display_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Inviter Display Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "state"
+    ],
+    "title": "InvitationPreviewResponse"
+   },
+   "InvitationRead": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "role": {
+      "type": "string",
+      "title": "Role"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     },
+     "consumed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Consumed At"
+     },
+     "invited_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Invited By User Id"
+     },
+     "created_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "email",
+     "role",
+     "expires_at",
+     "consumed_at",
+     "invited_by_user_id",
+     "created_at"
+    ],
+    "title": "InvitationRead"
+   },
    "LateUsagePolicy": {
     "type": "string",
     "enum": [
@@ -26080,6 +27414,73 @@
     ],
     "title": "MeasurementCoverage",
     "description": "What a measure is worth. `measured`: read from the runtime itself.\n`estimated`: derived by the collector from another signal, usable but never\npresented as a fact. `unknown`: nobody could measure it \u2014 the value is\n`None`, and no consumer may read that as zero."
+   },
+   "MemberRead": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "User Id"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "role": {
+      "type": "string",
+      "title": "Role"
+     },
+     "granted_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Granted By User Id"
+     },
+     "created_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "email",
+     "display_name",
+     "role",
+     "granted_by_user_id",
+     "created_at"
+    ],
+    "title": "MemberRead"
+   },
+   "MemberRoleRequest": {
+    "properties": {
+     "role": {
+      "$ref": "#/components/schemas/StudioRole"
+     }
+    },
+    "type": "object",
+    "required": [
+     "role"
+    ],
+    "title": "MemberRoleRequest"
    },
    "MissionCounts": {
     "properties": {
@@ -32354,21 +33755,74 @@
     "title": "StudioCounter",
     "description": "Consumption of one limit for one studio. `source` says where the value\ncame from: `measured` (phase-M `infra_measurements`), `live` (direct count)\nor `default` (nothing measured yet)."
    },
-   "StudioCreate": {
+   "StudioCreateRequest": {
     "properties": {
      "name": {
       "type": "string",
-      "maxLength": 80,
+      "maxLength": 100,
       "minLength": 1,
-      "title": "Name"
+      "title": "Name",
+      "examples": [
+       "Ada's Studio"
+      ]
      }
     },
-    "additionalProperties": false,
     "type": "object",
     "required": [
      "name"
     ],
-    "title": "StudioCreate"
+    "title": "StudioCreateRequest"
+   },
+   "StudioDetail": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "plan": {
+      "type": "string",
+      "title": "Plan"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "role": {
+      "$ref": "#/components/schemas/StudioRole"
+     },
+     "deletion_scheduled_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deletion Scheduled At",
+      "description": "When the studio is scheduled for deletion, or null."
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "slug",
+     "name",
+     "plan",
+     "status",
+     "role"
+    ],
+    "title": "StudioDetail"
    },
    "StudioEntitlements": {
     "properties": {
@@ -32485,6 +33939,17 @@
     "title": "StudioRead",
     "description": "Active studio seen by its own members (C2 / N5 support).\n\nDeclared here rather than in `studio-contracts` because it is consumed only\nby this route for now; `suspension_reason` is the motif an operator entered\nwhen suspending the studio (0050), cleared on lift. No project, file, note\nor message is part of it."
    },
+   "StudioRole": {
+    "type": "string",
+    "enum": [
+     "viewer",
+     "member",
+     "admin",
+     "owner"
+    ],
+    "title": "StudioRole",
+    "description": "A User's role inside one studio (0046 `studio_memberships.role`), weakest\nto strongest. It decides studio management and project reach; the account\n`Role` (readonly|agent|developer|admin) keeps governing machine/agent\ncapabilities and grants no implicit project reach any more."
+   },
    "StudioSummary": {
     "properties": {
      "id": {
@@ -32492,13 +33957,13 @@
       "format": "uuid",
       "title": "Id"
      },
-     "name": {
-      "type": "string",
-      "title": "Name"
-     },
      "slug": {
       "type": "string",
       "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
      },
      "plan": {
       "type": "string",
@@ -32509,28 +33974,19 @@
       "title": "Status"
      },
      "role": {
-      "type": "string",
-      "enum": [
-       "owner",
-       "admin",
-       "member",
-       "viewer"
-      ],
-      "title": "Role"
+      "$ref": "#/components/schemas/StudioRole"
      }
     },
-    "additionalProperties": false,
     "type": "object",
     "required": [
      "id",
-     "name",
      "slug",
+     "name",
      "plan",
      "status",
      "role"
     ],
-    "title": "StudioSummary",
-    "description": "One studio the caller is a member of (`GET /studios`); `role` is the\ncaller's own studio role, never another member's."
+    "title": "StudioSummary"
    },
    "SyncItem": {
     "properties": {
@@ -34150,6 +35606,20 @@
      "size_bytes"
     ],
     "title": "TransferCreate"
+   },
+   "TransferOwnershipRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "User Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id"
+    ],
+    "title": "TransferOwnershipRequest"
    },
    "TransferStatus": {
     "type": "string",

@@ -46,6 +46,7 @@ import {
   setStudios,
 } from "./studioStore";
 import { createRenderGuard } from "./renderGuard";
+import { syncSuspendedBanner } from "./studioSuspendedBanner";
 import { LIVE_CHANGE_EVENT, startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import type { LiveState } from "./views/mission";
 import { setApiObserver } from "./apiEvents";
@@ -209,6 +210,21 @@ async function renderRoute(
     case "help":
       (await load(() => import("./views/help"))).renderHelp(staging);
       break;
+    case "studios":
+      await (await load(() => import("./views/studioPicker"))).renderStudioPicker(staging, { baseUrl, authed }, route.create === true);
+      break;
+    case "studioInvitations":
+      await (await load(() => import("./views/studioInvitations"))).renderStudioInvitations(staging, { baseUrl, authed });
+      break;
+    case "invitationAccept":
+      await (await load(() => import("./views/studioInvitations"))).renderInvitationAccept(staging, { baseUrl }, route);
+      break;
+    case "studioSuspended":
+      await (await load(() => import("./views/studioSuspended"))).renderStudioSuspended(staging, { baseUrl, authed }, route.id);
+      break;
+    case "studioData":
+      await (await load(() => import("./views/studioData"))).renderStudioData(staging, { baseUrl, authed }, route.id);
+      break;
     case "onboarding":
       await (await load(() => import("./onboarding/view"))).renderOnboarding(staging, getPlatform());
       break;
@@ -290,6 +306,7 @@ async function render(): Promise<void> {
   old.replaceWith(staging);
   paintNavAndConnection(route, authed);
   paintShellStatus(document);
+  void syncSuspendedBanner(baseUrl, authed, route.name === "studioSuspended");
 }
 
 let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;

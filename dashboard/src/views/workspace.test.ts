@@ -173,7 +173,7 @@ describe("projectOverviewHtml", () => {
     } as never;
     const html = projectOverviewHtml(project, state, NOW);
     expect(html.match(/ds-list-title/g)?.length).toBeLessThanOrEqual(OVERVIEW_PREVIEW_LIMIT + 1);
-    expect(html).toContain("+ 2 autre(s)");
+    expect(html).toContain("+ 2 autres");
     expect(html).toContain("Blocage à lever");
     expect(OVERVIEW_PREVIEW_LIMIT).toBe(5);
   });

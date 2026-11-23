@@ -168,7 +168,7 @@ describe("toolbar", () => {
     expect(html).toContain("Tous les projets");
     expect(html).toContain("Studio OS");
     expect(html).toContain("recherche et filtres locaux");
-    expect(html).toContain("1 transfert(s) affiché(s) sur 1 chargé(s)");
+    expect(html).toContain("1 transfert affiché sur 1 chargé");
   });
 });
 

@@ -81,7 +81,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
     const card = adminIndicators(data).find((item) => item.title === "Configuration")!;
     expect(card).toMatchObject({ value: "À compléter", href: "#/configuration/bindings", attention: true });
     expect(card.detail).toContain("Aucun runtime actif");
-    expect(card.detail).toContain("1 liaison(s) vers un runtime absent ou révoqué");
+    expect(card.detail).toContain("1 liaison vers un runtime absent ou révoqué");
   });
 
   it("les erreurs et restrictions ne deviennent jamais des zéros sains", () => {

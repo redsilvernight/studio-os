@@ -202,7 +202,7 @@ describe("libraryKindPageHtml (liste #/library/<kind>)", () => {
     expect(html).toContain("Administration / Bibliothèque");
     expect(html).toContain('role="search"');
     expect(html).toContain("Rechercher par clé stable");
-    expect(html).toContain("2 élément(s) affiché(s) sur 2 chargé(s)");
+    expect(html).toContain("2 éléments affichés sur 2 chargés");
     expect(html).toContain("recherche et filtres locaux");
   });
 
@@ -401,7 +401,7 @@ describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
   it("garde l'historique accessible sans dominer : versions repliables, active ouverte", () => {
     const html = libraryDetailHtml(resource({}), versions, [], []);
     expect(html).toContain("Historique des versions");
-    expect(html).toContain("2 version(s)");
+    expect(html).toContain("2 versions");
     expect(html).toContain("Coding standard v1");
     expect(html).toContain("Always verify.");
     expect(html).toMatch(/<details class="library-version" open>/);

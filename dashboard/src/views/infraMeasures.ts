@@ -11,6 +11,8 @@ import type { components } from "../openapi-schema";
 import { dsEmptyState, dsErrorState, dsPageHeader, dsSkeleton } from "../ds/ds";
 import { humanBytes } from "../transfersFormat";
 import { describeError, esc, fmtTime } from "../ui";
+import { sfx } from "../format";
+import { UI_LABEL } from "../language";
 
 export type InfraReport = components["schemas"]["InfraMeasurementsReport"];
 export type InfraSeries = components["schemas"]["InfraSeries"];
@@ -43,7 +45,7 @@ function formatValue(series: InfraSeries, value: number): string {
 /** Courbe SVG normalisée sur [min, max] de la série ; points déjà triés. */
 export function sparkline(series: InfraSeries): string {
   const values = series.points.map((point) => point.value);
-  const label = `${seriesLabel(series)} : de ${formatValue(series, values[0] ?? 0)} à ${formatValue(series, values[values.length - 1] ?? 0)} sur ${values.length} relevé(s)`;
+  const label = `${seriesLabel(series)} : de ${formatValue(series, values[0] ?? 0)} à ${formatValue(series, values[values.length - 1] ?? 0)} sur ${values.length} relevé${sfx(values.length)}`;
   const min = Math.min(...values);
   const span = Math.max(...values) - min || 1;
   const step = values.length > 1 ? 120 / (values.length - 1) : 0;
@@ -57,12 +59,12 @@ export function infraMeasuresHtml(report?: InfraReport, error?: string): string 
   if (report === undefined) return `<div class="admin">${header}${dsSkeleton(4)}</div>`;
   if (report.series.length === 0) return `<div class="admin">${header}${dsEmptyState("Aucun relevé", `Aucune mesure sur les ${report.window_days} derniers jours.`)}</div>`;
   const rows = report.series.map((series) => `<tr><th scope="row">${esc(seriesLabel(series))}</th><td>${esc(formatValue(series, series.latest.value))}</td><td>${esc(fmtTime(series.latest.measured_at))}</td><td>${sparkline(series)}</td></tr>`).join("");
-  return `<div class="admin">${header}<section class="ds-panel" aria-label="Relevés"><p class="ds-list-sub" role="status">Fenêtre de ${report.window_days} jour(s), consultée le ${esc(fmtTime(report.generated_at))}.</p><div class="body"><table class="ds-table"><thead><tr><th scope="col">Mesure</th><th scope="col">Dernier relevé</th><th scope="col">Mesuré le</th><th scope="col">Évolution</th></tr></thead><tbody>${rows}</tbody></table></div></section></div>`;
+  return `<div class="admin">${header}<section class="ds-panel" aria-label="Relevés"><p class="ds-list-sub" role="status">Fenêtre de ${report.window_days} jour${sfx(report.window_days)}, consultée le ${esc(fmtTime(report.generated_at))}.</p><div class="body"><table class="ds-table"><thead><tr><th scope="col">Mesure</th><th scope="col">Dernier relevé</th><th scope="col">Mesuré le</th><th scope="col">Évolution</th></tr></thead><tbody>${rows}</tbody></table></div></section></div>`;
 }
 
 export async function renderInfraMeasures(root: HTMLElement, ctx?: { client: StudioClient; authed: boolean }): Promise<void> {
   if (ctx === undefined || !ctx.authed) {
-    root.innerHTML = dsPageHeader("Mesures d'infrastructure") + dsEmptyState("Connectez-vous", "Connectez-vous avec un compte administrateur pour consulter les mesures.");
+    root.innerHTML = dsPageHeader("Mesures d'infrastructure") + dsEmptyState(UI_LABEL.signIn, "Connectez-vous avec un compte administrateur pour consulter les mesures.");
     return;
   }
   root.innerHTML = infraMeasuresHtml();

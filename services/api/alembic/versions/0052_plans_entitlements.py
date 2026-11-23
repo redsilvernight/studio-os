@@ -20,8 +20,8 @@ added; every existing value (`free`) validates.
 Downgrade drops the foreign key and the three tables; it never touches studio
 or measurement rows.
 
-Revision ID: 0050
-Revises: 0049
+Revision ID: 0052
+Revises: 0051
 Create Date: 2026-11-23
 """
 
@@ -33,8 +33,8 @@ from typing import Any
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0050"
-down_revision: str | None = "0049"
+revision: str = "0052"
+down_revision: str | None = "0051"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 

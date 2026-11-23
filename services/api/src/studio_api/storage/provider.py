@@ -79,13 +79,17 @@ class StorageProvider:
             ),
         )
 
-    def presign_get(self, object_key: str) -> str:
+    def presign_get(self, object_key: str, ttl_seconds: int | None = None) -> str:
+        """Presign a download. `ttl_seconds` overrides the default transfer TTL
+        for surfaces with a stricter bound (studio export links: 15 min max)."""
         return cast(
             str,
             self._signing_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self._settings.s3_bucket, "Key": object_key},
-                ExpiresIn=self._settings.presigned_url_ttl_seconds,
+                ExpiresIn=ttl_seconds
+                if ttl_seconds is not None
+                else self._settings.presigned_url_ttl_seconds,
             ),
         )
 
@@ -203,6 +207,53 @@ class StorageProvider:
         await asyncio.to_thread(
             self._admin_client.delete_object, Bucket=self._settings.s3_bucket, Key=object_key
         )
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """Delete every object under `prefix` (paginated). Returns the number of
+        keys removed. Used by the studio purge, where a row may be missing while
+        the object still exists (DEC-0026 keeps real storage calls off the
+        event loop)."""
+        deleted = 0
+        continuation: str | None = None
+        while True:
+            kwargs: dict[str, object] = {"Bucket": self._settings.s3_bucket, "Prefix": prefix}
+            if continuation is not None:
+                kwargs["ContinuationToken"] = continuation
+            response = await asyncio.to_thread(self._admin_client.list_objects_v2, **kwargs)
+            keys = [{"Key": str(item["Key"])} for item in response.get("Contents", [])]
+            if keys:
+                await asyncio.to_thread(
+                    self._admin_client.delete_objects,
+                    Bucket=self._settings.s3_bucket,
+                    Delete={"Objects": keys, "Quiet": True},
+                )
+                deleted += len(keys)
+            if not response.get("IsTruncated"):
+                return deleted
+            continuation = str(response["NextContinuationToken"])
+
+    async def put_object(self, object_key: str, payload: bytes, content_type: str) -> None:
+        """Server-side write, reserved for server-built artifacts (studio export
+        archives). Client transfers keep the presigned-only rule."""
+        await asyncio.to_thread(
+            self._admin_client.put_object,
+            Bucket=self._settings.s3_bucket,
+            Key=object_key,
+            Body=payload,
+            ContentType=content_type,
+        )
+
+    async def get_object(self, object_key: str) -> bytes:
+        """Server-side read, reserved for server-built artifacts (studio export
+        archives). Missing keys raise the boto3 `ClientError`."""
+        response = await asyncio.to_thread(
+            self._admin_client.get_object, Bucket=self._settings.s3_bucket, Key=object_key
+        )
+        body = response["Body"]
+        try:
+            return cast(bytes, await asyncio.to_thread(body.read))
+        finally:
+            body.close()
 
 
 @lru_cache

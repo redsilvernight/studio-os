@@ -28,6 +28,19 @@ class Settings(BaseSettings):
     # Plans and limits (DEC-0401/DEC-0402): the single subscription screen every
     # `plan_limit_reached` response points at. Relative path = dashboard route.
     billing_upgrade_url: str = "/settings/subscription"
+    # Studio export / deletion (0051). A deletion request is a grace window: the
+    # studio turns read-only now and `purge_due_studios` deletes it once
+    # `deletion_grace_days` elapsed (the owner may cancel meanwhile).
+    deletion_grace_days: int = Field(default=14, ge=0, le=90)
+    # An export archive row stays readable this long; past it the link is
+    # refused (the object itself is removed with the studio).
+    export_retention_days: int = Field(default=7, ge=1, le=90)
+    # Download links are short-lived on purpose, never above 15 minutes.
+    export_url_ttl_seconds: int = Field(default=900, ge=60, le=900)
+    # Announced backup retention: the purge run removes every backup older than
+    # this from `infra_backup_dir` (newest one always kept), so a purged studio
+    # is gone from backups after it.
+    deletion_backup_retention_days: int = Field(default=30, ge=1, le=365)
 
     # Execution snapshots (DEC-0199): kept this long after capture, then purged.
     execution_snapshot_retention_days: int = Field(default=90, ge=1, le=3650)

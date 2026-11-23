@@ -274,7 +274,7 @@ test.describe("UI-12 Configuration — Runtimes", () => {
 
     await view.locator("#settings-runtimes-search").fill("modele-grand");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(1);
-    await expect(view).toContainText("1 runtime(s) affiché(s) sur 2 chargé(s)");
+    await expect(view).toContainText("1 runtime affiché sur 2 chargés");
     await expect(view).toContainText("recherche et filtres locaux");
 
     await view.locator("#settings-runtimes-search").fill("zzz-introuvable");

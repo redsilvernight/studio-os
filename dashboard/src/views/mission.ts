@@ -18,8 +18,9 @@ import { dsBadge, dsErrorState, dsSectionHeader, dsSkeleton, dsStateHtml, dsTech
 import { fetchProjectMission, type MissionRun, type ProjectMission } from "../missionApi";
 import { LIVE_CHANGE_EVENT } from "../realtime";
 import { describeError, esc, fmtTime } from "../ui";
-import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
+import { ACTION_LABEL, FALLBACK_LABEL, UI_LABEL } from "../language";
 import { agentRef, machineRef } from "../actorNames";
+import { sfx } from "../format";
 
 export type LiveState = "live" | "lost" | "off";
 
@@ -42,12 +43,12 @@ const MISSION_ATTENTION_VERDICTS = ["waiting_human", "needs_attention", "stale",
 const MISSION_SUMMARY_MAX = 3;
 
 const VERDICT_LABEL: Record<string, string> = {
-  pending: "En attente",
-  running: "En cours",
+  pending: UI_LABEL.pending,
+  running: UI_LABEL.inProgress,
   waiting_human: "Attend une personne",
   needs_attention: "À vérifier",
   stale: "Sans nouvelles",
-  done: "Terminée",
+  done: UI_LABEL.done,
   failed: "Échouée",
   cancelled: "Annulée",
 };
@@ -184,12 +185,12 @@ function resultHtml(run: MissionRun): string {
 function techRows(run: MissionRun): DsTechRow[] {
   const rows: DsTechRow[] = [
     { label: "Exécution", value: run.run_id, mono: true },
-    { label: "Tâche", value: run.task_id, mono: true },
+    { label: UI_LABEL.task, value: run.task_id, mono: true },
     { label: "Poste", value: run.machine_id, mono: true },
   ];
   if (run.launch) rows.push({ label: "Lancement", value: run.launch.id, mono: true });
   if (run.session) rows.push({ label: "Session", value: run.session.id, mono: true });
-  if (run.session?.agent_id) rows.push({ label: "Agent", value: run.session.agent_id, mono: true });
+  if (run.session?.agent_id) rows.push({ label: UI_LABEL.agent, value: run.session.agent_id, mono: true });
   if (run.handoff) rows.push({ label: "Travail IA", value: run.handoff.ai_work_id, mono: true });
   rows.push({ label: "Verdict (code)", value: run.verdict, mono: true });
   if (run.reasons.length > 0) rows.push({ label: "Raisons (codes)", value: run.reasons.join(", "), mono: true });
@@ -217,7 +218,7 @@ export function missionRunHtml(run: MissionRun): string {
   const agent = run.session?.agent_id
     ? agentRef(run.session.agent_id)
     : esc(run.launch?.harness_id ? (harnessLabels[run.launch.harness_id] ?? run.launch.harness_id) : FALLBACK_LABEL.agent);
-  const claims = run.active_claims > 0 ? `<p class="ds-list-sub">${run.active_claims} réservation(s) active(s)</p>` : "";
+  const claims = run.active_claims > 0 ? `<p class="ds-list-sub">${run.active_claims} réservation${sfx(run.active_claims)} active${sfx(run.active_claims)}</p>` : "";
   // Lacunes non rattachées à une étape (vocabulaire additif) : mention générique.
   const extraGaps = gaps.filter((g) => !["machine_unknown", "session_not_found", "task_not_found"].includes(g)).map(gapHtml).join("");
   return (
@@ -243,7 +244,7 @@ function missionCountsHtml(mission: ProjectMission): string {
     .map((v) => `<li data-count-verdict="${esc(v)}">${dsBadge(`${verdictLabel(v)} : ${byVerdict[v] ?? 0}`, verdictTone(v))}</li>`)
     .join("");
   return (
-    `<div data-mission-counts><p><strong>${mission.counts.total}</strong> exécution(s) sur ${mission.window_hours} h` +
+    `<div data-mission-counts><p><strong>${mission.counts.total}</strong> exécution${sfx(mission.counts.total)} sur ${mission.window_hours} h` +
     `${mission.truncated ? " (fenêtre tronquée)" : ""}</p>${items === "" ? "" : `<ul class="mission-counts">${items}</ul>`}</div>`
   );
 }
@@ -256,7 +257,7 @@ function lostBannerHtml(generatedAt: string | null, polls: number, maxPolls: num
   const when = generatedAt === null ? "" : ` Données du ${fmtTime(generatedAt)}.`;
   const auto =
     polls >= maxPolls
-      ? `<span data-mission-poll-stopped>Rafraîchissement automatique arrêté après ${maxPolls} essai(s) : utilisez Actualiser.</span>`
+      ? `<span data-mission-poll-stopped>Rafraîchissement automatique arrêté après ${maxPolls} essai${sfx(maxPolls)} : utilisez Actualiser.</span>`
       : `<span>Rafraîchissement automatique toutes les ${Math.round(pollMs / 1000)} s (${polls}/${maxPolls}).</span>`;
   return (
     `<div class="ds-notice ds-notice--warning" role="status" data-mission-live="lost">` +
@@ -265,7 +266,7 @@ function lostBannerHtml(generatedAt: string | null, polls: number, maxPolls: num
 }
 
 function panelHtml(body: string): string {
-  return `<section class="ds-panel" data-mission aria-label="Exécutions"><header><h2>Exécutions</h2></header><div class="body">${body}</div></section>`;
+  return `<section class="ds-panel" data-mission aria-label=UI_LABEL.runs><header><h2>Exécutions</h2></header><div class="body">${body}</div></section>`;
 }
 
 function deniedHtml(): string {
@@ -422,8 +423,8 @@ function attentionRuns(runs: MissionRun[], max = MISSION_SUMMARY_MAX): MissionRu
 
 function summaryHtml(projectId: string, body: string): string {
   return (
-    `<section data-mission-summary aria-label="Exécutions">` +
-    dsSectionHeader("Exécutions", { label: "Voir les exécutions", href: `#/projects/${projectId}/mission` }) +
+    `<section data-mission-summary aria-label=UI_LABEL.runs>` +
+    dsSectionHeader(UI_LABEL.runs, { label: "Voir les exécutions", href: `#/projects/${projectId}/mission` }) +
     `${body}</section>`
   );
 }

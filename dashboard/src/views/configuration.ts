@@ -77,12 +77,13 @@ import { kindFr, statusLabelFr } from "./library";
 import { uiState } from "../store";
 import { machineLabel, machineRef } from "../actorNames";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, statusBlock } from "../ui";
-import { FALLBACK_LABEL } from "../language";
+import { FALLBACK_LABEL, UI_LABEL } from "../language";
 import { projectLabel } from "../actorNames";
 import { confirmDs } from "../ds/confirm";
 import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
+import { sfx } from "../format";
 
 export interface ConfigurationContext {
   client: StudioClient;
@@ -94,7 +95,7 @@ export type ConfigTab = "runtimes" | "bindings" | "project" | "application" | "i
 const CONFIG_TABS: readonly { name: ConfigTab; label: string; href: string }[] = [
   { name: "runtimes", label: "Runtimes", href: "#/configuration/runtimes" },
   { name: "bindings", label: "Liaisons", href: "#/configuration/bindings" },
-  { name: "project", label: "Projet", href: "#/configuration/project/resources" },
+  { name: "project", label: UI_LABEL.project, href: "#/configuration/project/resources" },
   { name: "application", label: "Application", href: "#/configuration/application" },
   { name: "integrations", label: "Intégrations IA", href: "#/configuration/integrations" },
 ];
@@ -120,7 +121,7 @@ function settingsHeader(title: string, description: string, actions: { label: st
 // Vocabulaire commun (français)
 // ---------------------------------------------------------------------------
 
-const RUNTIME_STATUS_LABELS: Record<RuntimeStatus, string> = { active: "Actif", revoked: "Révoqué" };
+const RUNTIME_STATUS_LABELS: Record<RuntimeStatus, string> = { active: UI_LABEL.active, revoked: "Révoqué" };
 const RUNTIME_STATUS_TONES: Record<RuntimeStatus, DsTone> = { active: "success", revoked: "neutral" };
 
 export function runtimeStatusFr(status: RuntimeStatus): string {
@@ -336,7 +337,7 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
     `</select></label>` +
     `<label class="settings-check"><input type="checkbox" id="settings-runtimes-revoked" data-include-revoked${state.includeRevoked ? " checked" : ""} /> Inclure les révoqués</label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isRuntimesDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} runtime(s) affiché(s) sur ${runtimes.length} chargé(s) — recherche et filtres locaux.</p>` +
+    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} runtime${sfx(shown)} affiché${sfx(shown)} sur ${runtimes.length} chargé${sfx(runtimes.length)} — recherche et filtres locaux.</p>` +
     `</div>`
   );
 }
@@ -405,11 +406,11 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
   const head = configTabsHtml("runtimes");
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton machine pour lire et configurer vos runtimes.")}</div>`;
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}` +
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour lire et configurer vos runtimes.")}</div>`;
     return;
   }
-  root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
+  root.innerHTML = `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
   let runtimes: RuntimeRegistration[];
   let machines: MachineOption[] | null;
   try {
@@ -419,7 +420,7 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
     ]);
   } catch (error) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtimes-reload" }])}${head}` +
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtimes-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger les runtimes : ${esc(describeError(error))}</div></div>`;
     root.querySelector("#settings-runtimes-reload")?.addEventListener("click", () => {
       void renderRuntimes(root, ctx);
@@ -435,7 +436,7 @@ export function runtimesPageHtml(runtimes: RuntimeRegistration[], machines: Mach
   const visible = filterRuntimes(runtimes, runtimesState);
   const body = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible, names);
   return (
-    `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtimes-reload" }])}${configTabsHtml("runtimes")}` +
+    `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtimes-reload" }])}${configTabsHtml("runtimes")}` +
     `<section class="settings-domain"><h2>Runtimes enregistrés</h2>` +
     `<p class="settings-intro">Un runtime est la configuration qui permet d'exécuter un modèle : outil (harness), fournisseur et modèle sont des références ouvertes. Le modèle n'est pas le runtime, et un poste n'est pas un runtime.</p>` +
     runtimeVocabularyHtml(runtimes.length === 0) +
@@ -635,11 +636,11 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   const head = configTabsHtml("runtimes");
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton machine pour consulter ce runtime.")}</div>`;
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}` +
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour consulter ce runtime.")}</div>`;
     return;
   }
-  root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
+  root.innerHTML = `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
   const [runtime, bindings, machines] = await Promise.all([
     settle(getRuntime(ctx.client, runtimeId)),
     settle(listRuntimeBindings(ctx.client)),
@@ -647,7 +648,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   ]);
   if (!runtime.ok) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtime-reload" }])}${head}` +
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtime-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger ce runtime : ${esc(describeError(runtime.error))}</div>` +
       `<p><a href="#/configuration/runtimes">← Retour aux runtimes</a></p></div>`;
     root.querySelector("#settings-runtime-reload")?.addEventListener("click", () => {
@@ -658,7 +659,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   const related = bindings.ok ? bindings.value.filter((binding) => binding.target.runtime_id === runtime.value.id) : null;
   root.innerHTML =
     `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un runtime — configuration d'exécution d'un modèle.", [
-      { label: "Actualiser", id: "settings-runtime-reload" },
+      { label: UI_LABEL.refresh, id: "settings-runtime-reload" },
     ])}${head}` +
     `<p class="settings-back"><a href="#/configuration/runtimes">← Retour aux runtimes</a></p>` +
     runtimeDetailHtml(runtime.value, related, bindings.ok ? null : describeError(bindings.error), machines) +
@@ -792,7 +793,7 @@ export function bindingsToolbarHtml(state: BindingsPageState, shown: number, tot
     `<label class="settings-filter"><span>Niveau</span><select class="ds-select" id="settings-bindings-scope">` +
     `<option value="all"${state.scope === "all" ? " selected" : ""}>Tous les niveaux</option>${scopeOptions}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isBindingsDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} binding(s) affiché(s) sur ${total} chargé(s) — recherche et filtre locaux.</p>` +
+    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} binding${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — recherche et filtre locaux.</p>` +
     `</div>`
   );
 }
@@ -902,11 +903,11 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
   const head = configTabsHtml("bindings");
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton machine pour lire et configurer vos bindings.")}</div>`;
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}` +
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour lire et configurer vos bindings.")}</div>`;
     return;
   }
-  root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
+  root.innerHTML = `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
   const [bindings, runtimes, library, machines] = await Promise.all([
     settle(listRuntimeBindings(ctx.client)),
     settle(listRuntimes(ctx.client)),
@@ -915,7 +916,7 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
   ]);
   if (!bindings.ok) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-bindings-reload" }])}${head}` +
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-bindings-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger les bindings : ${esc(describeError(bindings.error))}</div></div>`;
     root.querySelector("#settings-bindings-reload")?.addEventListener("click", () => {
       void renderBindings(root, ctx);
@@ -931,7 +932,7 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
   const body = bindings.value.length === 0 ? bindingsEmptyHtml() : visible.length === 0 ? bindingsNoMatchHtml() : bindingsListHtml(visible, runtimesById);
   const degraded = runtimes.ok ? "" : `<p class="state error" role="alert">Runtimes indisponibles : ${esc(describeError(runtimes.error))} — les cibles du registre sont affichées sous forme d'identifiant.</p>`;
   root.innerHTML =
-    `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-bindings-reload" }])}${head}` +
+    `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-bindings-reload" }])}${head}` +
     `<section class="settings-domain"><h2>Règles d'affectation (bindings)</h2>` +
     `<p class="settings-intro">Un binding est un choix stocké par clé logique, pas un runtime ni un agent. Les bindings de niveau « personnel » sont privés : ceux des autres utilisateurs ne sont jamais exposés par l'API.</p>` +
     (bindings.value.length === 0 ? "" : bindingsToolbarHtml(bindingsState, visible.length, bindings.value.length)) +
@@ -1117,11 +1118,11 @@ export async function renderProjectConfig(root: HTMLElement, ctx: ConfigurationC
   const tabs = projectTabsHtml(tab);
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${tabs}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton machine pour lire la configuration de projet.")}</div>`;
+      `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${tabs}` +
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour lire la configuration de projet.")}</div>`;
     return;
   }
-  root.innerHTML = `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${tabs}${dsSkeleton(3)}</div>`;
+  root.innerHTML = `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${tabs}${dsSkeleton(3)}</div>`;
   const projectId = effectiveProjectId();
   let body: string;
   try {
@@ -1130,7 +1131,7 @@ export async function renderProjectConfig(root: HTMLElement, ctx: ConfigurationC
     body = statusBlock("error", describeError(error));
   }
   root.innerHTML =
-    `<div class="settings">${settingsHeader("Configuration", SETTINGS_DESCRIPTION)}${head}${tabs}` +
+    `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${tabs}` +
     `<section class="settings-domain"><h2>Configuration de projet</h2>` +
     `<p class="settings-intro">${projectId === null ? "Aucun projet actif" : `Projet ${esc(projectId)}`}</p>` +
     `${projectSelectorHtml(projectId)}${body}</section></div>`;

@@ -209,7 +209,7 @@ test("vault journey: scope, search, safe detail, decision and history", async ({
   /* 3. Recherche : la saisie part sur GET /vault/search. */
   await page.fill("#vault-query", "cache");
   await expect(page.locator("#view")).toContainText("recherche serveur");
-  await expect(page.locator("#view")).toContainText("1 résultat(s)");
+  await expect(page.locator("#view")).toContainText("1 résultat");
   expect(state.calls.some((call) => call.startsWith("search q=cache"))).toBe(true);
 
   /* 4. Détail : Markdown rendu, HTML du serveur inerte. */
