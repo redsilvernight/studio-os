@@ -821,3 +821,187 @@ a.app-connection:hover .app-connection-label {
     padding: var(--ds-space-4);
   }
 }
+
+/* Sélecteur de studio (R2-coque, fiche E1) : bouton de menu en tête de barre,
+   rôle sous le nom, menu radio. Tokens DS uniquement, jamais de chevauchement :
+   le menu est borné en hauteur avec défilement interne. */
+#studio-slot {
+  position: relative;
+}
+.app-studio {
+  position: relative;
+}
+.app-studio-btn,
+.app-studio-current {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  width: 100%;
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2);
+  border: 1px solid var(--ds-nav-line);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-navy-deep);
+  color: var(--ds-navy-text);
+  font: inherit;
+  text-align: left;
+}
+button.app-studio-btn {
+  cursor: pointer;
+}
+button.app-studio-btn:hover {
+  border-color: var(--ds-navy-muted);
+}
+button.app-studio-btn[aria-expanded="true"] .app-icon {
+  transform: rotate(180deg);
+}
+.app-studio-current {
+  border-style: solid;
+  cursor: default;
+}
+.app-studio-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ds-nav-hover);
+  color: var(--ds-navy-active);
+  font-weight: 700;
+  font-size: var(--ds-text-sm);
+}
+.app-studio-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.app-studio-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+}
+.app-studio-role {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-xs);
+}
+.app-studio-menu {
+  position: absolute;
+  top: calc(100% + var(--ds-space-2));
+  left: 0;
+  right: 0;
+  z-index: var(--ds-z-drawer);
+  margin: 0;
+  padding: var(--ds-space-2);
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  border: 1px solid var(--ds-nav-line);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-navy);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.28);
+}
+.app-studio-menu[hidden] {
+  display: none;
+}
+.app-studio-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  width: 100%;
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: none;
+  color: var(--ds-navy-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.app-studio-option:hover {
+  background: var(--ds-nav-hover);
+}
+.app-studio-option.active {
+  background: var(--ds-nav-current);
+  border-color: var(--ds-nav-line);
+}
+.app-studio-loading {
+  display: block;
+  padding: var(--ds-space-2);
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-sm);
+}
+.app-studio-error {
+  margin: 0 0 var(--ds-space-2);
+  color: var(--ds-navy-text);
+  font-size: var(--ds-text-sm);
+}
+.app-studio-retry {
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border: 1px solid var(--ds-nav-line);
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: var(--ds-navy-text);
+  font: inherit;
+  cursor: pointer;
+}
+/* Pastille de formule sur l'entrée Abonnement : texte + fond, jamais la couleur seule. */
+.app-navpill {
+  margin-left: auto;
+  padding: 1px var(--ds-space-2);
+  border: 1px solid var(--ds-nav-line);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-navy-deep);
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.app-navlink.active .app-navpill {
+  color: var(--ds-navy-active);
+}
+/* Rail (901–1399 px) : avatar seul, texte masqué mais accessible ; le menu
+   sort en volet à droite du rail. */
+@media (min-width: 901px) and (max-width: 1399.98px) {
+  .app-studio-text,
+  .app-studio-btn > .app-icon {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .app-studio-btn,
+  .app-studio-current {
+    justify-content: center;
+    padding: var(--ds-space-2) 2px;
+  }
+  .app-studio-menu {
+    left: calc(100% + var(--ds-space-3));
+    right: auto;
+    top: 0;
+    min-width: 240px;
+  }
+  .app-studio-menu .app-studio-text {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+  .app-navpill {
+    display: none;
+  }
+}

@@ -30,7 +30,7 @@ describe("vue Comptes", () => {
     expect(parseRoute("#/accounts")).toEqual({ name: "accounts" });
     expect(parseRoute("#/accounts/x")).toEqual({ name: "notFound", hash: "#/accounts/x" });
     const labels = shellNavGroups({ name: "accounts" }).flatMap((g) => g.items.filter((i) => i.active).map((i) => i.label));
-    expect(labels).toEqual(["Comptes"]);
+    expect(labels).toEqual(["Réglages"]);
   });
 
   it("explique la restriction admin sans rien lister", () => {
