@@ -211,27 +211,6 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.app-navmode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--ds-space-2);
-  min-height: var(--ds-target);
-  padding: var(--ds-space-2);
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-md);
-  background: none;
-  color: var(--ds-navy-muted);
-  font: inherit;
-  font-size: var(--ds-text-sm);
-  cursor: pointer;
-}
-.app-navmode:hover,
-.app-navmode[aria-pressed="true"] {
-  border-color: var(--ds-nav-line);
-  color: var(--ds-navy-active);
-}
-
 /* Sélecteur de thème (pied) : contrôle natif, lisible en rail comme en barre. */
 .app-theme {
   display: flex;
@@ -460,10 +439,6 @@ a.app-connection:hover .app-connection-label {
     display: none;
   }
   .app-cmdk,
-  .app-navmode {
-    justify-content: flex-start;
-    padding: var(--ds-space-2) var(--ds-space-3);
-  }
   .app-theme {
     justify-content: flex-start;
     padding: 0;

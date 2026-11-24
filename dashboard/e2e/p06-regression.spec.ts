@@ -51,7 +51,7 @@ const PALETTE_TARGETS: readonly LegacyTarget[] = [
   { was: "Aide", href: "#/aide", via: "sidebar" },
 ];
 
-const NAV_MODE_KEY = "studio-os.nav-mode";
+const UI_MODE_KEY = "studio-os.ui-mode";
 
 async function expectRealPage(page: Page): Promise<void> {
   await expect(page.locator("#view")).not.toContainText("Page introuvable");
@@ -169,63 +169,48 @@ test("every route variant opens as a real page (deep links kept)", async ({ page
   expectClean(watch, [/graph|knowledge|inspector/i]);
 });
 
-test("complete navigation mode: remembered, reversible without loss in the Atelier shell", async ({ page }) => {
+test("expert mode: switch in Réglages, remembered, adds nothing that moves the Simple shell", async ({ page }) => {
   const watch = watchErrors(page);
   await page.setViewportSize({ width: 1600, height: 900 });
   await login(page, "#/", newCaptured());
-  await go(page, "#/tasks");
+  await go(page, "#/administration");
 
   const navHrefs = (): Promise<(string | null)[]> =>
     page.locator(".app-sidebar a.app-navlink").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
-  const toggle = page.getByTestId("nav-mode-toggle");
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".app-sidebar details")).toHaveCount(0);
-  // Les tâches arrivent après l'en-tête : attendre le contenu avant de le figer.
-  await expect(page.locator("#view")).toContainText("Refonte de l'écran titre");
-  const before = (await page.locator("#view").textContent()) ?? "";
+  const toggle = page.locator("[data-ui-mode-toggle]");
+  await expect(page.getByTestId("nav-mode-toggle")).toHaveCount(0);
+  await expect(toggle).not.toBeChecked();
+  await expect(page.locator("html")).toHaveAttribute("data-ui-mode", "simple");
   const linksBefore = await navHrefs();
 
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(toggle).toBeFocused();
-  // Coque Atelier : le mode complet ne déplie aucun groupe (plus de details),
-  // il mémorise seulement le choix sans changer les liens ni les données.
-  await expect(page.locator(".app-sidebar details")).toHaveCount(0);
-  await expect(page.locator(".app-navgroup")).toHaveCount(2);
+  await toggle.check();
+  await expect(page.locator("html")).toHaveAttribute("data-ui-mode", "expert");
   expect(await navHrefs()).toEqual(linksBefore);
   for (const target of PALETTE_TARGETS) {
     await expect(page.locator(`.app-sidebar a[href="${target.href}"]`), target.was).toBeVisible();
   }
-  // Même route, même contenu : le mode ne touche ni l'URL ni les données.
-  await expect(page).toHaveURL(/#\/tasks$/);
-  await expect(page.locator("#view")).toHaveText(before);
-  // Toujours un seul statut de connexion (C4), dans les deux modes.
+  await expect(page).toHaveURL(/#\/administration$/);
   await expect(page.getByTestId("connection-status")).toHaveCount(1);
-  // Le mode est mémorisé sur le poste ; aucun jeton ni secret n'y est écrit.
+  // Mémorisé sur le poste ; aucun jeton ni secret n'y est écrit.
   const stored = await page.evaluate(() => ({ ...localStorage, ...Object.fromEntries(Object.entries(sessionStorage)) }));
-  expect(stored[NAV_MODE_KEY]).toBe("complete");
+  expect(stored[UI_MODE_KEY]).toBe("expert");
   expect(JSON.stringify(stored)).not.toMatch(/e2e-token|e2e-secret|access_token|password|jeton/i);
 
-  // Navigation experte conservée : 2 clics via Réglages, même en mode complet.
-  expect(await reachLegacyTarget(page, ADMIN_TARGETS[0]!)).toBe(2);
-  await expect(page).toHaveURL(/#\/transfers$/);
-  await expectRealPage(page);
-
-  // Retour arrière : mode simple restauré, même coque et même page.
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".app-sidebar details")).toHaveCount(0);
+  // Palette : « mode expert » propose le retour au mode Simple.
+  await page.keyboard.press("Control+k");
+  await page.locator("#app-palette-input").fill("mode simple");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-ui-mode", "simple");
+  expect(await page.evaluate((key) => localStorage.getItem(key), UI_MODE_KEY)).toBe("simple");
   expect(await navHrefs()).toEqual(linksBefore);
-  expect(await page.evaluate((key) => localStorage.getItem(key), NAV_MODE_KEY)).toBe("simple");
-  await expect(page).toHaveURL(/#\/transfers$/);
   expectClean(watch, [/graph|knowledge|inspector/i]);
 });
 
-test("complete navigation mode survives a reload and rail widths stay usable", async ({ page }) => {
+test("expert mode survives a reload and rail widths stay usable", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.addInitScript((key) => localStorage.setItem(key, "complete"), NAV_MODE_KEY);
+  await page.addInitScript((key) => localStorage.setItem(key, "expert"), UI_MODE_KEY);
   await login(page, "#/", newCaptured());
-  await expect(page.getByTestId("nav-mode-toggle")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-ui-mode", "expert");
   // Rail d'icônes : les entrées de la coque restent accessibles, la page ne déborde pas.
   const overflow = await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth));
   expect(overflow).toBe(0);
