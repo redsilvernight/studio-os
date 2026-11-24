@@ -9,6 +9,7 @@
 import type { Route } from "./router";
 import { icon, shellNavGroups, type ShellNavItem } from "./shell";
 import type { StudioRole } from "./studiosApi";
+import type { UiMode } from "./uiMode";
 import { esc } from "./ui";
 
 export interface PaletteEntry {
@@ -16,12 +17,24 @@ export interface PaletteEntry {
   label: string;
   group: string;
   icon: string;
+  /** Action sans navigation (ex. bascule de mode) : remplace `href`. */
+  run?: () => void;
 }
 
-export function paletteEntries(route: Route, desktop = false, role: StudioRole = "owner", plan = "Gratuit"): PaletteEntry[] {
-  return shellNavGroups(route, desktop, "simple", role, plan).flatMap((group) =>
+export function paletteEntries(
+  route: Route,
+  desktop = false,
+  role: StudioRole = "owner",
+  plan = "Gratuit",
+  mode: UiMode = "simple",
+  toggleMode?: () => void,
+): PaletteEntry[] {
+  const pages = shellNavGroups(route, desktop, mode, role, plan).flatMap((group) =>
     group.items.map((item: ShellNavItem) => ({ href: item.href, label: item.label, group: group.title, icon: item.icon })),
   );
+  if (toggleMode === undefined) return pages;
+  const expert = mode === "expert";
+  return [...pages, { href: "", label: expert ? "Revenir au mode Simple" : "Passer en mode Expert", group: "Affichage", icon: "settings", run: toggleMode }];
 }
 
 /** Minuscules sans accents : « a valider » trouve « À valider ». */
@@ -48,7 +61,7 @@ export function paletteListHtml(entries: PaletteEntry[], activeIndex: number): s
       const selected = index === activeIndex;
       return (
         `<li class="app-palette-item${selected ? " active" : ""}" id="app-palette-opt-${index}" role="option" ` +
-        `aria-selected="${selected ? "true" : "false"}" data-href="${esc(entry.href)}">` +
+        `aria-selected="${selected ? "true" : "false"}" data-index="${index}"${entry.href === "" ? "" : ` data-href="${esc(entry.href)}"`}>` +
         `${icon(entry.icon)}<span class="app-palette-label">${esc(entry.label)}</span>` +
         `<span class="app-palette-group">${esc(entry.group)}</span></li>`
       );
@@ -98,7 +111,13 @@ export function closePalette(restoreFocus = true): void {
   if (restoreFocus && trigger !== null && document.contains(trigger)) trigger.focus();
 }
 
-function go(href: string): void {
+function go(entry: PaletteEntry): void {
+  if (entry.run !== undefined) {
+    closePalette();
+    entry.run();
+    return;
+  }
+  const href = entry.href;
   closePalette(false);
   if (location.hash === href) document.getElementById("view")?.focus();
   else location.hash = href;
@@ -147,7 +166,7 @@ export function mountPalette(entries: () => PaletteEntry[]): void {
     } else if (event.key === "Enter") {
       event.preventDefault();
       const entry = state.shown[state.active];
-      if (entry !== undefined) go(entry.href);
+      if (entry !== undefined) go(entry);
     } else if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
@@ -158,9 +177,9 @@ export function mountPalette(entries: () => PaletteEntry[]): void {
     }
   });
   list.addEventListener("click", (event) => {
-    const item = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-href]");
-    const href = item?.dataset["href"];
-    if (href !== undefined) go(href);
+    const item = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-index]");
+    const entry = state?.shown[Number(item?.dataset["index"])];
+    if (entry !== undefined) go(entry);
   });
   if (!keyListener) {
     keyListener = true;

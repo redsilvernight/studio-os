@@ -35,7 +35,7 @@ import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } fr
 import { mountSkillsSync } from "./skillsSync";
 import { parseRoute } from "./router";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
-import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
+import { applyUiMode, loadUiMode, switchUiMode, toggledUiMode } from "./uiMode";
 import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
 import { mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
 import { listStudios, probeServer, type StudiosClient } from "./studiosApi";
@@ -470,7 +470,7 @@ export function webConnectionView(authed: boolean): Parameters<typeof paintConne
 }
 
 function paintNavAndConnection(route: Route, authed: boolean): void {
-  syncNav(route, document, getDesktopShell() !== null, loadNavMode(), studioRole(), studioPlan());
+  syncNav(route, document, getDesktopShell() !== null, loadUiMode(), studioRole(), studioPlan());
   if (getDesktopShell() === null) paintConnection(webConnectionView(authed), document);
   else syncAuthState(authed, document);
 }
@@ -524,7 +524,7 @@ function mountStudioSelector(client: ReturnType<typeof createApiClient>): void {
       syncStudioSelector(document, { status: "ready", studios: result.studios, activeId: active.id });
       // La barre dépend du rôle (Abonnement) et du plan (pastille) : repeint.
       paintNavAndConnection(parseRoute(location.hash), hasToken());
-      mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null, studioRole(), studioPlan()));
+      mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null, studioRole(), studioPlan(), loadUiMode(), () => switchUiMode(toggledUiMode(loadUiMode()))));
     },
     () => {
       syncStudioSelector(document, { status: "error" });
@@ -594,29 +594,23 @@ function mountStudioSelector(client: ReturnType<typeof createApiClient>): void {
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
+  applyUiMode(loadUiMode());
   app.innerHTML = shellHtml(
     parseRoute(location.hash),
     hasToken(),
     getDesktopShell() !== null,
-    loadNavMode(),
+    loadUiMode(),
     loadThemeMode(),
   );
   paintShellStatus(document);
   mountSkillsSync(getPlatform());
   paintUpdateBanner(document);
-  mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null, studioRole(), studioPlan()));
+  mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null, studioRole(), studioPlan(), loadUiMode(), () => switchUiMode(toggledUiMode(loadUiMode()))));
   mountAdminFlyout();
   const shellClient = createApiClient(resolveApiUrl(apiBaseUrl()));
   mountStudioSelector(shellClient);
   if (getDesktopShell() === null && hasToken()) void probeWebServer(resolveApiUrl(apiBaseUrl()), true);
 
-  // P06 : bascule de présentation seule — même route, mêmes données ; le shell
-  // est reconstruit puis la vue courante repeinte (aucune navigation).
-  document.getElementById("nav-mode-toggle")?.addEventListener("click", () => {
-    saveNavMode(toggledNavMode(loadNavMode()));
-    mountShell();
-    document.getElementById("nav-mode-toggle")?.focus();
-  });
   // Thème : le choix est appliqué aussitôt (aucun re-rendu nécessaire) et
   // mémorisé sur le poste ; « système » retire l'attribut, le CSS décide.
   const themeSelect = document.getElementById("theme-select");

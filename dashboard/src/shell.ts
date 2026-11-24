@@ -11,7 +11,7 @@
  * (Ctrl K) sur ces mêmes destinations — pas de recherche globale : aucun
  * backend ne la supporte. Un seul statut de connexion, sous l'avatar (C4).
  */
-import type { NavMode } from "./navMode";
+import type { UiMode } from "./uiMode";
 import type { Route } from "./router";
 import { THEME_LABELS, THEME_MODES, type ThemeMode } from "./theme";
 import { esc } from "./ui";
@@ -81,7 +81,7 @@ export function icon(name: string): string {
 export function shellNavGroups(
   route: Route,
   desktop = false,
-  mode: NavMode = "simple",
+  mode: UiMode = "simple",
   role: StudioRole = "owner",
   plan = "Gratuit",
 ): ShellNavGroup[] {
@@ -248,18 +248,6 @@ function themeSelectorHtml(mode: ThemeMode): string {
   );
 }
 
-/**
- * Bascule simple ↔ complet, pied de barre latérale. `aria-pressed` = mode
- * complet actif ; le libellé ne change pas (l'état porte l'information).
- */
-function navModeToggleHtml(mode: NavMode): string {
-  const pressed = mode === "complete";
-  return (
-    `<button class="app-navmode" type="button" id="nav-mode-toggle" data-testid="nav-mode-toggle" aria-pressed="${pressed}" ` +
-    `title="Afficher toutes les pages en permanence">${icon("menu")}${labelHtml("Navigation complète", "Tout")}</button>`
-  );
-}
-
 type ConnectionLevel = "ok" | "info" | "warn" | "error";
 
 export interface ConnectionView {
@@ -328,7 +316,7 @@ function paletteHtml(): string {
  * Coquille complète. `authed` pilote le bloc compte (jamais de contenu
  * inventé : état jeton + déconnexion = mécanisme existant relocalisé).
  */
-export function shellHtml(route: Route, authed: boolean, desktop = false, mode: NavMode = "simple", theme: ThemeMode = "system"): string {
+export function shellHtml(route: Route, authed: boolean, desktop = false, mode: UiMode = "simple", theme: ThemeMode = "system"): string {
   const groups = shellNavGroups(route, desktop, mode)
     .map((group, index) => navGroupHtml(group, index))
     .join("");
@@ -344,7 +332,6 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
     <button class="app-cmdk" type="button" id="palette-open" aria-haspopup="dialog" aria-controls="app-palette" aria-keyshortcuts="Control+K" title="Aller à… (Ctrl K)">${icon("goto")}<span class="app-lbl-full">Aller à…</span><kbd class="app-lbl-full" aria-hidden="true">Ctrl K</kbd></button>
     <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
     ${themeSelectorHtml(theme)}
-    ${navModeToggleHtml(mode)}
     <div class="app-me${authed ? "" : " app-me--guest"}">
       <span class="app-avatar" aria-hidden="true">${icon("person")}</span>
       ${connectionStatusHtml(webConnection(authed))}
@@ -372,7 +359,7 @@ export function syncNav(
   route: Route,
   root: ParentNode,
   desktop = false,
-  mode: NavMode = "simple",
+  mode: UiMode = "simple",
   role: StudioRole = "owner",
   plan = "Gratuit",
 ): void {

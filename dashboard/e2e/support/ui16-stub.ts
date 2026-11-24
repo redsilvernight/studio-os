@@ -179,6 +179,7 @@ export function apiStub(captured: Captured, options: StubOptions = {}) {
       // re-rendant la vue et invalidant l'état local (pagination, focus…).
       return new Promise<void>(() => {});
     }
+    if (/\/api\/v1\/studios\/[^/]+\/entitlements/.test(url)) return json(200, { studio_id: "00000000-0000-4000-8000-0000000000a1", plan: "free", limits: [], counters: [], upgrade_url: "/billing", generated_at: "2026-09-12T10:00:00Z" });
     if (url.endsWith("/api/v1/resolutions")) return json(200, { agent: null, rules: [], skills: [], requirements: {}, composed_agents: [], workflows: [], model_profile: null, runtime: null });
     if (method === "GET" && /\/api\/v1\/machines\/?$/.test(url)) return json(404, { detail: "not found" });
     if (/\/api\/v1\/projects\/[^/]+\/state$/.test(url)) return json(200, { project_id: P1, active_tasks: [], active_claims: [], generated_at: "2026-09-12T10:00:00Z" });

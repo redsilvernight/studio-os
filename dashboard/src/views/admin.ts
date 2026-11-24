@@ -15,6 +15,7 @@ import { describeError, esc, fmtTime } from "../ui";
 import "./admin.css";
 import { sfx } from "../format";
 import { UI_LABEL } from "../language";
+import { loadUiMode, switchUiMode, type UiMode } from "../uiMode";
 
 export interface AdminFamily {
   href: string;
@@ -108,7 +109,14 @@ export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
   return cards;
 }
 
-export function adminOverviewHtml(data?: AdminOverviewData, loading = false): string {
+/** Réglage d'affichage : Expert ajoute des détails sans retirer ni déplacer rien du mode Simple. */
+export function uiModeSettingHtml(mode: UiMode): string {
+  return `<section class="ds-panel admin-display" aria-label="Affichage"><header><h2>Affichage</h2></header><div class="body">` +
+    `<label class="admin-mode"><input type="checkbox" data-ui-mode-toggle${mode === "expert" ? " checked" : ""}> Mode Expert</label>` +
+    `<p class="ds-list-sub">Ajoute les identifiants copiables et les termes techniques. Rien n'est retiré ni déplacé par rapport au mode Simple.</p></div></section>`;
+}
+
+export function adminOverviewHtml(data?: AdminOverviewData, loading = false, mode: UiMode = loadUiMode()): string {
   const indicators = data === undefined ? [] : adminIndicators(data);
   const attention = indicators.filter((item) => item.attention);
   const next = attention[0];
@@ -124,7 +132,7 @@ export function adminOverviewHtml(data?: AdminOverviewData, loading = false): st
   return (
     `<div class="admin">` +
     `${dsPageHeader(UI_LABEL.administration, "État et actions sur les ressources de votre compte.")}` +
-    `<div class="admin-main">${hero}<div class="admin-refresh"><p class="ds-list-sub" role="status">${data === undefined ? "Chargement des indicateurs…" : `Consulté le ${esc(fmtTime(data.checkedAt))}. Actualisation manuelle.`}</p><button class="ds-btn" type="button" data-admin-refresh${loading ? " disabled" : ""}>Actualiser</button></div>${context}${families}</div>` +
+    `<div class="admin-main">${hero}<div class="admin-refresh"><p class="ds-list-sub" role="status">${data === undefined ? "Chargement des indicateurs…" : `Consulté le ${esc(fmtTime(data.checkedAt))}. Actualisation manuelle.`}</p><button class="ds-btn" type="button" data-admin-refresh${loading ? " disabled" : ""}>Actualiser</button></div>${context}${families}${uiModeSettingHtml(mode)}</div>` +
     `</div>`
   );
 }
@@ -162,6 +170,9 @@ export async function renderAdmin(root: HTMLElement, ctx?: AdminContext): Promis
     data = await loadAdminOverview(ctx);
     root.innerHTML = adminOverviewHtml(data);
     root.querySelector("[data-admin-refresh]")?.addEventListener("click", () => { void load(); });
+    root.querySelector<HTMLInputElement>("[data-ui-mode-toggle]")?.addEventListener("change", (event) => {
+      switchUiMode((event.target as HTMLInputElement).checked ? "expert" : "simple");
+    });
   };
   await load();
 }
