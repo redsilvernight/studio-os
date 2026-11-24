@@ -16,7 +16,7 @@ const content = {
   scripts: [{ os: "windows", shell: "pwsh", body: "Write-Output 'ok'" }, { os: "linux", shell: "bash", body: "echo ok" }],
 };
 
-describe("Bibliothèque Hooks", () => {
+describe("Savoir-faire Hooks", () => {
   it("ouvre les listes et détails depuis le sixième type", () => {
     expect(kindFromSlug("hooks")?.kind).toBe("hook");
     expect(libraryKindHref("hook", "h1")).toBe("#/library/hooks/h1");

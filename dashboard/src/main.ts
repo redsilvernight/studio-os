@@ -35,7 +35,7 @@ import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } fr
 import { mountSkillsSync } from "./skillsSync";
 import { parseRoute } from "./router";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
-import { applyUiMode, loadUiMode, switchUiMode, toggledUiMode } from "./uiMode";
+import { applyUiMode, loadUiMode, switchUiMode, toggledUiMode, watchExpertMode } from "./uiMode";
 import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
 import { mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
 import { listStudios, probeServer, type StudiosClient } from "./studiosApi";
@@ -631,6 +631,7 @@ function mountShell(): void {
   });
   if (!shellListenersMounted) {
     shellListenersMounted = true;
+    watchExpertMode(app, loadUiMode);
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !isDrawerOpen()) return;
       if ((event.target as HTMLElement | null)?.closest(".ds-overlay") !== null) return;

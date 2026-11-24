@@ -46,7 +46,7 @@ export interface AdmissionPanelContext {
 const MAX_BATCH_ITEMS = 50;
 
 const EXCLUSION_REASON_FR: Record<AdmissionExclusionReason, string> = {
-  roadmap_not_active: "la roadmap n'est plus active",
+  roadmap_not_active: "le plan n'est plus actif",
   dependency_pending: "une dépendance est en attente",
   task_data_missing: "des données de tâche manquent",
   task_completed: "la tâche est déjà terminée",
@@ -247,7 +247,7 @@ function confirmationHtml(state: PanelState, uid: string): string {
     : `<button class="ds-btn ds-btn--primary" type="button" data-admission-submit>Lancer ${count} tâche${sfx(count)}</button>`;
   return `<div class="ds-overlay" data-admission-confirmation role="alertdialog" aria-modal="true" aria-labelledby="admission-confirmation-${uid}">` +
     `<div class="ds-modal"><h3 id="admission-confirmation-${uid}">Confirmer le lancement</h3>` +
-    `<p>${count} tâche${sfx(count)} sur le harnais <code class="mono">${esc(body.harness_id)}</code> · empreinte du plan <code class="mono">${esc(shortDigest(body.plan_digest))}</code></p>` +
+    `<p>${count} tâche${sfx(count)} sur l'outil IA <code class="mono">${esc(body.harness_id)}</code> · empreinte du plan <code class="mono">${esc(shortDigest(body.plan_digest))}</code></p>` +
     `<ul class="admission-confirmation-tasks">${rows}</ul>` +
     `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-admission-cancel>Annuler</button>${submit}</div>` +
     `</div></div>`;
@@ -496,7 +496,7 @@ export async function renderAdmissionPanelInto(root: HTMLElement, ctx: Admission
       dsSectionHeader("Lancer un lot") +
       `<p class="ds-list-sub">Le serveur calcule seul l'éligibilité et l'ordre ; ce panneau affiche son dry-run et lui renvoie son empreinte après confirmation.</p>` +
       resumeNoticeHtml(current) +
-      `<div class="admission-toolbar"><label>Harnais <select data-admission-harness>${harnessOptions}</select></label>` +
+      `<div class="admission-toolbar"><label>Outil IA <select data-admission-harness>${harnessOptions}</select></label>` +
       `<button class="ds-btn" type="button" data-admission-preview>Prévisualiser les tâches disponibles</button></div>` +
       planBodyHtml(current) +
       (current.confirmation && current.confirmBody !== null ? confirmationHtml(current, uid) : "") +

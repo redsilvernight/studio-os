@@ -27,8 +27,8 @@ const SIDEBAR_TARGETS: readonly LegacyTarget[] = [
   { was: "Accueil", href: "#/", via: "sidebar" },
   { was: "Projets", href: "#/projects", via: "sidebar" },
   { was: "Tâches", href: "#/tasks", via: "sidebar" },
-  { was: "Agents IA", href: "#/agents", via: "sidebar" },
-  { was: "Bibliothèque", href: "#/library", via: "sidebar" },
+  { was: "Équipe IA", href: "#/agents", via: "sidebar" },
+  { was: "Savoir-faire", href: "#/library", via: "sidebar" },
   { was: "Décisions / À examiner", href: "#/decisions", via: "sidebar" },
   { was: "Graphes", href: "#/vault", via: "sidebar" },
 ];
@@ -68,7 +68,7 @@ async function reachLegacyTarget(page: Page, target: LegacyTarget): Promise<numb
   }
   // Coque Atelier : une entrée Réglages, puis la famille dans la page.
   await page.locator('.app-sidebar a[href="#/administration"]').click();
-  await expect(page.locator("#view h1")).toContainText("Administration");
+  await expect(page.locator("#view h1")).toContainText("Réglages");
   await page.locator(`#view .admin-fams a[href="${target.href}"]`).click();
   return 2;
 }

@@ -106,15 +106,15 @@ export function inspectorFormHtml(stableKey: string | null, projectId: string | 
     `<form class="stack-form inspector-form" data-resolve>` +
     `<div class="inspector-form-section">` +
     `<h3>Demande d'inspection</h3>` +
-    `<label class="stack">Clé stable AgentDefinition <input name="stable_key" list="agent-keys" value="${esc(stableKey ?? "")}" placeholder="ex : review-helper" required /></label>` +
+    `<label class="stack">Identifiant du profil d'agent <input name="stable_key" list="agent-keys" value="${esc(stableKey ?? "")}" placeholder="ex : review-helper" required /></label>` +
     `<datalist id="agent-keys">${options}</datalist>` +
     `<label class="stack">Projet (contexte optionnel) <select name="project_id"><option value="">Sans contexte projet</option>${projectOptions}</select><span class="meta">${projects.length === 0 ? "Aucun projet accessible. Vous pouvez inspecter sans contexte projet." : "Choisissez le projet de l’inspection."}</span></label>` +
     `</div>` +
     `<details class="editor inspector-form-section"><summary>Remplacement de session éphémère — non persisté</summary>` +
     `<label class="check">Activer le remplacement <input name="enable_override" type="checkbox" /></label>` +
     `<label class="stack">Type de cible <select name="override_target_kind"><option value="agent_definition">Agent Definition</option><option value="model_profile">Model Profile</option></select></label>` +
-    `<label class="stack">Clé stable cible <input name="override_stable_key" placeholder="clé stable à remplacer" /></label>` +
-    `<label class="stack">Runtime registry ID <input name="override_runtime_id" placeholder="identifiant du registre (exclusif des ancres inline)" /></label>` +
+    `<label class="stack">Identifiant cible <input name="override_stable_key" placeholder="identifiant à remplacer" /></label>` +
+    `<label class="stack">Moteur IA registry ID <input name="override_runtime_id" placeholder="identifiant du registre (exclusif des ancres inline)" /></label>` +
     `<label class="stack">Machine ID <input name="override_machine_id" placeholder="poste cible" /></label>` +
     `<label class="stack">Harness ref <input name="override_harness_ref" placeholder="chaîne ouverte" /></label>` +
     `<label class="stack">Provider ref <input name="override_provider_ref" placeholder="chaîne ouverte" /></label>` +
@@ -222,14 +222,14 @@ export function modelProfileHtml(profile: ResolvedModelProfile | null | undefine
 export function runtimeHtml(runtime: ResolvedRuntime | null | undefined): string {
   if (runtime == null) {
     return dsEmptyState(
-      "Aucun binding runtime sélectionné",
+      "Aucune affectation runtime sélectionné",
       "Définition canonique résolue sans runtime applicable. C'est un résultat valide, pas un échec.",
     );
   }
   const target = runtime.target;
   const refs = [
     target.runtime_id !== null && target.runtime_id !== undefined
-      ? `Runtime registry : ${configLink(`#/configuration/runtimes/${target.runtime_id}`, target.runtime_id)}`
+      ? `Moteur IA registry : ${configLink(`#/configuration/runtimes/${target.runtime_id}`, target.runtime_id)}`
       : null,
     target.harness_ref !== null && target.harness_ref !== undefined ? `Harness : <code class="mono">${esc(target.harness_ref)}</code>` : null,
     target.provider_ref !== null && target.provider_ref !== undefined ? `Provider : <code class="mono">${esc(target.provider_ref)}</code>` : null,
@@ -244,7 +244,7 @@ export function runtimeHtml(runtime: ResolvedRuntime | null | undefined): string
     `<dl class="detail-grid">` +
     `<dt>Binding gagnant</dt><dd><strong>${esc(bindingLevelLabel(runtime.level))}</strong></dd>` +
     `<dt>Clé matchée</dt><dd>${esc(kindMeta(runtime.matched_kind).singular)} <code class="mono">${esc(runtime.matched_stable_key)}</code></dd>` +
-    `<dt>Cible runtime</dt><dd>${refs !== "" ? refs : '<span class="meta">aucune ancre</span>'}</dd>` +
+    `<dt>Cible du moteur</dt><dd>${refs !== "" ? refs : '<span class="meta">aucune ancre</span>'}</dd>` +
     `<dt>Capacités déclarées</dt><dd>${entriesTable(capabilityEntries(target.capabilities), "aucune déclarée", "Capacités déclarées")}</dd>` +
     `<dt>Provenance</dt><dd>${runtime.provenance != null ? esc(provenanceReason(runtime.provenance)) : '<span class="meta">—</span>'}</dd>` +
     `</dl>`
@@ -436,7 +436,7 @@ export function resolutionResultHtml(resolved: ResolvedAgentDefinition): string 
     `<div class="tool-main">` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-identity"><header><h2 id="inspector-identity">Identité résolue</h2></header><div class="body">${identityHtml(resolved)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-model-profile"><header><h2 id="inspector-model-profile">Model Profile et exigences</h2></header><div class="body">${modelProfileHtml(resolved.model_profile)}</div></section>` +
-    `<section class="ds-panel inspector-section" aria-labelledby="inspector-runtime"><header><h2 id="inspector-runtime">Runtime sélectionné</h2></header><div class="body">${runtimeHtml(resolved.runtime)}</div></section>` +
+    `<section class="ds-panel inspector-section" aria-labelledby="inspector-runtime"><header><h2 id="inspector-runtime">Moteur IA sélectionné</h2></header><div class="body">${runtimeHtml(resolved.runtime)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-compatibility"><header><h2 id="inspector-compatibility">Compatibilité — exigences vs runtime</h2></header><div class="body">${compatibilityComparisonHtml(resolved)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-rules"><header><h2 id="inspector-rules">Règles (${(resolved.rules ?? []).length})</h2></header><div class="body">${rulesTableHtml(resolved.rules)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-skills"><header><h2 id="inspector-skills">Compétences (${(resolved.skills ?? []).length})</h2></header><div class="body">${skillsTableHtml(resolved.skills)}</div></section>` +
@@ -446,12 +446,12 @@ export function resolutionResultHtml(resolved: ResolvedAgentDefinition): string 
 }
 
 export async function renderInspector(root: HTMLElement, ctx: InspectorContext): Promise<void> {
-  const title = "Inspecteur de résolution";
+  const title = "Diagnostic";
   const subtitle =
-    "Le serveur décide, cette page explique : lecture pure sur POST /resolutions, aucun binding créé ni modifié.";
+    "Le serveur décide, cette page explique : lecture pure sur POST /resolutions, aucune affectation créée ni modifiée.";
   if (!ctx.authed) {
     root.innerHTML =
-      `<p class="ds-eyebrow">Administration · Lecture seule</p>` +
+      `<p class="ds-eyebrow">Réglages · Lecture seule</p>` +
       dsPageHeader(title, subtitle) +
       dsStateHtml("empty", {
         title: "Non connecté",
@@ -461,7 +461,7 @@ export async function renderInspector(root: HTMLElement, ctx: InspectorContext):
     return;
   }
 
-  root.innerHTML = `<p class="ds-eyebrow">Administration · Lecture seule</p>` + dsPageHeader(title, subtitle) + dsStateHtml("loading", { title: "Préparation", message: "Chargement des projets et des clés connues." });
+  root.innerHTML = `<p class="ds-eyebrow">Réglages · Lecture seule</p>` + dsPageHeader(title, subtitle) + dsStateHtml("loading", { title: "Préparation", message: "Chargement des projets et des clés connues." });
 
   let agentKeys: string[] = [];
   let projects: AgentProject[] = [];
@@ -480,7 +480,7 @@ export async function renderInspector(root: HTMLElement, ctx: InspectorContext):
 
   const projectId = uiState.selectedProjectId;
   root.innerHTML =
-    `<p class="ds-eyebrow">Administration · Lecture seule</p>` +
+    `<p class="ds-eyebrow">Réglages · Lecture seule</p>` +
     dsPageHeader(title, subtitle) +
     `<div class="inspector-grid">` +
     `<div class="inspector-form-panel">${projectError === undefined ? "" : `<div class="ds-notice ds-notice--danger" role="alert">Impossible de charger les projets : ${esc(describeError(projectError))}.<button type="button" class="ds-btn ds-btn--sm" data-projects-retry>Réessayer</button></div>`}${inspectorFormHtml(ctx.stableKey, projectId, agentKeys, projects)}</div>` +
@@ -500,7 +500,7 @@ export async function renderInspector(root: HTMLElement, ctx: InspectorContext):
 function emptyResultHtml(): string {
   return dsStateHtml("empty", {
     title: "Aucune inspection lancée",
-    message: "Choisissez une clé stable puis lancez une résolution : le serveur répondra par l'identité résolue, le runtime retenu, la compatibilité et la provenance.",
+    message: "Choisissez un identifiant puis lancez une résolution : le serveur répondra par l'identité résolue, le moteur retenu, la compatibilité et la provenance.",
   });
 }
 

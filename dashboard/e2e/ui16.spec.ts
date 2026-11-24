@@ -132,8 +132,8 @@ test.describe("UI-16 copy, routes et liens", () => {
     await login(page, "#/", newCaptured());
     await go(page, "#/nimportequoi");
     await expect(page.locator("#view h1")).toContainText("Page introuvable");
-    await page.locator("#view").getByRole("link", { name: /Retour à l'Accueil/ }).click();
-    await expect(page.locator("#view h1")).toContainText("Accueil");
+    await page.locator("#view").getByRole("link", { name: /Retour à Aujourd'hui/ }).click();
+    await expect(page.locator("#view h1")).toContainText("Aujourd'hui");
     expectClean(watch);
   });
 
@@ -214,7 +214,7 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
     await del.click();
     const message = await answerConfirm(page, false);
     expect(message).toContain("Cette règle d'affectation disparaît");
-    expect(message).toContain("le runtime visé n'est pas supprimé");
+    expect(message).toContain("le moteur visé n'est pas supprimé");
     expect(captured.bindingDeletes).toEqual([]);
     await del.click();
     await answerConfirm(page, true);
@@ -233,7 +233,7 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
     await expect(view).not.toContainText("verrou souple");
     await view.locator("[data-release]").click();
     const message = await answerConfirm(page, false);
-    expect(message).toContain("Libérer la réservation « ");
+    expect(message).toContain("Libérer le fichier occupé « ");
     expect(message).toContain("détenue par la machine");
     expect(captured.claimReleases).toEqual([]);
     await view.locator("[data-release]").click();
@@ -430,7 +430,7 @@ test.describe("UI-16 navigation, focus et stress", () => {
     await page.fill("#login-password", "e2e-secret");
     await page.locator("#login-form button[type=submit]").click();
     await expect(page.locator(".app-sidebar")).toBeVisible();
-    await expect(page.locator("#view h1")).toContainText("Accueil");
+    await expect(page.locator("#view h1")).toContainText("Aujourd'hui");
     expectClean(watch);
   });
 });

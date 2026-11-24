@@ -163,11 +163,11 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
 
   test("API Roadmap en erreur : alerte claire, le reste du projet reste utilisable", async ({ page }) => {
     await openRoadmap(page, { roadmapsStatus: 500 });
-    await expect(page.locator("#workspace-panel [role=alert]")).toContainText("Roadmap indisponible");
+    await expect(page.locator("#workspace-panel [role=alert]")).toContainText("Plan indisponible");
     await page.locator('[data-ws-tab="tasks"]').click();
     await expect(page.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
     // the Roadmap failure stays confined to the Roadmap tab
-    await expect(page.locator("#workspace-panel")).not.toContainText("Roadmap indisponible");
+    await expect(page.locator("#workspace-panel")).not.toContainText("Plan indisponible");
   });
 
   test("décision refusée par le serveur (base périmée) : erreur visible, proposition intacte", async ({ page }) => {
@@ -184,7 +184,7 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
     await openRoadmap(page, { phases: 12 });
     await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
     await expect(page.locator("[data-current-step]")).toBeVisible();
-    await page.getByRole("tab", { name: "Plan" }).click();
+    await page.locator("button[data-mode=plan]").click();
     await expect(page.locator(".roadmap-timeline h3", { hasText: "Phase 12" })).toBeVisible();
     expect(await globalOverflow(page)).toBe(0);
   });

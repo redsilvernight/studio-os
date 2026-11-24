@@ -201,11 +201,11 @@ test.describe("UI-13 navigation et shell", () => {
     await go(page, "#/tasks");
     await expect(view.locator(".task-row")).toHaveCount(2);
     await go(page, "#/agents");
-    await expect(view.locator("h1")).toContainText("Agents");
+    await expect(view.locator("h1")).toContainText("Équipe IA");
     await page.goBack();
     await expect(view.locator("h1")).toContainText("Travail");
     await page.goForward();
-    await expect(view.locator("h1")).toContainText("Agents");
+    await expect(view.locator("h1")).toContainText("Équipe IA");
     expect(await page.locator(".app-shell").count()).toBe(1);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
@@ -218,8 +218,8 @@ test.describe("UI-13 navigation et shell", () => {
     const routes: [string, string][] = [
       ["#/projects", "Projets"],
       ["#/tasks", "Travail"],
-      ["#/agents", "Agents IA"],
-      ["#/configuration/runtimes", "Configuration"],
+      ["#/agents", "Équipe IA"],
+      ["#/configuration/runtimes", "Réglages"],
     ];
     for (const [route, title] of routes) {
       await go(page, route);
@@ -365,7 +365,7 @@ test.describe("UI-13 auth et navigation", () => {
     const view = page.locator("#view");
     await expect(view).toContainText("Page introuvable");
     await view.locator('a[href="#/"]').click();
-    await expect(view.locator("h1")).toContainText("Accueil");
+    await expect(view.locator("h1")).toContainText("Aujourd'hui");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });

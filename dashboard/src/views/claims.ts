@@ -1,5 +1,5 @@
 /**
- * Réservations de ressources d'un projet (onglet du workspace).
+ * Fichier occupés de ressources d'un projet (onglet du workspace).
  *
  * - Liste : GET /api/v1/claims?project_id (pas de pagination/filtre serveur) ;
  *   filtre d'état (actives par défaut) et pagination appliqués côté client.
@@ -10,7 +10,7 @@
  *   (détenteur ou admin, confirmation demandée).
  *
  * Vocabulaire : « réservation » (claim de ressource), à ne pas confondre avec
- * la prise en charge d'une tâche ni avec un verrou de Bibliothèque.
+ * la prise en charge d'une tâche ni avec une version figée de Bibliothèque.
  */
 import type { StudioClient } from "../api";
 import { createClaim, listClaims, releaseClaim, renewClaim, type ResourceClaim } from "../claimsApi";
@@ -53,7 +53,7 @@ function claimLiveliness(claim: ResourceClaim, now: number): ClaimLiveliness {
 /** Confirmation de libération : nomme le chemin et la machine détentrice. */
 export function releaseClaimConfirmText(claim: ResourceClaim): string {
   return (
-    `Libérer la réservation « ${claim.resource_path} », détenue par la machine ${machineLabel(claim.claimed_by_machine_id)} ? ` +
+    `Libérer le fichier occupé « ${claim.resource_path} », détenue par la machine ${machineLabel(claim.claimed_by_machine_id)} ? ` +
     `Les autres machines ne la verront plus comme détenue. Réservé au détenteur ou à un administrateur.`
   );
 }
@@ -68,8 +68,8 @@ export function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
         `<td>${machineRef(c.claimed_by_machine_id)}</td><td>${c.task_id ? `<a href="#/tasks/${esc(c.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` : "—"}</td>` +
         `<td>${dsBadge(LIVELINESS_LABEL[state], LIVELINESS_TONE[state])}</td>` +
         `<td>Expire le ${fmtTime(c.expires_at)}<br /><span class="ds-list-sub">durée ${formatDuration(c.ttl_seconds)}</span></td>` +
-        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +
-        `<button type="button" class="ds-btn ds-btn--sm" data-release="${esc(c.id)}" aria-label="Libérer la réservation ${esc(c.resource_path)}" ${authed && state !== "released" ? "" : "disabled"}>Libérer</button></td></tr>`
+        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler le fichier occupé ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +
+        `<button type="button" class="ds-btn ds-btn--sm" data-release="${esc(c.id)}" aria-label="Libérer le fichier occupé ${esc(c.resource_path)}" ${authed && state !== "released" ? "" : "disabled"}>Libérer</button></td></tr>`
       );
     })
     .join("");
@@ -81,19 +81,19 @@ function createFormHtml(authed: boolean): string {
     `<form data-create class="claims-form">` +
     dsField("claim-path", "Chemin", `<input class="ds-input" id="FIELD" name="resource_path" required placeholder="godot/scenes/level1.tscn" autocomplete="off"${off} />`) +
     dsField("claim-type", "Type", `<select class="ds-select" id="FIELD" name="resource_type"${off}><option value="file">Fichier</option><option value="folder">Dossier</option></select>`) +
-    dsField("claim-ttl", "Durée (minutes)", `<input class="ds-input" id="FIELD" name="ttl_minutes" type="number" min="1" value="60" required${off} />`, "La réservation expire d'elle-même à l'issue de cette durée.") +
+    dsField("claim-ttl", "Durée (minutes)", `<input class="ds-input" id="FIELD" name="ttl_minutes" type="number" min="1" value="60" required${off} />`, "Le fichier occupé expire d'elle-même à l'issue de cette durée.") +
     dsField("claim-task", "Tâche liée (facultatif)", `<input class="ds-input" id="FIELD" name="task_id" placeholder="identifiant de la tâche" autocomplete="off"${off} />`) +
-    `<p class="ds-list-sub">Une réservation prévient les autres sans rien bloquer : un chevauchement reste accepté et est signalé. Un envoi répété ne crée pas de doublon.</p>` +
-    `<button type="submit" class="ds-btn ds-btn--primary"${off}>Créer la réservation</button>` +
+    `<p class="ds-list-sub">Un fichier occupé prévient les autres sans rien bloquer : un chevauchement reste accepté et est signalé. Un envoi répété ne crée pas de doublon.</p>` +
+    `<button type="submit" class="ds-btn ds-btn--primary"${off}>Marquer le fichier occupé</button>` +
     `<div data-create-msg class="ds-list-sub" role="status"></div></form>`
   );
 }
 
 function panelHtml(subtitle: string, body: string): string {
-  return `<section class="ds-panel" aria-label="Réservations"><header><h2>Réservations</h2><span class="ds-list-sub">${esc(subtitle)}</span></header><div class="body">${body}</div></section>`;
+  return `<section class="ds-panel" aria-label="Fichiers occupés"><header><h2>Fichiers occupés</h2><span class="ds-list-sub">${esc(subtitle)}</span></header><div class="body">${body}</div></section>`;
 }
 
-/** Filtre d'état : par défaut seules les réservations encore actives sont listées. */
+/** Filtre d'état : par défaut seules les fichiers occupés encore actives sont listées. */
 export type ClaimFilter = "active" | "past" | "all";
 
 const CLAIMS_PAGE_SIZE = 10;
@@ -146,16 +146,16 @@ function listHtml(claims: ResourceClaim[], state: ViewState, authed: boolean): s
   state.page = paged.page;
   let table: string;
   if (claims.length === 0) {
-    return dsEmptyState("Aucune réservation", "Aucune ressource n'est réservée sur ce projet pour le moment.");
+    return dsEmptyState("Aucun fichier occupé", "Aucune ressource n'est réservée sur ce projet pour le moment.");
   }
   if (visible.length === 0) {
-    table = dsEmptyState("Aucune réservation à afficher", "Aucune réservation ne correspond à ce filtre.");
+    table = dsEmptyState("Aucun fichier occupé à afficher", "Aucun fichier occupé ne correspond à ce filtre.");
   } else {
-    table = `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Réservations du projet</caption><thead><tr><th scope="col">Chemin</th><th scope="col">Type</th><th scope="col">Machine</th><th scope="col">Tâche</th><th scope="col">État</th><th scope="col">Échéance</th><th scope="col">Actions</th></tr></thead><tbody>${rowsHtml(paged.items, authed)}</tbody></table></div>`;
+    table = `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Fichiers occupés du projet</caption><thead><tr><th scope="col">Chemin</th><th scope="col">Type</th><th scope="col">Machine</th><th scope="col">Tâche</th><th scope="col">État</th><th scope="col">Échéance</th><th scope="col">Actions</th></tr></thead><tbody>${rowsHtml(paged.items, authed)}</tbody></table></div>`;
   }
   const pager =
     paged.pages > 1
-      ? `<nav class="claims-pager" aria-label="Pagination des réservations"><button type="button" class="ds-btn ds-btn--sm" data-page="${paged.page - 1}"${paged.page <= 1 ? " disabled" : ""}>Précédent</button>` +
+      ? `<nav class="claims-pager" aria-label="Pagination des fichiers occupés"><button type="button" class="ds-btn ds-btn--sm" data-page="${paged.page - 1}"${paged.page <= 1 ? " disabled" : ""}>Précédent</button>` +
         `<span class="ds-list-sub" aria-live="polite">Page ${paged.page} sur ${paged.pages}</span>` +
         `<button type="button" class="ds-btn ds-btn--sm" data-page="${paged.page + 1}"${paged.page >= paged.pages ? " disabled" : ""}>Suivant</button></nav>`
       : "";
@@ -173,9 +173,9 @@ export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): P
     viewStates.set(root, state);
     const activeCount = filterClaims(claims, "active", Date.now()).length;
     root.innerHTML = panelHtml(
-      `${claims.length} réservation${sfx(claims.length)}, dont ${activeCount} active${sfx(activeCount)} · renouvellement et libération réservés au détenteur ou à un administrateur`,
+      `${claims.length} fichier${sfx(claims.length)} occupé${sfx(claims.length)}, dont ${activeCount} active${sfx(activeCount)} · renouvellement et libération réservés au détenteur ou à un administrateur`,
       `${ctx.authed ? "" : `<p class="ds-list-sub">Lecture seule : connectez-vous pour créer, renouveler ou libérer.</p>`}<div data-list></div>` +
-        `<div class="claims-create">${dsSectionHeader("Nouvelle réservation")}${createFormHtml(ctx.authed)}</div>` +
+        `<div class="claims-create">${dsSectionHeader("Nouveau fichier occupé")}${createFormHtml(ctx.authed)}</div>` +
         `<div data-msg class="ds-list-sub" role="status"></div>`,
     );
     const renderList = (): void => {
@@ -201,7 +201,7 @@ export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): P
   } catch (error) {
     root.innerHTML = panelHtml(
       "",
-      `<div class="ds-notice ds-notice--danger" role="alert"><strong>Réservations indisponibles.</strong> ${esc(describeError(error))}</div>`,
+      `<div class="ds-notice ds-notice--danger" role="alert"><strong>Fichiers occupés indisponibles.</strong> ${esc(describeError(error))}</div>`,
     );
   }
 }

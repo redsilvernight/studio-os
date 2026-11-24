@@ -70,13 +70,13 @@ const binding = (overrides: Partial<RuntimeBinding> = {}): RuntimeBinding =>
   }) as RuntimeBinding;
 
 describe("configTabsHtml", () => {
-  it("liste les domaines réels (Runtimes / Liaisons / Projet) en français", () => {
+  it("liste les domaines réels (Moteurs IA / Affectations / Projet) en français", () => {
     const html = configTabsHtml("bindings");
     expect(html).toContain("#/configuration/runtimes");
     expect(html).toContain("#/configuration/bindings");
     expect(html).toContain("#/configuration/project");
-    expect(html).toContain("Runtimes");
-    expect(html).toContain("Liaisons");
+    expect(html).toContain("Moteurs IA");
+    expect(html).toContain("Affectations");
     expect(html).toContain("Projet");
     expect(html).toMatch(/class="tab active" href="#\/configuration\/bindings"/);
     expect(html).toContain('aria-current="page"');
@@ -124,13 +124,13 @@ describe("runtimeHumanTitle", () => {
 
   it("ne fabrique jamais un titre à partir d'un UUID seul", () => {
     const title = runtimeHumanTitle(runtime({ harness_ref: null, provider_ref: null, model_ref: null, machine_id: "m-1" }));
-    expect(title).toBe("Runtime rattaché à une machine");
+    expect(title).toBe("Moteur IA rattaché à une machine");
     expect(title).not.toContain("m-1");
   });
 
-  it("signale un runtime sans référence", () => {
+  it("signale un moteur IA sans référence", () => {
     expect(runtimeHumanTitle(runtime({ harness_ref: null, provider_ref: null, model_ref: null, machine_id: null }))).toBe(
-      "Runtime sans référence déclarée",
+      "Moteur IA sans référence déclarée",
     );
   });
 });
@@ -243,7 +243,7 @@ describe("bindingTargetHtml", () => {
 
   it("retombe sur un libellé honnête si le runtime n'est pas chargé", () => {
     const html = bindingTargetHtml(binding(), new Map());
-    expect(html).toContain("Runtime sans nom");
+    expect(html).toContain("Moteur IA sans nom");
     expect(html).not.toContain("rt-1");
   });
 });
@@ -251,10 +251,10 @@ describe("bindingTargetHtml", () => {
 describe("runtimesPageHtml (rendu)", () => {
   it("rend une page Configuration française, sans table SQL, avec lien Inspecteur", () => {
     const html = runtimesPageHtml([runtime()]);
-    expect(html).toContain("Configuration");
-    expect(html).toContain("Administration / Configuration");
-    expect(html).toContain("Runtimes enregistrés");
-    expect(html).toContain("configuration qui permet d'exécuter un modèle");
+    expect(html).toContain("Réglages");
+    expect(html).toContain("Réglages / Moteurs IA");
+    expect(html).toContain("Moteurs IA enregistrés");
+    expect(html).toContain("réglage qui permet d'exécuter un modèle");
     expect(html).toContain("#/inspector");
     expect(html).toContain("#/configuration/runtimes/rt-1");
     expect(html).not.toContain("<table");
@@ -262,9 +262,9 @@ describe("runtimesPageHtml (rendu)", () => {
   });
 
   it("distingue empty / aucun résultat", () => {
-    expect(runtimesPageHtml([])).toContain("Aucun runtime enregistré");
+    expect(runtimesPageHtml([])).toContain("Aucun moteur IA enregistré");
     const filtered = runtimesPageHtml([runtime()]);
-    expect(filtered).not.toContain("Aucun runtime ne correspond");
+    expect(filtered).not.toContain("Aucun moteur IA ne correspond");
   });
 
   it("ne fuite aucun secret et n'expose pas de style/handler inline (CSP)", () => {
@@ -277,7 +277,7 @@ describe("runtimesPageHtml (rendu)", () => {
 describe("runtimeDetailHtml", () => {
   it("hiérarchise les informations humaines, technique replié, liens réels", () => {
     const html = runtimeDetailHtml(runtime({ machine_id: "m-1", runtime_metadata: { region: "eu" } }), [], null);
-    expect(html).toContain("Configuration du runtime");
+    expect(html).toContain("Réglages du moteur IA");
     expect(html).toContain("Informations techniques");
     expect(html).toContain('href="#/machines"');
     expect(html).toContain('href="#/inspector"');
@@ -296,14 +296,14 @@ describe("runtimeDetailHtml", () => {
     expect(html).toContain("region");
   });
 
-  it("dégrade partiellement : le runtime reste consultable si les bindings échouent", () => {
+  it("dégrade partiellement : le moteur reste consultable si les bindings échouent", () => {
     const html = runtimeDetailHtml(runtime(), null, "HTTP 503 · indisponible");
-    expect(html).toContain("Configuration du runtime");
-    expect(html).toContain("Liaisons indisponibles");
-    expect(html).toContain("le runtime reste consultable");
+    expect(html).toContain("Réglages du moteur IA");
+    expect(html).toContain("Affectations indisponibles");
+    expect(html).toContain("le moteur reste consultable");
   });
 
-  it("liste les bindings qui visent ce runtime avec leur niveau", () => {
+  it("liste les bindings qui visent ce moteur IA avec leur niveau", () => {
     const html = runtimeDetailHtml(runtime(), [binding()], null);
     expect(html).toContain("Personnel (privé)");
     expect(html).toContain("review-helper");
@@ -313,7 +313,7 @@ describe("runtimeDetailHtml", () => {
 describe("createRuntimeFormHtml", () => {
   it("décrit la création réelle mais garde les refs ouvertes", () => {
     const html = createRuntimeFormHtml();
-    expect(html).toContain("Déclarer un runtime");
+    expect(html).toContain("Déclarer un moteur IA");
     expect(html).toContain("chaînes ouvertes");
     expect(html).toContain("Un envoi répété ne crée pas de doublon.");
     expect(html).not.toContain("POST /runtimes");
@@ -322,31 +322,31 @@ describe("createRuntimeFormHtml", () => {
 });
 
 describe("runtimeVocabularyHtml", () => {
-  it("explique Poste / Agent / Runtime / Définition d'agent / Liaison sans identifiant interne", () => {
+  it("explique Poste / Agent / Moteur IA / Profil d'agent / Affectation sans identifiant interne", () => {
     const html = runtimeVocabularyHtml(false);
     expect(html).toContain("Comment ça s'articule");
-    for (const term of ["Poste", "Agent", "Runtime", "Définition d'agent", "Liaison"]) expect(html).toContain(`<dt>${term}</dt>`);
+    for (const term of ["Poste", "Agent", "Moteur IA", "Profil d'agent", "Affectation"]) expect(html).toContain(`<dt>${term}</dt>`);
     expect(html).toContain('href="#/library/');
     expect(html).not.toMatch(/_ref|_id|uuid/);
     expect(html).not.toContain(" open");
   });
 
-  it("s'ouvre sur la page Runtimes quand aucun runtime n'existe", () => {
+  it("s'ouvre sur la page Moteurs IA quand aucun runtime n'existe", () => {
     expect(runtimesPageHtml([])).toMatch(/<details class="settings-howto" open>/);
     expect(runtimesPageHtml([runtime()])).toMatch(/<details class="settings-howto">/);
   });
 });
 
 describe("libellés guidés", () => {
-  it("remplace provider/model/harness par Fournisseur / Modèle / Outil (harness)", () => {
+  it("remplace provider/model/harness par Fournisseur / Modèle / Outil", () => {
     const page = runtimesPageHtml([runtime()]);
     expect(page).toContain("Fournisseur");
-    expect(page).toContain("Outil (harness)");
+    expect(page).toContain("Outil");
     expect(page).not.toMatch(/>(Provider|Model|Harness)\b/);
     const detail = runtimeDetailHtml(runtime(), [], null);
     expect(detail).toContain("<dt>Fournisseur</dt>");
     expect(detail).toContain("<dt>Modèle</dt>");
-    expect(detail).toContain("<dt>Outil (harness)</dt>");
+    expect(detail).toContain("<dt>Outil</dt>");
     expect(runtimeTargetSummary(target({ provider_ref: "p", model_ref: "m" }))).toContain("Fournisseur");
   });
 

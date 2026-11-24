@@ -178,8 +178,8 @@ describe("taskDetailHtml nominal", () => {
     expect(html).toContain("Détails techniques");
   });
 
-  it("distingue prise de tâche et réservations de ressources", () => {
-    expect(html).toContain("À ne pas confondre avec les réservations de ressources");
+  it("distingue prise de tâche et fichiers occupés", () => {
+    expect(html).toContain("À ne pas confondre avec les fichiers occupés");
     expect(html).toContain("Libérer garde le statut tel quel");
   });
 
@@ -194,8 +194,8 @@ describe("taskDetailHtml nominal", () => {
     expect(text.match(/version 4/g)).toHaveLength(1);
   });
 
-  it("compteur de réservations best-effort : lien vers l'onglet Réservations", () => {
-    expect(html).toContain("Réservations de ressources liées : 2");
+  it("compteur de réservations best-effort : lien vers l'onglet Fichiers occupés", () => {
+    expect(html).toContain("Fichiers occupés liés : 2");
     expect(html).toContain(`#/projects/${P1}/claims`);
   });
 
@@ -392,7 +392,7 @@ describe("travail IA lisible, actions existantes préservées", () => {
 describe("best-effort claims : omis proprement en cas d'échec", () => {
   it("aucune mention bloquante quand le compteur est inconnu", () => {
     const html = taskDetailHtml(data({ sessions: null, worklogs: null, taskClaims: null }));
-    expect(html).not.toContain("Réservations de ressources liées");
+    expect(html).not.toContain("Fichiers occupés liés");
     expect(html).not.toContain("ds-notice--danger");
     expect(html).toContain("Optimiser les éclairages");
   });

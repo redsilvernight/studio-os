@@ -236,14 +236,14 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
 
 const newCaptured = (): Captured => ({ idempotencyKeys: [], createdRuntimes: [], createdBindings: [], patches: [], deletes: [] });
 
-test.describe("UI-12 Configuration — Runtimes", () => {
-  test("liste humaine FR : Runtime ≠ Agent ≠ Machine, ids secondaires, aucun secret", async ({ page }) => {
+test.describe("UI-12 Configuration — Moteurs IA", () => {
+  test("liste humaine FR : Moteur IA ≠ Agent ≠ Machine, ids secondaires, aucun secret", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
     await login(page, "#/configuration/runtimes", captured);
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Configuration");
-    await expect(view).toContainText("Runtimes enregistrés");
+    await expect(view.locator("h1")).toContainText("Réglages");
+    await expect(view).toContainText("Moteurs IA enregistrés");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(2);
     // Humain d'abord : refs ouvertes en titre, pas d'UUID en texte.
     await expect(view).toContainText("opencode · fournisseur-a · modele-grand");
@@ -274,11 +274,11 @@ test.describe("UI-12 Configuration — Runtimes", () => {
 
     await view.locator("#settings-runtimes-search").fill("modele-grand");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(1);
-    await expect(view).toContainText("1 runtime affiché sur 2 chargés");
+    await expect(view).toContainText("1 moteur affiché sur 2 chargés");
     await expect(view).toContainText("recherche et filtres locaux");
 
     await view.locator("#settings-runtimes-search").fill("zzz-introuvable");
-    await expect(view).toContainText("Aucun runtime ne correspond");
+    await expect(view).toContainText("Aucun moteur IA ne correspond");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(0);
 
     await view.locator("[data-reset]").click();
@@ -306,7 +306,7 @@ test.describe("UI-12 Configuration — Runtimes", () => {
     await login(page, `#/configuration/runtimes/${RT1}`, newCaptured());
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("opencode · fournisseur-a · modele-grand");
-    await expect(view).toContainText("Configuration du runtime");
+    await expect(view).toContainText("Réglages du moteur IA");
     await expect(view).toContainText("Capacités déclarées");
     await expect(view.locator('.settings-domain a[href="#/machines"]')).toHaveCount(1);
     await expect(view.locator('.settings-origin a[href="#/inspector"]')).toHaveCount(1);
@@ -330,7 +330,7 @@ test.describe("UI-12 Configuration — Runtimes", () => {
     await login(page, `#/configuration/runtimes/${RT1}`, captured, { patchConflict: true });
     const view = page.locator("#view");
     const form = view.locator("[data-runtime-update]");
-    await view.locator("details.settings-editor").filter({ hasText: "Modifier ce runtime" }).locator("> summary").click();
+    await view.locator("details.settings-editor").filter({ hasText: "Modifier ce moteur IA" }).locator("> summary").click();
     await form.locator('input[name="provider_ref"]').fill("fournisseur-modifie");
     await form.locator('button[type=submit]').click();
     await expect(form.locator("[data-msg]")).toContainText("409");
@@ -346,7 +346,7 @@ test.describe("UI-12 Configuration — Runtimes", () => {
     const captured = newCaptured();
     await login(page, "#/configuration/runtimes", captured, { slowCreate: true });
     const view = page.locator("#view");
-    await view.locator("details.settings-editor").filter({ hasText: "Déclarer un runtime" }).locator("> summary").click();
+    await view.locator("details.settings-editor").filter({ hasText: "Déclarer un moteur IA" }).locator("> summary").click();
     const form = view.locator("[data-runtime-create]");
     await form.locator('input[name="provider_ref"]').fill("fournisseur-nouveau");
     const submit = form.locator('button[type=submit]');
@@ -360,14 +360,14 @@ test.describe("UI-12 Configuration — Runtimes", () => {
   });
 });
 
-test.describe("UI-12 Configuration — Liaisons", () => {
+test.describe("UI-12 Configuration — Affectations", () => {
   test("niveaux FR, confidentialité, cible humaine résolue, suppression formulée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
     await login(page, "#/configuration/bindings", captured);
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Configuration");
-    await expect(view).toContainText("Règles d'affectation (bindings)");
+    await expect(view.locator("h1")).toContainText("Réglages");
+    await expect(view).toContainText("Règles d'affectation");
     await expect(view.locator(".settings-binding-row")).toHaveCount(3);
     await expect(view).toContainText("Personnel (privé)");
     await expect(view).toContainText("Projet — remplacement");
@@ -384,12 +384,12 @@ test.describe("UI-12 Configuration — Liaisons", () => {
     await view.locator("[data-reset]").click();
     await expect(view.locator(".settings-binding-row")).toHaveCount(3);
 
-    // Suppression : formulation « Supprimer ce binding », jamais « le runtime ».
+    // Suppression : formulation « Supprimer cette affectation », jamais « le runtime ».
     await view.locator(`[data-delete-binding="${B1}"]`).click();
     const confirmMessage = await answerConfirm(page, true);
     await expect.poll(() => captured.deletes.length).toBe(1);
-    expect(confirmMessage).toContain("Supprimer ce binding");
-    expect(confirmMessage).toContain("runtime visé n'est pas supprimé");
+    expect(confirmMessage).toContain("Supprimer cette affectation");
+    expect(confirmMessage).toContain("moteur visé n'est pas supprimé");
     await page.screenshot({ path: `${SHOTS}/settings-bindings-1280.png` });
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
@@ -400,7 +400,7 @@ test.describe("UI-12 Configuration — Liaisons", () => {
     const captured = newCaptured();
     await login(page, "#/configuration/bindings", captured);
     const view = page.locator("#view");
-    await view.locator("details.settings-editor").filter({ hasText: "Nouvelle liaison" }).locator("> summary").click();
+    await view.locator("details.settings-editor").filter({ hasText: "Nouvelle affectation" }).locator("> summary").click();
     const form = view.locator("[data-binding-create]");
     await form.locator('select[name="runtime_id"]').selectOption(RT1);
     await form.locator('input[name="target_stable_key"]').fill("review-helper");
@@ -418,12 +418,12 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/configuration/runtimes", newCaptured(), { empty: true });
     const view = page.locator("#view");
-    await expect(view).toContainText("Aucun runtime enregistré");
+    await expect(view).toContainText("Aucun moteur IA enregistré");
     await expect(view.locator(".ds-empty a")).toHaveCount(0);
     await page.screenshot({ path: `${SHOTS}/settings-vide-1280.png` });
 
     await page.goto("/#/configuration/bindings");
-    await expect(page.locator("#view")).toContainText("Aucun binding stocké");
+    await expect(page.locator("#view")).toContainText("Aucune affectation stocké");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -432,9 +432,9 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/configuration/runtimes/${RT1}`, newCaptured(), { bindingsFail: true });
     const view = page.locator("#view");
-    await expect(view).toContainText("Configuration du runtime");
-    await expect(view).toContainText("Liaisons indisponibles");
-    await expect(view).toContainText("le runtime reste consultable");
+    await expect(view).toContainText("Réglages du moteur IA");
+    await expect(view).toContainText("Affectations indisponibles");
+    await expect(view).toContainText("le moteur reste consultable");
 
     await page.goto("/#/configuration/bindings");
     await expect(page.locator("#view")).toContainText("Impossible de charger les bindings");
@@ -454,11 +454,11 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(view.locator("#settings-runtimes-search")).toBeVisible();
     await view.locator('.settings-runtime-row a[href^="#/configuration/runtimes/"]').first().click();
-    await expect(page.locator("#view")).toContainText("Configuration du runtime");
+    await expect(page.locator("#view")).toContainText("Réglages du moteur IA");
     await page.screenshot({ path: `${SHOTS}/settings-mobile-375.png` });
     await page.goto("/#/tasks");
     await page.goBack();
-    await expect(page.locator("#view")).toContainText("Configuration du runtime");
+    await expect(page.locator("#view")).toContainText("Réglages du moteur IA");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -479,7 +479,7 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/configuration/runtimes", newCaptured());
     const view = page.locator("#view");
-    await expect(view.locator('.tabs .tab[aria-current="page"]')).toContainText("Runtimes");
+    await expect(view.locator('.tabs .tab[aria-current="page"]')).toContainText("Moteurs IA");
     await expect(view.locator('[role="search"] #settings-runtimes-search')).toBeVisible();
     await expect(view.locator("#settings-runtimes-list")).toHaveAttribute("aria-live", "polite");
     await view.locator("#settings-runtimes-search").focus();

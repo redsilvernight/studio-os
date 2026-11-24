@@ -101,7 +101,7 @@ test("Ctrl K opens the « Aller à… » palette and navigates to the Studio gro
   await expect(page.locator("#app-palette")).toBeHidden();
 
   // The former "configuration" destination stays one click away in Réglages.
-  await expect(page.locator("#view h1")).toContainText("Administration");
+  await expect(page.locator("#view h1")).toContainText("Réglages");
   await page.locator('#view .admin-fams a[href="#/configuration/runtimes"]').click();
   await expect(page).toHaveURL(/#\/configuration\/runtimes$/);
 
@@ -117,7 +117,7 @@ test("P05-admin overview: one entry, six families, no identifier by default", as
   await login(page);
   await page.goto("/#/administration");
   const view = page.locator("#view");
-  await expect(view.locator("h1")).toContainText("Administration");
+  await expect(view.locator("h1")).toContainText("Réglages");
   for (const href of ["#/machines", "#/accounts", "#/transfers", "#/library", "#/configuration/runtimes", "#/workspaces"]) {
     await expect(view.locator(`a[href="${href}"]`).first()).toBeVisible();
   }

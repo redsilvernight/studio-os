@@ -143,7 +143,7 @@ describe("machinesLoadingHtml", () => {
   it("affiche un squelette accessible sans changement brutal", () => {
     const html = machinesLoadingHtml();
     expect(html).toContain("Postes");
-    expect(html).toContain("Administration / Postes");
+    expect(html).toContain("Réglages / Postes");
     expect(html).toContain("Chargement");
     expect(html).toContain('role="status"');
   });
@@ -154,7 +154,7 @@ describe("machinesPageHtml nominal", () => {
 
   it("titre et description humains, liste de cartes sans table SQL", () => {
     expect(html).toContain("<h1>Postes</h1>");
-    expect(html).toContain("Administration / Postes");
+    expect(html).toContain("Réglages / Postes");
     expect(html).toContain("Revoir le poste sans activité");
     expect(html).toContain("Poste de Flo");
     expect(html).toContain("<ul");

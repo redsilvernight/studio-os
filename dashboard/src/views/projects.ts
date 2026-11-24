@@ -60,12 +60,12 @@ export function filterProjects(projects: Project[], state: ProjectsPageState): P
 }
 
 export function projectsLoadingHtml(): string {
-  return `${dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son espace de travail.")}${dsSkeleton(4)}`;
+  return `${dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son dossier.")}${dsSkeleton(4)}`;
 }
 
 export function projectsUnauthenticatedHtml(): string {
   return (
-    `${dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son espace de travail.")}` +
+    `${dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son dossier.")}` +
     dsEmptyState(
       "Connectez-vous pour voir les projets",
       "Saisissez votre jeton machine pour charger la liste des projets.",
@@ -131,7 +131,7 @@ export interface ProjectsPageData {
 }
 
 export function projectsPageHtml(data: ProjectsPageData): string {
-  const header = dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son espace de travail.", [
+  const header = dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son dossier.", [
     { label: "+ Nouveau projet", id: "project-new", variant: "primary" },
   ]);
   const visible = filterProjects(data.projects, data.state);
@@ -251,7 +251,7 @@ export async function renderProjects(root: HTMLElement, ctx: { client: StudioCli
     projects = await fetchProjects(ctx.client);
   } catch (error) {
     root.innerHTML =
-      `${dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son espace de travail.")}` +
+      `${dsPageHeader("Projets", "Trouvez un projet pour l'ouvrir dans son dossier.")}` +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Projets indisponibles.</strong>${esc(describeError(error))}</div>`;
     return;
   }

@@ -19,7 +19,7 @@
  * - Propriétés en colonne latérale dès 1600 px, en ligne de métadonnées
  *   en dessous (wireframes P04-task-detail).
  * - Modification (PATCH + If-Match-Version affiché), prise en charge
- *   (claim/release machine — à ne pas confondre avec les réservations de
+ *   (claim/release machine — à ne pas confondre avec les fichiers occupés de
  *   ressources) : aucune fonction perdue.
  * - 409 version_conflict → explication humaine + relecture immédiate, AUCUN
  *   retry automatique : l'utilisateur réapplique consciemment.
@@ -278,8 +278,8 @@ function claimSectionHtml(task: Task, authed: boolean, canRelease: boolean): str
     `${dsSectionHeader("Prise en charge")}${stateLine}` +
     `<p class="ds-list-sub">Prendre signale que votre machine travaille dessus et passe le statut à « En cours ». ` +
     `Libérer garde le statut tel quel : modifiez-le explicitement si besoin.</p>` +
-    `<p class="ds-list-sub">À ne pas confondre avec les réservations de ressources (onglet Réservations du projet) : ` +
-    `ici, « prendre » désigne qui travaille sur la tâche, pas la réservation d'un fichier.</p>` +
+    `<p class="ds-list-sub">À ne pas confondre avec les fichiers occupés (onglet Fichiers occupés du projet) : ` +
+    `ici, « prendre » désigne qui travaille sur la tâche, pas un fichier occupé.</p>` +
     `<div class="tasks-footer">` +
     `<button class="ds-btn" type="button" data-claim${authed && !held ? "" : " disabled"}>Prendre cette tâche</button>` +
     `<button class="ds-btn" type="button" data-release${canRelease ? "" : " disabled"}>Libérer la tâche</button>` +
@@ -677,7 +677,7 @@ export function taskDetailHtml(data: TaskDetailData): string {
   const claimsLine =
     data.taskClaims === null
       ? ""
-      : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Réservations du projet</a>.</p>`;
+      : `<p class="ds-list-sub">Fichiers occupés liés : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Fichiers occupés du projet</a>.</p>`;
   return `<div class="tasks task-detail">${heroHtml(task, data, held)}${notice}` +
     `<div class="task-detail-body"><div class="task-detail-main">` +
     // Prioritaires et ouverts : ce qui coince, ce qui attend une décision,

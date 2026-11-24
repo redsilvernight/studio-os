@@ -87,7 +87,7 @@ export function desiredHtml(
   if (desired === null || desired === undefined) {
     if (desiredError !== null && desiredError !== undefined && desiredError !== "") {
       return (
-        `<div class="ds-notice ds-notice--danger" role="alert"><strong>Configuration attendue indisponible.</strong> ` +
+        `<div class="ds-notice ds-notice--danger" role="alert"><strong>Réglage attendu indisponible.</strong> ` +
         `Elle n'a pas pu être calculée (${esc(desiredError)}).</div>`
       );
     }

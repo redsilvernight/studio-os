@@ -114,7 +114,7 @@ describe("resume after an app restart", () => {
     await renderOnboarding(root, platform);
     expect(root.querySelector("[data-testid=onboarding-step]")?.getAttribute("data-step")).toBe("final");
     expect(root.querySelector("[data-testid=onboarding-error]")).toBeNull();
-    expect(root.textContent).toContain("Espaces de travail");
+    expect(root.textContent).toContain("Dossiers du projet");
   });
 });
 

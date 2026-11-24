@@ -40,7 +40,7 @@ export const USAGE_PERIODS: ReadonlyArray<{ id: string; label: string; days: num
 
 const USAGE_GROUPINGS: ReadonlyArray<{ id: UsageGroupBy; label: string }> = [
   { id: "task", label: "Par tâche" },
-  { id: "configuration", label: "Par configuration" },
+  { id: "configuration", label: "Par réglage" },
   { id: "day", label: "Par jour" },
   { id: "none", label: "Total seul" },
 ];

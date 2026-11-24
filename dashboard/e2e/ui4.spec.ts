@@ -260,7 +260,7 @@ test.describe("UI-4 projets et workspace", () => {
 
     // Overview résumée : pas de tableau complet.
     await expect(view).toContainText("Tâches actives (2)");
-    await expect(view).toContainText("Réservations actives (2)");
+    await expect(view).toContainText("Fichiers occupés en ce moment (2)");
     await expect(view).toContainText("Blocage à lever");
     await expect(view.locator(".workspace-overview table")).toHaveCount(0);
 
@@ -295,7 +295,7 @@ test.describe("UI-4 projets et workspace", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}/activity`);
     const view = page.locator("#view");
-    await expect(view).toContainText("Chevauchement de réservation");
+    await expect(view).toContainText("Chevauchement de fichier occupé");
     await expect(view).toContainText("godot/scenes/niveau.tscn");
     await expect(view).toContainText("Événement");
     await expect(view.locator('.tl-task[href="#/tasks/t-blocked"]')).toBeVisible();
@@ -411,7 +411,7 @@ test.describe("UI-4 mobile 375", () => {
     await page.screenshot({ path: `${SHOTS}/workspace-overview-mobile.png` });
 
     await page.goto(`/#/projects/${P1}/activity`);
-    await expect(view).toContainText("Chevauchement de réservation");
+    await expect(view).toContainText("Chevauchement de fichier occupé");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     expect(csp).toEqual([]);

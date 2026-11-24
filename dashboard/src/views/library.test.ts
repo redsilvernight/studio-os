@@ -119,7 +119,7 @@ describe("libraryRootHtml (page #/library)", () => {
   });
 
   it("titre la page en français", () => {
-    expect(html).toContain("<h1>Bibliothèque</h1>");
+    expect(html).toContain("<h1>Savoir-faire</h1>");
   });
 });
 
@@ -199,7 +199,7 @@ describe("libraryKindPageHtml (liste #/library/<kind>)", () => {
     const html = libraryKindPageHtml("rule", all, blank);
     expect(html).toContain("<h1>Règles</h1>");
     expect(html).toContain("Créer un élément");
-    expect(html).toContain("Administration / Bibliothèque");
+    expect(html).toContain("Réglages / Savoir-faire");
     expect(html).toContain('role="search"');
     expect(html).toContain("Rechercher par clé stable");
     expect(html).toContain("2 éléments affichés sur 2 chargés");
@@ -414,7 +414,7 @@ describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
     expect(html).toContain("Déprécier");
     expect(html).toContain("+ Nouvelle version");
     expect(html).toContain('name="version_title"');
-    expect(html).toContain("Verrous projet");
+    expect(html).toContain("Versions figées du projet");
     expect(html).toContain("n'empêche jamais un commit Git");
     expect(html).toContain('name="lock_project_id"');
     expect(html).toContain('name="lock_version"');
@@ -428,7 +428,7 @@ describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
       [resource({}), resource({ id: "99999999-9999-4999-8999-999999999999", scope: "project" })],
     );
     expect(shadowed).toContain("plusieurs portées");
-    expect(shadowed).toContain("Inspecteur de résolution");
+    expect(shadowed).toContain("Diagnostic");
     expect(libraryDetailHtml(resource({}), versions, [], [resource({})])).not.toContain("plusieurs portées");
   });
 
@@ -478,7 +478,7 @@ describe("versionContentHtml", () => {
     expect(html).not.toContain("content_schema");
   });
 
-  it("rend l'identité d'une définition d'agent de façon structurée", () => {
+  it("rend l'identité d'une profil d'agent de façon structurée", () => {
     const html = versionContentHtml(
       "agent_definition",
       version({ content_schema: "studio.library.agent_definition/v1", summary: "Reviews", intended_use: "Relire" }),
@@ -553,7 +553,7 @@ describe("locksTableHtml", () => {
     expect(html).toContain("v2");
     expect(html).toContain("figée");
     expect(html).toContain('data-release-lock="33333333-3333-4333-8333-333333333333"');
-    expect(locksTableHtml([])).toContain("Aucun verrou");
+    expect(locksTableHtml([])).toContain("Aucune version figée");
   });
 });
 

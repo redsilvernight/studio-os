@@ -274,18 +274,18 @@ test.describe("UI-14 landmarks et titres", () => {
     await login(page, "#/");
     const view = page.locator("#view");
     const routes: [string, string][] = [
-      ["#/", "Accueil"],
+      ["#/", "Aujourd'hui"],
       ["#/projects", "Projets"],
       [`#/projects/${P1}`, "Jeu Phare"],
       ["#/tasks", "Travail"],
       [`#/tasks/${T1}`, "Caméra Android bloquée"],
-      ["#/agents", "Agents IA"],
+      ["#/agents", "Équipe IA"],
       ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
       ["#/decisions", "À valider"],
-      ["#/library", "Bibliothèque"],
-      ["#/configuration/runtimes", "Configuration"],
-      ["#/inspector", "Inspecteur de résolution"],
+      ["#/library", "Savoir-faire"],
+      ["#/configuration/runtimes", "Réglages"],
+      ["#/inspector", "Diagnostic"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
     for (const [route, title] of routes) {
@@ -304,11 +304,11 @@ test.describe("UI-14 landmarks et titres", () => {
     await login(page, "#/route-inexistante-xyz");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Page introuvable");
-    const back = view.getByRole("link", { name: "Retour à l'Accueil" });
+    const back = view.getByRole("link", { name: "Retour à Aujourd'hui" });
     await expect(back).toBeVisible();
     await back.focus();
     await page.keyboard.press("Enter");
-    await expect(view.locator("h1")).toContainText("Accueil");
+    await expect(view.locator("h1")).toContainText("Aujourd'hui");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -367,14 +367,14 @@ test.describe("UI-14 noms accessibles et formulaires", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}/claims`);
     const view = page.locator("#view");
-    await expect(view.locator("[data-ws-tab=claims]")).toContainText("Réservations");
-    await expect(view.locator("table caption")).toContainText("Réservations du projet");
+    await expect(view.locator("[data-ws-tab=claims]")).toContainText("Fichiers occupés");
+    await expect(view.locator("table caption")).toContainText("Fichiers occupés du projet");
     for (const header of ["Chemin", "Type", "Machine", "Tâche", "État", "Échéance", "Actions"]) {
       await expect(view.locator("table thead th", { hasText: header })).toHaveAttribute("scope", "col");
     }
     await expect(view.locator("table tbody")).toContainText("Active");
     await expect(view.locator("table tbody")).not.toContainText("Renew");
-    const renew = view.getByRole("button", { name: /renouveler la réservation/i });
+    const renew = view.getByRole("button", { name: /renouveler le fichier occupé/i });
     await expect(renew).toBeVisible();
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
@@ -711,17 +711,17 @@ test.describe("UI-14 balayage automatisé axe", () => {
     await login(page, "#/");
     const view = page.locator("#view");
     const surfaces: [string, string][] = [
-      ["#/", "Accueil"],
+      ["#/", "Aujourd'hui"],
       ["#/projects", "Projets"],
       ["#/tasks", "Travail"],
       [`#/tasks/${T1}`, "Caméra Android bloquée"],
-      ["#/agents", "Agents IA"],
-      ["#/library", "Bibliothèque"],
+      ["#/agents", "Équipe IA"],
+      ["#/library", "Savoir-faire"],
       ["#/decisions", "À valider"],
       ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
-      ["#/inspector", "Inspecteur"],
-      ["#/configuration/runtimes", "Configuration"],
+      ["#/inspector", "Diagnostic"],
+      ["#/configuration/runtimes", "Réglages"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
     for (const [route, title] of surfaces) {

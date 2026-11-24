@@ -340,10 +340,10 @@ export function previewLines(resolved: ResolvedAgentDefinition): string[] {
       (ref): ref is string => typeof ref === "string" && ref !== "",
     );
     lines.push(
-      `Runtime (${resolved.runtime.level})${refs.length === 0 ? "" : ` : ${refs.join(" · ")}`}`,
+      `Moteur IA (${resolved.runtime.level})${refs.length === 0 ? "" : ` : ${refs.join(" · ")}`}`,
     );
   }
-  if (resolved.requirements.coding) lines.push("Exige un runtime capable de coder");
+  if (resolved.requirements.coding) lines.push("Exige un moteur IA capable de coder");
   return lines;
 }
 
@@ -386,7 +386,7 @@ export function latestHtml(state: LaunchPanelState): string {
   }
   const details = [
     `Poste ${esc(latest.machine_id)}`,
-    `Harnais ${esc(latest.harness_id)}`,
+    `Outil IA ${esc(latest.harness_id)}`,
     latest.allow_production ? "Production autorisée pour ce lancement" : "Mode protégé",
     latest.agent_stable_key ? `Agent ${esc(latest.agent_stable_key)}` : "Sans agent",
   ];
@@ -814,7 +814,7 @@ export function launchPanelHtml(state: LaunchPanelState): string {  const header
   const form =
     `<div class="task-launch-form">` +
     dsField("launch-machine", "Poste cible", `<select class="ds-select" id="FIELD">${machineOptions(state, data)}</select>`) +
-    dsField("launch-harness", "Harnais", `<select class="ds-select" id="FIELD">${harnessOptions(state, machine)}</select>`) +
+    dsField("launch-harness", "Outil IA", `<select class="ds-select" id="FIELD">${harnessOptions(state, machine)}</select>`) +
     dsField("launch-agent", "Agent à résoudre (facultatif)", `<select class="ds-select" id="FIELD">${agentOptions(state, data)}</select>`) +
     launchProfileHtml(state) +
     dsField("launch-ttl", "Délai avant expiration", `<select class="ds-select" id="FIELD">${launchTtlOptions(state)}</select>`) +

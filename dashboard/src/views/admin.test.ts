@@ -34,7 +34,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
       "#/administration/mesures",
     ]);
     const html = adminOverviewHtml();
-    expect(html).toContain("<h1>Administration</h1>");
+    expect(html).toContain("<h1>Réglages</h1>");
     expect(html.match(/<h1>/g)).toHaveLength(1);
     expect(html).toContain("Voir les postes");
     for (const family of ADMIN_FAMILIES) {
@@ -79,10 +79,10 @@ describe("adminOverviewHtml (P05-admin)", () => {
   it("configuration absente et liaison vers runtime révoqué sont actionnables", () => {
     const data = snapshot();
     data.runtimes = { data: [] };
-    const card = adminIndicators(data).find((item) => item.title === "Configuration")!;
+    const card = adminIndicators(data).find((item) => item.title === "Réglages")!;
     expect(card).toMatchObject({ value: "À compléter", href: "#/configuration/bindings", attention: true });
-    expect(card.detail).toContain("Aucun runtime actif");
-    expect(card.detail).toContain("1 liaison vers un runtime absent ou révoqué");
+    expect(card.detail).toContain("Aucun moteur IA actif");
+    expect(card.detail).toContain("1 affectation vers un moteur IA absent ou révoqué");
   });
 
   it("les erreurs et restrictions ne deviennent jamais des zéros sains", () => {
@@ -112,7 +112,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
   });
 });
 
-describe("chargement Administration", () => {
+describe("chargement Réglages", () => {
   it("conserve une panne partielle sans perdre les autres sources", async () => {
     vi.mocked(fetchCanonicalMachines).mockRejectedValue(new Error("machine indisponible"));
     const GET = vi.fn(async (path: string) => ({

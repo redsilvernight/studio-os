@@ -131,7 +131,7 @@ export function transferInfo(transfer: Transfer, ctx: TransfersFilterContext): T
 export function transfersLoadingHtml(): string {
   return (
     `<div class="transfers">` +
-    `<p class="ds-hero-eyebrow">Administration / Transferts</p>` +
+    `<p class="ds-hero-eyebrow">Réglages / Transferts</p>` +
     `${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.")}` +
     `${dsSkeleton(4)}</div>`
   );
@@ -433,7 +433,7 @@ export interface TransfersPageData {
 
 export function transfersPageHtml(data: TransfersPageData): string {
   const header =
-    `<p class="ds-hero-eyebrow">Administration / Transferts</p>` +
+    `<p class="ds-hero-eyebrow">Réglages / Transferts</p>` +
     dsPageHeader(
       UI_LABEL.transfers,
       "Fichiers échangés entre postes — chaque transfert relie un fichier à un expéditeur et, éventuellement, à un destinataire ou un projet.",
@@ -478,7 +478,7 @@ export function transfersPageHtml(data: TransfersPageData): string {
 export async function renderTransfers(root: HTMLElement, ctx: TransfersContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.")}` +
+      `<div class="transfers"><p class="ds-hero-eyebrow">Réglages / Transferts</p>${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.")}` +
       `<div class="ds-empty" role="status"><span class="ds-empty-icon" aria-hidden="true">○</span>` +
       `<h3>Connexion requise</h3><p>Définissez un jeton pour voir les transferts visibles pour ce jeton.</p></div></div>`;
     return;
@@ -495,7 +495,7 @@ export async function renderTransfers(root: HTMLElement, ctx: TransfersContext):
 
   if (!transfersResult.ok) {
     root.innerHTML =
-      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.", [{ label: UI_LABEL.refresh, id: "transfers-reload" }])}` +
+      `<div class="transfers"><p class="ds-hero-eyebrow">Réglages / Transferts</p>${dsPageHeader(UI_LABEL.transfers, "Fichiers échangés entre postes.", [{ label: UI_LABEL.refresh, id: "transfers-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les transferts : ${esc(describeError(transfersResult.error))}</div></div>`;
     root.querySelector("#transfers-reload")?.addEventListener("click", () => {
       void renderTransfers(root, ctx);

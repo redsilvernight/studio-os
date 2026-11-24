@@ -52,3 +52,70 @@ export function switchUiMode(mode: UiMode): UiMode {
   document.dispatchEvent(new CustomEvent("ui-mode-change", { detail: mode }));
   return mode;
 }
+
+/** Terme courant (mode Simple) → terme technique affiché à côté en mode Expert. */
+const EXPERT_TERMS: Readonly<Record<string, string>> = {
+  "Aujourd'hui": "Accueil",
+  "Plan": "Roadmap",
+  "Notes": "Vault",
+  "Savoir-faire": "Bibliothèque",
+  "Réglages": "Configuration",
+  "Fichiers occupés": "Réservations",
+  "Moteur IA": "Runtime",
+  "Moteurs IA": "Runtimes",
+  "Affectations": "Bindings",
+};
+
+const TECH_BLOCKS = "details.ds-tech, details.settings-technical";
+const TERM_MARK = "data-lx-tech";
+const OPENED_MARK = "data-expert-opened";
+
+/**
+ * Expert : annote les titres du terme technique et ouvre les « Détails
+ * techniques » (identifiants visibles). Simple : retire l'annotation et
+ * referme ce qu'Expert avait ouvert. Idempotent ; ne retire ni ne déplace rien.
+ */
+export function enhanceForMode(mode: UiMode, root: ParentNode = document): void {
+  for (const mark of Array.from(root.querySelectorAll(`[${TERM_MARK}]`))) {
+    if (mode === "simple") mark.remove();
+  }
+  for (const block of Array.from(root.querySelectorAll<HTMLDetailsElement>(TECH_BLOCKS))) {
+    if (mode === "expert" && !block.open) {
+      block.open = true;
+      block.setAttribute(OPENED_MARK, "");
+    } else if (mode === "simple" && block.hasAttribute(OPENED_MARK)) {
+      block.open = false;
+      block.removeAttribute(OPENED_MARK);
+    }
+  }
+  if (mode !== "expert") return;
+  for (const heading of Array.from(root.querySelectorAll("h1, h2, h3"))) {
+    if (heading.querySelector(`[${TERM_MARK}]`) !== null) continue;
+    const technical = EXPERT_TERMS[(heading.textContent ?? "").trim()];
+    if (technical === undefined) continue;
+    const span = document.createElement("span");
+    span.setAttribute(TERM_MARK, "");
+    span.className = "lx-tech";
+    span.textContent = ` (${technical})`;
+    heading.appendChild(span);
+  }
+}
+
+/** Applique le mode courant à chaque rendu (observateur) et à `ui-mode-change`. */
+export function watchExpertMode(root: HTMLElement, current: () => UiMode): void {
+  let queued = false;
+  const run = (): void => {
+    queued = false;
+    observer.disconnect();
+    enhanceForMode(current(), root);
+    observer.observe(root, { childList: true, subtree: true });
+  };
+  const observer = new MutationObserver(() => {
+    if (!queued) {
+      queued = true;
+      queueMicrotask(run);
+    }
+  });
+  document.addEventListener("ui-mode-change", run);
+  run();
+}

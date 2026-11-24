@@ -221,7 +221,7 @@ describe("Labels FR (source unique)", () => {
   it("REVIEW_KIND_LABEL : tous les kinds ont un libellé FR", () => {
     expect(REVIEW_KIND_LABEL.ai_work_review).toBe("Travail IA");
     expect(REVIEW_KIND_LABEL.decision_proposal).toBe("Proposition de décision");
-    expect(REVIEW_KIND_LABEL.resource_conflict).toBe("Conflit de réservation");
+    expect(REVIEW_KIND_LABEL.resource_conflict).toBe("Fichier occupé en conflit");
     expect(REVIEW_KIND_LABEL.build_failure).toBe("Échec de compilation");
     expect(REVIEW_KIND_LABEL.pr_ready).toBe("Demande de fusion");
     expect(REVIEW_KIND_LABEL.roadmap_proposal).toBe("Proposition de plan");

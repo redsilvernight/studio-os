@@ -231,7 +231,7 @@ test.describe("UI-6 page Agents", () => {
     const watched = watchErrors(page);
     await login(page, "#/agents");
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Agents IA");
+    await expect(view.locator("h1")).toContainText("Équipe IA");
     await expect(view.locator(".agents-list .agent-row")).toHaveCount(2);
     // Nav : vraie route, sans « Bientôt », active ici.
     await expect(page.locator('.app-sidebar a[href="#/agents"]')).toHaveAttribute("aria-current", "page");
@@ -282,7 +282,7 @@ test.describe("UI-6 page Agents", () => {
     await login(page, `#/agents/${A1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Claude Atlas");
-    for (const section of ["Activité", "Travail réalisé", "Sessions", "Environnement", "Administration"]) {
+    for (const section of ["Activité", "Travail réalisé", "Sessions", "Environnement", "Réglages"]) {
       await expect(view.locator("h2", { hasText: section })).toBeVisible();
     }
     // Détails techniques est un <details><summary>, pas un h2.
@@ -295,11 +295,11 @@ test.describe("UI-6 page Agents", () => {
     await page.screenshot({ path: `${SHOTS}/agent-detail-desktop.png` });
     // Retour liste puis avant : deep links + historique intacts.
     await view.locator('a[href="#/agents"]').first().click();
-    await expect(view.locator("h1")).toContainText("Agents IA");
+    await expect(view.locator("h1")).toContainText("Équipe IA");
     await page.goBack();
     await expect(view.locator("h1")).toContainText("Claude Atlas");
     await page.goForward();
-    await expect(view.locator("h1")).toContainText("Agents IA");
+    await expect(view.locator("h1")).toContainText("Équipe IA");
     await expectClean(watched);
   });
 
@@ -316,7 +316,7 @@ test.describe("UI-6 page Agents", () => {
     const watched = watchErrors(page);
     await login(page, "#/agents", { empty: true });
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Agents IA");
+    await expect(view.locator("h1")).toContainText("Équipe IA");
     await expect(view).toContainText("Aucun agent enregistré");
     await expect(view).toContainText("identité de travail");
     await expect(view).not.toContainText("Créer un agent");

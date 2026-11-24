@@ -107,7 +107,7 @@ export function detectedSectionHtml(state: PageState, outcome: FolderPickOutcome
     const remote = entry.remotes?.[0] ?? null;
     const busy = state.busy && state.linking === entry.root;
     const action = canLink
-      ? `<button type="button" class="ds-btn ds-btn--primary" data-detected-link="${index}"${state.busy ? " disabled" : ""} aria-label="${esc(remote ? `Lier ${folder} au projet sélectionné` : `Lier manuellement ${folder} au projet sélectionné`)}">${busy ? "Liaison…" : remote ? "Lier à un projet" : "Lier manuellement"}</button>`
+      ? `<button type="button" class="ds-btn ds-btn--primary" data-detected-link="${index}"${state.busy ? " disabled" : ""} aria-label="${esc(remote ? `Lier ${folder} au projet sélectionné` : `Lier manuellement ${folder} au projet sélectionné`)}">${busy ? "Affectation…" : remote ? "Lier à un projet" : "Lier manuellement"}</button>`
       : `<p class="ds-list-sub">Demander l'accès : la liaison est réservée aux admins et developers. Demandez à un administrateur de rattacher ce dépôt.</p>`;
     return `<li class="ds-card"><h3>${esc(folder)}</h3>` +
       `<p class="ds-list-sub">${remote ? `Dépôt : ${esc(remote)}` : "Dépôt sans remote : lien manuel au projet choisi."} · ${esc(detectedReasonLabel(entry.reason))} · Vu le ${esc(entry.last_seen_at.slice(0, 10))}</p>` +
@@ -137,7 +137,7 @@ function cardsHtml(state: PageState): string {
     return `<li class="ds-card" data-workspace="${esc(item.workspace_id)}">${workspaceDetailHtml(view)}` +
       `<p>Poste : ${esc(machine)} · Dossier vérifié sur ce poste</p>` +
       `<div class="settings-actions">${config ? `<a class="ds-btn" href="#/projects/${esc(config.project_id)}">Ouvrir le projet</a> <button type="button" class="ds-btn" data-workspace-edit="${esc(item.workspace_id)}">Configurer le dossier</button> <a class="ds-btn" href="#/configuration/integrations/${esc(item.workspace_id)}">Configurer les outils</a>` : ""}</div>` +
-      (edit ? `<form data-workspace-config="${esc(item.workspace_id)}"><h3>Configuration de ce dossier</h3><label><input name="watchers" type="checkbox"${config.features?.watchers !== false ? " checked" : ""}> Activer le suivi Git de ce dossier</label>` +
+      (edit ? `<form data-workspace-config="${esc(item.workspace_id)}"><h3>Réglages de ce dossier</h3><label><input name="watchers" type="checkbox"${config.features?.watchers !== false ? " checked" : ""}> Activer le suivi Git de ce dossier</label>` +
         `<p class="ds-list-sub">Le suivi observe les dépôts Git existants lorsque l'assistant local est démarré. Un dossier sans dépôt reste utilisable.</p><p><button type="submit" class="ds-btn ds-btn--primary"${state.busy ? " disabled" : ""}>Enregistrer le suivi</button> <button type="button" class="ds-btn" data-workspace-move="${esc(item.workspace_id)}"${state.busy ? " disabled" : ""}>Choisir le nouvel emplacement</button></p></form>` +
         // P3 : la mémoire, l'environnement et l'assistant IA du dossier sont
         // montés ici (module dédié, chargement différé) ; le travailleur B y
@@ -147,7 +147,7 @@ function cardsHtml(state: PageState): string {
 }
 
 export function workspacesPageHtml(mode: "web" | "desktop", outcome: FolderPickOutcome | null, state?: PageState): string {
-  const header = `<p class="ds-hero-eyebrow">Administration / Espaces de travail</p>` + dsPageHeader("Espaces de travail", "Projets, dossiers locaux et poste.");
+  const header = `<p class="ds-hero-eyebrow">Réglages / Dossiers du projet</p>` + dsPageHeader("Dossiers du projet", "Projets, dossiers locaux et poste.");
   if (mode === "web") return `${header}<section class="ds-card" data-testid="workspaces-web"><p>Les dossiers locaux sont gérés dans Studi'OS Desktop.</p><p class="ds-list-sub">Le navigateur permet de consulter les projets ; l'association d'un dossier, son suivi et son ouverture restent propres à chaque poste Desktop.</p><a class="ds-btn" href="#/projects">Ouvrir les projets</a></section>`;
   return `${header}<section class="ds-card" data-testid="workspaces-desktop">` +
     `${state?.error ? `<p class="ds-notice ds-notice--danger" role="alert">${esc(state.error)}</p>` : ""}` +

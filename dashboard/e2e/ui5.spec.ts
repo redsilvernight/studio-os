@@ -411,7 +411,7 @@ test.describe("UI-5 détail tâche", () => {
 
     await expect(view.locator("#task-edit-section")).toContainText("Modifier la tâche");
     await expect(view.locator('section[aria-label="Prise en charge"]')).toContainText(
-      "À ne pas confondre avec les réservations de ressources",
+      "À ne pas confondre avec les fichiers occupés",
     );
     await expect(view).not.toContainText("Claim for my machine");
     await page.screenshot({ path: `${SHOTS}/tache-detail-1280.png` });

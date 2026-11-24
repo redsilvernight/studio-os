@@ -234,7 +234,7 @@ async function openRoadmap(page: Page, projectId: string, options: OpenOptions =
 test.describe("Roadmap workspace", () => {
   test("Exécution par défaut : étape courante visible, Plan à un clic", async ({ page }) => {
     await openRoadmap(page, roadmapFixtureProjectIds.active);
-    await expect(page.getByRole("tab", { name: "Roadmap" })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("[data-ws-tab=roadmap]")).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".roadmap-fixture-note")).toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Exécution", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
@@ -244,7 +244,7 @@ test.describe("Roadmap workspace", () => {
     await expect(page.getByRole("heading", { name: /Bloquées ou en attente/ })).toBeVisible();
     await page.getByRole("button", { name: /Sons/ }).first().click();
     await expect(page.getByRole("complementary", { name: /Détail de l'étape Sons/ }).getByRole("heading", { name: "Critères d'acceptation" })).toBeVisible();
-    await page.getByRole("tab", { name: "Plan" }).click();
+    await page.locator("button[data-mode=plan]").click();
     await expect(page.getByRole("heading", { name: "Prototype" })).toBeVisible();
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(axe.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([]);
@@ -363,7 +363,7 @@ test.describe("Roadmap workspace", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await openRoadmap(page, roadmapFixtureProjectIds.large);
     await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
-    await page.getByRole("tab", { name: "Plan" }).click();
+    await page.locator("button[data-mode=plan]").click();
     await expect(page.locator(".roadmap-timeline h3", { hasText: "Phase 11" })).toBeVisible();
     expect(await globalOverflow(page)).toBe(0);
   });
