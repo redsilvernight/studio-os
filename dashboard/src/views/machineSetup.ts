@@ -117,7 +117,7 @@ function previewHtml(plan: SetupPlan, view: SetupView, harnesses: HarnessStatus[
   return (
     `<div class="integration-plan" data-testid="setup-plan" role="alertdialog" aria-label="Aperçu de la configuration du poste">` +
     `<h3>Aperçu — rien n'est écrit tant que vous ne confirmez pas</h3>` +
-    `<h4>1. Harnais détectés</h4><p class="settings-intro" data-testid="setup-harnesses">${detected.length === 0 ? "Aucun harnais détecté." : detected.map((h) => `<code class="mono">${esc(h.harness)}</code>`).join(", ")}</p>` +
+    `<h4>1. Outil IA détectés</h4><p class="settings-intro" data-testid="setup-harnesses">${detected.length === 0 ? "Aucun harnais détecté." : detected.map((h) => `<code class="mono">${esc(h.harness)}</code>`).join(", ")}</p>` +
     `<h4>2. Fichiers utilisés par les outils IA</h4>` +
     `<p class="settings-intro">Un script ajouté au démarrage de chaque session, un script qui bloque les commits directs sur les branches protégées, et l'extension qui applique les mêmes règles dans OpenCode.</p>` +
     (hooks === "" ? `<p class="settings-intro">Aucun de ces fichiers à installer.</p>` : `<ul>${hooks}</ul>`) +

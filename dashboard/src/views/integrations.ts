@@ -84,7 +84,7 @@ export interface IntegrationsView {
 }
 
 function header(): string {
-  return `<p class="ds-hero-eyebrow">Administration / Configuration</p>` + dsPageHeader("Intégrations IA", DESCRIPTION) + configTabsHtml("integrations");
+  return `<p class="ds-hero-eyebrow">Réglages / Moteurs IA</p>` + dsPageHeader("Intégrations IA", DESCRIPTION) + configTabsHtml("integrations");
 }
 
 export function integrationsWebHtml(): string {
@@ -257,7 +257,7 @@ export function launchSettingsHtml(view: LaunchSettingsView, draft?: LaunchSetti
   const form =
     `<label class="settings-check"><input type="checkbox" data-launch-field="opt_in"${shown.opt_in ? " checked" : ""}${draft ? " disabled" : ""}> Accepter les lancements demandés à distance sur ce poste</label>` +
     `<label class="settings-field">Lancements simultanés maximum (${MIN_CONCURRENT} à ${MAX_CONCURRENT}) <input type="number" min="${MIN_CONCURRENT}" max="${MAX_CONCURRENT}" step="1" data-launch-field="max_concurrent" value="${shown.max_concurrent}"${draft ? " disabled" : ""}></label>` +
-    `<fieldset class="settings-field"><legend>Harnais autorisés</legend>${boxes}</fieldset>`;
+    `<fieldset class="settings-field"><legend>Outil IA autorisés</legend>${boxes}</fieldset>`;
   const actions = draft
     ? `<div class="settings-confirm" role="alert" data-testid="launch-confirm"><p>Enregistrer ces réglages ? Vous seul autorisez les lancements sur ce poste : ${draft.opt_in ? `ils seront acceptés (${draft.max_concurrent} simultané${sfx(draft.max_concurrent)} au plus, ${(draft.allowed_harnesses ?? []).length} harnais autorisé${sfx((draft.allowed_harnesses ?? []).length)})` : "aucun lancement ne sera accepté"}.</p>` +
       `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-launch">Confirmer l'enregistrement</button> ` +
@@ -278,7 +278,7 @@ export function launchSettingsHtml(view: LaunchSettingsView, draft?: LaunchSetti
 export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsView = {}): string {
   const notice = view.notice ? `<p class="settings-notice" role="status" data-testid="notice">${esc(view.notice)}</p>` : "";
   const error = view.error ? `<p class="ds-field-error" role="alert" data-testid="error">${esc(view.error)}</p>` : "";
-  // Same source as « Harnais détectés » (setup.plan): a harness the setup
+  // Same source as « Outil IA détectés » (setup.plan): a harness the setup
   // preview reports as detected always gets its MCP line and its card, even
   // when harness.detect omits it or still marks it not_detected (Codex).
   const all = mergeSetupHarnesses(harnesses, view.setup?.plan?.harnesses);

@@ -123,7 +123,7 @@ export function dependencyRowHtml(values: Partial<DependencyInput> = {}): string
   return (
     `<span class="repeat-row" data-row="dependency">` +
     `<label class="cell">Type <select data-field="kind">${kindOptions}</select></label>` +
-    `<label class="cell">Clé stable <input data-field="stable_key" value="${esc(values.stable_key ?? "")}" placeholder="clé stable" /></label>` +
+    `<label class="cell">Identifiant <input data-field="stable_key" value="${esc(values.stable_key ?? "")}" placeholder="identifiant" /></label>` +
     `<label class="cell">Identifiant de la définition (facultatif) <input data-field="resource_id" value="${esc(values.resource_id ?? "")}" placeholder="UUID pour distinguer studio et personnel" /></label>` +
     `<label class="cell">Version <input data-field="version" type="number" min="1" value="${esc(values.version ?? "")}" placeholder="1" /></label>` +
     `<label class="cell">Relation <input data-field="relation" value="${esc(values.relation ?? "")}" placeholder="déduite si vide" /></label>` +
@@ -162,7 +162,7 @@ export function participantRowHtml(values: Partial<{ participant_id: string; age
   return (
     `<span class="repeat-row" data-row="participant">` +
     `<label class="cell">Identifiant du participant <input data-field="participant_id" value="${esc(values.participant_id ?? "")}" placeholder="implementer" /></label>` +
-    `<label class="cell">Clé stable de l'agent <input data-field="agent_stable_key" value="${esc(values.agent_stable_key ?? "")}" placeholder="review-helper" /></label>` +
+    `<label class="cell">Identifiant de l'agent <input data-field="agent_stable_key" value="${esc(values.agent_stable_key ?? "")}" placeholder="review-helper" /></label>` +
     `<label class="cell">Dépend de <input data-field="depends_on" value="${esc(values.depends_on ?? "")}" placeholder="identifiants séparés par des virgules" /></label>` +
     `<label class="cell">Description <input data-field="description" value="${esc(values.description ?? "")}" placeholder="facultatif" /></label>` +
     `<button type="button" data-remove-row aria-label="Retirer le participant">Retirer</button>` +

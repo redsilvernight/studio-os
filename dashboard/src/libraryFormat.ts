@@ -189,7 +189,7 @@ export function dependencyLabel(pin: DependencyPin): string {
 export function runtimeTargetEntries(target: RuntimeTarget): Entry[] {
   const entries: Entry[] = [];
   if (target.runtime_id !== null && target.runtime_id !== undefined)
-    entries.push({ key: "runtime_id", label: "Runtime registry", value: target.runtime_id });
+    entries.push({ key: "runtime_id", label: "Moteur IA registry", value: target.runtime_id });
   if (target.harness_ref !== null && target.harness_ref !== undefined)
     entries.push({ key: "harness_ref", label: "Harness", value: target.harness_ref });
   if (target.provider_ref !== null && target.provider_ref !== undefined)

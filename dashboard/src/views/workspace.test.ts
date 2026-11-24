@@ -154,7 +154,7 @@ describe("projectOverviewHtml", () => {
     } as never;
     const html = projectOverviewHtml(project, state, NOW);
     expect(html).toContain("Tâches actives (1)");
-    expect(html).toContain("Réservations actives (1)");
+    expect(html).toContain("Fichiers occupés en ce moment (1)");
     expect(html).toContain("Optimiser les éclairages");
     expect(html).toContain("scenes/niveau.tscn");
     expect(html).toContain(`href="#/projects/${ID}/tasks"`);
@@ -181,7 +181,7 @@ describe("projectOverviewHtml", () => {
   it("états vides contextualisés, jamais de jargon endpoint", () => {
     const html = projectOverviewHtml(project, { active_tasks: [], active_claims: [] } as never, NOW);
     expect(html).toContain("Aucune tâche active");
-    expect(html).toContain("Aucune réservation active");
+    expect(html).toContain("Aucun fichier occupé en ce moment");
     expect(html).toContain("Aucun blocage");
     expect(html).not.toMatch(/GET \//);
   });

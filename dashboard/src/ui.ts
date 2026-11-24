@@ -66,7 +66,7 @@ const CODE_MESSAGES: Record<string, string> = {
   invalid_state: "Cette action n'est pas possible dans l'état actuel. Rechargez pour voir le statut à jour.",
   active_roadmap_exists: "Une autre roadmap est déjà active dans ce projet. Clôturez-la ou archivez-la d'abord.",
   runtime_incompatible: "Le runtime retenu ne satisfait pas les exigences demandées.",
-  runtime_not_found: "Runtime introuvable.",
+  runtime_not_found: "Moteur IA introuvable.",
   definition_not_found: "Définition introuvable.",
   invalid_resolution_input: "La demande de résolution n'est pas valide. Vérifiez la clé stable et le projet.",
   invalid_binding: "Cette liaison n'est pas valide.",

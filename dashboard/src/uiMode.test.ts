@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { paletteEntries } from "./commandPalette";
 import { adminOverviewHtml, uiModeSettingHtml } from "./views/admin";
-import { loadUiMode, saveUiMode, toggledUiMode, UI_MODE_STORAGE_KEY } from "./uiMode";
+import { enhanceForMode, loadUiMode, saveUiMode, toggledUiMode, UI_MODE_STORAGE_KEY } from "./uiMode";
 import { shellHtml, shellNavGroups } from "./shell";
 
 function memoryStore(initial?: string): Pick<Storage, "getItem" | "setItem"> & { value: string | null } {
@@ -77,5 +77,33 @@ describe("uiMode (R2-modes)", () => {
   it("settings expose the mode switch reflecting the current mode", () => {
     expect(adminOverviewHtml(undefined, false, "simple")).toContain("data-ui-mode-toggle>");
     expect(adminOverviewHtml(undefined, false, "expert")).toContain("data-ui-mode-toggle checked>");
+  });
+});
+
+describe("uiMode Expert (R2-modes)", () => {
+  function page(): HTMLElement {
+    const root = document.createElement("div");
+    root.innerHTML = `<h1>Plan</h1><h2>Autre titre</h2><details class="ds-tech"><summary>Détails techniques</summary><dl><dt>Identifiant</dt><dd>id-1</dd></dl></details><details class="ds-tech" open><summary>Déjà ouvert</summary></details>`;
+    return root;
+  }
+  it("Expert annote le terme technique, ouvre les détails, sans rien retirer", () => {
+    const root = page();
+    const before = root.querySelectorAll("*").length;
+    enhanceForMode("expert", root);
+    expect(root.querySelector("h1")?.textContent).toBe("Plan (Roadmap)");
+    expect(root.querySelector("h2")?.textContent).toBe("Autre titre");
+    expect(Array.from(root.querySelectorAll("details")).every((d) => d.open)).toBe(true);
+    enhanceForMode("expert", root);
+    expect(root.querySelectorAll("[data-lx-tech]").length).toBe(1);
+    expect(root.querySelectorAll("*").length).toBe(before + 1);
+  });
+  it("retour en Simple : annotation retirée, seuls les blocs ouverts par Expert se referment", () => {
+    const root = page();
+    enhanceForMode("expert", root);
+    enhanceForMode("simple", root);
+    expect(root.querySelector("h1")?.textContent).toBe("Plan");
+    const [first, second] = Array.from(root.querySelectorAll("details"));
+    expect(first?.open).toBe(false);
+    expect(second?.open).toBe(true);
   });
 });

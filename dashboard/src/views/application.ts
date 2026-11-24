@@ -363,7 +363,7 @@ export function applicationPageHtml(
   form: ApplicationFormState = {},
   diag: DesktopDiagnostics | null = null,
 ): string {
-  const head = `<p class="ds-hero-eyebrow">Administration / Configuration</p>${dsPageHeader(UI_LABEL.configuration, DESCRIPTION)}${configTabsHtml("application")}`;
+  const head = `<p class="ds-hero-eyebrow">Réglages / Moteurs IA</p>${dsPageHeader(UI_LABEL.configuration, DESCRIPTION)}${configTabsHtml("application")}`;
   let body: string;
   if (mode === "desktop") {
     body =

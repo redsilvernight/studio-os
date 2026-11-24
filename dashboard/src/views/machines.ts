@@ -89,7 +89,7 @@ async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
 export function machinesLoadingHtml(): string {
   return (
     `<div class="machines">` +
-    `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
+    `<p class="ds-hero-eyebrow">Réglages / Postes</p>` +
     `${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.")}` +
     `${dsSkeleton(4)}</div>`
   );
@@ -231,7 +231,7 @@ function runtimeSummary(runtime: RuntimeRegistration): string {
   const refs = [runtime.harness_ref, runtime.provider_ref, runtime.model_ref].filter(
     (ref): ref is string => ref !== null && ref !== undefined && ref !== "",
   );
-  return refs.length === 0 ? "Runtime sans référence déclarée" : refs.join(" · ");
+  return refs.length === 0 ? "Moteur IA sans référence déclarée" : refs.join(" · ");
 }
 
 export function machineDrawerBodyHtml(
@@ -282,7 +282,7 @@ export function machineDrawerBodyHtml(
   const environment =
     `<h3>Environnement</h3>` +
     (linked.length === 0
-      ? `<p class="ds-list-sub">Aucun runtime rattaché à cette machine. La configuration des runtimes reste dans Configuration.</p>`
+      ? `<p class="ds-list-sub">Aucun runtime rattaché à cette machine. La configuration des moteurs IA reste dans Configuration.</p>`
       : `<ul class="machine-runtimes">` +
         linked
           .map(
@@ -374,7 +374,7 @@ export interface MachinesPageData {
 
 export function machinesPageHtml(data: MachinesPageData): string {
   const header =
-    `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
+    `<p class="ds-hero-eyebrow">Réglages / Postes</p>` +
     dsPageHeader(
       UI_LABEL.machines,
       "Environnements enregistrés où le travail s'exécute — à distinguer des agents qui y travaillent.",
@@ -434,7 +434,7 @@ export function cardInfos(
 export async function renderMachines(root: HTMLElement, ctx: MachinesContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.")}` +
+      `<div class="machines"><p class="ds-hero-eyebrow">Réglages / Postes</p>${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.")}` +
       `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton pour voir les postes visibles pour ce jeton.")}</div>`;
     return;
   }
@@ -469,7 +469,7 @@ export async function renderMachines(root: HTMLElement, ctx: MachinesContext): P
 
   if (rows.length === 0 && problems.length > 0) {
     root.innerHTML =
-      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.", [{ label: UI_LABEL.refresh, id: "machines-reload" }])}` +
+      `<div class="machines"><p class="ds-hero-eyebrow">Réglages / Postes</p>${dsPageHeader(UI_LABEL.machines, "Environnements enregistrés où le travail s'exécute.", [{ label: UI_LABEL.refresh, id: "machines-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les postes : ${esc(problems.join(" · "))}</div></div>`;
     root.querySelector("#machines-reload")?.addEventListener("click", () => {
       void renderMachines(root, ctx);

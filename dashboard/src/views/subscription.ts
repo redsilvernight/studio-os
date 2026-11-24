@@ -126,7 +126,7 @@ export function subscriptionHtml(role: StudioRole, checkoutReturn?: CheckoutRetu
       dsStateHtml("empty", {
         title: "Réservé au propriétaire",
         message: `La gestion de l'abonnement${studio === null ? "" : ` de « ${studio.name} »`} est réservée au propriétaire du studio. Demandez-lui de modifier la formule.`,
-        action: { label: "Retour à l'Accueil", href: "#/" },
+        action: { label: "Retour à Aujourd'hui", href: "#/" },
       })
     );
   }

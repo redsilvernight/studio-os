@@ -88,7 +88,7 @@ export function membershipsHtml(memberships: ProjectMember[]): string {
 
 function pageHtml(body: string): string {
   return (
-    `<p class="ds-hero-eyebrow">Administration / Comptes et membres</p>` +
+    `<p class="ds-hero-eyebrow">Réglages / Comptes et membres</p>` +
     dsPageHeader("Comptes", "État des comptes, sessions et accès aux projets. Les administrateurs accèdent à tous les projets.") +
     `<nav class="tabs" aria-label="Comptes et membres"><span class="on">Comptes</span><a href="#/projects">Membres d'un projet</a></nav>` +
     `<p class="ds-list-sub">Les accès se règlent dans l'onglet Membres de chaque projet.</p>` +

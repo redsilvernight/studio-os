@@ -15,7 +15,7 @@
  *   — un choix stocké par clé logique, à quatre niveaux persistés (`user`,
  *   `project_override`, `project_default`, `studio_default`). `session` est
  *   éphémère et n'est jamais stocké ici.
- * - Projet : ressources, verrous et overrides de projet.
+ * - Projet : ressources, versions figées et versions personnalisées de projet.
  *
  * Aucune autre surface n'existe côté backend (pas de profil, notifications,
  * clés API, sécurité ou intégrations) : elles ne sont pas fabriquées.
@@ -93,8 +93,8 @@ export interface ConfigurationContext {
 export type ConfigTab = "runtimes" | "bindings" | "project" | "application" | "integrations";
 
 const CONFIG_TABS: readonly { name: ConfigTab; label: string; href: string }[] = [
-  { name: "runtimes", label: "Runtimes", href: "#/configuration/runtimes" },
-  { name: "bindings", label: "Liaisons", href: "#/configuration/bindings" },
+  { name: "runtimes", label: "Moteurs IA", href: "#/configuration/runtimes" },
+  { name: "bindings", label: "Affectations", href: "#/configuration/bindings" },
   { name: "project", label: UI_LABEL.project, href: "#/configuration/project/resources" },
   { name: "application", label: "Application", href: "#/configuration/application" },
   { name: "integrations", label: "Intégrations IA", href: "#/configuration/integrations" },
@@ -114,7 +114,7 @@ export function configTabsHtml(active: ConfigTab): string {
 }
 
 function settingsHeader(title: string, description: string, actions: { label: string; id: string }[] = []): string {
-  return `<p class="ds-hero-eyebrow">Administration / Configuration</p>` + dsPageHeader(title, description, actions.map((action) => ({ label: action.label, id: action.id })));
+  return `<p class="ds-hero-eyebrow">Réglages / Moteurs IA</p>` + dsPageHeader(title, description, actions.map((action) => ({ label: action.label, id: action.id })));
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ function nonEmpty(value: string | null | undefined): value is string {
 export function runtimeHumanTitle(runtime: Pick<RuntimeRegistration, "harness_ref" | "provider_ref" | "model_ref" | "machine_id">): string {
   const refs = [runtime.harness_ref, runtime.provider_ref, runtime.model_ref].filter(nonEmpty);
   if (refs.length === 0) {
-    return nonEmpty(runtime.machine_id) ? "Runtime rattaché à une machine" : "Runtime sans référence déclarée";
+    return nonEmpty(runtime.machine_id) ? "Moteur IA rattaché à une machine" : "Moteur IA sans référence déclarée";
   }
   return refs.join(" · ");
 }
@@ -157,8 +157,8 @@ export function runtimeTargetSummary(target: RuntimeTarget): string {
 }
 
 const TARGET_LABELS: Record<string, string> = {
-  runtime_id: "Runtime enregistré",
-  harness_ref: "Outil (harness)",
+  runtime_id: "Moteur IA enregistré",
+  harness_ref: "Outil",
   provider_ref: "Fournisseur",
   model_ref: "Modèle",
   machine_id: "Poste",
@@ -170,9 +170,9 @@ export function runtimeVocabularyHtml(open: boolean): string {
     `<details class="settings-howto"${open ? " open" : ""}><summary>Comment ça s'articule</summary><dl class="settings-howto-list">` +
     `<div><dt>Poste</dt><dd>Le PC physique sur lequel les outils s'exécutent (voir <a href="#/machines">Postes</a>).</dd></div>` +
     `<div><dt>Agent</dt><dd>L'identité d'un modèle sur ce poste : une par poste, fournisseur et modèle.</dd></div>` +
-    `<div><dt>Runtime</dt><dd>La configuration qui permet d'exécuter ce modèle : outil (harness) + fournisseur + modèle, éventuellement rattachée à un poste.</dd></div>` +
-    `<div><dt>Définition d'agent</dt><dd>Un rôle réutilisable de la <a href="${esc(libraryKindHref("agent_definition"))}">Bibliothèque</a>.</dd></div>` +
-    `<div><dt>Liaison</dt><dd>« Pour cette définition ou ce profil, utiliser ce runtime. » Le serveur décide du choix effectif — voir l'<a href="#/inspector">Inspecteur</a>.</dd></div>` +
+    `<div><dt>Moteur IA</dt><dd>La configuration qui permet d'exécuter ce modèle : outil + fournisseur + modèle, éventuellement rattachée à un poste.</dd></div>` +
+    `<div><dt>Profil d'agent</dt><dd>Un rôle réutilisable de la <a href="${esc(libraryKindHref("agent_definition"))}">Savoir-faire</a>.</dd></div>` +
+    `<div><dt>Affectation</dt><dd>« Pour cette définition ou ce profil, utiliser ce moteur IA. » Le serveur décide du choix effectif — voir l'<a href="#/inspector">Inspecteur</a>.</dd></div>` +
     `</dl></details>`
   );
 }
@@ -324,9 +324,9 @@ function runtimeOptions(values: string[], selected: string, allLabel: string, la
 
 export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeRegistration[], shown: number, names: Map<string, string> = new Map()): string {
   return (
-    `<div class="settings-toolbar" role="search" aria-label="Filtrer les runtimes chargés">` +
+    `<div class="settings-toolbar" role="search" aria-label="Filtrer les moteurs IA chargés">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
-    `<label class="ds-sr-only" for="settings-runtimes-search">Filtrer les runtimes déjà chargés</label>` +
+    `<label class="ds-sr-only" for="settings-runtimes-search">Filtrer les moteurs IA déjà chargés</label>` +
     `<input class="ds-input" type="search" id="settings-runtimes-search" value="${esc(state.query)}" placeholder="Rechercher par fournisseur, modèle, outil…" autocomplete="off" /></div>` +
     `<label class="settings-filter"><span>Fournisseur</span><select class="ds-select" id="settings-runtimes-provider">${runtimeOptions(runtimeProviderOptions(runtimes), state.provider, "Tous les fournisseurs")}</select></label>` +
     `<label class="settings-filter"><span>Poste</span><select class="ds-select" id="settings-runtimes-machine">${runtimeOptions(runtimeMachineOptions(runtimes), state.machine, "Tous les postes", (id) => posteName(id, names))}</select></label>` +
@@ -337,7 +337,7 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
     `</select></label>` +
     `<label class="settings-check"><input type="checkbox" id="settings-runtimes-revoked" data-include-revoked${state.includeRevoked ? " checked" : ""} /> Inclure les révoqués</label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isRuntimesDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} runtime${sfx(shown)} affiché${sfx(shown)} sur ${runtimes.length} chargé${sfx(runtimes.length)} — recherche et filtres locaux.</p>` +
+    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} moteur${sfx(shown)} affiché${sfx(shown)} sur ${runtimes.length} chargé${sfx(runtimes.length)} — recherche et filtres locaux.</p>` +
     `</div>`
   );
 }
@@ -355,7 +355,7 @@ export function runtimeCardHtml(runtime: RuntimeRegistration, names: Map<string,
     `<h3 class="settings-card-title">${esc(runtimeHumanTitle(runtime))}</h3>` +
     `<div class="ds-list-sub">${posteLinkHtml(runtime.machine_id, names)}</div>` +
     `<div class="ds-list-sub settings-caps">${capabilitySummary(runtime.capabilities)}</div>` +
-    `<div class="ds-list-sub meta">Configuration d'exécution d'un modèle — ni un agent, ni un poste.</div>` +
+    `<div class="ds-list-sub meta">Réglage d'exécution d'un modèle — ni un agent, ni un poste.</div>` +
     `</div><div class="settings-row-side">${status}` +
     `<a class="ds-btn ds-btn--sm" href="#/configuration/runtimes/${esc(runtime.id)}">Détails</a></div></li>`
   );
@@ -367,14 +367,14 @@ export function runtimesListHtml(runtimes: RuntimeRegistration[], names: Map<str
 
 function runtimesEmptyHtml(): string {
   return dsEmptyState(
-    "Aucun runtime enregistré",
-    "Un runtime décrit comment exécuter un modèle : outil (harness), fournisseur et modèle, éventuellement sur un poste. " +
-      "Aucun n'est encore déclaré pour ce jeton — utilisez « Déclarer un runtime » ci-dessous.",
+    "Aucun moteur IA enregistré",
+    "Un moteur IA décrit comment exécuter un modèle : outil, fournisseur et modèle, éventuellement sur un poste. " +
+      "Aucun n'est encore déclaré pour ce jeton — utilisez « Déclarer un moteur IA » ci-dessous.",
   );
 }
 
 function runtimesNoMatchHtml(): string {
-  return dsEmptyState("Aucun runtime ne correspond", "Modifiez la recherche ou les filtres pour retrouver vos runtimes déjà chargés.");
+  return dsEmptyState("Aucun moteur IA ne correspond", "Modifiez la recherche ou les filtres pour retrouver vos moteurs IA déjà chargés.");
 }
 
 /** Message de formulaire : annoncé (role=status du bloc) puis focalisé en cas d'erreur. */
@@ -386,7 +386,7 @@ function setFormMsg(msg: Element | null, text: string): void {
 
 export function createRuntimeFormHtml(machines: MachineOption[] | null = null): string {
   return (
-    `<details class="editor settings-editor"><summary>Déclarer un runtime</summary><form class="stack-form" data-runtime-create>` +
+    `<details class="editor settings-editor"><summary>Déclarer un moteur IA</summary><form class="stack-form" data-runtime-create>` +
     `<p class="meta">Les références sont des chaînes ouvertes : aucun catalogue de fournisseurs n'est imposé. Renseignez au moins un poste, un outil, un fournisseur ou un modèle. Le serveur refusera toute métadonnée ressemblant à un secret.</p>` +
     machineFieldHtml(machines, null) +
     harnessFieldHtml("settings-harness-create", null) +
@@ -394,7 +394,7 @@ export function createRuntimeFormHtml(machines: MachineOption[] | null = null): 
     `<label class="stack">Modèle <input name="model_ref" placeholder="chaîne ouverte (facultatif)" autocomplete="off" /></label>` +
     `<details class="settings-subeditor"><summary>Capacités déclarées (facultatif)</summary>${capabilityFieldsHtml()}</details>` +
     `<label class="stack">Métadonnées libres (une par ligne, <code class="mono">clé=valeur</code>) <textarea name="metadata" rows="2" placeholder="facultatif — les secrets sont refusés par le serveur"></textarea></label>` +
-    `<button type="submit" class="ds-btn ds-btn--primary">Déclarer le runtime</button>` +
+    `<button type="submit" class="ds-btn ds-btn--primary">Déclarer le moteur IA</button>` +
     `<span class="meta">Un envoi répété ne crée pas de doublon.</span>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div></form></details>`
   );
@@ -407,7 +407,7 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
   if (!ctx.authed) {
     root.innerHTML =
       `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}` +
-      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour lire et configurer vos runtimes.")}</div>`;
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour lire et configurer vos moteurs IA.")}</div>`;
     return;
   }
   root.innerHTML = `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
@@ -421,7 +421,7 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
   } catch (error) {
     root.innerHTML =
       `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtimes-reload" }])}${head}` +
-      `<div class="state error" role="alert">Impossible de charger les runtimes : ${esc(describeError(error))}</div></div>`;
+      `<div class="state error" role="alert">Impossible de charger les moteurs IA : ${esc(describeError(error))}</div></div>`;
     root.querySelector("#settings-runtimes-reload")?.addEventListener("click", () => {
       void renderRuntimes(root, ctx);
     });
@@ -437,13 +437,13 @@ export function runtimesPageHtml(runtimes: RuntimeRegistration[], machines: Mach
   const body = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible, names);
   return (
     `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtimes-reload" }])}${configTabsHtml("runtimes")}` +
-    `<section class="settings-domain"><h2>Runtimes enregistrés</h2>` +
-    `<p class="settings-intro">Un runtime est la configuration qui permet d'exécuter un modèle : outil (harness), fournisseur et modèle sont des références ouvertes. Le modèle n'est pas le runtime, et un poste n'est pas un runtime.</p>` +
+    `<section class="settings-domain"><h2>Moteurs IA enregistrés</h2>` +
+    `<p class="settings-intro">Un moteur IA est le réglage qui permet d'exécuter un modèle : outil, fournisseur et modèle sont des références ouvertes. Le modèle n'est pas le moteur, et un poste n'est pas un moteur IA.</p>` +
     runtimeVocabularyHtml(runtimes.length === 0) +
     `${runtimesToolbarHtml(runtimesState, runtimes, visible.length, names)}` +
     `<div id="settings-runtimes-list" aria-live="polite">${body}</div>` +
     `${createRuntimeFormHtml(machines)}` +
-    `<p class="meta">Les runtimes sont privés à leur propriétaire. Le niveau gagnant lors d'une résolution est décidé par le serveur — voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
+    `<p class="meta">Les moteurs IA sont privés à leur propriétaire. Le niveau gagnant lors d'une résolution est décidé par le serveur — voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
     `</section></div>`
   );
 }
@@ -552,7 +552,7 @@ export function runtimeDetailHtml(
   const links = bindings === null ? "" : runtimeBindingsTableHtml(bindings);
   const bindingsBlock =
     bindings === null
-      ? `<p class="state error" role="alert">Liaisons indisponibles : ${esc(bindingsError ?? "erreur inconnue")} — le runtime reste consultable.</p>`
+      ? `<p class="state error" role="alert">Affectations indisponibles : ${esc(bindingsError ?? "erreur inconnue")} — le moteur reste consultable.</p>`
       : links;
   const metadata = safeMetadataEntries(runtime.runtime_metadata);
   const metadataHtml =
@@ -569,18 +569,18 @@ export function runtimeDetailHtml(
     `<div class="settings-ref"><dt>Mis à jour le</dt><dd>${fmtTime(runtime.updated_at)}</dd></div>` +
     `</dl><h4>Métadonnées</h4>${metadataHtml}</details>`;
   return (
-    `<section class="settings-domain"><h2>Configuration du runtime</h2>` +
-    `<p class="settings-intro">Un runtime est la configuration qui permet d'exécuter un modèle. Il n'est ni un agent, ni un poste, ni un modèle : le modèle est une de ses propriétés.</p>` +
+    `<section class="settings-domain"><h2>Réglages du moteur IA</h2>` +
+    `<p class="settings-intro">Un moteur IA est le réglage qui permet d'exécuter un modèle. Il n'est ni un agent, ni un poste, ni un modèle : le modèle est une de ses propriétés.</p>` +
     `<dl class="settings-refs">` +
     `<div class="settings-ref"><dt>Statut</dt><dd>${dsBadge(runtimeStatusFr(runtime.status), runtimeStatusTone(runtime.status))}</dd></div>` +
     `<div class="settings-ref"><dt>Propriétaire</dt><dd>${esc(FALLBACK_LABEL.user)}</dd></div>` +
     `<div class="settings-ref"><dt>Poste</dt><dd>${posteLinkHtml(runtime.machine_id, names)}</dd></div>` +
     refLine("Fournisseur", runtime.provider_ref) +
     refLine("Modèle", runtime.model_ref) +
-    refLine("Outil (harness)", runtime.harness_ref) +
+    refLine("Outil", runtime.harness_ref) +
     `</dl>` +
     `<h3>Capacités déclarées</h3>${capabilitySummary(runtime.capabilities)}` +
-    `<h3>Liaisons référençant ce runtime</h3>${bindingsBlock}` +
+    `<h3>Affectations liées à ce moteur IA</h3>${bindingsBlock}` +
     `<p class="meta settings-origin">Origine du choix effectif : voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
     updateRuntimeFormHtml(runtime, machines) +
     revokeRuntimeFormHtml(runtime) +
@@ -604,8 +604,8 @@ export function updateRuntimeFormHtml(runtime: RuntimeRegistration, machines: Ma
   const revoked = runtime.status === "revoked";
   const disabled = revoked ? " disabled" : "";
   return (
-    `<details class="editor settings-editor"><summary>Modifier ce runtime</summary><form class="stack-form" data-runtime-update>` +
-    `<p class="meta">Les champs affichent les valeurs actuelles ; seuls les champs modifiés sont envoyés. Si le runtime a changé entre-temps, la modification est refusée plutôt que d'écraser les changements.</p>` +
+    `<details class="editor settings-editor"><summary>Modifier ce moteur IA</summary><form class="stack-form" data-runtime-update>` +
+    `<p class="meta">Les champs affichent les valeurs actuelles ; seuls les champs modifiés sont envoyés. Si le moteur a changé entre-temps, la modification est refusée plutôt que d'écraser les changements.</p>` +
     machineFieldHtml(machines, runtime.machine_id ?? null, revoked) +
     harnessFieldHtml("settings-harness-update", runtime.harness_ref ?? null, revoked) +
     `<label class="stack">Fournisseur <input name="provider_ref" value="${esc(runtime.provider_ref ?? "")}" autocomplete="off"${disabled} /></label>` +
@@ -624,9 +624,9 @@ export function updateRuntimeFormHtml(runtime: RuntimeRegistration, machines: Ma
 function revokeRuntimeFormHtml(runtime: RuntimeRegistration): string {
   const disabled = runtime.status === "revoked" ? "disabled" : "";
   return (
-    `<details class="editor settings-editor settings-danger"><summary>Révoquer ce runtime</summary><form class="stack-form" data-revoke>` +
-    `<p class="meta">La révocation est logique : la ligne reste consultable mais n'est plus « live », et les bindings qui la visent retombent. Aucune suppression physique n'existe.</p>` +
-    `<button type="submit" class="ds-btn ds-btn--danger" ${disabled}>Révoquer le runtime</button>` +
+    `<details class="editor settings-editor settings-danger"><summary>Révoquer ce moteur IA</summary><form class="stack-form" data-revoke>` +
+    `<p class="meta">La révocation est logique : la ligne reste consultable mais n'est plus « live », et les affectations qui la visent retombent. Aucune suppression physique n'existe.</p>` +
+    `<button type="submit" class="ds-btn ds-btn--danger" ${disabled}>Révoquer le moteur</button>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div>` +
     `</form></details>`
   );
@@ -637,7 +637,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   if (!ctx.authed) {
     root.innerHTML =
       `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}` +
-      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour consulter ce runtime.")}</div>`;
+      `${dsEmptyState(UI_LABEL.signInRequired, "Définissez un jeton machine pour consulter ce moteur IA.")}</div>`;
     return;
   }
   root.innerHTML = `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${dsSkeleton(4)}</div>`;
@@ -649,8 +649,8 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   if (!runtime.ok) {
     root.innerHTML =
       `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtime-reload" }])}${head}` +
-      `<div class="state error" role="alert">Impossible de charger ce runtime : ${esc(describeError(runtime.error))}</div>` +
-      `<p><a href="#/configuration/runtimes">← Retour aux runtimes</a></p></div>`;
+      `<div class="state error" role="alert">Impossible de charger ce moteur IA : ${esc(describeError(runtime.error))}</div>` +
+      `<p><a href="#/configuration/runtimes">← Retour aux moteurs IA</a></p></div>`;
     root.querySelector("#settings-runtime-reload")?.addEventListener("click", () => {
       void renderRuntimeDetail(root, ctx, runtimeId);
     });
@@ -658,10 +658,10 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   }
   const related = bindings.ok ? bindings.value.filter((binding) => binding.target.runtime_id === runtime.value.id) : null;
   root.innerHTML =
-    `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un runtime — configuration d'exécution d'un modèle.", [
+    `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un moteur IA — configuration d'exécution d'un modèle.", [
       { label: UI_LABEL.refresh, id: "settings-runtime-reload" },
     ])}${head}` +
-    `<p class="settings-back"><a href="#/configuration/runtimes">← Retour aux runtimes</a></p>` +
+    `<p class="settings-back"><a href="#/configuration/runtimes">← Retour aux moteurs IA</a></p>` +
     runtimeDetailHtml(runtime.value, related, bindings.ok ? null : describeError(bindings.error), machines) +
     `</div>`;
   bindRuntimeDetail(root, ctx, runtime.value);
@@ -693,7 +693,7 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
     event.preventDefault();
     const msg = revokeForm.querySelector("[data-msg]");
     const submit = revokeForm.querySelector<HTMLButtonElement>("button[type=submit]");
-    if (!(await confirmDs("Révoquer ce runtime ? La ligne reste consultable mais n'est plus active."))) return;
+    if (!(await confirmDs("Révoquer ce moteur IA ? La ligne reste consultable mais n'est plus active."))) return;
     if (submit !== null) submit.disabled = true;
     revokeRuntime(ctx.client, runtime.id)
       .then(() => {
@@ -759,7 +759,7 @@ export function bindingTargetHtml(binding: RuntimeBinding, runtimesById: Map<str
   const runtimeId = binding.target.runtime_id;
   if (nonEmpty(runtimeId)) {
     const runtime = runtimesById.get(runtimeId);
-    const label = runtime !== undefined ? runtimeHumanTitle(runtime) : "Runtime sans nom";
+    const label = runtime !== undefined ? runtimeHumanTitle(runtime) : "Moteur IA sans nom";
     return `<code class="mono">${esc(label)}</code>`;
   }
   return runtimeTargetSummary(binding.target);
@@ -786,14 +786,14 @@ export function bindingsToolbarHtml(state: BindingsPageState, shown: number, tot
     .map((level) => `<option value="${esc(level)}"${state.scope === level ? " selected" : ""}>${esc(bindingScopeLabel(level))}</option>`)
     .join("");
   return (
-    `<div class="settings-toolbar" role="search" aria-label="Filtrer les bindings chargés">` +
+    `<div class="settings-toolbar" role="search" aria-label="Filtrer les affectations chargés">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
-    `<label class="ds-sr-only" for="settings-bindings-search">Filtrer les bindings déjà chargés</label>` +
+    `<label class="ds-sr-only" for="settings-bindings-search">Filtrer les affectations déjà chargés</label>` +
     `<input class="ds-input" type="search" id="settings-bindings-search" value="${esc(state.query)}" placeholder="Rechercher par clé logique…" autocomplete="off" /></div>` +
     `<label class="settings-filter"><span>Niveau</span><select class="ds-select" id="settings-bindings-scope">` +
     `<option value="all"${state.scope === "all" ? " selected" : ""}>Tous les niveaux</option>${scopeOptions}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isBindingsDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} binding${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — recherche et filtre locaux.</p>` +
+    `<p class="ds-list-sub settings-toolbar-count" role="status" aria-live="polite">${shown} affectation${sfx(shown)} affiché${sfx(shown)} sur ${total} chargé${sfx(total)} — recherche et filtre locaux.</p>` +
     `</div>`
   );
 }
@@ -809,7 +809,7 @@ export function bindingCardHtml(binding: RuntimeBinding, runtimesById: Map<strin
     `<div class="ds-list-sub">Cible : ${bindingTargetHtml(binding, runtimesById)}</div>` +
     `<div class="ds-list-sub">${project} · créé le ${fmtTime(binding.created_at)}</div>` +
     `</div><div class="settings-row-side">` +
-    `<button class="ds-btn ds-btn--sm ds-btn--danger" type="button" data-delete-binding="${esc(binding.id)}">Supprimer ce binding</button></div></li>`
+    `<button class="ds-btn ds-btn--sm ds-btn--danger" type="button" data-delete-binding="${esc(binding.id)}">Supprimer cette affectation</button></div></li>`
   );
 }
 
@@ -818,7 +818,7 @@ export function bindingsListHtml(bindings: RuntimeBinding[], runtimesById: Map<s
 }
 
 export function runtimeBindingsTableHtml(bindings: RuntimeBinding[]): string {
-  if (bindings.length === 0) return dsEmptyState("Aucun binding", "Aucun binding ne référence ce runtime.");
+  if (bindings.length === 0) return dsEmptyState("Aucune affectation", "Aucune affectation ne référence ce moteur IA.");
   const rows = bindings
     .map(
       (binding) =>
@@ -827,11 +827,11 @@ export function runtimeBindingsTableHtml(bindings: RuntimeBinding[]): string {
         `<td>${nonEmpty(binding.project_id) ? esc(projectLabel(binding.project_id)) : '<span class="meta">—</span>'}</td><td>${fmtTime(binding.created_at)}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Liaisons référençant ce runtime</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Projet</th><th scope="col">Créé le</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Affectations liées à ce moteur IA</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Projet</th><th scope="col">Créé le</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function bindingsTableHtml(bindings: RuntimeBinding[], emptyMessage: string): string {
-  if (bindings.length === 0) return dsEmptyState("Aucun binding", emptyMessage);
+  if (bindings.length === 0) return dsEmptyState("Aucune affectation", emptyMessage);
   const rows = bindings
     .map(
       (binding) =>
@@ -839,24 +839,24 @@ export function bindingsTableHtml(bindings: RuntimeBinding[], emptyMessage: stri
         `<td>${esc(bindingScopeLabel(binding.level))}</td><td>${runtimeTargetSummary(binding.target)}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Liaisons runtime</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Runtime visé</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Affectations runtime</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Moteur IA visé</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function bindingsEmptyHtml(): string {
   return dsEmptyState(
-    "Aucun binding stocké",
-    "Une liaison associe une définition d'agent ou un profil de modèle à un runtime. Utilisez « Nouvelle liaison » ci-dessous.",
+    "Aucune affectation stocké",
+    "Une liaison associe une profil d'agent ou un profil de modèle à un moteur IA. Utilisez « Nouvelle affectation » ci-dessous.",
   );
 }
 
 function bindingsNoMatchHtml(): string {
-  return dsEmptyState("Aucun binding ne correspond", "Modifiez la recherche ou le filtre de niveau pour retrouver vos bindings déjà chargés.");
+  return dsEmptyState("Aucune affectation ne correspond", "Modifiez la recherche ou le filtre de niveau pour retrouver vos affectations déjà chargés.");
 }
 
 /** Bloc « Écarts déclarés » : indicatif, jamais bloquant — le serveur tranche. */
 export function capabilityGapsNoticeHtml(gaps: CapabilityGap[]): string {
   if (gaps.length === 0) {
-    return `<p class="meta">Aucun écart déclaré entre les exigences du profil et les capacités du runtime — indicatif, le serveur tranche (voir l'<a href="#/inspector">Inspecteur</a>).</p>`;
+    return `<p class="meta">Aucun écart déclaré entre les exigences du profil et les capacités du moteur IA — indicatif, le serveur tranche (voir l'<a href="#/inspector">Inspecteur</a>).</p>`;
   }
   const items = gaps
     .map((gap) => `<li><strong>${esc(gap.label)}</strong> : exigé ${esc(gap.required)}, déclaré ${esc(gap.declared)}</li>`)
@@ -876,14 +876,14 @@ function createBindingFormHtml(runtimes: RuntimeRegistration[], stableKeys: stri
   const datalist = stableKeys.map((key) => `<option value="${esc(key)}"></option>`).join("");
   const defaultProject = uiState.selectedProjectId ?? "";
   return (
-    `<details class="editor settings-editor"><summary>Nouvelle liaison</summary><form class="stack-form" data-binding-create>` +
-    `<p class="meta">Une liaison dit « pour cette définition ou ce profil, utiliser ce runtime ». Les niveaux sont des choix stockés ; le niveau gagnant est décidé par le serveur (voir Inspecteur). Le niveau « session » est éphémère et n'est jamais stocké ici.</p>` +
+    `<details class="editor settings-editor"><summary>Nouvelle affectation</summary><form class="stack-form" data-binding-create>` +
+    `<p class="meta">Une liaison dit « pour cette définition ou ce profil, utiliser ce moteur IA ». Les niveaux sont des choix stockés ; le niveau gagnant est décidé par le serveur (voir Inspecteur). Le niveau « session » est éphémère et n'est jamais stocké ici.</p>` +
     `<label class="stack">Niveau <select name="level">${(STORED_RUNTIME_LEVELS as readonly RuntimeLevel[]).map((level) => `<option value="${esc(level)}">${esc(bindingScopeLabel(level))}</option>`).join("")}</select></label>` +
     `<label class="stack">Projet (niveaux projet uniquement) <input name="project_id" value="${esc(defaultProject)}" placeholder="identifiant du projet" /></label>` +
-    `<label class="stack">Type de cible <select name="target_kind"><option value="agent_definition">Définition d'agent</option><option value="model_profile">Profil de modèle</option></select></label>` +
-    `<label class="stack">Clé logique cible <input name="target_stable_key" list="settings-stable-keys" required placeholder="clé stable" autocomplete="off" /></label>` +
+    `<label class="stack">Type de cible <select name="target_kind"><option value="agent_definition">Profil d'agent</option><option value="model_profile">Profil de modèle</option></select></label>` +
+    `<label class="stack">Clé logique cible <input name="target_stable_key" list="settings-stable-keys" required placeholder="identifiant" autocomplete="off" /></label>` +
     `<datalist id="settings-stable-keys">${datalist}</datalist>` +
-    `<label class="stack">Runtime enregistré <select name="runtime_id"><option value="">— sélectionner un runtime —</option>${runtimeOptions}</select></label>` +
+    `<label class="stack">Moteur IA enregistré <select name="runtime_id"><option value="">— sélectionner un moteur IA —</option>${runtimeOptions}</select></label>` +
     `<div data-gaps aria-live="polite"></div>` +
     `<details class="settings-subeditor"><summary>Ou ancres directes (sans runtime enregistré)</summary>` +
     machineFieldHtml(machines, null) +
@@ -930,11 +930,11 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
     : [];
   const visible = filterBindings(bindings.value, bindingsState);
   const body = bindings.value.length === 0 ? bindingsEmptyHtml() : visible.length === 0 ? bindingsNoMatchHtml() : bindingsListHtml(visible, runtimesById);
-  const degraded = runtimes.ok ? "" : `<p class="state error" role="alert">Runtimes indisponibles : ${esc(describeError(runtimes.error))} — les cibles du registre sont affichées sous forme d'identifiant.</p>`;
+  const degraded = runtimes.ok ? "" : `<p class="state error" role="alert">Moteurs IA indisponibles : ${esc(describeError(runtimes.error))} — les cibles du registre sont affichées sous forme d'identifiant.</p>`;
   root.innerHTML =
     `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-bindings-reload" }])}${head}` +
-    `<section class="settings-domain"><h2>Règles d'affectation (bindings)</h2>` +
-    `<p class="settings-intro">Un binding est un choix stocké par clé logique, pas un runtime ni un agent. Les bindings de niveau « personnel » sont privés : ceux des autres utilisateurs ne sont jamais exposés par l'API.</p>` +
+    `<section class="settings-domain"><h2>Règles d'affectation</h2>` +
+    `<p class="settings-intro">Une affectation est un choix stocké par clé logique, pas un moteur IA ni un agent. Les affectations de niveau « personnel » sont privés : ceux des autres utilisateurs ne sont jamais exposés par l'API.</p>` +
     (bindings.value.length === 0 ? "" : bindingsToolbarHtml(bindingsState, visible.length, bindings.value.length)) +
     degraded +
     `<div id="settings-bindings-list">${body}</div>` +
@@ -1043,7 +1043,7 @@ function bindBindingDeletes(root: HTMLElement, ctx: ConfigurationContext): void 
     button.addEventListener("click", async () => {
       const bindingId = button.dataset["deleteBinding"];
       if (bindingId === undefined) return;
-      if (!(await confirmDs("Supprimer ce binding ? Cette règle d'affectation disparaît ; le runtime visé n'est pas supprimé."))) return;
+      if (!(await confirmDs("Supprimer cette affectation ? Cette règle d'affectation disparaît ; le moteur visé n'est pas supprimé."))) return;
       button.disabled = true;
       deleteRuntimeBinding(ctx.client, bindingId)
         .then(() => {
@@ -1126,13 +1126,13 @@ export async function renderProjectConfig(root: HTMLElement, ctx: ConfigurationC
   const projectId = effectiveProjectId();
   let body: string;
   try {
-    body = projectId === null ? statusBlock("empty", "Saisissez un identifiant de projet pour voir ses ressources, verrous et overrides.") : await projectTabBody(ctx, projectId, tab);
+    body = projectId === null ? statusBlock("empty", "Saisissez un identifiant de projet pour voir ses ressources, versions figées et versions personnalisées.") : await projectTabBody(ctx, projectId, tab);
   } catch (error) {
     body = statusBlock("error", describeError(error));
   }
   root.innerHTML =
     `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION)}${head}${tabs}` +
-    `<section class="settings-domain"><h2>Configuration de projet</h2>` +
+    `<section class="settings-domain"><h2>Réglages du projet</h2>` +
     `<p class="settings-intro">${projectId === null ? "Aucun projet actif" : `Projet ${esc(projectId)}`}</p>` +
     `${projectSelectorHtml(projectId)}${body}</section></div>`;
   bindProjectTab(root, ctx, tab, projectId);
@@ -1148,7 +1148,7 @@ function projectSelectorHtml(projectId: string | null): string {
 }
 
 function projectTabsHtml(active: "resources" | "locks" | "overrides"): string {
-  const labels: Record<"resources" | "locks" | "overrides", string> = { resources: "Ressources", locks: "Verrous", overrides: "Overrides" };
+  const labels: Record<"resources" | "locks" | "overrides", string> = { resources: "Ressources", locks: "Versions figées", overrides: "Versions personnalisées" };
   return `<nav class="tabs" aria-label="Sections de configuration de projet">${(["resources", "locks", "overrides"] as const)
     .map((name) => `<a class="tab${name === active ? " active" : ""}" href="#/configuration/project/${name}"${name === active ? ' aria-current="page"' : ""}>${esc(labels[name])}</a>`)
     .join("")}</nav>`;
@@ -1220,8 +1220,8 @@ async function projectResourcesHtml(ctx: ConfigurationContext, projectId: string
     .join("");
   const table =
     resources.length === 0
-      ? statusBlock("empty", "Aucune ressource de bibliothèque propre à ce projet.")
-      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Ressources de bibliothèque du projet</caption><thead><tr><th scope="col">Clé stable</th><th scope="col">Type</th><th scope="col">Portée</th><th scope="col">Active</th><th scope="col">Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      ? statusBlock("empty", "Aucune ressource de savoir-faire propre à ce projet.")
+      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Ressources de savoir-faire du projet</caption><thead><tr><th scope="col">Identifiant</th><th scope="col">Type</th><th scope="col">Portée</th><th scope="col">Active</th><th scope="col">Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   return `<h3>Ressources</h3><p class="meta">Définitions propres au projet. Les ressources de portée Studio ou Utilisateur n'appartiennent pas à un projet.</p>${table}`;
 }
 
@@ -1237,10 +1237,10 @@ async function projectLocksHtml(ctx: ConfigurationContext, projectId: string): P
     .join("");
   const table =
     locks.length === 0
-      ? statusBlock("empty", "Aucun verrou pour ce projet.")
-      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Verrous du projet</caption><thead><tr><th scope="col">Ressource</th><th scope="col">Version verrouillée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      ? statusBlock("empty", "Aucune version figée pour ce projet.")
+      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Versions figées du projet</caption><thead><tr><th scope="col">Ressource</th><th scope="col">Version verrouillée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   return (
-    `<h3>Verrous</h3><p class="meta">RESOURCE | VERSION VERROUILLÉE — le verrou épingle une version pour ce projet ; la version effective n'est décidée que par le serveur (voir Inspecteur).</p>${table}` +
+    `<h3>Versions figées</h3><p class="meta">RESOURCE | VERSION VERROUILLÉE — le verrou épingle une version pour ce projet ; la version effective n'est décidée que par le serveur (voir Inspecteur).</p>${table}` +
     `<form class="inline-form" data-lock>` +
     `<label>Identifiant de ressource <input name="resource_id" placeholder="uuid" required /></label>` +
     `<label>Version <input name="lock_version" type="number" min="1" required /></label>` +
@@ -1262,9 +1262,9 @@ async function projectOverridesHtml(ctx: ConfigurationContext, projectId: string
     return `<h3>${esc(title)}</h3><p class="meta">${esc(meta)}</p>${body}`;
   };
   return (
-    section("Overrides de projet", "Épinglage explicite pour ce projet.", overrides, "Aucun override de projet.") +
+    section("Versions personnalisées de projet", "Épinglage explicite pour ce projet.", overrides, "Aucun override de projet.") +
     section("Défauts de projet", "Repli pour ce projet, distinct d'un override.", defaults, "Aucun défaut de projet.") +
     section("Défauts de studio", "Affichés uniquement si le serveur les renvoie pour ce jeton.", studioDefaults, "Aucun défaut de studio visible.") +
-    `<p><a href="#/inspector">Ouvrir l'Inspecteur de résolution</a> pour voir quel niveau gagne réellement pour une AgentDefinition donnée.</p>`
+    `<p><a href="#/inspector">Ouvrir l'Diagnostic</a> pour voir quel niveau gagne réellement pour une AgentDefinition donnée.</p>`
   );
 }

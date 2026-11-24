@@ -172,7 +172,7 @@ describe("inspectorFormHtml", () => {
 
   it("uses French labels and keeps technical ids canonical", () => {
     const html = inspectorFormHtml(null, null, []);
-    expect(html).toContain("Clé stable AgentDefinition");
+    expect(html).toContain("Identifiant du profil d'agent");
     expect(html).toContain("Projet (contexte optionnel)");
     expect(html).toContain("Résoudre");
     expect(html).toContain("POST /resolutions");
@@ -236,7 +236,7 @@ describe("resolutionResultHtml", () => {
 describe("runtimeHtml / modelProfileHtml", () => {
   it("distinguishes 'no binding selected' from a failure", () => {
     const html = runtimeHtml(null);
-    expect(html).toContain("Aucun binding runtime sélectionné");
+    expect(html).toContain("Aucune affectation runtime sélectionné");
     expect(html).toContain("résultat valide");
   });
 
@@ -472,7 +472,7 @@ describe("French UI / CSP", () => {
   it("user-facing text is in French", () => {
     const html = resolutionResultHtml(resolved());
     expect(html).toContain("Identité résolue");
-    expect(html).toContain("Runtime sélectionné");
+    expect(html).toContain("Moteur IA sélectionné");
     expect(html).toContain("Compatibilité");
     expect(html).toContain("Pourquoi ce résultat");
   });

@@ -143,7 +143,7 @@ export const LIBRARY_KIND_FR: readonly LibraryKindFr[] = [
   {
     slug: "agent-definitions",
     kind: "agent_definition",
-    singular: "Définition d'agent",
+    singular: "Profil d'agent",
     plural: "Définitions d'agents",
     description: "Identités d'agents : rôle et configuration logique, sans exécution ici.",
   },
@@ -231,7 +231,7 @@ export function shadowNoteHtml(resources: LibraryResource[]): string {
   return (
     `<div class="ds-notice ds-notice--warning" role="note"><strong>Plusieurs portées pour ${shadowed} clé${sfx(shadowed)} stable${sfx(shadowed)}.</strong>` +
     `Cette liste montre chaque ressource stockée ; elle ne choisit pas la version effective. ` +
-    `Consultez l'<a href="#/inspector">Inspecteur de résolution</a> pour voir la version retenue.</div>`
+    `Consultez l'<a href="#/inspector">Diagnostic</a> pour voir la version retenue.</div>`
   );
 }
 
@@ -243,7 +243,7 @@ function shadowNoteForDetail(resource: LibraryResource, siblings: LibraryResourc
   return (
     `<div class="ds-notice ds-notice--warning" role="note"><strong>Cette clé existe dans plusieurs portées.</strong>` +
     `Ce que vous lisez est la ressource ${esc(scopeLabel(resource.scope))} « ${esc(resource.stable_key)} ». ` +
-    `L'<a href="#/inspector/${esc(encodeURIComponent(resource.stable_key))}">Inspecteur de résolution</a> montre la version effective.</div>`
+    `L'<a href="#/inspector/${esc(encodeURIComponent(resource.stable_key))}">Diagnostic</a> montre la version effective.</div>`
   );
 }
 
@@ -334,7 +334,7 @@ export function versionsTableHtml(versions: LibraryVersion[], activeVersion: num
 
 export function locksTableHtml(locks: LibraryProjectLock[]): string {
   if (locks.length === 0)
-    return `<p class="ds-list-sub">Aucun verrou projet sur cette ressource. Un verrou fige une version précise pour un projet donné.</p>`;
+    return `<p class="ds-list-sub">Aucune version figée du projet sur cette ressource. Une version figée fixe une version précise pour un projet donné.</p>`;
   const rows = locks
     .map(
       (lock) =>
@@ -343,7 +343,7 @@ export function locksTableHtml(locks: LibraryProjectLock[]): string {
         `<td class="actions"><button class="ds-btn ds-btn--sm" type="button" data-release-lock="${esc(lock.id)}" aria-label="Libérer le verrou du projet ${esc(projectLabel(lock.project_id))}">Libérer</button></td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Verrous projet — une version figée par projet</caption><thead><tr><th scope="col">Projet</th><th scope="col">Version figée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Versions figées du projet — une version figée par projet</caption><thead><tr><th scope="col">Projet</th><th scope="col">Version figée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function dependenciesTableHtml(dependencies: LibraryVersion["dependencies"]): string {
@@ -355,7 +355,7 @@ export function dependenciesTableHtml(dependencies: LibraryVersion["dependencies
       return `<tr><td>${esc(kindFr(pin.kind).singular)}</td><td><code class="mono">${esc(pin.stable_key)}</code></td><td>v${pin.version}</td><td>${relation}</td></tr>`;
     })
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Dépendances déclarées</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé stable</th><th scope="col">Version</th><th scope="col">Relation</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Dépendances déclarées</caption><thead><tr><th scope="col">Type</th><th scope="col">Identifiant</th><th scope="col">Version</th><th scope="col">Relation</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function entriesTableHtml(entries: { label: string; value: string }[]): string {
@@ -463,7 +463,7 @@ export function versionContentHtml(kind: LibraryKind, version: LibraryVersion): 
   const summary = workflow.summary !== null ? `<p class="library-prose">${esc(workflow.summary)}</p>` : "";
   return (
     `${summary}` +
-    `<h4>Participants</h4><div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Participants du flux</caption><thead><tr><th scope="col">Participant</th><th scope="col">Définition d'agent</th><th scope="col">Dépend de</th><th scope="col">Description</th></tr></thead><tbody>${participants}</tbody></table></div>` +
+    `<h4>Participants</h4><div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Participants du flux</caption><thead><tr><th scope="col">Participant</th><th scope="col">Profil d'agent</th><th scope="col">Dépend de</th><th scope="col">Description</th></tr></thead><tbody>${participants}</tbody></table></div>` +
     `<h4>Enchaînement (ordre déclaré)</h4>${edgeList}<p class="ds-list-sub">Dépendances déclaratives uniquement — Studi'OS n'exécute jamais ce flux ici.</p>` +
     `<h4>Entrées du flux</h4>${ioTableHtml(workflow.inputs, "Entrées du flux")}<h4>Sorties du flux</h4>${ioTableHtml(workflow.outputs, "Sorties du flux")}`
   );
@@ -536,7 +536,7 @@ export function workProfilePackPreviewHtml(preview: WorkProfilePackPreview): str
 
 function workProfilePackFormHtml(): string {
   return `<section class="ds-panel"><header><h2>Vérifier un pack métier</h2></header><div class="body">` +
-    `<p>Lire un manifeste JSON pour comparer sa base et ses adaptations à la bibliothèque, sans publier de définition.</p>` +
+    `<p>Lire un manifeste JSON pour comparer sa base et ses adaptations aux savoir-faire, sans publier de profil.</p>` +
     `<form data-pack-preview><label>Manifeste du pack <input type="file" name="pack" accept="application/json,.json" required /></label>` +
     `<details><summary>Politique pour cet aperçu</summary><p>Sans fichier, aucune autorisation de lancement n'est accordée. Ce fichier ne modifie pas les réglages du poste.</p>` +
     `<label>Politique machine (facultative) <input type="file" name="policy" accept="application/json,.json" /></label></details>` +
@@ -576,8 +576,8 @@ export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed
       `<p><a class="ds-btn" href="#/library/${esc(entry.slug)}">Ouvrir les ${esc(entry.plural.toLowerCase())}</a></p></li>`,
   ).join("");
   return (
-    `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
-    `${dsPageHeader(UI_LABEL.library, "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
+    `<p class="ds-hero-eyebrow">Réglages / Savoir-faire</p>` +
+    `${dsPageHeader(UI_LABEL.library, "Connaissances réutilisables : règles, compétences et réglages.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `<ul class="library-cats">${cards}</ul>${workProfilePackFormHtml()}`
   );
@@ -609,7 +609,7 @@ function contentEditorsHtml(kind: LibraryKind): string {
 export function createFormFieldsHtml(kind: LibraryKind, isAdmin = true): string {
   return (
     `<fieldset class="library-fieldset"><legend>Informations principales</legend>` +
-    `<label class="stack">Clé stable <input name="stable_key" required autocomplete="off" placeholder="ma-ressource" /></label>` +
+    `<label class="stack">Identifiant <input name="stable_key" required autocomplete="off" placeholder="ma-ressource" /></label>` +
     `<label class="stack">Portée <select name="scope">${SCOPE_VALUES.filter((scope) => isAdmin || scope !== "studio").map((scope) => `<option value="${scope}">${esc(scopeLabel(scope))}</option>`).join("")}</select></label>` +
     `<label class="stack">ID projet (exigé pour la portée Projet) <input name="project_id" placeholder="uuid" autocomplete="off" /></label>` +
     `<label class="stack">Titre <input name="title" required autocomplete="off" placeholder="Titre lisible de la version 1" /></label>` +
@@ -753,7 +753,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
   const fr = kindFr(kind);
   const visible = filterLibraryResources(resources, state);
   const header =
-    `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
+    `<p class="ds-hero-eyebrow">Réglages / Savoir-faire</p>` +
     dsPageHeader(fr.plural, fr.description, [{ label: "Créer un élément", id: "library-new", variant: "primary" }]);
   let body: string;
   if (resources.length === 0) {
@@ -771,7 +771,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
   }
   return (
     `${libraryTabsHtml(fr.slug)}` +
-    `<p><a href="#/library">← Retour à la bibliothèque</a></p>${header}` +
+    `<p><a href="#/library">← Retour aux savoir-faire</a></p>${header}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `${listToolbarHtml(fr, state, visible.length, resources.length)}` +
     `${shadowNoteHtml(resources)}${body}`
@@ -782,7 +782,7 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
   const meta = kindSlug === null ? null : kindFromSlug(kindSlug);
   if (kindSlug !== null && meta === null) {
     root.innerHTML = libraryTabsHtml(null) + dsPageHeader(UI_LABEL.library, "") +
-      `<div class="ds-notice ds-notice--danger" role="alert"><strong>Catégorie inconnue.</strong>Revenez à la bibliothèque.</div>`;
+      `<div class="ds-notice ds-notice--danger" role="alert"><strong>Catégorie inconnue.</strong>Revenez aux savoir-faire.</div>`;
     return;
   }
   if (meta === null) {
@@ -950,7 +950,7 @@ function identityTechHtml(resource: LibraryResource, schema: string | null): str
   return (
     `<dl class="library-tech-list">` +
     `<div><dt>Identifiant</dt><dd><code class="mono">${esc(resource.id)}</code></dd></div>` +
-    `<div><dt>Clé stable</dt><dd><code class="mono">${esc(resource.stable_key)}</code></dd></div>` +
+    `<div><dt>Identifiant</dt><dd><code class="mono">${esc(resource.stable_key)}</code></dd></div>` +
     `<div><dt>content_schema</dt><dd>${schema !== null ? `<code class="mono">${esc(schema)}</code>` : '<span class="ds-list-sub">—</span>'}</dd></div>` +
     `<div><dt>Révision ressource</dt><dd>v${resource.version}</dd></div>` +
     `<div><dt>Version active</dt><dd>${resource.active_version === 0 ? "aucune" : `v${resource.active_version}`}</dd></div>` +
@@ -1067,7 +1067,7 @@ export function libraryDetailHtml(
   return (
     `<div class="library library-detail">${libraryTabsHtml(kindFr(resource.kind).slug)}` +
     `<p><a href="${esc(libraryKindHref(resource.kind))}">← Retour aux ${esc(fr.plural.toLowerCase())}</a></p>` +
-    `<p class="ds-hero-eyebrow">Bibliothèque / ${esc(fr.singular)}</p>` +
+    `<p class="ds-hero-eyebrow">Savoir-faire / ${esc(fr.singular)}</p>` +
     `${dsPageHeader(activeTitle, activeDescription)}` +
     `<p class="library-badges">${scopeBadge(resource.scope)}${statusBadge(resource.status)}` +
     (resource.active_version === 0
@@ -1100,15 +1100,15 @@ export function libraryDetailHtml(
     `<section class="ds-panel" aria-label="Historique des versions"><header><h2>Historique des versions</h2><span class="ds-list-sub">${versions.length} version${sfx(versions.length)} · instantanés immuables</span></header><div class="body">` +
     (versionBlocks === "" ? dsEmptyState("Aucune version", "Aucune version enregistrée.") : `<div class="library-versions">${versionBlocks}</div>`) +
     `</div></section>` +
-    `<section class="ds-panel" aria-label="Verrous projet"><header><h2>Verrous projet</h2></header><div class="body">` +
-    `<p>Un verrou fige une version précise pour un projet donné. Il n'empêche jamais un commit Git : il signale l'écart.</p>` +
+    `<section class="ds-panel" aria-label="Versions figées du projet"><header><h2>Versions figées du projet</h2></header><div class="body">` +
+    `<p>Une version figée fixe une version précise pour un projet donné. Il n'empêche jamais un commit Git : il signale l'écart.</p>` +
     `${locksTableHtml(relevantLocks)}` +
     `<form class="library-action" data-lock>` +
     `<h3>Figer une version pour un projet</h3>` +
     `<label class="library-inline-field">ID projet <input class="ds-input" name="lock_project_id" placeholder="uuid" required autocomplete="off" /></label>` +
     `<label class="library-inline-field">Version <input class="ds-input" name="lock_version" type="number" min="1" required /></label>` +
     `<button class="ds-btn ds-btn--sm" type="submit">Figer la version</button>` +
-    `<p class="ds-list-sub">Le verrou vise cette ressource précise, pas seulement sa clé stable.</p>` +
+    `<p class="ds-list-sub">La version figée vise cette ressource précise, pas seulement son identifiant.</p>` +
     `<div data-msg class="ds-field-error" role="alert"></div></form>` +
     `</div></section>` +
     `<details class="library-tech"><summary>Informations techniques</summary>${identityTechHtml(resource, activeSchema)}</details>` +
@@ -1170,7 +1170,7 @@ export async function renderLibraryDetail(
   const locksWarning =
     locksError === undefined
       ? ""
-      : `<div class="ds-notice ds-notice--warning" role="alert"><strong>Verrous indisponibles.</strong> ${esc(locksError)}</div>`;
+      : `<div class="ds-notice ds-notice--warning" role="alert"><strong>Versions figées indisponibles.</strong> ${esc(locksError)}</div>`;
   root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings, await isAdminIdentity(ctx.client)) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
@@ -1365,7 +1365,7 @@ function bindDetail(
       button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {
-          dsNotify("Verrou libéré.", "info");
+          dsNotify("Version figée libérée.", "info");
           refresh();
         })
         .catch((error: unknown) => {

@@ -87,7 +87,7 @@ describe("homeLoadingHtml", () => {
   it("montre un squelette DS en français, jamais un texte brut", () => {
     const html = homeLoadingHtml();
     expect(html).toContain("ds-skeleton");
-    expect(html).toContain("Accueil");
+    expect(html).toContain("Aujourd'hui");
     expect(html).not.toContain("Loading");
   });
 });
@@ -95,7 +95,7 @@ describe("homeLoadingHtml", () => {
 describe("homePageHtml nominal", () => {
   it("rend les trois blocs prioritaires dans l'ordre, compteurs en dernier", () => {
     const html = homePageHtml(fullData());
-    expect(html).toContain("<h1>Accueil</h1>");
+    expect(html).toContain("<h1>Aujourd'hui</h1>");
     const now = html.indexOf("À faire maintenant");
     const review = html.indexOf("À valider");
     const recent = html.indexOf("Projets récents");
@@ -360,7 +360,7 @@ describe("homeTransferSignalHtml", () => {
 describe("homePageHtml non authentifié", () => {
   it("garde l'en-tête et la santé, propose la connexion sans jargon", () => {
     const html = homePageHtml({ ...fullData(), authed: false });
-    expect(html).toContain("<h1>Accueil</h1>");
+    expect(html).toContain("<h1>Aujourd'hui</h1>");
     expect(html).toContain("Connectez-vous");
     expect(html).not.toContain("machine token");
   });

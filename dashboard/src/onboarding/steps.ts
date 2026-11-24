@@ -43,7 +43,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     id: "final",
     title: "Prêt",
     heading: "Votre poste est prêt",
-    intro: "Contrôlez le résumé avant de terminer. Vos dossiers se configureront ensuite depuis « Espaces de travail », sans obligation.",
+    intro: "Contrôlez le résumé avant de terminer. Vos dossiers se configureront ensuite depuis « Dossiers du projet », sans obligation.",
     required: true,
   },
   {

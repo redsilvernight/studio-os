@@ -100,7 +100,7 @@ async function login(page: Page, hash: string, calls: string[]): Promise<Error[]
   await page.fill("#login-email", "ada@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
-  await expect(page.locator("#view h1")).toHaveText("Vault");
+  await expect(page.locator("#view h1")).toHaveText("Notes");
   return errors;
 }
 

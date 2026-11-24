@@ -63,7 +63,7 @@ for (const done of [false, true]) {
 
 test("sélection compacte : statut et progression, historique chargé au clavier", async ({ page }) => {
   await open(page);
-  const select = page.getByLabel("Roadmap à consulter");
+  const select = page.getByLabel("Plan à consulter");
   await expect(select.locator("option")).toHaveCount(22);
   await expect(select.locator("option").first()).toContainText("Active — 50 %");
   await expect(select.locator("option").nth(1)).toContainText("Archivée — 100 %");

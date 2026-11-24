@@ -42,11 +42,11 @@ test("administration : problèmes réels actionnables et lisibles sur375px", asy
   await adminFixture(page, "attention");
   const cards = page.locator(".admin-indicator");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Postes", exact: true }) })).toContainText("1 hors ligne");
-  await expect(cards.filter({ has: page.getByRole("heading", { name: "Configuration", exact: true }) })).toContainText("À compléter");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "Réglages", exact: true }) })).toContainText("À compléter");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Validations", exact: true }) })).toContainText("1 en attente");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Stockage", exact: true }) })).toContainText("1 Ko utilisés");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Postes", exact: true }) }).locator("a")).toHaveAttribute("href", "#/machines");
-  await expect(cards.filter({ has: page.getByRole("heading", { name: "Configuration", exact: true }) }).locator("a")).toHaveAttribute("href", "#/configuration/bindings");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "Réglages", exact: true }) }).locator("a")).toHaveAttribute("href", "#/configuration/bindings");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Validations", exact: true }) }).locator("a")).toHaveAttribute("href", "#/decisions");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Stockage", exact: true }) }).locator("a")).toHaveAttribute("href", "#/transfers");
   await page.setViewportSize({ width: 375, height: 812 });

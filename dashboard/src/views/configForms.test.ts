@@ -119,7 +119,7 @@ describe("capability and machine fields", () => {
     expect(html).toContain('list="h-list"');
     expect(html).toContain('value="custom"');
     for (const harness of ["claude-code", "opencode", "codex"]) expect(html).toContain(`<option value="${harness}">`);
-    expect(html).toContain("Outil (harness)");
+    expect(html).toContain("Outil");
   });
 });
 
@@ -274,7 +274,7 @@ describe("buildBindingCreate", () => {
   it("requires an anchor when no registry id is given", () => {
     expect(buildBindingCreate(reader({ ...base, runtime_id: "" }))).toEqual({
       ok: false,
-      error: "choisissez un runtime enregistré, ou au moins un ancrage direct (poste, outil, fournisseur ou modèle)",
+      error: "choisissez un moteur IA enregistré, ou au moins un ancrage direct (poste, outil, fournisseur ou modèle)",
       field: "runtime_id",
     });
   });

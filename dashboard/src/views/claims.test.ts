@@ -1,5 +1,5 @@
 /**
- * Réservations : confirmation de libération nommant le détenteur,
+ * Fichier occupés : confirmation de libération nommant le détenteur,
  * bouton Libérer désactivé sur une réservation déjà libérée.
  *
  * DOM-free (vitest, environnement node) : assertions sur les chaînes produites.
@@ -43,7 +43,7 @@ describe("filtre et pagination", () => {
     expect(paginateClaims([], 5)).toEqual({ items: [], page: 1, pages: 1 });
   });
 
-  it("trie toutes les réservations avant pagination, avec départage stable, dans chaque filtre", () => {
+  it("trie toutes les fichiers occupés avant pagination, avec départage stable, dans chaque filtre", () => {
     const mixed = Array.from({ length: 25 }, (_, index) => ({
       ...claim,
       id: `c-${String(index).padStart(2, "0")}`,

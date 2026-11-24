@@ -228,7 +228,7 @@ describe("P3-detected link journey", () => {
   });
 });
 
-describe("Espaces de travail navigation", () => {
+describe("Dossiers du projet navigation", () => {
   it("routes #/workspaces", () => {
     expect(parseRoute("#/workspaces")).toEqual({ name: "workspaces" });
     expect(parseRoute("#/workspaces/x").name).toBe("notFound");
@@ -243,9 +243,9 @@ describe("Espaces de travail navigation", () => {
     expect(shellHtml({ name: "dashboard" }, true, true)).toContain("Réglages");
   });
 
-  it("titles the page Espaces de travail with a folded technical block", () => {
-    expect(workspacesPageHtml("desktop", null)).toContain("Espaces de travail");
-    expect(workspacesPageHtml("desktop", null)).toContain("Administration / Espaces de travail");
+  it("titles the page Dossiers du projet with a folded technical block", () => {
+    expect(workspacesPageHtml("desktop", null)).toContain("Dossiers du projet");
+    expect(workspacesPageHtml("desktop", null)).toContain("Réglages / Dossiers du projet");
     expect(workspacesPageHtml("desktop", null)).toContain("Détails techniques");
     expect(workspacesPageHtml("web", null)).toContain("Studi'OS Desktop");
   });

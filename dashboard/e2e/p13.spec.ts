@@ -445,7 +445,7 @@ test("inspector never shows Compatible when no runtime was selected (unknown != 
 
   await goHash(page, "#/inspector/review-agent");
   const result = page.locator("[data-result]");
-  await expect(result).toContainText("Aucun binding runtime sélectionné");
+  await expect(result).toContainText("Aucune affectation runtime sélectionné");
   await expect(result).toContainText("résultat valide");
   await expect(result).not.toContainText("Compatible");
 
@@ -564,7 +564,7 @@ test("binding creation reads the level and target_kind selects (D1 regression)",
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/configuration/bindings");
-  await page.locator("summary", { hasText: "Nouvelle liaison" }).click();
+  await page.locator("summary", { hasText: "Nouvelle affectation" }).click();
   await expect(page.locator("form[data-binding-create]")).toBeVisible();
   await page.selectOption("form[data-binding-create] select[name=level]", "project_default");
   await page.fill(

@@ -67,7 +67,7 @@ export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix
   { id: "mission", label: UI_LABEL.runs, suffix: "/mission" },
   { id: "roadmap", label: UI_LABEL.roadmap, suffix: "/roadmap" },
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
-  { id: "claims", label: "Réservations", suffix: "/claims" },
+  { id: "claims", label: "Fichiers occupés", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
   { id: "history", label: "Historique", suffix: "/history" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
@@ -167,7 +167,7 @@ export function projectAttentionItems(state: ProjectState, now: number): string[
   }
   for (const claim of state.active_claims) {
     const remaining = new Date(claim.expires_at).getTime() - now;
-    if (remaining <= CLAIM_EXPIRY_SOON_MS) items.push(`Réservation expirant bientôt : ${claim.resource_path}`);
+    if (remaining <= CLAIM_EXPIRY_SOON_MS) items.push(`Fichier occupé : libération proche : ${claim.resource_path}`);
   }
   return items;
 }
@@ -207,7 +207,7 @@ export function projectHeroHtml(project: Project, state: ProjectState, step: Cur
   const objective = (project.description ?? "").trim();
   const stepBody =
     step === null
-      ? `<p class="ds-list-sub">Aucune étape courante : <a href="#/projects/${esc(project.id)}/roadmap">ouvrir la roadmap</a>.</p>`
+      ? `<p class="ds-list-sub">Aucune étape courante : <a href="#/projects/${esc(project.id)}/roadmap">ouvrir le plan</a>.</p>`
       : `<p class="workspace-step-title">${esc(step.title)}</p><p class="ds-list-sub">${esc(step.phaseTitle)}${step.progress === null ? "" : ` · ${esc(step.progress)}`} — <a href="#/projects/${esc(project.id)}/roadmap">voir la roadmap</a></p>`;
   const blockersBody =
     blockers.length === 0
@@ -243,7 +243,7 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
 
   const claimsBody =
     state.active_claims.length === 0
-      ? `<p class="ds-list-sub">Aucune réservation active.</p>`
+      ? `<p class="ds-list-sub">Aucun fichier occupé en ce moment.</p>`
       : `<ul class="ds-list">${claimPreview
           .map(
             (claim: ResourceClaim) =>
@@ -255,7 +255,7 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
   return `<div class="workspace-overview">` +
     projectHeroHtml(project, state, step, now) +
     `<section class="workspace-section" aria-label="Tâches actives">${dsSectionHeader(`Tâches actives (${state.active_tasks.length})`, { label: "Voir les tâches", href: `#/projects/${esc(project.id)}/tasks` })}${tasksBody}</section>` +
-    `<section class="workspace-section" aria-label="Réservations actives">${dsSectionHeader(`Réservations actives (${state.active_claims.length})`, { label: "Voir les réservations", href: `#/projects/${esc(project.id)}/claims` })}${claimsBody}</section>` +
+    `<section class="workspace-section" aria-label="Fichiers occupés en ce moment">${dsSectionHeader(`Fichiers occupés en ce moment (${state.active_claims.length})`, { label: "Voir les fichiers occupés", href: `#/projects/${esc(project.id)}/claims` })}${claimsBody}</section>` +
     `<section class="workspace-section" aria-label="Historique et décisions"><p class="ds-list-sub">L'historique complet vit dans <a href="#/projects/${esc(project.id)}/activity">Activité</a>, les décisions liées au projet dans <a href="#/projects/${esc(project.id)}/decisions">Décisions</a>.</p></section>` +
     `</div>`;
 }
@@ -409,7 +409,7 @@ export async function renderProjectDetail(
   }
   if (tab === "roadmap") {
     if (ctx.roadmapDataSource === undefined) {
-      panel.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> La source de données n'est pas configurée.</div>`;
+      panel.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Plan indisponible.</strong> La source de données n'est pas configurée.</div>`;
       return;
     }
     const canManageLifecycle =
@@ -426,7 +426,7 @@ export async function renderProjectDetail(
   }
   if (tab === "claims") {
     panel.innerHTML =
-      `<p class="ds-list-sub">Une réservation signale qu'une ressource est en cours d'utilisation, sans jamais bloquer Git ni les écritures. Un chevauchement reste accepté et est signalé dans l'onglet Activité.</p><div data-slot></div>`;
+      `<p class="ds-list-sub">Un fichier occupé signale qu'une ressource est en cours d'utilisation, sans jamais bloquer Git ni les écritures. Un chevauchement reste accepté et est signalé dans l'onglet Activité.</p><div data-slot></div>`;
     const slot = panel.querySelector<HTMLElement>("[data-slot]");
     if (slot !== null) {
       await renderClaimsInto(slot, { client: ctx.client, projectId: project.id, authed: ctx.authed });

@@ -445,7 +445,7 @@ export function roadmapSwitcherHtml(roadmap: Roadmap, roadmaps: RoadmapListItem[
       return `<option value="${esc(item.id)}"${current}>${esc(label)}</option>`;
     })
     .join("");
-  return `<nav class="roadmap-switcher roadmap-no-print" aria-label="Roadmaps du projet"><label for="roadmap-select">Roadmap à consulter</label>` +
+  return `<nav class="roadmap-switcher roadmap-no-print" aria-label="Plans du projet"><label for="roadmap-select">Plan à consulter</label>` +
     `<select id="roadmap-select" data-roadmap-select>${options}</select></nav>`;
 }
 
@@ -594,7 +594,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   try {
     roadmap = await ctx.dataSource.load(ctx.projectId, ctx.roadmapId);
   } catch (error) {
-    root.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> ${esc(describeError(error))}</div>`;
+    root.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Plan indisponible.</strong> ${esc(describeError(error))}</div>`;
     return;
   }
   let mode: RoadmapMode = "execution";

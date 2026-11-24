@@ -28,10 +28,10 @@ export const ADMIN_FAMILIES: readonly AdminFamily[] = [
   { href: "#/machines", title: UI_LABEL.machines, hint: "Environnements où le travail s'exécute", icon: "machines" },
   { href: "#/accounts", title: "Comptes et membres", hint: "Comptes, sessions et accès par projet", icon: "person" },
   { href: "#/transfers", title: UI_LABEL.transfers, hint: "Fichiers échangés entre postes", icon: "transfers" },
-  { href: "#/library", title: UI_LABEL.library, hint: "Règles, savoir-faire et configurations", icon: "book" },
-  { href: "#/configuration/runtimes", title: UI_LABEL.configuration, hint: "Runtimes, liaisons, projet, appli, IA", icon: "settings" },
-  { href: "#/workspaces", title: "Espaces de travail", hint: "Dossiers suivis sur ce poste", icon: "folder" },
-  { href: "#/inspector", title: "Inspecteur", hint: "Voir quel niveau de configuration gagne", icon: "inspector" },
+  { href: "#/library", title: UI_LABEL.library, hint: "Règles, compétences et réglages", icon: "book" },
+  { href: "#/configuration/runtimes", title: UI_LABEL.configuration, hint: "Moteurs IA, affectations, projet, appli, IA", icon: "settings" },
+  { href: "#/workspaces", title: "Dossiers du projet", hint: "Dossiers suivis sur ce poste", icon: "folder" },
+  { href: "#/inspector", title: "Inspecteur", hint: "Voir quel niveau de réglage l'emporte", icon: "inspector" },
   { href: "#/administration/mesures", title: "Mesures d'infrastructure", hint: "Tailles et comptes de l'instance", icon: "settings" },
 ];
 
@@ -78,15 +78,15 @@ export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
     cards.push({ title: UI_LABEL.machines, value: `${offline.length} hors ligne`, detail: `${machines.length} poste${sfx(machines.length)} accessible${sfx(machines.length)}, ${idle.length} inactif${sfx(idle.length)}. ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/machines", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
   }
   const configErrors = [data.runtimes.error, data.bindings.error].filter((value): value is string => value !== undefined);
-  if (configErrors.length > 0) cards.push(unavailable(UI_LABEL.configuration, configErrors.join(" · "), "#/configuration/runtimes", "Ouvrir la configuration"));
+  if (configErrors.length > 0) cards.push(unavailable(UI_LABEL.configuration, configErrors.join(" · "), "#/configuration/runtimes", "Ouvrir les réglages"));
   else if (data.runtimes.data !== undefined && data.bindings.data !== undefined) {
     const active = data.runtimes.data.filter((runtime) => runtime.status === "active");
     const incomplete = active.filter((runtime) => !runtime.harness_ref || !runtime.provider_ref || !runtime.model_ref);
     const broken = data.bindings.data.filter((binding) => binding.target.runtime_id && !active.some((runtime) => runtime.id === binding.target.runtime_id));
     const missing = active.length === 0 || data.bindings.data.length === 0;
     const attention = missing || incomplete.length > 0 || broken.length > 0;
-    const details = [active.length === 0 ? "Aucun runtime actif." : `${active.length} runtime${sfx(active.length)} actif${sfx(active.length)}, ${incomplete.length} avec des références à compléter.`, data.bindings.data.length === 0 ? "Aucune liaison définie." : `${broken.length} liaison${sfx(broken.length)} vers un runtime absent ou révoqué.`];
-    cards.push({ title: UI_LABEL.configuration, value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/configuration/bindings" : "#/configuration/runtimes", action: "Ouvrir la configuration", tone: attention ? "warning" : "success", attention });
+    const details = [active.length === 0 ? "Aucun moteur IA actif." : `${active.length} moteur${sfx(active.length)} actif${sfx(active.length)}, ${incomplete.length} avec des références à compléter.`, data.bindings.data.length === 0 ? "Aucune affectation définie." : `${broken.length} affectation${sfx(broken.length)} vers un moteur IA absent ou révoqué.`];
+    cards.push({ title: UI_LABEL.configuration, value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/configuration/bindings" : "#/configuration/runtimes", action: "Ouvrir les réglages", tone: attention ? "warning" : "success", attention });
   }
   if (data.daemon === null) cards.push({ title: "Synchronisation", value: "État local non observé", detail: "La synchronisation des autres postes n'est pas observable depuis ce navigateur. Consultez l'application sur le poste concerné.", href: "#/configuration/application", action: "Voir l'état de l'application", tone: "neutral", attention: false });
   else if (data.daemon.error !== undefined) cards.push(unavailable("Synchronisation", data.daemon.error, "#/configuration/application", "Diagnostiquer l'application"));

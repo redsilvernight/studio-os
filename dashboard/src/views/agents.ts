@@ -496,19 +496,19 @@ export function agentsListHtml(
     body = `<div class="agents-groups">${sections}</div>`;
   }
   return (
-    `${dsPageHeader("Agents IA", "Rôle, disponibilité et projet visibles d'un coup d'œil. Le reste dort dans la fiche.")}` +
+    `${dsPageHeader("Équipe IA", "Rôle, disponibilité et projet visibles d'un coup d'œil. Le reste dort dans la fiche.")}` +
     `${notice}${toolbar}${body}`
   );
 }
 
 export function agentsLoadingHtml(): string {
-  return `${dsPageHeader("Agents IA", "Vos collaborateurs logiciels.")}${dsSkeleton(4)}`;
+  return `${dsPageHeader("Équipe IA", "Vos collaborateurs logiciels.")}${dsSkeleton(4)}`;
 }
 
 export async function renderAgents(root: HTMLElement, ctx: AgentsContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="agents">${dsPageHeader("Agents IA", "Vos collaborateurs logiciels.")}` +
+      `<div class="agents">${dsPageHeader("Équipe IA", "Vos collaborateurs logiciels.")}` +
       dsEmptyState("Connectez-vous pour voir les agents", "Saisissez votre jeton machine pour charger les agents.") +
       `</div>`;
     return;
@@ -520,7 +520,7 @@ export async function renderAgents(root: HTMLElement, ctx: AgentsContext): Promi
     agents = await fetchAgents(ctx.client);
   } catch (error) {
     root.innerHTML =
-      `<div class="agents">${dsPageHeader("Agents IA", "Vos collaborateurs logiciels.")}` +
+      `<div class="agents">${dsPageHeader("Équipe IA", "Vos collaborateurs logiciels.")}` +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Agents indisponibles.</strong>${esc(describeError(error))}</div></div>`;
     return;
   }
@@ -672,14 +672,14 @@ export function agentDetailHtml(
       ? `<p>Identité réutilisable sur les postes autorisés de cet utilisateur. La machine d'exécution figure dans chaque session.</p>`
       : `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>`) +
     `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
-    `<p class="ds-list-sub">Aucune définition d'agent n'est associée : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Bibliothèque</a>. Aucune configuration runtime détaillée ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
+    `<p class="ds-list-sub">Aucun profil d'agent n'est associé : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Savoir-faire</a>. Aucune réglage détaillé de moteur IA ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
     `</div></section>` +
     dsTechDetails(
       [
         { label: "Modèle déclaré", value: declaredOrDash(agent.model) },
         { label: "Fournisseur déclaré", value: declaredOrDash(agent.provider) },
         {
-          label: "Harnais déclaré",
+          label: "Outil IA déclaré",
           value:
             (agent.harness ?? "").trim() === "" && agentModelName(agent) !== null
               ? "Tous les outils de ce poste — l'outil est attribué à chaque exécution"
@@ -702,7 +702,7 @@ export function agentDetailHtml(
       ],
       "Détails techniques · modèle, permissions, identifiants",
     ) +
-    `<section class="ds-panel agent-admin" aria-label=UI_LABEL.administration><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
+    `<section class="ds-panel agent-admin" aria-label="${UI_LABEL.administration}"><header><h2>Réglages</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
     `<p class="ds-list-sub">Réglages sensibles : ils ne changent pas le statut du jour et restent ici, hors du flux de travail. Renommer et révoquer se font depuis la machine d'exécution — il n'y a aucune action à distance ici.</p>` +
     `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres d'exécution</a></p>` +
     `</div></section>`

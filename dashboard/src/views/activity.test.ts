@@ -47,7 +47,7 @@ describe("timelineEventLabel", () => {
     expect(timelineEventLabel("task.created")).toBe("Tâche créée");
     expect(timelineEventLabel("task.blocked")).toBe("Tâche bloquée");
     expect(timelineEventLabel("resource.claimed")).toBe("Ressource réservée");
-    expect(timelineEventLabel("resource.conflict")).toBe("Chevauchement de réservation");
+    expect(timelineEventLabel("resource.conflict")).toBe("Chevauchement de fichier occupé");
     expect(timelineEventLabel("decision.created")).toBe("Décision créée");
     expect(timelineEventLabel("build.failed")).toBe("Build échoué");
     expect(timelineEventLabel("transfer.ready")).toBe("Transfert prêt");
@@ -214,7 +214,7 @@ describe("timelineHtml nominal", () => {
     expect(html).toContain('data-cal-day="2026-09-12"');
     expect(html).toContain('data-cal-day="2026-09-11"');
     expect(html).toContain("Tâche créée");
-    expect(html).toContain("Chevauchement de réservation");
+    expect(html).toContain("Chevauchement de fichier occupé");
     expect(html).not.toContain("Build échoué");
     const older = timelineHtml({ timeline: olderTimeline, limit: TIMELINE_LIMIT_DEFAULT, view: { month: "2026-09", selected: "2026-09-11" } });
     expect(older).toContain("Build échoué");
@@ -533,7 +533,7 @@ describe("withoutStudioActivation", () => {
       timeline: timeline({ date: "2026-09-12", events: [activated("project", "p-act")] }),
       limit: TIMELINE_LIMIT_DEFAULT,
     });
-    expect(html).toContain("Version de bibliothèque activée");
+    expect(html).toContain("Version de savoir-faire activée");
   });
 });
 

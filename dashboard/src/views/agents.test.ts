@@ -192,7 +192,7 @@ describe("agentRowHtml (ligne compacte : nom + rôle + projet)", () => {
     expect(html).not.toContain("opencode");
     expect(html).not.toContain("Modèle déclaré");
     expect(html).not.toContain("Fournisseur");
-    expect(html).not.toContain("Harnais");
+    expect(html).not.toContain("Outil IA");
     expect(html).not.toContain(M1);
     expect(html).not.toContain("Exécuté sur la machine");
   });
@@ -262,7 +262,7 @@ describe("agentsListHtml (liste compacte groupée, empty utile)", () => {
 
   it("liste nominale : en-tête FR, recherche nom ou rôle, groupes de dispo", () => {
     const html = agentsListHtml([agentOf()], activities, { sessions: [openSession()], aiWork: [], tasks: [taskOf()] }, names, "", true);
-    expect(html).toContain("<h1>Agents IA</h1>");
+    expect(html).toContain("<h1>Équipe IA</h1>");
     expect(html).toContain("d'un coup d'œil");
     expect(html).toContain('id="agents-search"');
     expect(html).toContain("par nom ou rôle");
@@ -313,7 +313,7 @@ describe("agentsListHtml (liste compacte groupée, empty utile)", () => {
 describe("agentsLoadingHtml", () => {
   it("squelette DS avec en-tête, sans contenu fictif", () => {
     const html = agentsLoadingHtml();
-    expect(html).toContain("<h1>Agents IA</h1>");
+    expect(html).toContain("<h1>Équipe IA</h1>");
     expect(html).toContain("Chargement");
   });
 });
@@ -360,7 +360,7 @@ describe("agentDetailHtml (héros + expertes repliées + admin séparée)", () =
   });
 
   it("administration séparée du quotidien, sans action à distance inventée", () => {
-    expect(html).toContain("<h2>Administration</h2>");
+    expect(html).toContain("<h2>Réglages</h2>");
     expect(html).toContain("séparée du quotidien");
     expect(html).toContain("Voir la machine");
     expect(html).toContain("Paramètres d'exécution");

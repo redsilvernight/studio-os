@@ -157,7 +157,7 @@ export interface HomeData {
 }
 
 export function homeLoadingHtml(): string {
-  return `${dsPageHeader("Accueil", "L'essentiel en un coup d'œil.")}${dsSkeleton(4)}`;
+  return `${dsPageHeader("Aujourd'hui", "L'essentiel en un coup d'œil.")}${dsSkeleton(4)}`;
 }
 
 export function homePageHtml(data: HomeData): string {
@@ -167,7 +167,7 @@ export function homePageHtml(data: HomeData): string {
   const activeProjects = projectList.filter((p) => !p.archived).length;
   const activeTasks = taskList.filter((t) => t.status !== "completed").length;
   const sections = [
-    dsPageHeader("Accueil", "L'essentiel en un coup d'œil : ce qui demande une action aujourd'hui."),
+    dsPageHeader("Aujourd'hui", "L'essentiel en un coup d'œil : ce qui demande une action aujourd'hui."),
     homeHealthHtml(data.health),
     homeTasksHtml(data.tasks, projectList),
     homeReviewHtml(data.reviewQueue, data.authed),

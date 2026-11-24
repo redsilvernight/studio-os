@@ -568,15 +568,15 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page, "#/", true);
     const routes: Array<[string, string]> = [
-      ["#/", "Accueil"],
+      ["#/", "Aujourd'hui"],
       ["#/projects", "Projets"],
       ["#/tasks", "Travail"],
-      ["#/library", "Bibliothèque"],
+      ["#/library", "Savoir-faire"],
       ["#/transfers", "Transferts"],
       ["#/machines", "Postes"],
       ["#/decisions", "À valider"],
-      ["#/inspector", "Inspecteur"],
-      ["#/configuration/runtimes", "Configuration"],
+      ["#/inspector", "Diagnostic"],
+      ["#/configuration/runtimes", "Réglages"],
       ["#/design-system", "Design System"],
     ];
     for (const [hash] of routes) {
@@ -709,7 +709,7 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
   });
 });
 
-test.describe("UI-15 onglets Bibliothèque à 375 (dette UI-7)", () => {
+test.describe("UI-15 onglets Savoir-faire à 375 (dette UI-7)", () => {
   test("wrap, deep links, clavier, aria-current", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });

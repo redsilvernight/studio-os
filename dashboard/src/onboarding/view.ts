@@ -49,7 +49,7 @@ export function onboardingWebHtml(): string {
 }
 
 /**
- * Verrouille un bouton pendant une action asynchrone : empêche le double clic
+ * Version figéeille un bouton pendant une action asynchrone : empêche le double clic
  * et annonce l'attente. Le rendu suivant (`again`) remplace le bouton, ce qui
  * lève le verrou. Faux = une action est déjà en cours.
  */
@@ -254,7 +254,7 @@ async function paintBienvenue(
     `<section class="ds-hero" aria-label="Bienvenue">` +
     `<p class="ds-hero-eyebrow">Bienvenue dans Studi'OS</p>` +
     `<h2>Configurez ce poste en quelques étapes</h2>` +
-    `<p class="ds-hero-body">Sans projet ni dossier : ils se configureront ensuite depuis « Espaces de travail », sans obligation.</p>` +
+    `<p class="ds-hero-body">Sans projet ni dossier : ils se configureront ensuite depuis « Dossiers du projet », sans obligation.</p>` +
     `<div class="ds-hero-actions">` +
     `<button class="ds-btn ds-btn--primary" type="button" data-action="start">Commencer la configuration</button>` +
     (session.state.status === "in_progress"
@@ -610,7 +610,7 @@ async function paintFinal(
     `<dl class="settings-rows">` +
     rows.map(([label, value]) => `<div class="settings-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("") +
     `</dl>` +
-    `<p class="settings-intro">Vos dossiers se configureront ensuite depuis « Espaces de travail » : mémoire, environnement et assistant IA, par dossier, sans obligation.</p>` +
+    `<p class="settings-intro">Vos dossiers se configureront ensuite depuis « Dossiers du projet » : mémoire, environnement et assistant IA, par dossier, sans obligation.</p>` +
     `<p class="settings-actions"><a class="ds-btn" href="#/workspaces" data-testid="onboarding-to-workspaces">Configurer un dossier</a></p>` +
     navButtons({
       prev: previousStep("final"),
@@ -641,7 +641,7 @@ async function paintTermine(
     session,
     step,
     "termine",
-    `<p class="settings-notice" role="status">Votre poste est prêt. Les dossiers se configurent depuis « Espaces de travail », sans obligation.</p>` +
+    `<p class="settings-notice" role="status">Votre poste est prêt. Les dossiers se configurent depuis « Dossiers du projet », sans obligation.</p>` +
       `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/">Ouvrir le tableau de bord</a> ` +
       `<a class="ds-btn" href="#/workspaces">Aller aux espaces de travail</a></div>`,
   );

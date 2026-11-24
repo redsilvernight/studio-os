@@ -36,19 +36,19 @@ export const REVIEW_KIND_SHORT_LABEL = {
 export const REVIEW_KIND_LABEL = {
   ...REVIEW_KIND_SHORT_LABEL,
   decision_proposal: "Proposition de décision",
-  resource_conflict: "Conflit de réservation",
+  resource_conflict: "Fichier occupé en conflit",
   roadmap_proposal: "Proposition de plan",
 } as const;
 
 /** Libellés d'interface partagés par plusieurs vues (un seul endroit à relire ou traduire). */
 export const UI_LABEL = {
-  configuration: "Configuration",
+  configuration: "Réglages",
   refresh: "Actualiser",
   machines: "Postes",
   task: "Tâche",
   active: "Actif",
   title: "Titre",
-  vault: "Vault",
+  vault: "Notes",
   agent: "Agent",
   toReview: "À valider",
   identifier: "Identifiant",
@@ -59,8 +59,8 @@ export const UI_LABEL = {
   done: "Terminée",
   signInRequired: "Connexion requise",
   inProgress: "En cours",
-  library: "Bibliothèque",
-  administration: "Administration",
+  library: "Savoir-faire",
+  administration: "Réglages",
   createdOn: "Créé le",
   nothingToReview: "Rien à valider",
   titleRequired: "Le titre est obligatoire.",
@@ -71,7 +71,7 @@ export const UI_LABEL = {
   revision: "Révision",
   content: "Contenu",
   status: "Statut",
-  roadmap: "Roadmap",
+  roadmap: "Plan",
   retry: "Réessayer",
   offline: "Hors ligne",
   draft: "Brouillon",

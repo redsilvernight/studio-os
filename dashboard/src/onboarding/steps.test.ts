@@ -32,7 +32,7 @@ describe("onboarding steps", () => {
   });
 
   it("the ready screen points at per-folder setup without requiring it", () => {
-    expect(stepById("final").intro).toContain("Espaces de travail");
+    expect(stepById("final").intro).toContain("Dossiers du projet");
   });
 
   it("walks forward and backward within bounds", () => {

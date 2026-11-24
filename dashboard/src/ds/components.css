@@ -1035,3 +1035,10 @@ summary:focus-visible,
     gap: 0;
   }
 }
+
+/* Mode Expert : terme technique affiché à côté du terme courant. */
+.lx-tech {
+  font-weight: 400;
+  font-size: 0.7em;
+  color: var(--ds-text-muted, #6b7280);
+}

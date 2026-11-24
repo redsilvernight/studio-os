@@ -25,7 +25,7 @@ export type ConfigBuildResult<T> = { ok: true; value: T } | { ok: false; error: 
 
 const HARNESS_SUGGESTIONS: readonly string[] = ["claude-code", "opencode", "codex"];
 
-export const ANCHOR_REQUIRED_ERROR = "au moins un ancrage est requis : poste, outil (harness), fournisseur ou modèle";
+export const ANCHOR_REQUIRED_ERROR = "au moins un ancrage est requis : poste, outil, fournisseur ou modèle";
 
 function trimOrNull(value: string): string | null {
   const trimmed = value.trim();
@@ -89,12 +89,12 @@ export function machineFieldHtml(options: MachineOption[] | null, selected: stri
   );
 }
 
-/** Champ « Outil (harness) » : chaîne ouverte suggérée par un datalist. */
+/** Champ « Outil » : chaîne ouverte suggérée par un datalist. */
 export function harnessFieldHtml(listId: string, value: string | null, disabled = false): string {
   const attr = disabled ? " disabled" : "";
   const suggestions = HARNESS_SUGGESTIONS.map((harness) => `<option value="${esc(harness)}"></option>`).join("");
   return (
-    `<label class="stack">Outil (harness) <input name="harness_ref" list="${esc(listId)}" value="${esc(value ?? "")}" placeholder="ex. claude-code (chaîne libre)" autocomplete="off"${attr} /></label>` +
+    `<label class="stack">Outil <input name="harness_ref" list="${esc(listId)}" value="${esc(value ?? "")}" placeholder="ex. claude-code (chaîne libre)" autocomplete="off"${attr} /></label>` +
     `<datalist id="${esc(listId)}">${suggestions}</datalist>`
   );
 }
@@ -314,7 +314,7 @@ export interface RuntimeUpdateBaseline {
 }
 
 const REF_FIELDS = [
-  { name: "harness_ref", label: "l'outil (harness)" },
+  { name: "harness_ref", label: "l'outil" },
   { name: "provider_ref", label: "le fournisseur" },
   { name: "model_ref", label: "le modèle" },
 ] as const;
@@ -397,7 +397,7 @@ export function buildBindingCreate(read: FormReader): ConfigBuildResult<RuntimeB
     if (machineId === null && harness === null && provider === null && model === null) {
       return {
         ok: false,
-        error: "choisissez un runtime enregistré, ou au moins un ancrage direct (poste, outil, fournisseur ou modèle)",
+        error: "choisissez un moteur IA enregistré, ou au moins un ancrage direct (poste, outil, fournisseur ou modèle)",
         field: "runtime_id",
       };
     }
