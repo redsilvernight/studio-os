@@ -3,6 +3,8 @@
 #
 # Usage: ./install-backup-cron.sh <backup_root_dir> [hour_of_day] [retention_count]
 # Default: daily at 02:00, keep 7 backups.
+# If the age public key exists (AGE_PUBKEY_FILE, default $HOME/studio-backup.age.pub),
+# the job also encrypts each backup with backup-encrypt.sh.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
@@ -17,6 +19,8 @@ BACKUP_ROOT="$1"
 HOUR="${2:-2}"
 RETENTION="${3:-7}"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup.sh"
+ENCRYPT_SCRIPT="${SCRIPT_DIR}/backup-encrypt.sh"
+PUBKEY_FILE="${AGE_PUBKEY_FILE:-$HOME/studio-backup.age.pub}"
 
 [[ "$HOUR" =~ ^([01]?[0-9]|2[0-3])$ ]] || fail 'hour_of_day must be between 0 and 23'
 [[ "$RETENTION" =~ ^[1-9][0-9]{0,17}$ ]] || fail 'retention_count must be a positive decimal integer of at most 18 digits'
@@ -46,7 +50,24 @@ mkdir -p -- "$BACKUP_ROOT"
 BACKUP_ROOT="$(cd -- "$BACKUP_ROOT" && pwd -P)"
 validate_path "$BACKUP_ROOT"
 MARKER="# studio-os-backup: $BACKUP_SCRIPT"
-CRON_LINE="0 ${HOUR} * * * $(shell_quote "$BASH") -- $(shell_quote "$BACKUP_SCRIPT") $(shell_quote "$BACKUP_ROOT") $(shell_quote "$RETENTION") >> $(shell_quote "$BACKUP_ROOT/backup.log") 2>&1 $MARKER"
+LOG="$(shell_quote "$BACKUP_ROOT/backup.log")"
+CRON_LINE="0 ${HOUR} * * * $(shell_quote "$BASH") -- $(shell_quote "$BACKUP_SCRIPT") $(shell_quote "$BACKUP_ROOT") $(shell_quote "$RETENTION") >> $LOG 2>&1"
+
+if [[ -s "$PUBKEY_FILE" ]]; then
+  PUBKEY_FILE="$(cd -- "$(dirname -- "$PUBKEY_FILE")" && pwd -P)/$(basename -- "$PUBKEY_FILE")"
+  validate_path "$PUBKEY_FILE"
+  validate_path "$ENCRYPT_SCRIPT"
+  [[ -f "$ENCRYPT_SCRIPT" ]] || fail "missing encryption script: $ENCRYPT_SCRIPT"
+  command -v age > /dev/null || fail 'age is required to encrypt backups'
+  CRON_LINE+=" && AGE_PUBKEY_FILE=$(shell_quote "$PUBKEY_FILE") $(shell_quote "$BASH") -- $(shell_quote "$ENCRYPT_SCRIPT") $(shell_quote "$BACKUP_ROOT") >> $LOG 2>&1"
+else
+  # Never silently drop encryption from an already scheduled job.
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*# || "$line" != *backup-encrypt.sh*" $MARKER" ]] ||
+      fail "the scheduled job encrypts backups but the age public key is missing: $PUBKEY_FILE"
+  done <<< "$CURRENT_CRONTAB"
+fi
+CRON_LINE+=" $MARKER"
 
 write_crontab() {
   local line legacy_command

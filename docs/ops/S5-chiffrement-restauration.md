@@ -80,18 +80,33 @@ de chiffrement ; le retirer ensuite.
 
 ### 2.3 Sauvegardes
 
-Les dumps `pg_dump` et les miroirs MinIO ne sont **pas** chiffrés par
-`docker/backup.sh` : chiffrer l'archive après création, avant toute copie hors
-site.
+`docker/backup.sh` écrit en clair ; `docker/backup-encrypt.sh` chiffre ensuite
+chaque répertoire daté avec `age` (`postgres/studio.dump.age`, `minio.tar.age`)
+puis supprime le clair (`KEEP_PLAINTEXT=1` pour le garder pendant une
+vérification).
 
-- Chiffrer chaque répertoire daté avec `age` (clé publique sur l'hôte, clé
-  privée hors ligne) ou GPG.
-- Ne jamais stocker la clé privée dans le même répertoire ni dans le même
-  bucket que les archives.
-- Test de restitution : déchiffrer une archive dans un répertoire temporaire et
-  vérifier que `pg_restore --list` lit le dump.
+- Clé publique sur l'hôte : `~/studio-backup.age.pub` (ou `AGE_PUBKEY_FILE`).
+- `docker/install-backup-cron.sh` ajoute le chiffrement au cron quand la clé
+  publique existe, et refuse de réinstaller un job chiffré si elle a disparu.
+- Clé privée **hors du VPS**, jamais à côté des archives ni dans le même bucket.
+  En garder une copie de secours sur un second support hors ligne : sans clé
+  privée, les sauvegardes sont perdues.
+- Restitution, sur une machine qui détient la clé privée, avant
+  `docker/restore.sh` (qui attend le clair) :
+
+  ```bash
+  age -d -i <cle-privee> -o postgres/studio.dump postgres/studio.dump.age
+  age -d -i <cle-privee> minio.tar.age | tar -xf -
+  ```
+
+- Test de restitution : déchiffrer dans un répertoire temporaire et vérifier que
+  `pg_restore --list` lit le dump.
 - Refus attendu si la clé est absente : la restauration doit échouer, jamais
   silencieusement produire des données illisibles.
+
+Le script déployé à la main (`/home/ubuntu/studio-backup-encrypt.sh`) est
+remplacé en relançant, après déploiement,
+`bash docker/install-backup-cron.sh /home/ubuntu/studio-backups`.
 
 ### 2.4 Secrets d'exécution
 
@@ -192,7 +207,7 @@ MinIO, chiffrement des archives, exercice sur un hôte de staging.
 ## 6. Références
 
 - `docker/backup.sh`, `docker/restore.sh`, `docker/install-backup-cron.sh` :
-  sauvegarde/restauration globale existantes (non chiffrées).
+  sauvegarde/restauration globale ; `docker/backup-encrypt.sh` : chiffrement.
 - `scripts/pull-offsite-backup.ps1` : copie hors site côté poste.
 - `services/api/src/studio_api/settings.py` : `STUDIO_S3_BUCKET`,
   `STUDIO_INFRA_BACKUP_DIR`, secrets SMTP/JWT/MinIO.
