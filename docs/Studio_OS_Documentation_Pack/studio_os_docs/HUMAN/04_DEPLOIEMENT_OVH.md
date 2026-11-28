@@ -110,7 +110,8 @@ Distinction a retenir :
   cron. La reinstallation remplace l'entree de ce script en conservant les
   autres entrees. Une erreur de lecture de crontab interrompt l'installation.
   Un `<backup_root>` place sous `docker/backups/` est ignore par Git : ces dumps contiennent des hashes de credentials et ne doivent jamais etre commites.
-  En production : racine `/home/ubuntu/studio-backups`, 02:00, sept sauvegardes.
+  En production : racine `/home/ubuntu/studio-backups`, 02:00, sept sauvegardes,
+  chiffrees par `age` (`docs/ops/S5-chiffrement-restauration.md`, section 2.3).
 - copie hors site : `scripts/pull-offsite-backup.ps1` sur un poste Windows rapatrie
   par `scp` la derniere sauvegarde absente localement, verifie SHA-256 du dump,
   nombre et taille des fichiers, puis n'en garde que `-Keep` (3 par defaut).

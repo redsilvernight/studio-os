@@ -14,6 +14,9 @@ mkdir -p "$TEST_DIR/bin" "$INSTALL_DIR"
 cp "${INSTALLER_UNDER_TEST:-$SCRIPT_DIR/install-backup-cron.sh}" "$INSTALL_DIR/install-backup-cron.sh"
 export MOCK_CRON="$TEST_DIR/crontab" MOCK_CALLS="$TEST_DIR/calls" MOCK_ARGS="$TEST_DIR/args"
 export PATH="$TEST_DIR/bin:$PATH"
+export HOME="$TEST_DIR/home"
+unset AGE_PUBKEY_FILE
+mkdir -p "$HOME"
 
 cat > "$TEST_DIR/bin/crontab" <<'MOCK'
 #!/usr/bin/env bash
@@ -148,5 +151,35 @@ unset MOCK_WRITE_FAILURE
 [[ "$(cat "$MOCK_CALLS")" == $'-l\n-' ]] || fail 'write error retried installation'
 [[ "$(cat "$MOCK_CRON")" == '15 4 * * * /usr/bin/true' ]] || fail 'failed install first removed existing jobs'
 pass 'installation failure does not clear existing jobs'
+
+cp "$SCRIPT_DIR/backup-encrypt.sh" "$INSTALL_DIR/backup-encrypt.sh"
+cat > "$TEST_DIR/bin/age" <<'MOCK'
+#!/usr/bin/env bash
+# age -r <recipient> -o <out> [in]
+if [[ $# -ge 5 ]]; then cat "$5" > "$4"; else cat > "$4"; fi
+MOCK
+chmod +x "$TEST_DIR/bin/age"
+printf 'age1testrecipient\n' > "$HOME/studio-backup.age.pub"
+
+reset_crontab
+bash "$INSTALL_DIR/install-backup-cron.sh" "$BACKUP_ROOT" > "$TEST_DIR/result"
+bash "$INSTALL_DIR/install-backup-cron.sh" "$BACKUP_ROOT" > "$TEST_DIR/result"
+[[ "$(grep -cF '# studio-os-backup: ' "$MOCK_CRON")" == 1 ]] || fail 'duplicate encrypted job'
+dated="$BACKUP_ROOT/20260101T020000Z"
+mkdir -p "$dated/postgres" "$dated/minio"
+printf 'dump' > "$dated/postgres/studio.dump"
+command_line="$(sed -n 's/^0 2 \* \* \* //p' "$MOCK_CRON")"
+/bin/sh -c "$command_line"
+[[ -s "$dated/postgres/studio.dump.age" && -s "$dated/minio.tar.age" ]] || fail 'backup was not encrypted'
+[[ ! -e "$dated/postgres/studio.dump" && ! -e "$dated/minio" ]] || fail 'plaintext was kept'
+pass 'reinstallation keeps the encryption step'
+
+rm "$HOME/studio-backup.age.pub"
+cp "$MOCK_CRON" "$TEST_DIR/encrypted-cron"
+if bash "$INSTALL_DIR/install-backup-cron.sh" "$BACKUP_ROOT" > "$TEST_DIR/result" 2>&1; then
+  fail 'encryption was silently dropped'
+fi
+cmp -s "$MOCK_CRON" "$TEST_DIR/encrypted-cron" || fail 'crontab changed without the public key'
+pass 'missing public key never downgrades an encrypted job'
 
 printf 'PASS: %s backup cron scenarios\n' "$passed"
