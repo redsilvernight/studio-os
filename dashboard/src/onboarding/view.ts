@@ -611,7 +611,7 @@ async function paintFinal(
     rows.map(([label, value]) => `<div class="settings-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("") +
     `</dl>` +
     `<p class="settings-intro">Vos dossiers se configureront ensuite depuis « Dossiers du projet » : mémoire, environnement et assistant IA, par dossier, sans obligation.</p>` +
-    `<p class="settings-actions"><a class="ds-btn" href="#/workspaces" data-testid="onboarding-to-workspaces">Configurer un dossier</a></p>` +
+    `<p class="settings-actions"><a class="ds-btn" href="#/reglages/dossiers" data-testid="onboarding-to-workspaces">Configurer un dossier</a></p>` +
     navButtons({
       prev: previousStep("final"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="finish">Terminer</button>`,
@@ -643,6 +643,6 @@ async function paintTermine(
     "termine",
     `<p class="settings-notice" role="status">Votre poste est prêt. Les dossiers se configurent depuis « Dossiers du projet », sans obligation.</p>` +
       `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/">Ouvrir le tableau de bord</a> ` +
-      `<a class="ds-btn" href="#/workspaces">Aller aux espaces de travail</a></div>`,
+      `<a class="ds-btn" href="#/reglages/dossiers">Aller aux espaces de travail</a></div>`,
   );
 }

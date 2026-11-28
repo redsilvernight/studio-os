@@ -182,7 +182,7 @@ describe("agentRowHtml (ligne compacte : nom + rôle + projet)", () => {
 
   it("priorise nom, rôle et projet, lien vers la fiche", () => {
     expect(html).toContain("Claude Atlas");
-    expect(html).toContain(`#/agents/${A1}`);
+    expect(html).toContain(`#/equipe-ia/${A1}`);
     expect(html).toContain("code · Binding of Apotheosis");
   });
 
@@ -203,7 +203,7 @@ describe("agentRowHtml (ligne compacte : nom + rôle + projet)", () => {
     );
     expect(bare).toContain("Agent sans nom");
     expect(bare).toContain("Rôle non renseigné · aucun projet");
-    // C2 : aucun UUID hors fragment de route admit (#/agents/:id).
+    // C2 : aucun UUID hors fragment de route admit (#/equipe-ia/:id).
     expect(bare.replace(/href="[^"]*"/g, "")).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/);
     expect(bare).not.toContain(M1);
   });
@@ -222,9 +222,9 @@ describe("agentHeroTarget / agentHeroHtml (C1 : une seule action primaire)", () 
     expect(target.title).toContain("Travaille sur");
     expect(target.taskId).toBe(T1);
     const html = agentHeroHtml(target);
-    expect(html).toContain(`href="#/tasks/${T1}"`);
+    expect(html).toContain(`href="#/taches/${T1}"`);
     expect(html).toContain("Ouvrir le travail");
-    expect(html).toContain(`href="#/projects/${P1}"`);
+    expect(html).toContain(`href="#/projets/${P1}"`);
     expect(html.match(/ds-btn--primary/g)?.length).toBe(1);
   });
 
@@ -244,7 +244,7 @@ describe("agentHeroTarget / agentHeroHtml (C1 : une seule action primaire)", () 
   it("n'affirme rien sans preuve quand tout est chargé", () => {
     const target = agentHeroTarget(agentOf(), activityOf("none"), [], [], [], names);
     expect(target.title).toContain("Aucun travail observé");
-    expect(agentHeroHtml(target)).not.toContain("#/tasks/");
+    expect(agentHeroHtml(target)).not.toContain("#/taches/");
   });
 
   it("contient ni style ni handler inline (CSP)", () => {
@@ -326,7 +326,7 @@ describe("agentDetailHtml (héros + expertes repliées + admin séparée)", () =
     expect(html).toContain("Travail actuel");
     expect(html).toContain("Travaille sur");
     expect(html).toContain("Corriger l");
-    expect(html).toContain(`href="#/tasks/${T1}"`);
+    expect(html).toContain(`href="#/taches/${T1}"`);
     expect(html).toContain("<h2>Activité</h2>");
     expect(html).toContain("<h2>Travail réalisé</h2>");
     expect(html).toContain("<h2>Sessions</h2>");
@@ -343,8 +343,8 @@ describe("agentDetailHtml (héros + expertes repliées + admin séparée)", () =
 
   it("environnement sans fusion agent/machine/runtime", () => {
     expect(html).toContain("n'est pas une sous-catégorie");
-    expect(html).toContain('href="#/machines"');
-    expect(html).toContain('href="#/configuration/runtimes"');
+    expect(html).toContain('href="#/reglages/appareils"');
+    expect(html).toContain('href="#/reglages/moteurs"');
     expect(html).toContain("simple étiquette libre");
   });
 
@@ -378,7 +378,7 @@ describe("agentNotFoundHtml", () => {
   it("état explicite avec retour, sans fuite d'ID brut", () => {
     const html = agentNotFoundHtml(A1);
     expect(html).toContain("Agent introuvable");
-    expect(html).toContain('href="#/agents"');
+    expect(html).toContain('href="#/equipe-ia"');
     expect(html).not.toContain(A1.slice(0, 8));
   });
 });

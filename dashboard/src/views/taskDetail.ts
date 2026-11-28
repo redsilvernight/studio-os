@@ -540,7 +540,7 @@ function propsAsideHtml(task: Task): string {
     `<h2>Propriétés</h2><dl>` +
     `<div><dt>Statut</dt><dd>${dsStatus(taskDetailStatusState(task.status), taskStatusLabel(task.status))}</dd></div>` +
     `<div><dt>Responsable</dt><dd>${held ? machineRef(task.claimed_by_machine_id as string) : "Personne — tâche disponible"}</dd></div>` +
-    `<div><dt>Projet</dt><dd><a href="#/projects/${esc(task.project_id)}">Ouvrir le projet</a></dd></div>` +
+    `<div><dt>Projet</dt><dd><a href="#/projets/${esc(task.project_id)}">Ouvrir le projet</a></dd></div>` +
     `<div><dt>Référence</dt><dd>${task.readable_id !== null && task.readable_id !== undefined && task.readable_id !== "" ? esc(task.readable_id) : "—"}</dd></div>` +
     `<div><dt>Mise à jour</dt><dd>${esc(fmtTime(task.updated_at))}</dd></div>` +
     `</dl></aside>`;
@@ -650,7 +650,7 @@ function heroHtml(task: Task, data: TaskDetailData, held: boolean): string {
   const description = (task.description ?? "").trim();
   const eyebrow = `${task.readable_id !== null && task.readable_id !== undefined && task.readable_id !== "" ? `${esc(task.readable_id)} · ` : ""}Tâche`;
   return `<section class="ds-hero task-detail-hero" aria-label=UI_LABEL.task>` +
-    `<p class="ds-hero-eyebrow">${eyebrow} · <a class="ds-hero-link" href="#/projects/${esc(task.project_id)}">Ouvrir le projet</a></p>` +
+    `<p class="ds-hero-eyebrow">${eyebrow} · <a class="ds-hero-link" href="#/projets/${esc(task.project_id)}">Ouvrir le projet</a></p>` +
     `<h1>${esc(task.title)}</h1>` +
     `<p class="ds-hero-status">${dsStatus(taskDetailStatusState(task.status), taskStatusLabel(task.status))}` +
     `<span class="ds-list-sub">· ${esc(taskClaimHint(task))} · Mise à jour ${esc(fmtTime(task.updated_at))}</span></p>` +
@@ -677,7 +677,7 @@ export function taskDetailHtml(data: TaskDetailData): string {
   const claimsLine =
     data.taskClaims === null
       ? ""
-      : `<p class="ds-list-sub">Fichiers occupés liés : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Fichiers occupés du projet</a>.</p>`;
+      : `<p class="ds-list-sub">Fichiers occupés liés : ${data.taskClaims} — <a href="#/projets/${esc(task.project_id)}/reservations">voir l'onglet Fichiers occupés du projet</a>.</p>`;
   return `<div class="tasks task-detail">${heroHtml(task, data, held)}${notice}` +
     `<div class="task-detail-body"><div class="task-detail-main">` +
     // Prioritaires et ouverts : ce qui coince, ce qui attend une décision,

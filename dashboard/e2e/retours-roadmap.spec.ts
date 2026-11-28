@@ -26,14 +26,14 @@ function roadmap(id: string, status: string, done: boolean) {
 }
 
 async function open(page: Page, done = false): Promise<void> {
-  await login(page, "#/projects", newCaptured());
+  await login(page, "#/projets", newCaptured());
   const active = roadmap("retours-active", "active", done);
   const history = roadmap("retours-history", "archived", true);
   const plans = [active, history, ...Array.from({ length: 20 }, (_, i) => roadmap(`retours-${i}`, "completed", true))];
   await page.route(new RegExp(`/api/v1/projects/${P1}/roadmaps$`), (route) => route.fulfill({ json: plans }));
   await page.route(/\/api\/v1\/roadmaps\/[^/]+$/, (route) => route.fulfill({ json: plans.find((plan) => route.request().url().endsWith(`/${plan.id}`)) }));
   await page.route(/\/api\/v1\/roadmaps\/[^/]+\/revisions/, (route) => route.fulfill({ json: [] }));
-  await go(page, `#/projects/${P1}/roadmap`);
+  await go(page, `#/projets/${P1}/plan`);
   await expect(page.locator(".roadmap-view")).toBeVisible();
 }
 
@@ -70,7 +70,7 @@ test("sélection compacte : statut et progression, historique chargé au clavier
   await select.focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/roadmap\/retours-history$/);
+  await expect(page).toHaveURL(/plan\/retours-history$/);
   await expect(page.locator(".roadmap-header h2")).toContainText("Historique");
   await expect(select).toHaveValue("retours-history");
 });
@@ -95,7 +95,7 @@ test("textes longs et multilignes sans débordement à 360, 768 et 1440 px", asy
 });
 
 test("exécutions : statut, tâche, poste-agent et résultat visibles, diagnostics au clavier", async ({ page }, testInfo) => {
-  await login(page, "#/projects", newCaptured());
+  await login(page, "#/projets", newCaptured());
   await page.route(new RegExp(`/api/v1/projects/${P1}/mission`), (route) => route.fulfill({ json: {
     project_id: P1, generated_at: "2026-10-20T12:00:00Z", window_hours: 168,
     counts: { by_verdict: { running: 1, waiting_human: 1, done: 1, failed: 1 }, total: 4 },
@@ -110,7 +110,7 @@ test("exécutions : statut, tâche, poste-agent et résultat visibles, diagnosti
       updated_at: "2026-10-20T12:00:00Z",
     })),
   } }));
-  await go(page, `#/projects/${P1}/mission`);
+  await go(page, `#/projets/${P1}/executions`);
   await expect(page.locator("[data-mission-run]")).toHaveCount(4);
   for (const item of await page.locator("[data-mission-run]").all()) {
     await expect(item).not.toHaveAttribute("open", "");

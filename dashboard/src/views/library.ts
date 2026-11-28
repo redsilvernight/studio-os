@@ -210,7 +210,7 @@ function scopeBadge(scope: LibraryScope): string {
 export function libraryTabsHtml(active: LibraryKindSlug | null): string {
   const tabs = LIBRARY_KINDS.map((meta) => {
     const fr = kindFr(meta.kind);
-    return `<a class="tab${meta.slug === active ? " active" : ""}" href="#/library/${meta.slug}"${meta.slug === active ? ' aria-current="page"' : ""}>${esc(fr.plural)}</a>`;
+    return `<a class="tab${meta.slug === active ? " active" : ""}" href="#/connaissances/savoir-faire/${meta.slug}"${meta.slug === active ? ' aria-current="page"' : ""}>${esc(fr.plural)}</a>`;
   }).join("");
   return `<nav class="tabs" aria-label="Catégories de la bibliothèque">${tabs}</nav>`;
 }
@@ -231,7 +231,7 @@ export function shadowNoteHtml(resources: LibraryResource[]): string {
   return (
     `<div class="ds-notice ds-notice--warning" role="note"><strong>Plusieurs portées pour ${shadowed} clé${sfx(shadowed)} stable${sfx(shadowed)}.</strong>` +
     `Cette liste montre chaque ressource stockée ; elle ne choisit pas la version effective. ` +
-    `Consultez l'<a href="#/inspector">Diagnostic</a> pour voir la version retenue.</div>`
+    `Consultez l'<a href="#/reglages/avance/inspecteur">Diagnostic</a> pour voir la version retenue.</div>`
   );
 }
 
@@ -243,7 +243,7 @@ function shadowNoteForDetail(resource: LibraryResource, siblings: LibraryResourc
   return (
     `<div class="ds-notice ds-notice--warning" role="note"><strong>Cette clé existe dans plusieurs portées.</strong>` +
     `Ce que vous lisez est la ressource ${esc(scopeLabel(resource.scope))} « ${esc(resource.stable_key)} ». ` +
-    `L'<a href="#/inspector/${esc(encodeURIComponent(resource.stable_key))}">Diagnostic</a> montre la version effective.</div>`
+    `L'<a href="#/reglages/avance/inspecteur/${esc(encodeURIComponent(resource.stable_key))}">Diagnostic</a> montre la version effective.</div>`
   );
 }
 
@@ -573,11 +573,11 @@ export function libraryRootHtml(syncStatus?: SkillsSyncStatus | null, syncFailed
   const cards = LIBRARY_KIND_FR.map(
     (entry) =>
       `<li class="ds-card library-cat"><h2>${esc(entry.plural)}</h2><p>${esc(entry.description)}</p>` +
-      `<p><a class="ds-btn" href="#/library/${esc(entry.slug)}">Ouvrir les ${esc(entry.plural.toLowerCase())}</a></p></li>`,
+      `<p><a class="ds-btn" href="#/connaissances/savoir-faire/${esc(entry.slug)}">Ouvrir les ${esc(entry.plural.toLowerCase())}</a></p></li>`,
   ).join("");
   return (
     `<p class="ds-hero-eyebrow">Réglages / Savoir-faire</p>` +
-    `${dsPageHeader(UI_LABEL.library, "Connaissances réutilisables : règles, compétences et réglages.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
+    `${dsPageHeader(UI_LABEL.library, "Connaissances réutilisables : règles, compétences et réglages.", [{ label: "Créer un élément", href: "#/connaissances/savoir-faire/rules", variant: "primary" }])}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `<ul class="library-cats">${cards}</ul>${workProfilePackFormHtml()}`
   );
@@ -771,7 +771,7 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
   }
   return (
     `${libraryTabsHtml(fr.slug)}` +
-    `<p><a href="#/library">← Retour aux savoir-faire</a></p>${header}` +
+    `<p><a href="#/connaissances/savoir-faire">← Retour aux savoir-faire</a></p>${header}` +
     `${librarySyncNoticeHtml(syncStatus, syncFailed)}` +
     `${listToolbarHtml(fr, state, visible.length, resources.length)}` +
     `${shadowNoteHtml(resources)}${body}`
@@ -943,7 +943,7 @@ function mergeSectionForDetail(resource: LibraryResource, merge: LibraryMergeDat
 /** Deep link Inspector (agent-definitions uniquement) en langage utilisateur. */
 export function inspectorLinkHtml(resource: LibraryResource): string {
   if (resource.kind !== "agent_definition") return "";
-  return `<p><a class="ds-btn" href="#/inspector/${encodeURIComponent(resource.stable_key)}">Inspecter la résolution</a></p>`;
+  return `<p><a class="ds-btn" href="#/reglages/avance/inspecteur/${encodeURIComponent(resource.stable_key)}">Inspecter la résolution</a></p>`;
 }
 
 function identityTechHtml(resource: LibraryResource, schema: string | null): string {

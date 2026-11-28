@@ -76,15 +76,15 @@ describe("workspaceTabsHtml", () => {
   const html = workspaceTabsHtml(ID, "activity");
 
   it("rend les deep links de chaque section", () => {
-    expect(html).toContain(`href="#/projects/${ID}"`);
-    expect(html).toContain(`href="#/projects/${ID}/tasks"`);
-    expect(html).toContain(`href="#/projects/${ID}/mission"`);
-    expect(html).toContain(`href="#/projects/${ID}/roadmap"`);
-    expect(html).toContain(`href="#/projects/${ID}/claims"`);
-    expect(html).toContain(`href="#/projects/${ID}/activity"`);
-    expect(html).toContain(`href="#/projects/${ID}/history"`);
-    expect(html).toContain(`href="#/projects/${ID}/decisions"`);
-    expect(html).toContain(`href="#/projects/${ID}/ai-integration"`);
+    expect(html).toContain(`href="#/projets/${ID}"`);
+    expect(html).toContain(`href="#/projets/${ID}/taches"`);
+    expect(html).toContain(`href="#/projets/${ID}/executions"`);
+    expect(html).toContain(`href="#/projets/${ID}/plan"`);
+    expect(html).toContain(`href="#/projets/${ID}/reservations"`);
+    expect(html).toContain(`href="#/projets/${ID}/activite"`);
+    expect(html).toContain(`href="#/projets/${ID}/historique"`);
+    expect(html).toContain(`href="#/projets/${ID}/decisions"`);
+    expect(html).toContain(`href="#/projets/${ID}/integration-ia"`);
   });
 
   it("onglets accessibles : tablist, sélection unique, page courante", () => {
@@ -109,7 +109,7 @@ describe("workspaceHeaderHtml", () => {
     expect(html).toContain("<h1>Jeu Phare</h1>");
     expect(html).toContain("Le jeu principal du studio");
     expect(html).toContain("Actif");
-    expect(html).toContain('href="#/projects"');
+    expect(html).toContain('href="#/projets"');
     expect(html).not.toContain("phare");
   });
 
@@ -157,10 +157,10 @@ describe("projectOverviewHtml", () => {
     expect(html).toContain("Fichiers occupés en ce moment (1)");
     expect(html).toContain("Optimiser les éclairages");
     expect(html).toContain("scenes/niveau.tscn");
-    expect(html).toContain(`href="#/projects/${ID}/tasks"`);
-    expect(html).toContain(`href="#/projects/${ID}/claims"`);
-    expect(html).toContain(`href="#/projects/${ID}/activity"`);
-    expect(html).toContain(`href="#/projects/${ID}/decisions"`);
+    expect(html).toContain(`href="#/projets/${ID}/taches"`);
+    expect(html).toContain(`href="#/projets/${ID}/reservations"`);
+    expect(html).toContain(`href="#/projets/${ID}/activite"`);
+    expect(html).toContain(`href="#/projets/${ID}/decisions"`);
     expect(html).not.toContain("<table");
     expect(html).not.toContain("kanban");
     expect(html).not.toContain(`>${ID}<`);
@@ -204,7 +204,7 @@ describe("héros du projet (objectif, santé, étape, blocages)", () => {
   it("sans étape : renvoie vers la roadmap ; blocage visible dans le héros", () => {
     const state = { active_tasks: [task("t1", "blocked", "Caméra")], active_claims: [] } as never;
     const html = projectHeroHtml(project, state, null, NOW);
-    expect(html).toContain(`href="#/projects/${ID}/roadmap"`);
+    expect(html).toContain(`href="#/projets/${ID}/plan"`);
     expect(html).toContain("Blocage à lever");
     expect(html).toContain("Tâche bloquée : Caméra");
   });

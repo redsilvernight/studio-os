@@ -39,7 +39,7 @@ async function openSkills(page: Page): Promise<void> {
     };
     (window as unknown as { __TAURI__: unknown }).__TAURI__ = { core: { invoke } };
   });
-  await page.goto("/#/design-system");
+  await page.goto("/#/reglages/avance/design-system");
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();

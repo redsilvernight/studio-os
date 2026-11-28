@@ -569,15 +569,15 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     await login(page, "#/", true);
     const routes: Array<[string, string]> = [
       ["#/", "Aujourd'hui"],
-      ["#/projects", "Projets"],
-      ["#/tasks", "Travail"],
-      ["#/library", "Savoir-faire"],
-      ["#/transfers", "Transferts"],
-      ["#/machines", "Postes"],
-      ["#/decisions", "À valider"],
-      ["#/inspector", "Diagnostic"],
-      ["#/configuration/runtimes", "Réglages"],
-      ["#/design-system", "Design System"],
+      ["#/projets", "Projets"],
+      ["#/taches", "Travail"],
+      ["#/connaissances/savoir-faire", "Savoir-faire"],
+      ["#/fichiers", "Transferts"],
+      ["#/reglages/appareils", "Postes"],
+      ["#/a-valider", "À valider"],
+      ["#/reglages/avance/inspecteur", "Diagnostic"],
+      ["#/reglages/moteurs", "Réglages"],
+      ["#/reglages/avance/design-system", "Design System"],
     ];
     for (const [hash] of routes) {
       await go(page, hash);
@@ -586,7 +586,7 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     }
     await page.screenshot({ path: `${SHOTS}/avant-accueil-1440.png` });
     await page.setViewportSize({ width: 1280, height: 800 });
-    await go(page, "#/projects");
+    await go(page, "#/projets");
     await page.screenshot({ path: `${SHOTS}/avant-projects-1280.png` });
     for (const [hash] of routes) {
       await go(page, hash);
@@ -601,24 +601,24 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     await page.setViewportSize({ width: 1024, height: 800 });
     await login(page, "#/", true);
     const routes = [
-      `#/projects/${P1}`,
-      `#/projects/${P1}/tasks`,
-      `#/projects/${P1}/claims`,
-      `#/projects/${P1}/activity`,
-      `#/projects/${P1}/decisions`,
-      "#/tasks",
-      "#/library",
+      `#/projets/${P1}`,
+      `#/projets/${P1}/taches`,
+      `#/projets/${P1}/reservations`,
+      `#/projets/${P1}/activite`,
+      `#/projets/${P1}/decisions`,
+      "#/taches",
+      "#/connaissances/savoir-faire",
     ];
     for (const hash of routes) {
       await go(page, hash);
       await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
       await expectNoGlobalOverflow(page, `${hash} @1024`);
     }
-    await go(page, `#/projects/${P1}`);
+    await go(page, `#/projets/${P1}`);
     await page.screenshot({ path: `${SHOTS}/avant-workspace-1024.png` });
     await page.setViewportSize({ width: 900, height: 800 });
-    await go(page, "#/tasks");
-    await expectNoGlobalOverflow(page, "#/tasks @900");
+    await go(page, "#/taches");
+    await expectNoGlobalOverflow(page, "#/taches @900");
     await page.screenshot({ path: `${SHOTS}/avant-tasks-900.png` });
     expectClean(watch);
   });
@@ -629,24 +629,24 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     await page.setViewportSize({ width: 768, height: 800 });
     await login(page, "#/", true);
     const routes = [
-      `#/tasks/${T1}`,
-      "#/agents",
-      "#/agents/ag-claude",
-      `#/library/rules/${LIB_ID}`,
-      "#/configuration/runtimes/rt1",
-      "#/configuration/bindings",
-      "#/configuration/project",
-      "#/configuration/project/locks",
-      `#/inspector/${encodeURIComponent(LONG_KEY)}`,
+      `#/taches/${T1}`,
+      "#/equipe-ia",
+      "#/equipe-ia/ag-claude",
+      `#/connaissances/savoir-faire/rules/${LIB_ID}`,
+      "#/reglages/moteurs/rt1",
+      "#/reglages/moteurs/affectations",
+      "#/reglages/avance/projet",
+      "#/reglages/avance/projet/locks",
+      `#/reglages/avance/inspecteur/${encodeURIComponent(LONG_KEY)}`,
     ];
     for (const hash of routes) {
       await go(page, hash);
       await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
       await expectNoGlobalOverflow(page, `${hash} @768`);
     }
-    await go(page, `#/tasks/${T1}`);
+    await go(page, `#/taches/${T1}`);
     await page.screenshot({ path: `${SHOTS}/avant-taskdetail-768.png` });
-    await go(page, "#/agents");
+    await go(page, "#/equipe-ia");
     await page.screenshot({ path: `${SHOTS}/avant-agents-640.png` });
     await page.setViewportSize({ width: 640, height: 800 });
     for (const hash of routes) {
@@ -663,25 +663,25 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     await login(page, "#/", true);
     const routes = [
       "#/",
-      "#/projects",
-      `#/projects/${P1}`,
-      `#/projects/${P1}/tasks`,
-      `#/projects/${P1}/claims`,
-      `#/projects/${P1}/activity`,
-      `#/projects/${P1}/decisions`,
-      "#/tasks",
-      `#/tasks/${T1}`,
-      "#/agents",
-      "#/machines",
-      "#/transfers",
-      "#/decisions",
-      "#/library",
-      "#/library/rules",
-      `#/library/rules/${LIB_ID}`,
-      "#/configuration/runtimes",
-      "#/configuration/bindings",
-      "#/configuration/project",
-      "#/inspector",
+      "#/projets",
+      `#/projets/${P1}`,
+      `#/projets/${P1}/taches`,
+      `#/projets/${P1}/reservations`,
+      `#/projets/${P1}/activite`,
+      `#/projets/${P1}/decisions`,
+      "#/taches",
+      `#/taches/${T1}`,
+      "#/equipe-ia",
+      "#/reglages/appareils",
+      "#/fichiers",
+      "#/a-valider",
+      "#/connaissances/savoir-faire",
+      "#/connaissances/savoir-faire/rules",
+      `#/connaissances/savoir-faire/rules/${LIB_ID}`,
+      "#/reglages/moteurs",
+      "#/reglages/moteurs/affectations",
+      "#/reglages/avance/projet",
+      "#/reglages/avance/inspecteur",
       "#/route-inexistante-xyz",
     ];
     for (const hash of routes) {
@@ -690,12 +690,12 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
       await expectNoGlobalOverflow(page, `${hash} @375`);
     }
     for (const [hash, shot] of [
-      ["#/library", "avant-library-375.png"],
-      ["#/decisions", "avant-decisions-375.png"],
-      ["#/machines", "avant-machines-375.png"],
-      ["#/transfers", "avant-transfers-375.png"],
-      ["#/inspector", "avant-inspector-375.png"],
-      ["#/configuration/runtimes", "avant-settings-375.png"],
+      ["#/connaissances/savoir-faire", "avant-library-375.png"],
+      ["#/a-valider", "avant-decisions-375.png"],
+      ["#/reglages/appareils", "avant-machines-375.png"],
+      ["#/fichiers", "avant-transfers-375.png"],
+      ["#/reglages/avance/inspecteur", "avant-inspector-375.png"],
+      ["#/reglages/moteurs", "avant-settings-375.png"],
     ] as Array<[string, string]>) {
       await go(page, hash);
       await page.screenshot({ path: `${SHOTS}/${shot}` });
@@ -713,13 +713,13 @@ test.describe("UI-15 onglets Savoir-faire à 375 (dette UI-7)", () => {
   test("wrap, deep links, clavier, aria-current", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/library", false);
+    await login(page, "#/connaissances/savoir-faire", false);
     const nav = page.locator('nav.tabs[aria-label="Catégories de la bibliothèque"]');
     await expect(nav).toBeVisible();
     const tabs = nav.locator("a.tab");
     await expect(tabs).toHaveCount(6);
     for (const slug of ["rules", "skills", "agent-definitions", "workflows", "model-profiles", "hooks"]) {
-      await expect(nav.locator(`a.tab[href="#/library/${slug}"]`)).toHaveCount(1);
+      await expect(nav.locator(`a.tab[href="#/connaissances/savoir-faire/${slug}"]`)).toHaveCount(1);
     }
     // Adaptation étroite : plusieurs lignes OU scroll local, jamais d'overflow global.
     const layout = await page.evaluate(() => {
@@ -733,12 +733,12 @@ test.describe("UI-15 onglets Savoir-faire à 375 (dette UI-7)", () => {
     expect(layout.wrapped || layout.scrollable, "onglets adaptés à 375 (wrap ou scroll local)").toBe(true);
     await expectNoGlobalOverflow(page, "library tabs @375");
     // Clavier : les onglets sont atteignables et activent le deep link.
-    const hookTab = nav.locator('a.tab[href="#/library/hooks"]');
+    const hookTab = nav.locator('a.tab[href="#/connaissances/savoir-faire/hooks"]');
     await hookTab.focus();
     await expect(hookTab).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
-    expect(page.url()).toContain("#/library/hooks");
+    expect(page.url()).toContain("#/connaissances/savoir-faire/hooks");
     // aria-current sur l'onglet actif.
     await expect(nav.locator('a.tab[aria-current="page"]')).toHaveCount(1);
     expectClean(watch);
@@ -749,7 +749,7 @@ test.describe("UI-15 shell et navigation mobile", () => {
   test("sidebar permanente ≥900, drawer <900", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1280, height: 800 });
-    await login(page, "#/tasks", false);
+    await login(page, "#/taches", false);
     await expect(page.locator("#app-sidebar")).toBeVisible();
     await expect(page.locator("#nav-open")).toBeHidden();
     await page.setViewportSize({ width: 375, height: 800 });
@@ -765,7 +765,7 @@ test.describe("UI-15 shell et navigation mobile", () => {
     // dès son apparition (invariant d'accessibilité respecté, durée ~0).
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/tasks", false);
+    await login(page, "#/taches", false);
     const open = page.locator("#nav-open");
     await open.click();
     const sidebar = page.locator("#app-sidebar.open");
@@ -787,7 +787,7 @@ test.describe("UI-15 shell et navigation mobile", () => {
     await expect(page.locator("#app-sidebar.open")).toHaveCount(0);
     // Naviguer ferme le menu (stress cycle 1).
     await open.click();
-    await sidebar.locator('a.app-navlink[href="#/projects"]').click();
+    await sidebar.locator('a.app-navlink[href="#/projets"]').click();
     await expect(page.locator("#view h1").first()).toContainText("Projets", { timeout: 10_000 });
     await expect(page.locator("#app-sidebar.open")).toHaveCount(0);
     expectClean(watch);
@@ -798,7 +798,7 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
   test("PageHeader : actions sous le titre à 375, pas de collision", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/transfers", false);
+    await login(page, "#/fichiers", false);
     const header = page.locator(".ds-page-header").first();
     await expect(header).toBeVisible();
     const geometry = await page.evaluate(() => {
@@ -828,7 +828,7 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
   test("Workspace tabs à 375 : 7 onglets + Plus, ARIA, flèches, deep links", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, `#/projects/${P1}`, false);
+    await login(page, `#/projets/${P1}`, false);
     const tablist = page.locator('[data-ws-tabs][role="tablist"]');
     await expect(tablist).toBeVisible();
     const tabs = tablist.locator('[role="tab"]');
@@ -845,7 +845,7 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
     // Activation = deep link réel.
     await tabs.nth(4).focus();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(new RegExp(`/projects/${P1}/claims`));
+    await expect(page).toHaveURL(new RegExp(`/projets/${P1}/reservations`));
     await expect(page.locator("#view h1").first()).toContainText("Jeu Phare", { timeout: 10_000 });
     expectClean(watch);
   });
@@ -855,7 +855,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
   test("liste : titre d'abord, pas d'overflow (données longues)", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/tasks", true);
+    await login(page, "#/taches", true);
     await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expect(page.locator("#view .task-row").first()).toBeVisible({ timeout: 10_000 });
     await expectNoGlobalOverflow(page, "task list @375 long");
@@ -870,7 +870,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     });
     expect(order, "titre avant métadonnées").toBe(true);
     await page.setViewportSize({ width: 768, height: 800 });
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     await expectNoGlobalOverflow(page, "task list @768 long");
     expectClean(watch);
   });
@@ -878,7 +878,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
   test("kanban à 375 : 5 colonnes (abandon comprise), scroll local, clavier préservé", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/tasks", true);
+    await login(page, "#/taches", true);
     await page.locator('#view [data-scope="all"]').first().click();
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
@@ -911,7 +911,7 @@ test.describe("UI-15 tables et contenus techniques", () => {
   test("claims : scroll local, scopes, pas d'overflow", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 640, height: 800 });
-    await login(page, `#/projects/${P1}/claims`, true);
+    await login(page, `#/projets/${P1}/reservations`, true);
     await expect(page.locator("#view h1").first()).toContainText("Jeu Phare", { timeout: 10_000 });
     const table = page.locator("#workspace-panel table").first();
     await expect(table).toBeVisible({ timeout: 10_000 });
@@ -933,7 +933,7 @@ test.describe("UI-15 tables et contenus techniques", () => {
     expect(local, "table claims en scroll local").toBe(true);
     await expectNoGlobalOverflow(page, "claims table @640 long");
     await page.setViewportSize({ width: 375, height: 800 });
-    await go(page, `#/projects/${P1}/claims`);
+    await go(page, `#/projets/${P1}/reservations`);
     await expectNoGlobalOverflow(page, "claims table @375 long");
     expectClean(watch);
   });
@@ -941,7 +941,7 @@ test.describe("UI-15 tables et contenus techniques", () => {
   test("inspector : blocs techniques en scroll local", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, `#/inspector/${encodeURIComponent(LONG_KEY)}`, true);
+    await login(page, `#/reglages/avance/inspecteur/${encodeURIComponent(LONG_KEY)}`, true);
     await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
     // Le formulaire reste utilisable : inputs dans le viewport.
     const inputBox = await page.locator("#view input").first().boundingBox();
@@ -967,7 +967,7 @@ test.describe("UI-15 drawers et modales à 375", () => {
   test("Machine drawer : plein écran étroit, fermeture, retour focus", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/machines", false);
+    await login(page, "#/reglages/appareils", false);
     const trigger = page.locator("#view [data-machine-details]").first();
     await expect(trigger).toBeVisible({ timeout: 10_000 });
     await centerClick(trigger);
@@ -991,7 +991,7 @@ test.describe("UI-15 drawers et modales à 375", () => {
   test("Transfer drawer + upload modal 375 : input natif, actions atteignables", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/transfers", true);
+    await login(page, "#/fichiers", true);
     const details = page.locator("#view [data-transfer-details]").first();
     await expect(details).toBeVisible({ timeout: 10_000 });
     await centerClick(details);
@@ -1024,7 +1024,7 @@ test.describe("UI-15 drawers et modales à 375", () => {
   test("modale viewport court 375×667 : validation accessible", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 667 });
-    await login(page, "#/transfers", false);
+    await login(page, "#/fichiers", false);
     await centerClick(uploadOpen(page).first());
     const modal = page.locator("#transfer-upload");
     await expect(modal).toBeVisible();
@@ -1061,7 +1061,7 @@ test.describe("UI-15 contextes particuliers", () => {
   test("paysage étroit 667×375 : tâches et bibliothèque utilisables", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 667, height: 375 });
-    await login(page, "#/tasks", false);
+    await login(page, "#/taches", false);
     await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expectNoGlobalOverflow(page, "tasks paysage 667×375");
     await expect(page.locator("#nav-open")).toBeVisible();
@@ -1069,7 +1069,7 @@ test.describe("UI-15 contextes particuliers", () => {
     await expect(page.locator("#app-sidebar.open")).toBeVisible();
     await expectNoGlobalOverflow(page, "menu paysage 667×375");
     await page.keyboard.press("Escape");
-    await go(page, "#/library/rules");
+    await go(page, "#/connaissances/savoir-faire/rules");
     await expectNoGlobalOverflow(page, "library paysage 667×375");
     expectClean(watch);
   });
@@ -1079,14 +1079,14 @@ test.describe("UI-15 contextes particuliers", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 720, height: 900 });
     await login(page, "#/", true);
-    for (const hash of ["#/projects", "#/library", "#/inspector", "#/configuration/runtimes"]) {
+    for (const hash of ["#/projets", "#/connaissances/savoir-faire", "#/reglages/avance/inspecteur", "#/reglages/moteurs"]) {
       await go(page, hash);
       await expect(page.locator("#view h1").first()).toBeVisible({ timeout: 10_000 });
       await expectNoGlobalOverflow(page, `${hash} @720 (zoom 200 %)`);
     }
     // Reflow extrême : une surface représentative reste fonctionnelle.
     await page.setViewportSize({ width: 360, height: 800 });
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expectNoGlobalOverflow(page, "tasks @360 (reflow extrême)");
     expectClean(watch);
@@ -1097,7 +1097,7 @@ test.describe("UI-15 invariants a11y après responsive (essentiels)", () => {
   test("skip-link premier Tab, focus visible, live region à 375", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/tasks", false);
+    await login(page, "#/taches", false);
     await page.keyboard.press("Tab");
     const focused = await page.evaluate(() => {
       const active = document.activeElement;
@@ -1132,7 +1132,7 @@ test.describe("UI-15 invariants a11y après responsive (essentiels)", () => {
   test("modal focus 375 : Tab, Shift+Tab, Échap, retour focus", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/transfers", false);
+    await login(page, "#/fichiers", false);
     const trigger = uploadOpen(page).first();
     await expect(trigger).toBeVisible({ timeout: 10_000 });
     await centerClick(trigger);
@@ -1160,9 +1160,9 @@ test.describe("UI-15 invariants a11y après responsive (essentiels)", () => {
       }
     };
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/library", true);
+    await login(page, "#/connaissances/savoir-faire", true);
     collect("library-375", (await new AxeBuilder({ page }).analyze()).violations);
-    await go(page, `#/projects/${P1}/claims`);
+    await go(page, `#/projets/${P1}/reservations`);
     collect("claims-375", (await new AxeBuilder({ page }).analyze()).violations);
     await page.setViewportSize({ width: 768, height: 800 });
     await go(page, "#/");

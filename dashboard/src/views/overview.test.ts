@@ -106,9 +106,9 @@ describe("homePageHtml nominal", () => {
     expect(recent).toBeLessThan(counts);
     expect(html).toContain("Reprendre");
     expect(html).not.toContain("ds-metric");
-    expect(html).toContain("href=\"#/projects\"");
-    expect(html).toContain("href=\"#/tasks\"");
-    expect(html).toContain("href=\"#/decisions\"");
+    expect(html).toContain("href=\"#/projets\"");
+    expect(html).toContain("href=\"#/taches\"");
+    expect(html).toContain("href=\"#/a-valider\"");
     expect(html).toContain("Studio OS est joignable");
   });
 
@@ -151,7 +151,7 @@ describe("homeProjectsHtml", () => {
       project("c", "C", false, "2026-09-09T10:00:00Z"),
     ];
     const html = homeProjectsHtml({ ok: true, value: projects as never });
-    expect(html).toContain("#/projects");
+    expect(html).toContain("#/projets");
     expect(html).toContain("B");
     expect(html).toContain("C");
     expect(html).toContain("A");
@@ -220,7 +220,7 @@ describe("homeTasksHtml", () => {
     expect(html).toContain("Apotheosis");
     expect(html).toContain("En cours");
     expect(html).toContain("Bloqué");
-    expect(html).toContain("href=\"#/tasks/t1\"");
+    expect(html).toContain("href=\"#/taches/t1\"");
     expect(html).toContain("Reprendre");
     expect(html).toContain("Voir toutes les tâches");
   });
@@ -345,7 +345,7 @@ describe("homeTransferSignalHtml", () => {
       value: [transfer("a", "created"), transfer("b", "ready")] as never,
     });
     expect(html).toContain("Transfert en cours");
-    expect(html).toContain("href=\"#/transfers\"");
+    expect(html).toContain("href=\"#/fichiers\"");
     expect(html).not.toContain("code-a");
     expect(html).not.toContain("<table");
   });

@@ -95,7 +95,7 @@ async function visibleText(page: Page, selector: string): Promise<string> {
 
 test("vue d'ensemble projet : durée, coût partiel et sources, valeurs serveur sans UUID visible", async ({ page }) => {
   const watch = watchErrors(page);
-  const urls = await loginUsage(page, `#/projects/${P1}`);
+  const urls = await loginUsage(page, `#/projets/${P1}`);
   const section = page.locator("section[data-usage]");
   await expect(section).toBeVisible({ timeout: 15_000 });
   const total = section.locator("[data-usage-total]");
@@ -122,7 +122,7 @@ test("vue d'ensemble projet : durée, coût partiel et sources, valeurs serveur 
 
 test("fiche tâche : section Consommation filtrée sur la tâche", async ({ page }) => {
   const watch = watchErrors(page);
-  const urls = await loginUsage(page, `#/tasks/${T1}`);
+  const urls = await loginUsage(page, `#/taches/${T1}`);
   const section = page.locator("section[data-usage]");
   await expect(section).toBeVisible({ timeout: 15_000 });
   await expect(section.locator('[data-usage-metric="cost"]')).toContainText("au moins 0,125 USD");

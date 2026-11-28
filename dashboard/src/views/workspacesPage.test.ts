@@ -229,17 +229,17 @@ describe("P3-detected link journey", () => {
 });
 
 describe("Dossiers du projet navigation", () => {
-  it("routes #/workspaces", () => {
-    expect(parseRoute("#/workspaces")).toEqual({ name: "workspaces" });
-    expect(parseRoute("#/workspaces/x").name).toBe("notFound");
+  it("routes #/reglages/dossiers", () => {
+    expect(parseRoute("#/reglages/dossiers")).toEqual({ name: "workspaces" });
+    expect(parseRoute("#/reglages/dossiers/x").name).toBe("notFound");
   });
 
   it("keeps legacy pages reachable with the closest Studio entry active", () => {
     const web = shellNavGroups({ name: "dashboard" }).flatMap((g) => g.items.map((i) => i.href));
-    expect(web).toContain("#/administration");
+    expect(web).toContain("#/reglages");
     expect(shellHtml({ name: "dashboard" }, true)).toContain("Réglages");
     const desktop = shellNavGroups({ name: "workspaces" }, true).flatMap((g) => g.items);
-    expect(desktop.filter((i) => i.href === "#/administration" && i.active)).toHaveLength(1);
+    expect(desktop.filter((i) => i.href === "#/reglages" && i.active)).toHaveLength(1);
     expect(shellHtml({ name: "dashboard" }, true, true)).toContain("Réglages");
   });
 

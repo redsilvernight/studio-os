@@ -70,17 +70,17 @@ async function boot(page: Page, conflict = false, role = "admin") {
   await page.locator("#login-password").fill("e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
   await expect(page.locator(".app-sidebar")).toBeVisible();
-  await page.evaluate(() => { location.hash = "#/library"; });
+  await page.evaluate(() => { location.hash = "#/connaissances/savoir-faire"; });
   return writes;
 }
 
 async function detail(page: Page) {
   await page.getByRole("link", { name: /Hooks/ }).first().click();
-  await expect(page).toHaveURL(/#\/library\/hooks$/);
+  await expect(page).toHaveURL(/#\/connaissances\/savoir-faire\/hooks$/);
   await expect(page.locator(".library-item")).toContainText("pre_tool");
   await expect(page.locator(".library-item")).toContainText("advisory");
   await page.getByRole("link", { name: "before-tool" }).click();
-  await expect(page).toHaveURL(new RegExp(`#/library/hooks/${HOOK_ID}$`));
+  await expect(page).toHaveURL(new RegExp(`#/connaissances/savoir-faire/hooks/${HOOK_ID}$`));
   await expect(page.getByRole("heading", { name: "Hook outils v1", exact: true })).toBeVisible();
 }
 

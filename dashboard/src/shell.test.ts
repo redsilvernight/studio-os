@@ -4,6 +4,7 @@ import { parseRoute } from "./router";
 import {
   mountAdminFlyout,
   paintConnection,
+  breadcrumbHtml,
   shellHtml,
   shellNavGroups,
   studioSelectorHtml,
@@ -22,12 +23,12 @@ describe("shellNavGroups (R2-coque, fiche E1)", () => {
     expect(groups.map((group) => group.title)).toEqual(["Principal", "Studio"]);
     expect(groups[0]?.items.map((item) => [item.label, item.href])).toEqual([
       ["Aujourd'hui", "#/"],
-      ["Projets", "#/projects"],
-      ["Tâches", "#/tasks"],
-      ["À valider", "#/decisions"],
-      ["Équipe IA", "#/agents"],
-      ["Connaissances", "#/library"],
-      ["Fichiers", "#/vault"],
+      ["Projets", "#/projets"],
+      ["Tâches", "#/taches"],
+      ["À valider", "#/a-valider"],
+      ["Équipe IA", "#/equipe-ia"],
+      ["Connaissances", "#/connaissances/savoir-faire"],
+      ["Fichiers", "#/connaissances/notes"],
     ]);
     expect(groups[0]?.items).toHaveLength(7);
   });
@@ -35,7 +36,7 @@ describe("shellNavGroups (R2-coque, fiche E1)", () => {
   it("shows Réglages, Abonnement and Aide in the Studio group for the owner", () => {
     const groups = shellNavGroups({ name: "dashboard" }, false, "simple", "owner", "Gratuit");
     expect(groups[1]?.items.map((item) => item.label)).toEqual(["Réglages", "Abonnement", "Aide"]);
-    expect(groups[1]?.items.map((item) => item.href)).toEqual(["#/administration", "#/abonnement", "#/aide"]);
+    expect(groups[1]?.items.map((item) => item.href)).toEqual(["#/reglages", "#/abonnement", "#/aide"]);
     const subscription = groups[1]?.items.find((item) => item.label === "Abonnement");
     expect(subscription?.pill).toBe("Gratuit");
   });
@@ -172,7 +173,7 @@ describe("shellHtml (R2-coque, fiche E1)", () => {
   });
 
   it("keeps the internal demo route out of the navigation", () => {
-    expect(authedShell({ name: "designSystem" })).not.toContain("#/design-system");
+    expect(authedShell({ name: "designSystem" })).not.toContain("#/reglages/avance/design-system");
     expect(authedShell({ name: "dashboard" })).not.toContain("design-system");
   });
 
@@ -185,7 +186,7 @@ describe("shellHtml (R2-coque, fiche E1)", () => {
   it("sets aria-current on the active link only", () => {
     const html = authedShell({ name: "tasks" });
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(html).toContain('href="#/tasks" aria-current="page"');
+    expect(html).toContain('href="#/taches" aria-current="page"');
   });
 
   it("exposes the mobile drawer contract (menu button, scrim, labelled nav)", () => {
@@ -253,22 +254,22 @@ describe("shellHtml (P03-shell)", () => {
 
   it("repaints the status and its action in place, never duplicating them (P03-status)", () => {
     document.body.innerHTML = shellHtml(parseRoute("#/"), true);
-    const down = { level: "error" as const, label: "Serveur injoignable", href: "#/configuration/application" };
+    const down = { level: "error" as const, label: "Serveur injoignable", href: "#/reglages/application" };
     paintConnection({ ...down, action: { kind: "retry", label: "Réessayer" } }, document);
     paintConnection({ ...down, title: "Serveur injoignable — détail", action: { kind: "retry", label: "Réessayer" } }, document);
     expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
     expect(document.querySelectorAll("#connection-action")).toHaveLength(1);
     expect(document.querySelector("#connection-status")?.getAttribute("title")).toBe("Serveur injoignable — détail");
-    paintConnection({ level: "ok", label: "Connecté", href: "#/configuration/application", action: null }, document);
+    paintConnection({ level: "ok", label: "Connecté", href: "#/reglages/application", action: null }, document);
     expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
     expect(document.querySelector("#connection-action")).toBeNull();
   });
 
   it("exposes the full footer label in the DOM and in the tooltip (no truncated « Co… »)", () => {
-    const html = connectionStatusHtml({ level: "ok", label: "Connecté", href: "#/configuration/application" });
+    const html = connectionStatusHtml({ level: "ok", label: "Connecté", href: "#/reglages/application" });
     expect(html).toContain('title="Connecté"');
     expect(html).toContain('<span class="app-connection-label">Connecté</span>');
-    const long = connectionStatusHtml({ level: "warn", label: "Assistant local en reprise", href: "#/configuration/application" });
+    const long = connectionStatusHtml({ level: "warn", label: "Assistant local en reprise", href: "#/reglages/application" });
     expect(long).toContain('title="Assistant local en reprise"');
     expect(long).toContain("Assistant local en reprise");
   });
@@ -290,7 +291,7 @@ describe("parseRoute (R2-coque)", () => {
   });
 
   it("routes the Studio entries to their overview", () => {
-    expect(parseRoute("#/administration")).toEqual({ name: "admin" });
+    expect(parseRoute("#/reglages")).toEqual({ name: "admin" });
     expect(parseRoute("#/admin")).toEqual({ name: "admin" });
     expect(parseRoute("#/abonnement")).toEqual({ name: "subscription" });
     expect(parseRoute("#/aide")).toEqual({ name: "help" });
@@ -315,6 +316,23 @@ describe("mountAdminFlyout (P03-shell, legacy)", () => {
     document.body.innerHTML = shellHtml(parseRoute("#/inspector"), true);
     expect(document.querySelectorAll("details.app-navgroup--secondary")).toHaveLength(0);
     expect(() => mountAdminFlyout()).not.toThrow();
-    expect(document.querySelector('[href="#/agents"]')?.getAttribute("aria-current")).toBe("page");
+    expect(document.querySelector('[href="#/equipe-ia"]')?.getAttribute("aria-current")).toBe("page");
+  });
+});
+
+describe("breadcrumbHtml (R2-adresses)", () => {
+  it("n'affiche rien sur une page principale", () => {
+    expect(breadcrumbHtml(parseRoute("#/projets"))).toBe("");
+  });
+
+  it("remonte une sous-page, la page courante sans lien", () => {
+    const html = breadcrumbHtml(parseRoute("#/reglages/moteurs/affectations"));
+    expect(html).toContain(`aria-label="Fil d'Ariane"`);
+    expect(html).toContain('<a href="#/reglages/moteurs">Moteurs IA</a>');
+    expect(html).toContain('<li aria-current="page">Affectations</li>');
+  });
+
+  it("garde l'identifiant du projet dans le lien et l'échappe", () => {
+    expect(breadcrumbHtml({ name: "project", id: 'a"b', tab: "tasks" })).toContain('href="#/projets/a&quot;b"');
   });
 });

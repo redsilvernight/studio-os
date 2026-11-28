@@ -171,7 +171,7 @@ test.describe("UI-13 navigation et shell", () => {
   test("navigation répétée : un seul render par changement de route, listeners stables", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     await expect(view.locator(".task-row")).toHaveCount(2);
     const baseline = captured.tasksListRequests;
@@ -180,9 +180,9 @@ test.describe("UI-13 navigation et shell", () => {
     // EXACTEMENT un chargement de « Maintenant » (2 requêtes : actives + à
     // démarrer), donc un seul render, un seul listener.
     for (let i = 0; i < 10; i += 1) {
-      await go(page, "#/projects");
+      await go(page, "#/projets");
       await expect(view.locator("h1")).toContainText("Projets");
-      await go(page, "#/tasks");
+      await go(page, "#/taches");
       await expect(view.locator(".task-row")).toHaveCount(2);
     }
     // + 1 requête de santé par rendu de la liste Projets (point de couleur).
@@ -196,11 +196,11 @@ test.describe("UI-13 navigation et shell", () => {
   test("back/forward restaure la bonne vue sans shell dupliqué", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/projects", captured);
+    await login(page, "#/projets", captured);
     const view = page.locator("#view");
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     await expect(view.locator(".task-row")).toHaveCount(2);
-    await go(page, "#/agents");
+    await go(page, "#/equipe-ia");
     await expect(view.locator("h1")).toContainText("Équipe IA");
     await page.goBack();
     await expect(view.locator("h1")).toContainText("Travail");
@@ -214,12 +214,12 @@ test.describe("UI-13 navigation et shell", () => {
   test("skip-link : garde la route, cible le #view courant, survit aux navigations (UI-2)", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/projects", captured);
+    await login(page, "#/projets", captured);
     const routes: [string, string][] = [
-      ["#/projects", "Projets"],
-      ["#/tasks", "Travail"],
-      ["#/agents", "Équipe IA"],
-      ["#/configuration/runtimes", "Réglages"],
+      ["#/projets", "Projets"],
+      ["#/taches", "Travail"],
+      ["#/equipe-ia", "Équipe IA"],
+      ["#/reglages/moteurs", "Réglages"],
     ];
     for (const [route, title] of routes) {
       await go(page, route);
@@ -240,11 +240,11 @@ test.describe("UI-13 navigation et shell", () => {
   test("réponse asynchrone obsolète : la route quittée ne repeint jamais la route courante", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/projects", captured);
+    await login(page, "#/projets", captured);
     const view = page.locator("#view");
     // Tasks répond lentement ; on part avant la réponse.
-    await go(page, "#/tasks");
-    await go(page, "#/projects");
+    await go(page, "#/taches");
+    await go(page, "#/projets");
     await expect(view.locator("h1")).toContainText("Projets");
     // Laisse la réponse Tasks arriver après coup : elle doit être ignorée.
     await page.waitForTimeout(700);
@@ -259,7 +259,7 @@ test.describe("UI-13 double-soumission et modale", () => {
   test("garde JS : deux submit rapides → une seule mutation ; bouton verrouillé", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/tasks", captured, { createDelayMs: 400 });
+    await login(page, "#/taches", captured, { createDelayMs: 400 });
     const view = page.locator("#view");
     await view.locator("#task-new").click();
     const dialog = view.locator("#task-create-dialog");
@@ -288,7 +288,7 @@ test.describe("UI-13 double-soumission et modale", () => {
   test("cycle de vie modale : réouverture = formulaire réinitialisé, Échap + retour focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     const openButton = view.locator("#task-new");
     await openButton.click();
@@ -313,7 +313,7 @@ test.describe("UI-13 double-soumission et modale", () => {
   test("erreur puis retry : la page signale l'échec, « Réessayer » recharge réellement", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/tasks", captured, { failFirstTasksList: true });
+    await login(page, "#/taches", captured, { failFirstTasksList: true });
     const view = page.locator("#view");
     await expect(view.locator('[role=alert]')).toContainText("Tâches indisponibles");
     const retry = view.locator("[data-reload]").first();
@@ -329,7 +329,7 @@ test.describe("UI-13 responsive (smoke transversal)", () => {
   test("1440/1280/768/375 : pas d'overflow horizontal global, modale de création incluse", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const hasGlobalOverflow = (): Promise<boolean> =>
       page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     for (const width of [1440, 1280, 768, 375]) {
@@ -349,7 +349,7 @@ test.describe("UI-13 auth et navigation", () => {
   test("déconnexion fiable : le shell laisse place à l'écran de connexion", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/projects", captured);
+    await login(page, "#/projets", captured);
     await expect(page.locator(".app-sidebar")).toBeVisible();
     await page.locator("#token-clear").click();
     await expect(page.locator("#login-form")).toBeVisible();

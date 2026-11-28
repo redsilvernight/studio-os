@@ -107,7 +107,7 @@ describe("onboarding view", () => {
     expect(root.querySelector("[data-testid=onboarding-error]")).toBeNull();
     // No obligation: finish is enabled with no folder, and Workspaces is one click away.
     expect(root.querySelector<HTMLButtonElement>("[data-action=finish]")!.disabled).toBe(false);
-    expect(root.querySelector("[data-testid=onboarding-to-workspaces]")?.getAttribute("href")).toBe("#/workspaces");
+    expect(root.querySelector("[data-testid=onboarding-to-workspaces]")?.getAttribute("href")).toBe("#/reglages/dossiers");
     expect(root.innerHTML).not.toContain(WS);
     root.querySelector<HTMLButtonElement>("[data-action=finish]")!.click();
     expect(JSON.parse(globalThis.localStorage.getItem(ONBOARDING_STORAGE_KEY)!)).toMatchObject({
@@ -122,6 +122,6 @@ describe("onboarding view", () => {
     await renderOnboarding(root, platform, emptySession({ schema: 1, status: "completed", current: "termine" }));
     expect(root.textContent).toContain("Votre poste est prêt");
     expect(root.querySelector('a[href="#/"]')).not.toBeNull();
-    expect(root.querySelector('a[href="#/workspaces"]')).not.toBeNull();
+    expect(root.querySelector('a[href="#/reglages/dossiers"]')).not.toBeNull();
   });
 });

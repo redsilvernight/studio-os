@@ -150,7 +150,7 @@ test.describe("integrations (web)", () => {
     page.on("console", (msg) => {
       if (msg.type() === "error" && CSP_RE.test(msg.text())) cspErrors.push(msg.text());
     });
-    await login(page, "#/configuration/integrations");
+    await login(page, "#/reglages/connexions-ia");
     await expect(page.getByTestId("integrations-web")).toContainText("Fonction de Studi'OS Desktop");
     await expect(page.locator("[data-harness]")).toHaveCount(0);
     await expect(page.locator("main [role=alert]")).toHaveCount(0);
@@ -163,7 +163,7 @@ test.describe("integrations (Desktop)", () => {
   for (const workspaceListError of [false, true]) {
     test(`saves machine launch settings after confirmation without a folder (list error: ${workspaceListError})`, async ({ page }) => {
       await installDesktop(page, { workspaceListError });
-      await login(page, "#/configuration/integrations");
+      await login(page, "#/reglages/connexions-ia");
       await expect(page.getByTestId("launch-settings")).toHaveCount(1);
       await expect(page.getByTestId("launch-settings")).toBeVisible();
       expect((await new AxeBuilder({ page }).include('[data-testid="launch-settings"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()).violations).toEqual([]);
@@ -193,7 +193,7 @@ test.describe("integrations (Desktop)", () => {
 
   test("reads launch preparation by keyboard through the validated bridge, without configuring", async ({ page }) => {
     await installDesktop(page);
-    await login(page, `#/configuration/integrations/${WS}`);
+    await login(page, `#/reglages/connexions-ia/${WS}`);
     const claude = page.locator('[data-harness="claude-code"]');
     const button = claude.getByRole("button", { name: "Voir la préparation des lancements" });
     expect(await harnessCalls(page)).not.toContain("harness.launch_preview");
@@ -213,7 +213,7 @@ test.describe("integrations (Desktop)", () => {
 
   test("keeps an older daemon usable when launch preparation is unavailable", async ({ page }) => {
     await installDesktop(page, { launchPreviewUnsupported: true });
-    await login(page, `#/configuration/integrations/${WS}`);
+    await login(page, `#/reglages/connexions-ia/${WS}`);
     const claude = page.locator('[data-harness="claude-code"]');
     await claude.getByRole("button", { name: "Voir la préparation des lancements" }).click();
     await expect(claude.locator("[data-launch-environment]")).toContainText("Aperçu indisponible");
@@ -223,7 +223,7 @@ test.describe("integrations (Desktop)", () => {
 
   test("preview, apply, then restore — nothing is shown applied before it succeeded", async ({ page }) => {
     await installDesktop(page);
-    await login(page, `#/configuration/integrations/${WS}`);
+    await login(page, `#/reglages/connexions-ia/${WS}`);
     const claude = page.locator('[data-harness="claude-code"]');
     await expect(claude).toContainText("Installé · non configuré");
     await expect(claude).toContainText("2.1.272");
@@ -250,7 +250,7 @@ test.describe("integrations (Desktop)", () => {
 
   test("a rollback conflict is reported and nothing is claimed restored", async ({ page }) => {
     await installDesktop(page, { rollbackConflict: true });
-    await login(page, `#/configuration/integrations/${WS}`);
+    await login(page, `#/reglages/connexions-ia/${WS}`);
     const claude = page.locator('[data-harness="claude-code"]');
     await claude.locator("[data-action=preview]").click();
     await page.locator("[data-action=apply-plan]").click();
@@ -277,7 +277,7 @@ test.describe("integrations (Desktop)", () => {
         }),
       );
     });
-    await login(page, "#/configuration/integrations");
+    await login(page, "#/reglages/connexions-ia");
     await expect(page.locator("#workspace-id-input")).toHaveCount(0);
     await expect(page.getByTestId("integrations-workspace")).toContainText("Mon jeu");
     await page.getByTestId("workspace-continue").click();
@@ -286,7 +286,7 @@ test.describe("integrations (Desktop)", () => {
 
   test("points to the setup assistant when no folder is remembered", async ({ page }) => {
     await installDesktop(page);
-    await login(page, "#/configuration/integrations");
+    await login(page, "#/reglages/connexions-ia");
     await expect(page.locator("#workspace-id-input")).toHaveCount(0);
     await expect(page.getByTestId("integrations-workspace")).toContainText("Lancer l'assistant");
   });

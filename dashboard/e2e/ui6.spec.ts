@@ -1,5 +1,5 @@
 /**
- * UI-6 Agents IA (browser, API stubbée déterministe) : route #/agents,
+ * UI-6 Agents IA (browser, API stubbée déterministe) : route #/equipe-ia,
  * nav sans « Bientôt », liste nominale, empty, erreur, secondaire
  * indisponible, recherche locale, travail actuel, sessions, AI work,
  * machine, runtime/model/binding déclarés, détail, deep links,
@@ -229,12 +229,12 @@ async function awaitDrawerSettled(page: Page): Promise<void> {
 test.describe("UI-6 page Agents", () => {
   test("liste nominale : nav réelle, cartes calmes, travail actuel honnête", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents");
+    await login(page, "#/equipe-ia");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Équipe IA");
     await expect(view.locator(".agents-list .agent-row")).toHaveCount(2);
     // Nav : vraie route, sans « Bientôt », active ici.
-    await expect(page.locator('.app-sidebar a[href="#/agents"]')).toHaveAttribute("aria-current", "page");
+    await expect(page.locator('.app-sidebar a[href="#/equipe-ia"]')).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".app-sidebar")).toContainText("Équipe IA");
     await expect(page.locator(".app-sidebar")).not.toContainText("Bientôt");
     // Agent actif : session ouverte + tâche + projet, vocabulaire DERIVED.
@@ -249,7 +249,7 @@ test.describe("UI-6 page Agents", () => {
     await expect(second).toContainText("Kimi Scribe");
     await expect(second).toContainText("docs");
     // Deep link vers la fiche agent présent.
-    await expect(first.locator(`a[href="#/agents/${A1}"]`).first()).toBeVisible();
+    await expect(first.locator(`a[href="#/equipe-ia/${A1}"]`).first()).toBeVisible();
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.screenshot({ path: `${SHOTS}/agents-desktop.png` });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -259,7 +259,7 @@ test.describe("UI-6 page Agents", () => {
 
   test("recherche locale + clavier : filtre sans réseau, focus conservé", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents");
+    await login(page, "#/equipe-ia");
     const view = page.locator("#view");
     const search = view.locator("#agents-search");
     await expect(view.locator(".agent-row")).toHaveCount(2);
@@ -271,7 +271,7 @@ test.describe("UI-6 page Agents", () => {
     await search.fill("");
     await expect(view.locator(".agent-row")).toHaveCount(2);
     // Navigation clavier : la fiche est atteignable au clavier.
-    await view.locator('.agent-row a[href="#/agents/aaaaaaaa-0000-4111-8111-000000000001"]').first().focus();
+    await view.locator('.agent-row a[href="#/equipe-ia/aaaaaaaa-0000-4111-8111-000000000001"]').first().focus();
     await page.keyboard.press("Enter");
     await expect(view.locator("h1")).toContainText("Claude Atlas");
     await expectClean(watched);
@@ -279,7 +279,7 @@ test.describe("UI-6 page Agents", () => {
 
   test("détail : sections utiles, technique repliée, back/forward", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, `#/agents/${A1}`);
+    await login(page, `#/equipe-ia/${A1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Claude Atlas");
     for (const section of ["Activité", "Travail réalisé", "Sessions", "Environnement", "Réglages"]) {
@@ -294,7 +294,7 @@ test.describe("UI-6 page Agents", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.screenshot({ path: `${SHOTS}/agent-detail-desktop.png` });
     // Retour liste puis avant : deep links + historique intacts.
-    await view.locator('a[href="#/agents"]').first().click();
+    await view.locator('a[href="#/equipe-ia"]').first().click();
     await expect(view.locator("h1")).toContainText("Équipe IA");
     await page.goBack();
     await expect(view.locator("h1")).toContainText("Claude Atlas");
@@ -305,16 +305,16 @@ test.describe("UI-6 page Agents", () => {
 
   test("agent introuvable : état explicite, pas de fiche vide", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents/00000000-0000-4000-8000-000000000000");
+    await login(page, "#/equipe-ia/00000000-0000-4000-8000-000000000000");
     const view = page.locator("#view");
     await expect(view).toContainText("Agent introuvable");
-    await expect(view.locator('a[href="#/agents"]').first()).toBeVisible();
+    await expect(view.locator('a[href="#/equipe-ia"]').first()).toBeVisible();
     await expectClean(watched);
   });
 
   test("empty : explique l'agent, sans bouton de création fictif", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents", { empty: true });
+    await login(page, "#/equipe-ia", { empty: true });
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Équipe IA");
     await expect(view).toContainText("Aucun agent enregistré");
@@ -326,7 +326,7 @@ test.describe("UI-6 page Agents", () => {
 
   test("erreur liste : état danger, sans contenu inventé", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents", { agentsFail: true });
+    await login(page, "#/equipe-ia", { agentsFail: true });
     const view = page.locator("#view");
     await expect(view).toContainText("Agents indisponibles");
     await expect(view.locator(".agent-card")).toHaveCount(0);
@@ -335,7 +335,7 @@ test.describe("UI-6 page Agents", () => {
 
   test("secondaire indisponible : liste sans activité affirmée", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents", { secondaryFail: true });
+    await login(page, "#/equipe-ia", { secondaryFail: true });
     const view = page.locator("#view");
     await expect(view.locator(".agent-row")).toHaveCount(2);
     await expect(view).toContainText("Activité inconnue");
@@ -347,7 +347,7 @@ test.describe("UI-6 page Agents", () => {
 
   test("responsive 1280/768/375 : lisible, aucun overflow global", async ({ page }) => {
     const watched = watchErrors(page);
-    await login(page, "#/agents");
+    await login(page, "#/equipe-ia");
     const view = page.locator("#view");
     await expect(view.locator(".agent-row")).toHaveCount(2);
     for (const size of [
@@ -364,7 +364,7 @@ test.describe("UI-6 page Agents", () => {
     await awaitDrawerSettled(page);
     await page.screenshot({ path: `${SHOTS}/agents-mobile.png` });
     // Jeton déjà en mémoire : simple navigation, pas de second login.
-    await page.goto(`/#/agents/${A1}`);
+    await page.goto(`/#/equipe-ia/${A1}`);
     await expect(view.locator("h1")).toContainText("Claude Atlas");
     await awaitDrawerSettled(page);
     await page.screenshot({ path: `${SHOTS}/agent-detail-mobile.png` });

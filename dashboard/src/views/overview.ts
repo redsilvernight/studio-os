@@ -4,8 +4,8 @@
  * P05-home-project — trois blocs prioritaires : À faire maintenant (une
  * carte « Reprendre » + 2 suites), À valider (3 max), Projets récents (3 max,
  * santé par point de couleur) ; compteurs non actionnables en ligne discrète.
- * Le reste vit sur ses pages : Kanban et détail → #/tasks, transferts →
- * #/transfers, diagnostics → Inspector, activité → onglet projet (UI-4).
+ * Le reste vit sur ses pages : Kanban et détail → #/taches, transferts →
+ * #/fichiers, diagnostics → Inspector, activité → onglet projet (UI-4).
  *
  * Dette de migration : les actions Approve / Request changes
  * (ai_work_review) restent sur l'Accueil en format discret jusqu'à la page
@@ -227,18 +227,18 @@ export function projectHealth(projectId: string, tasks: Task[]): { state: "warni
 }
 
 export function homeProjectsHtml(result: HomeResult<Project[]>, tasks: Task[] = []): string {
-  const header = dsSectionHeader("Projets récents", { label: "Voir tous les projets", href: "#/projects" });
+  const header = dsSectionHeader("Projets récents", { label: "Voir tous les projets", href: "#/projets" });
   if (!result.ok) {
     return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><div class="ds-notice ds-notice--danger"><strong>Projets indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
   if (result.value.length === 0) {
-    return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet accessible", "Créez un projet, ou demandez à un administrateur l'accès à un projet existant.", { label: "Voir les projets", href: "#/projects" })}</section>`;
+    return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet accessible", "Créez un projet, ou demandez à un administrateur l'accès à un projet existant.", { label: "Voir les projets", href: "#/projets" })}</section>`;
   }
   const items = pickHomeProjects(result.value)
     .map((p) => {
       const health = projectHealth(p.id, tasks);
       const dot = p.archived ? dsBadge(UI_LABEL.archived, "warning") : dsStatusDot(health.state, health.label, true);
-      return `<li class="ds-list-item">${dot}<div class="grow"><div class="ds-list-title"><a href="#/projects/${esc(p.id)}">${esc(p.name)}</a></div><div class="ds-list-sub">${esc(p.archived ? "Archivé" : health.label)}</div></div></li>`;
+      return `<li class="ds-list-item">${dot}<div class="grow"><div class="ds-list-title"><a href="#/projets/${esc(p.id)}">${esc(p.name)}</a></div><div class="ds-list-sub">${esc(p.archived ? "Archivé" : health.label)}</div></div></li>`;
     })
     .join("");
   return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><ul class="ds-list ds-list--card">${items}</ul></section>`;
@@ -268,13 +268,13 @@ export function pickNowTasks(tasks: Task[]): Task[] {
 }
 
 export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): string {
-  const header = dsSectionHeader("À faire maintenant", { label: "Voir toutes les tâches", href: "#/tasks" });
+  const header = dsSectionHeader("À faire maintenant", { label: "Voir toutes les tâches", href: "#/taches" });
   if (!result.ok) {
     return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div><div class="ds-notice ds-notice--danger"><strong>Tâches indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
   const picked = pickNowTasks(result.value);
   if (picked.length === 0) {
-    return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien à faire maintenant", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/tasks" })}</section>`;
+    return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien à faire maintenant", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/taches" })}</section>`;
   }
   const names = new Map(projects.map((p) => [p.id, p.name]));
   const [first, ...rest] = picked as [Task, ...Task[]];
@@ -283,13 +283,13 @@ export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): 
     eyebrow: `${names.get(first.project_id) ?? UI_LABEL.project} · ${firstLabel}`,
     title: first.title,
     body: first.description ?? "",
-    primary: { label: first.status === "in_progress" ? "Reprendre" : "Ouvrir", href: `#/tasks/${first.id}` },
+    primary: { label: first.status === "in_progress" ? "Reprendre" : "Ouvrir", href: `#/taches/${first.id}` },
   });
   const items = rest
     .map((t) => {
       const project = names.get(t.project_id) ?? UI_LABEL.project;
       const label = TASK_STATUS_LABEL[t.status] ?? t.status;
-      return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(t.id)}">${esc(t.title)}</a></div><div class="ds-list-sub">${esc(project)} · ${esc(label)}</div></div>${dsBadge(label, taskTone(t.status))}</li>`;
+      return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/taches/${esc(t.id)}">${esc(t.title)}</a></div><div class="ds-list-sub">${esc(project)} · ${esc(label)}</div></div>${dsBadge(label, taskTone(t.status))}</li>`;
     })
     .join("");
   const list = items === "" ? "" : `<ul class="ds-list ds-list--card">${items}</ul>`;
@@ -303,13 +303,13 @@ export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): strin
 }
 
 export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: boolean): string {
-  const header = dsSectionHeader(UI_LABEL.toReview, { label: "Voir la file complète", href: "#/decisions" });
+  const header = dsSectionHeader(UI_LABEL.toReview, { label: "Voir la file complète", href: "#/a-valider" });
   if (!result.ok) {
     return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File À valider indisponible.</strong>${esc(result.message)}</div></section>`;
   }
   const items = result.value?.items ?? [];
   if (items.length === 0) {
-    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState(UI_LABEL.nothingToReview, "Aucun élément n'attend une décision humaine.", { label: "Voir les éléments À valider", href: "#/decisions" })}</section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState(UI_LABEL.nothingToReview, "Aucun élément n'attend une décision humaine.", { label: "Voir les éléments À valider", href: "#/a-valider" })}</section>`;
   }
   const shown = items.slice(0, HOME_REVIEW_LIMIT);
   const rows = shown
@@ -327,7 +327,7 @@ export function homeTransferSignalHtml(result: HomeResult<Transfer[]>): string {
   if (!result.ok) return "";
   const pending = result.value.filter((t) => t.status === "created" || t.status === "uploading");
   if (pending.length === 0) return "";
-  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi${sfx(pending.length)} en cours — <a href="#/transfers">voir les transferts</a>.</div>`;
+  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi${sfx(pending.length)} en cours — <a href="#/fichiers">voir les transferts</a>.</div>`;
 }
 
 function bindReviewActions(root: HTMLElement, ctx: OverviewContext): void {

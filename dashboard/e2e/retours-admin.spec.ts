@@ -18,7 +18,7 @@ async function adminFixture(page: Page, state: "healthy" | "attention" | "error"
     if (path.endsWith("/transfers/consumption")) return state === "error" ? json({ detail: "indisponible" }, 503) : json({ consumed_bytes: state === "attention" ? 1024 : 256, quota_bytes: 1024, remaining_bytes: state === "attention" ? 0 : 768 });
     return json([]);
   });
-  await page.goto("/#/administration");
+  await page.goto("/#/reglages");
   await page.locator("#login-email").fill("e2e@example.test");
   await page.locator("#login-password").fill("e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
@@ -45,16 +45,16 @@ test("administration : problèmes réels actionnables et lisibles sur375px", asy
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Réglages", exact: true }) })).toContainText("À compléter");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Validations", exact: true }) })).toContainText("1 en attente");
   await expect(cards.filter({ has: page.getByRole("heading", { name: "Stockage", exact: true }) })).toContainText("1 Ko utilisés");
-  await expect(cards.filter({ has: page.getByRole("heading", { name: "Postes", exact: true }) }).locator("a")).toHaveAttribute("href", "#/machines");
-  await expect(cards.filter({ has: page.getByRole("heading", { name: "Réglages", exact: true }) }).locator("a")).toHaveAttribute("href", "#/configuration/bindings");
-  await expect(cards.filter({ has: page.getByRole("heading", { name: "Validations", exact: true }) }).locator("a")).toHaveAttribute("href", "#/decisions");
-  await expect(cards.filter({ has: page.getByRole("heading", { name: "Stockage", exact: true }) }).locator("a")).toHaveAttribute("href", "#/transfers");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "Postes", exact: true }) }).locator("a")).toHaveAttribute("href", "#/reglages/appareils");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "Réglages", exact: true }) }).locator("a")).toHaveAttribute("href", "#/reglages/moteurs/affectations");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "Validations", exact: true }) }).locator("a")).toHaveAttribute("href", "#/a-valider");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "Stockage", exact: true }) }).locator("a")).toHaveAttribute("href", "#/fichiers");
   await page.setViewportSize({ width: 375, height: 812 });
   if ((await page.locator("#nav-open").getAttribute("aria-expanded")) === "true") await page.locator("#nav-close").click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("admin-375.png"), fullPage: true });
   await cards.filter({ has: page.getByRole("heading", { name: "Postes", exact: true }) }).locator("a").click();
-  await expect(page).toHaveURL(/#\/machines$/);
+  await expect(page).toHaveURL(/#\/reglages\/appareils$/);
   await expect(page.locator("#view h1")).toHaveText("Postes");
 });
 

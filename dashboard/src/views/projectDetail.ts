@@ -7,7 +7,7 @@
  * Chaque onglet est soutenu par une capacité réelle : GET /projects/{id} +
  * /state, GET /tasks?project_id, GET /claims?project_id,
  * GET /timeline?project_id, GET /decisions?project_id. Aucun onglet décoratif.
- * Les deep links (#/projects/<id>/<onglet>) représentent l'état et le
+ * Les deep links (#/projets/<id>/<onglet>) représentent l'état et le
  * back/forward navigateur fonctionne (rendu piloté par le hash, sans état JS).
  *
  * Boîte « Coordination à traiter » (vue d'ensemble) : lecture humaine des
@@ -64,15 +64,15 @@ export interface ProjectDetailContext {
 
 export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix: string }> = [
   { id: "overview", label: "Vue d'ensemble", suffix: "" },
-  { id: "mission", label: UI_LABEL.runs, suffix: "/mission" },
-  { id: "roadmap", label: UI_LABEL.roadmap, suffix: "/roadmap" },
-  { id: "tasks", label: "Tâches", suffix: "/tasks" },
-  { id: "claims", label: "Fichiers occupés", suffix: "/claims" },
-  { id: "activity", label: "Activité", suffix: "/activity" },
-  { id: "history", label: "Historique", suffix: "/history" },
+  { id: "mission", label: UI_LABEL.runs, suffix: "/executions" },
+  { id: "roadmap", label: UI_LABEL.roadmap, suffix: "/plan" },
+  { id: "tasks", label: "Tâches", suffix: "/taches" },
+  { id: "claims", label: "Fichiers occupés", suffix: "/reservations" },
+  { id: "activity", label: "Activité", suffix: "/activite" },
+  { id: "history", label: "Historique", suffix: "/historique" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
-  { id: "members", label: "Membres", suffix: "/members" },
-  { id: "ai-integration", label: "Intégration IA", suffix: "/ai-integration" },
+  { id: "members", label: "Membres", suffix: "/equipe" },
+  { id: "ai-integration", label: "Intégration IA", suffix: "/integration-ia" },
 ];
 
 /** Libellés FR des statuts (source unique : taskStatus.ts, UI-5). */
@@ -98,7 +98,7 @@ export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["history", "members
 function projectTabLink(projectId: string, entry: (typeof PROJECT_TABS)[number], tab: ProjectTab): string {
   const active = entry.id === tab;
   const current = active ? ` aria-current="page"` : "";
-  return `<a class="ds-tab" role="tab" id="ws-tab-${entry.id}" aria-controls="workspace-panel" href="#/projects/${esc(projectId)}${entry.suffix}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" data-ws-tab="${entry.id}"${current}>${esc(entry.label)}</a>`;
+  return `<a class="ds-tab" role="tab" id="ws-tab-${entry.id}" aria-controls="workspace-panel" href="#/projets/${esc(projectId)}${entry.suffix}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" data-ws-tab="${entry.id}"${current}>${esc(entry.label)}</a>`;
 }
 
 /** Navigation locale : 6 onglets visibles + menu « Plus » (liens, deep links préservés). */
@@ -147,7 +147,7 @@ export function workspaceHeaderHtml(project: Project): string {
   const desc =
     rawDesc === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="workspace-desc">${esc(rawDesc)}</p>`;
   const badge = project.archived ? dsBadge(UI_LABEL.archived, "warning") : dsBadge(UI_LABEL.active, "success");
-  return `<div class="workspace-head"><p class="ds-list-sub workspace-back"><a href="#/projects">← Tous les projets</a></p>` +
+  return `<div class="workspace-head"><p class="ds-list-sub workspace-back"><a href="#/projets">← Tous les projets</a></p>` +
     `<div class="workspace-title-row"><h1>${esc(project.name)}</h1>${badge}</div>` +
     `${desc}` +
     dsTechDetails([
@@ -207,8 +207,8 @@ export function projectHeroHtml(project: Project, state: ProjectState, step: Cur
   const objective = (project.description ?? "").trim();
   const stepBody =
     step === null
-      ? `<p class="ds-list-sub">Aucune étape courante : <a href="#/projects/${esc(project.id)}/roadmap">ouvrir le plan</a>.</p>`
-      : `<p class="workspace-step-title">${esc(step.title)}</p><p class="ds-list-sub">${esc(step.phaseTitle)}${step.progress === null ? "" : ` · ${esc(step.progress)}`} — <a href="#/projects/${esc(project.id)}/roadmap">voir la roadmap</a></p>`;
+      ? `<p class="ds-list-sub">Aucune étape courante : <a href="#/projets/${esc(project.id)}/plan">ouvrir le plan</a>.</p>`
+      : `<p class="workspace-step-title">${esc(step.title)}</p><p class="ds-list-sub">${esc(step.phaseTitle)}${step.progress === null ? "" : ` · ${esc(step.progress)}`} — <a href="#/projets/${esc(project.id)}/plan">voir la roadmap</a></p>`;
   const blockersBody =
     blockers.length === 0
       ? `<p class="ds-list-sub">Aucun blocage.</p>`
@@ -236,7 +236,7 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
       : `<ul class="ds-list">${taskPreview
           .map(
             (task: Task) =>
-              `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
+              `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/taches/${esc(task.id)}">${esc(task.title)}</a></div>` +
               `<div class="ds-list-sub">${esc(TASK_STATUS_LABEL[task.status] ?? task.status)}</div></div>${dsBadge(TASK_STATUS_LABEL[task.status] ?? task.status, taskTone(task.status))}</li>`,
           )
           .join("")}</ul>${state.active_tasks.length > taskPreview.length ? `<p class="ds-list-sub">+ ${state.active_tasks.length - taskPreview.length} autre${sfx(state.active_tasks.length - taskPreview.length)}.</p>` : ""}`;
@@ -254,9 +254,9 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
 
   return `<div class="workspace-overview">` +
     projectHeroHtml(project, state, step, now) +
-    `<section class="workspace-section" aria-label="Tâches actives">${dsSectionHeader(`Tâches actives (${state.active_tasks.length})`, { label: "Voir les tâches", href: `#/projects/${esc(project.id)}/tasks` })}${tasksBody}</section>` +
-    `<section class="workspace-section" aria-label="Fichiers occupés en ce moment">${dsSectionHeader(`Fichiers occupés en ce moment (${state.active_claims.length})`, { label: "Voir les fichiers occupés", href: `#/projects/${esc(project.id)}/claims` })}${claimsBody}</section>` +
-    `<section class="workspace-section" aria-label="Historique et décisions"><p class="ds-list-sub">L'historique complet vit dans <a href="#/projects/${esc(project.id)}/activity">Activité</a>, les décisions liées au projet dans <a href="#/projects/${esc(project.id)}/decisions">Décisions</a>.</p></section>` +
+    `<section class="workspace-section" aria-label="Tâches actives">${dsSectionHeader(`Tâches actives (${state.active_tasks.length})`, { label: "Voir les tâches", href: `#/projets/${esc(project.id)}/taches` })}${tasksBody}</section>` +
+    `<section class="workspace-section" aria-label="Fichiers occupés en ce moment">${dsSectionHeader(`Fichiers occupés en ce moment (${state.active_claims.length})`, { label: "Voir les fichiers occupés", href: `#/projets/${esc(project.id)}/reservations` })}${claimsBody}</section>` +
+    `<section class="workspace-section" aria-label="Historique et décisions"><p class="ds-list-sub">L'historique complet vit dans <a href="#/projets/${esc(project.id)}/activite">Activité</a>, les décisions liées au projet dans <a href="#/projets/${esc(project.id)}/decisions">Décisions</a>.</p></section>` +
     `</div>`;
 }
 
@@ -270,7 +270,7 @@ const COORDINATION_TONE: Record<CoordinationIntent, DsTone> = {
 
 /** Un signal ouvert : intention, texte cité (donnée d'une autre session, échappé), heure, tâche liée. */
 function coordinationItemHtml(item: CoordinationItem): string {
-  const link = item.taskId === null ? "" : ` · <a href="#/tasks/${esc(item.taskId)}">${esc(ACTION_LABEL.openTask)}</a>`;
+  const link = item.taskId === null ? "" : ` · <a href="#/taches/${esc(item.taskId)}">${esc(ACTION_LABEL.openTask)}</a>`;
   return (
     `<li class="ds-list-item workspace-coordination-item" data-coordination-intent="${esc(item.intent)}"><div class="grow">` +
     `<div class="ds-list-title">${dsBadge(intentLabel(item.intent), COORDINATION_TONE[item.intent])}</div>` +

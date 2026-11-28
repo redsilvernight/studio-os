@@ -146,7 +146,7 @@ describe("coordination.* dans la timeline", () => {
   it("la timeline n'est pas filtrée : un signal s'y affiche comme les autres", () => {
     expect(html).toContain("Question");
     expect(html).toContain("1 événement");
-    expect(html).toContain('href="#/tasks/t1"');
+    expect(html).toContain('href="#/taches/t1"');
     expect(html).not.toContain("coordination");
   });
 
@@ -224,7 +224,7 @@ describe("timelineHtml nominal", () => {
     expect(html).toContain("utilisateur");
     expect(html).toContain("Optimiser les éclairages");
     expect(html).toContain("scenes/niveau.tscn");
-    expect(html).toContain('href="#/tasks/t1"');
+    expect(html).toContain('href="#/taches/t1"');
     expect(html).toContain("<time");
   });
 
@@ -358,7 +358,7 @@ describe("historique exhaustif et pagination par journée UTC", () => {
     await renderActivityInto(root, { client: { GET } as unknown as StudioClient, projectId: "p1", authed: true });
     expect(root.textContent).toContain("Session de travail terminée");
     expect(root.textContent).not.toContain("Aucune activité");
-    expect(root.querySelector('a[href="#/tasks/t1"]')).not.toBeNull();
+    expect(root.querySelector('a[href="#/taches/t1"]')).not.toBeNull();
     GET.mockRejectedValueOnce(new Error("réseau indisponible"));
     root.querySelector<HTMLButtonElement>("[data-cal-latest]")!.click();
     await vi.waitFor(() => expect(root.querySelector('[role="alert"]')?.textContent).toContain("réseau indisponible"));

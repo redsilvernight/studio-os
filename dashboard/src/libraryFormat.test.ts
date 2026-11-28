@@ -32,8 +32,8 @@ describe("kind vocabulary", () => {
   });
 
   it("builds canonical deep links", () => {
-    expect(libraryKindHref("rule")).toBe("#/library/rules");
-    expect(libraryKindHref("workflow", "abc")).toBe("#/library/workflows/abc");
+    expect(libraryKindHref("rule")).toBe("#/connaissances/savoir-faire/rules");
+    expect(libraryKindHref("workflow", "abc")).toBe("#/connaissances/savoir-faire/workflows/abc");
     expect(kindMeta("agent_definition").plural).toBe("Agent Definitions");
   });
 });

@@ -65,7 +65,7 @@ export function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
       const state = claimLiveliness(c, now);
       return (
         `<tr><td><code class="mono">${esc(c.resource_path)}</code></td><td>${esc(RESOURCE_TYPE_LABEL[c.resource_type] ?? c.resource_type)}</td>` +
-        `<td>${machineRef(c.claimed_by_machine_id)}</td><td>${c.task_id ? `<a href="#/tasks/${esc(c.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` : "—"}</td>` +
+        `<td>${machineRef(c.claimed_by_machine_id)}</td><td>${c.task_id ? `<a href="#/taches/${esc(c.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` : "—"}</td>` +
         `<td>${dsBadge(LIVELINESS_LABEL[state], LIVELINESS_TONE[state])}</td>` +
         `<td>Expire le ${fmtTime(c.expires_at)}<br /><span class="ds-list-sub">durée ${formatDuration(c.ttl_seconds)}</span></td>` +
         `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler le fichier occupé ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +

@@ -14,30 +14,30 @@ import { answerConfirm } from "./confirm";
 
 const ROUTES = [
   "#/",
-  "#/projects",
-  `#/projects/${P1}`,
-  `#/projects/${P1}/tasks`,
-  `#/projects/${P1}/claims`,
-  `#/projects/${P1}/activity`,
-  `#/projects/${P1}/decisions`,
-  "#/tasks",
-  `#/tasks/${T1}`,
-  "#/agents",
-  "#/agents/ag-claude",
-  "#/library",
-  "#/library/rules",
-  `#/library/rules/${LIB_ID}`,
-  "#/decisions",
-  "#/machines",
-  "#/accounts",
-  "#/administration",
-  "#/transfers",
-  "#/inspector",
-  "#/configuration/runtimes",
-  "#/configuration/runtimes/rt1",
-  "#/configuration/bindings",
-  "#/configuration/project",
-  "#/design-system",
+  "#/projets",
+  `#/projets/${P1}`,
+  `#/projets/${P1}/taches`,
+  `#/projets/${P1}/reservations`,
+  `#/projets/${P1}/activite`,
+  `#/projets/${P1}/decisions`,
+  "#/taches",
+  `#/taches/${T1}`,
+  "#/equipe-ia",
+  "#/equipe-ia/ag-claude",
+  "#/connaissances/savoir-faire",
+  "#/connaissances/savoir-faire/rules",
+  `#/connaissances/savoir-faire/rules/${LIB_ID}`,
+  "#/a-valider",
+  "#/reglages/appareils",
+  "#/reglages/equipe-acces",
+  "#/reglages",
+  "#/fichiers",
+  "#/reglages/avance/inspecteur",
+  "#/reglages/moteurs",
+  "#/reglages/moteurs/rt1",
+  "#/reglages/moteurs/affectations",
+  "#/reglages/avance/projet",
+  "#/reglages/avance/design-system",
 ];
 
 /** Écouteurs actifs sur document/window, par type (ajouts − retraits). */
@@ -94,11 +94,11 @@ test.describe("UI-16 copy, routes et liens", () => {
       expect(text, `${hash} : pas de page introuvable`).not.toContain("Page introuvable");
       for (const [label, re] of forbidden) {
         // L'Inspecteur est la surface technique : son pied de formulaire cite l'endpoint.
-        if (label === "endpoint HTTP" && hash === "#/inspector") continue;
+        if (label === "endpoint HTTP" && hash === "#/reglages/avance/inspecteur") continue;
         expect(text, `${hash} : ${label}`).not.toMatch(re);
       }
       expect(text, `${hash} : horodatage ISO en clair`).not.toMatch(ISO_RE);
-      if (hash !== "#/design-system") expect(text, `${hash} : UUID complet en clair`).not.toMatch(UUID_RE);
+      if (hash !== "#/reglages/avance/design-system") expect(text, `${hash} : UUID complet en clair`).not.toMatch(UUID_RE);
       expect(await page.locator("[style]").count(), `${hash} : style inline`).toBe(0);
     }
     expectClean(watch);
@@ -142,16 +142,16 @@ test.describe("UI-16 copy, routes et liens", () => {
     await login(page, "#/", newCaptured());
     const home = await page.locator("#view").innerText();
     for (const label of ["Bloqué", "En cours", "À faire"]) expect(home).toContain(label);
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     // Les terminées ne figurent que dans la vue « Toutes ».
     await page.locator('#view [data-scope="all"]').first().click();
     await expect(page.locator('#view [data-scope="all"]').first()).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#view .tasks-group-title").last()).toContainText("Terminées");
     const tasks = await page.locator("#view").innerText();
     for (const label of ["Bloqué", "En cours", "À faire", "Terminé"]) expect(tasks).toContain(label);
-    await go(page, `#/tasks/${T1}`);
+    await go(page, `#/taches/${T1}`);
     await expect(page.locator("#view")).toContainText("Bloqué");
-    await go(page, "#/library/rules");
+    await go(page, "#/connaissances/savoir-faire/rules");
     const library = await page.locator("#view").innerText();
     expect(library).toContain("Actif");
     expect(library).toContain("Brouillon");
@@ -161,7 +161,7 @@ test.describe("UI-16 copy, routes et liens", () => {
 
   test("dates lisibles : format fr-FR, jamais un timestamp ISO comme information principale", async ({ page }) => {
     await login(page, "#/", newCaptured());
-    await go(page, "#/transfers");
+    await go(page, "#/fichiers");
     const text = await page.locator("#view").innerText();
     expect(text).toMatch(/\d{2}\/\d{2}\/\d{4}/);
     expect(text).not.toMatch(ISO_RE);
@@ -171,7 +171,7 @@ test.describe("UI-16 copy, routes et liens", () => {
 test.describe("UI-16 erreurs, confirmations, formulaires", () => {
   test("erreur humaine : phrase d'abord, code technique ensuite (403 création de projet)", async ({ page }) => {
     const watch = watchErrors(page);
-    await login(page, "#/projects", newCaptured(), { createProjectStatus: 403, createProjectError: { detail: { error_code: "forbidden" } } });
+    await login(page, "#/projets", newCaptured(), { createProjectStatus: 403, createProjectError: { detail: { error_code: "forbidden" } } });
     await page.locator("#project-new").click();
     await page.locator("#project-slug").fill("nouveau");
     await page.locator("#project-name").fill("Nouveau projet");
@@ -186,9 +186,9 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
 
   test("401 : la session terminée renvoie au login avec un message explicite, sans crash", async ({ page }) => {
     const watch = watchErrors(page);
-    await login(page, "#/machines", newCaptured(), { tasksUnauthorized: true });
+    await login(page, "#/reglages/appareils", newCaptured(), { tasksUnauthorized: true });
     await page.evaluate(() => {
-      location.hash = "#/tasks";
+      location.hash = "#/taches";
     });
     await expect(page.getByTestId("login-notice")).toContainText("Votre session a expiré ou a été révoquée");
     await expect(page.locator("#login-form")).toBeVisible();
@@ -208,7 +208,7 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
   test("confirmation destructive : le message dit ce qui arrive ; refuser n'envoie rien", async ({ page }) => {
     const watch = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/configuration/bindings", captured);
+    await login(page, "#/reglages/moteurs/affectations", captured);
     const del = page.locator("[data-delete-binding]").first();
     await expect(del).toBeVisible();
     await del.click();
@@ -225,7 +225,7 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
   test("réservations : vocabulaire propre, statut et type en français, libération confirmée", async ({ page }) => {
     const watch = watchErrors(page);
     const captured = newCaptured();
-    await login(page, `#/projects/${P1}/claims`, captured);
+    await login(page, `#/projets/${P1}/reservations`, captured);
     const view = page.locator("#view");
     await expect(view).toContainText("sans jamais bloquer Git");
     await expect(view.locator("table tbody")).toContainText("Active");
@@ -244,7 +244,7 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
 
   test("FilePicker : l'input natif est conservé (un fichier, libellé, clavier, nom affiché)", async ({ page }) => {
     const watch = watchErrors(page);
-    await login(page, "#/transfers", newCaptured());
+    await login(page, "#/fichiers", newCaptured());
     await page.locator("#transfer-upload-open, #view [data-transfer-upload-open]").first().click();
     const dialog = page.locator("[role=dialog]:visible");
     await expect(dialog).toBeVisible();
@@ -268,9 +268,9 @@ test.describe("UI-16 navigation, focus et stress", () => {
     await page.setViewportSize({ width: 1440, height: 600 });
     await login(page, "#/", newCaptured());
     for (const [from, to] of [
-      ["#/tasks", "#/decisions"],
-      ["#/library/rules", "#/projects"],
-      ["#/", "#/tasks"],
+      ["#/taches", "#/a-valider"],
+      ["#/connaissances/savoir-faire/rules", "#/projets"],
+      ["#/", "#/taches"],
     ] as const) {
       if ((await page.evaluate(() => window.location.hash)) !== from) await go(page, from);
       await page.evaluate(() => window.scrollTo(0, 200));
@@ -292,7 +292,7 @@ test.describe("UI-16 navigation, focus et stress", () => {
     const watch = watchErrors(page);
     const captured = newCaptured();
     await login(page, "#/", captured);
-    const cycle = ["#/tasks", "#/library/rules", "#/decisions", "#/transfers", "#/configuration/bindings", "#/"];
+    const cycle = ["#/taches", "#/connaissances/savoir-faire/rules", "#/a-valider", "#/fichiers", "#/reglages/moteurs/affectations", "#/"];
     const perCycle: number[] = [];
     let baseline: Record<string, number> | null = null;
     for (let i = 0; i < 10; i += 1) {
@@ -318,7 +318,7 @@ test.describe("UI-16 navigation, focus et stress", () => {
     test.setTimeout(120_000);
     await installListenerProbe(page);
     const watch = watchErrors(page);
-    await login(page, "#/projects", newCaptured());
+    await login(page, "#/projets", newCaptured());
     const trigger = page.locator("#project-new");
     const dialog = page.locator("#project-create-dialog");
     let baseline: Record<string, number> | null = null;
@@ -347,7 +347,7 @@ test.describe("UI-16 navigation, focus et stress", () => {
     test.setTimeout(120_000);
     await installListenerProbe(page);
     const watch = watchErrors(page);
-    await login(page, "#/machines", newCaptured());
+    await login(page, "#/reglages/appareils", newCaptured());
     const trigger = page.locator("[data-machine-details]").first();
     const drawer = page.locator("#machine-drawer");
     let baseline: Record<string, number> | null = null;
@@ -368,7 +368,7 @@ test.describe("UI-16 navigation, focus et stress", () => {
     test.setTimeout(240_000);
     const watch = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/tasks", captured, { createTaskDelayMs: 150 });
+    await login(page, "#/taches", captured, { createTaskDelayMs: 150 });
     const dialog = page.locator("#task-create-dialog");
     for (let i = 1; i <= 20; i += 1) {
       await page.locator("#task-new").click();
@@ -402,19 +402,19 @@ test.describe("UI-16 navigation, focus et stress", () => {
     await page.keyboard.press("Enter");
     await expect(page.locator("#view")).toBeFocused();
     // Onglets du workspace : flèches, sélection, panneau associé.
-    await go(page, `#/projects/${P1}/tasks`);
+    await go(page, `#/projets/${P1}/taches`);
     const tabs = page.locator('#view [role="tab"]');
     await tabs.first().focus();
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     // Formulaire : Entrée dans un champ vide déclenche la validation accessible, pas de crash.
-    await go(page, "#/projects");
+    await go(page, "#/projets");
     await page.locator("#project-new").focus();
     await page.keyboard.press("Enter");
     await expect(page.locator("#project-create-dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     // Action destructive au clavier : la confirmation s'ouvre et bloque.
-    await go(page, "#/configuration/bindings");
+    await go(page, "#/reglages/moteurs/affectations");
     await page.locator("[data-delete-binding]").first().focus();
     await page.keyboard.press("Enter");
     await answerConfirm(page, false);
@@ -441,7 +441,7 @@ test.describe("UI-16 responsive et accessibilité finales", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page, "#/", newCaptured());
-    const surfaces = ["#/", "#/tasks", "#/library/rules", "#/decisions", "#/transfers", "#/configuration/bindings", `#/projects/${P1}/claims`, "#/inspector"];
+    const surfaces = ["#/", "#/taches", "#/connaissances/savoir-faire/rules", "#/a-valider", "#/fichiers", "#/reglages/moteurs/affectations", `#/projets/${P1}/reservations`, "#/reglages/avance/inspecteur"];
     for (const hash of surfaces) {
       if ((await page.evaluate(() => window.location.hash)) !== hash) await go(page, hash);
       for (const width of [1440, 1280, 1024, 900, 768, 640, 480, 375]) {
@@ -457,7 +457,7 @@ test.describe("UI-16 responsive et accessibilité finales", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1280, height: 900 });
     await login(page, "#/", newCaptured());
-    const surfaces = ["#/", `#/projects/${P1}/claims`, `#/projects/${P1}/decisions`, "#/decisions", "#/library/rules", "#/configuration/bindings", "#/configuration/runtimes", "#/inspector"];
+    const surfaces = ["#/", `#/projets/${P1}/reservations`, `#/projets/${P1}/decisions`, "#/a-valider", "#/connaissances/savoir-faire/rules", "#/reglages/moteurs/affectations", "#/reglages/moteurs", "#/reglages/avance/inspecteur"];
     for (const hash of surfaces) {
       if ((await page.evaluate(() => window.location.hash)) !== hash) await go(page, hash);
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
@@ -470,7 +470,7 @@ test.describe("UI-16 responsive et accessibilité finales", () => {
   test("mouvement réduit : aucune animation ni transition longue", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await login(page, "#/", newCaptured());
-    await go(page, "#/projects");
+    await go(page, "#/projets");
     await page.locator("#project-new").click();
     const dialog = page.locator("#project-create-dialog");
     await expect(dialog).toBeVisible();

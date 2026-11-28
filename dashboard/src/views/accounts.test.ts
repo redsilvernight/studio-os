@@ -27,8 +27,8 @@ const user = (id: string, status: DirectoryUser["status"], name = "Ada"): Direct
 
 describe("vue Comptes", () => {
   it("a sa route et son entrée de navigation", () => {
-    expect(parseRoute("#/accounts")).toEqual({ name: "accounts" });
-    expect(parseRoute("#/accounts/x")).toEqual({ name: "notFound", hash: "#/accounts/x" });
+    expect(parseRoute("#/reglages/equipe-acces")).toEqual({ name: "accounts" });
+    expect(parseRoute("#/reglages/equipe-acces/x")).toEqual({ name: "notFound", hash: "#/reglages/equipe-acces/x" });
     const labels = shellNavGroups({ name: "accounts" }).flatMap((g) => g.items.filter((i) => i.active).map((i) => i.label));
     expect(labels).toEqual(["Réglages"]);
   });
@@ -59,7 +59,7 @@ describe("vue Comptes", () => {
     const html = membershipsHtml([
       { project_id: P, user_id: OTHER, granted_by_user_id: null, created_at: "2026-09-25T10:00:00Z" },
     ]);
-    expect(html).toContain(`#/projects/${P}/members`);
+    expect(html).toContain(`#/projets/${P}/equipe`);
   });
 });
 

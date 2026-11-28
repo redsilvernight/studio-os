@@ -24,14 +24,14 @@ afterEach(() => { vi.clearAllMocks(); document.body.innerHTML = ""; });
 describe("adminOverviewHtml (P05-admin)", () => {
   it("mène aux 8 familles en 1 clic, sans identifiant visible", () => {
     expect(ADMIN_FAMILIES.map((f) => f.href)).toEqual([
-      "#/machines",
-      "#/accounts",
-      "#/transfers",
-      "#/library",
-      "#/configuration/runtimes",
-      "#/workspaces",
-      "#/inspector",
-      "#/administration/mesures",
+      "#/reglages/appareils",
+      "#/reglages/equipe-acces",
+      "#/fichiers",
+      "#/connaissances/savoir-faire",
+      "#/reglages/moteurs",
+      "#/reglages/dossiers",
+      "#/reglages/avance/inspecteur",
+      "#/reglages/mesures",
     ]);
     const html = adminOverviewHtml();
     expect(html).toContain("<h1>Réglages</h1>");
@@ -49,7 +49,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
     const html = adminOverviewHtml();
     expect(html).toContain("Chargement des indicateurs");
     expect(html).not.toContain("Aucun problème détecté");
-    expect(html).not.toContain("#/graphs");
+    expect(html).not.toContain("#/connaissances/carte");
   });
 
   it("état sain borné aux données consultées, portée et fraîcheur explicites", () => {
@@ -60,7 +60,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
     expect(html).toContain("Consulté le");
     expect(html).toContain("Actualisation manuelle");
     expect(html).toContain("La synchronisation des autres postes n'est pas observable");
-    expect(html).toContain('href="#/transfers"');
+    expect(html).toContain('href="#/fichiers"');
     expect(html).toContain("1 Ko utilisés");
   });
 
@@ -71,7 +71,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
       { ...data.machines.data![0]!, id: "dashboard", display_name: "Dashboard", status: "offline" },
     ] };
     const card = adminIndicators(data)[0]!;
-    expect(card).toMatchObject({ value: "1 hors ligne", href: "#/machines", attention: true });
+    expect(card).toMatchObject({ value: "1 hors ligne", href: "#/reglages/appareils", attention: true });
     expect(card.detail).toContain("Bureau");
     expect(card.detail).not.toContain("Dashboard");
   });
@@ -80,7 +80,7 @@ describe("adminOverviewHtml (P05-admin)", () => {
     const data = snapshot();
     data.runtimes = { data: [] };
     const card = adminIndicators(data).find((item) => item.title === "Réglages")!;
-    expect(card).toMatchObject({ value: "À compléter", href: "#/configuration/bindings", attention: true });
+    expect(card).toMatchObject({ value: "À compléter", href: "#/reglages/moteurs/affectations", attention: true });
     expect(card.detail).toContain("Aucun moteur IA actif");
     expect(card.detail).toContain("1 affectation vers un moteur IA absent ou révoqué");
   });
@@ -101,14 +101,14 @@ describe("adminOverviewHtml (P05-admin)", () => {
   it("synchronisation locale en erreur : état observé et action diagnostic", () => {
     const data = snapshot();
     data.daemon = { data: { kind: "state", state: "running", health: { heartbeat: "healthy", outboxReplay: "auth_error", gitWatchers: { healthy: 0, total: 0 }, observedAt: "2026-10-20T09:59:00Z" } } };
-    expect(adminIndicators(data).find((card) => card.title === "Synchronisation")).toMatchObject({ value: "Authentification refusée", href: "#/configuration/application", attention: true });
+    expect(adminIndicators(data).find((card) => card.title === "Synchronisation")).toMatchObject({ value: "Authentification refusée", href: "#/reglages/application", attention: true });
     expect(adminOverviewHtml(data)).toContain("Observation locale");
   });
 
   it("quota épuisé : signale la consommation réelle", () => {
     const data = snapshot();
     data.storage = { data: { consumed_bytes: 4096, quota_bytes: 4096, remaining_bytes: 0 } };
-    expect(adminIndicators(data).find((card) => card.title === "Stockage")).toMatchObject({ value: "4 Ko utilisés", href: "#/transfers", attention: true });
+    expect(adminIndicators(data).find((card) => card.title === "Stockage")).toMatchObject({ value: "4 Ko utilisés", href: "#/fichiers", attention: true });
   });
 });
 

@@ -68,7 +68,7 @@ async function bootDetail(page: Page, previewStatus = 200, applied: unknown[] = 
   await page.locator("#login-password").fill("e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
   await expect(page.locator(".app-sidebar")).toBeVisible();
-  await page.evaluate((hash) => { location.hash = hash; }, `#/library/rules/${RESOURCE_ID}`);
+  await page.evaluate((hash) => { location.hash = hash; }, `#/connaissances/savoir-faire/rules/${RESOURCE_ID}`);
 }
 
 test("détail : affiche une erreur si l’aperçu est indisponible", async ({ page }) => {
@@ -93,7 +93,7 @@ test("détail : récupère l’aperçu et permet de parcourir les trois volets a
   await expect(page.getByRole("heading", { name: "Conflit 1 — ligne 4" })).toBeVisible();
   await page.getByRole("button", { name: "Voir dans l'aperçu" }).click();
   await expect(page.locator("#library-merge-conflict-1")).toBeFocused();
-  await expect(page).toHaveURL(new RegExp(`#/library/rules/${RESOURCE_ID}$`));
+  await expect(page).toHaveURL(new RegExp(`#/connaissances/savoir-faire/rules/${RESOURCE_ID}$`));
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).include("main").analyze();
   expect(axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious")).toEqual([]);
 });

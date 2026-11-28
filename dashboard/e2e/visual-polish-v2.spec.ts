@@ -83,7 +83,7 @@ async function withData(page: Page, hash: string): Promise<{ patches: Patch[] }>
   // Recharge la vue pour prendre les données longues en compte.
   await page.evaluate(() => {
     const h = window.location.hash;
-    window.location.hash = "#/agents";
+    window.location.hash = "#/equipe-ia";
     setTimeout(() => {
       window.location.hash = h;
     }, 50);
@@ -167,7 +167,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("liste desktop : titre + statut d'abord, aucun menu de statut par ligne", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await withData(page, "#/tasks");
+    await withData(page, "#/taches");
     const rows = page.locator("#view .task-row");
     // Maintenant : en cours, bloquées, à démarrer — la tâche terminée n'y figure pas.
     await expect(rows).toHaveCount(3);
@@ -191,7 +191,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("liste 2560×1440 : largeur exploitée, contenu centré", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 2560, height: 1440 });
-    await withData(page, "#/tasks");
+    await withData(page, "#/taches");
     const box = await contentBox(page, "#view .tasks-list");
     expect(box.width).toBeGreaterThanOrEqual(1100);
     expect(box.width).toBeLessThanOrEqual(1400);
@@ -203,7 +203,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("liste mobile 375 : titre long lisible, vues tactiles", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 812 });
-    await withData(page, "#/tasks");
+    await withData(page, "#/taches");
     const row = page.locator("#view .task-row").first();
     await expect(row).toBeVisible();
     expect((await row.locator(".ds-list-title").boundingBox())?.width ?? 0, "titre lisible").toBeGreaterThan(150);
@@ -215,7 +215,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("clavier (Tableau) : select puis bouton, même PATCH versionné qu'avant", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    const { patches } = await withData(page, "#/tasks");
+    const { patches } = await withData(page, "#/taches");
     await page.locator('#view [data-scope="all"]').first().click();
     await page.locator('#view [data-view="board"]').click();
     const row = page.locator('#view [data-card="aaaaaaaa-0000-4111-8111-0000000000f2"]');
@@ -237,7 +237,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("statut jamais couleur seule ; titre et projet longs sans overflow (768)", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 768, height: 900 });
-    await withData(page, "#/tasks");
+    await withData(page, "#/taches");
     await page.locator('#view [data-scope="all"]').first().click();
     await expect(page.locator("#view .task-row")).toHaveCount(4);
     const badges = await page.locator("#view .task-row .ds-badge").allInnerTexts();
@@ -252,7 +252,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("tableau : clavier préservé, pas d'overflow global", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await withData(page, "#/tasks");
+    await withData(page, "#/taches");
     await page.locator('#view [data-scope="all"]').first().click();
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
@@ -268,7 +268,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
   test("axe : Tâches (liste) et modale Nouvelle tâche", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await withData(page, "#/tasks");
+    await withData(page, "#/taches");
     expect(await blockingAxe(page)).toEqual([]);
     await page.locator("#task-new").click();
     await expect(page.locator("#task-create-dialog")).toBeVisible();
@@ -284,7 +284,7 @@ test.describe("Visual Polish V2 — Projets", () => {
   test("lignes compactes : liste empilée, noms longs sans overflow, 1440 → 375", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await withData(page, "#/projects");
+    await withData(page, "#/projets");
     const cards = page.locator("#view .project-card");
     await expect(cards).toHaveCount(2);
     const tops = await cards.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
@@ -302,7 +302,7 @@ test.describe("Visual Polish V2 — Projets", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 2560, height: 1440 });
     await login(page, "#/", newCaptured());
-    for (const hash of ["#/tasks", "#/projects"]) {
+    for (const hash of ["#/taches", "#/projets"]) {
       await go(page, hash);
       expect((await contentBox(page, "#view")).width).toBeGreaterThanOrEqual(1200);
       await expectNoOverflow(page, hash);

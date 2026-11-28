@@ -10,7 +10,7 @@
  * (renderGuard) et peint dans un nœud détaché ; seul le rendu encore
  * courant est attaché. Une ancienne route ne repeint jamais la courante.
  *
- * Routes : voir src/router.ts. #/design-system = démo interne (aucune
+ * Routes : voir src/router.ts. #/reglages/avance/design-system = démo interne (aucune
  * entrée nav). Activity/Worklogs sortis de la nav (Activité reviendra
  * comme onglet projet en UI-4). Token : mémoire seule, déconnexion =
  * retour à l'écran de connexion.
@@ -34,10 +34,11 @@ import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { mountSkillsSync } from "./skillsSync";
 import { parseRoute } from "./router";
+import { canonicalHash } from "./routeAliases";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
 import { applyUiMode, loadUiMode, switchUiMode, toggledUiMode, watchExpertMode } from "./uiMode";
 import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
-import { mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
+import { breadcrumbHtml, mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
 import { listStudios, probeServer, type StudiosClient } from "./studiosApi";
 import {
   STUDIO_CHANGE_EVENT,
@@ -176,8 +177,6 @@ async function renderRoute(
       await (await load(() => import("./views/vault"))).renderVaultDetail(staging, { client, authed }, route.id);
       break;
     case "vaultAtlas":
-      // Ancien onglet Graph : l'URL `#/graphs/*` est réécrite vers l'atlas.
-      if (location.hash.startsWith("#/graphs")) history.replaceState(null, "", "#/vault/atlas");
       await (await load(() => import("./views/vaultAtlas"))).renderVaultAtlas(staging, { client, authed });
       break;
     case "library":
@@ -249,6 +248,9 @@ async function renderRoute(
 
 async function render(): Promise<void> {
   const my = renderGuard.next();
+  // Ancienne adresse (lien partagé, favori) : réécrite sans entrée d'historique.
+  const canonical = canonicalHash(location.hash);
+  if (canonical !== location.hash && parseRoute(location.hash).name !== "notFound") history.replaceState(null, "", canonical);
   const route = parseRoute(location.hash);
   // Le flux temps réel (et l'état « direct perdu » de Mission Control) suit le
   // projet affiché, sans toucher à la sélection globale.
@@ -273,7 +275,7 @@ async function render(): Promise<void> {
   if (authed) await loadActorNames(client);
   const staging = document.createElement("main");
   // A5 : un compte actif sans aucun projet voit « En attente d'accès » à
-  // l'Accueil plutôt qu'un tableau de bord vide (#/projects garde l'état
+  // l'Accueil plutôt qu'un tableau de bord vide (#/projets garde l'état
   // vide explicite A0).
   const awaiting = authed && route.name === "dashboard" && (await projectAccess(client)) === "none";
   if (awaiting) {
@@ -471,6 +473,8 @@ export function webConnectionView(authed: boolean): Parameters<typeof paintConne
 
 function paintNavAndConnection(route: Route, authed: boolean): void {
   syncNav(route, document, getDesktopShell() !== null, loadUiMode(), studioRole(), studioPlan());
+  const crumbSlot = document.getElementById("breadcrumb-slot");
+  if (crumbSlot !== null) crumbSlot.innerHTML = breadcrumbHtml(route);
   if (getDesktopShell() === null) paintConnection(webConnectionView(authed), document);
   else syncAuthState(authed, document);
 }

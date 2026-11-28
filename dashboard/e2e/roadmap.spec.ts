@@ -32,7 +32,7 @@ interface OpenOptions {
 }
 
 async function openRoadmap(page: Page, projectId: string, options: OpenOptions = {}): Promise<void> {
-  await login(page, "#/projects", newCaptured(), options.role === undefined ? {} : { role: options.role });
+  await login(page, "#/projets", newCaptured(), options.role === undefined ? {} : { role: options.role });
   await page.route(new RegExp(`/api/v1/projects/${projectId}/state$`), (route) =>
     route.fulfill({
       status: 200,
@@ -227,7 +227,7 @@ async function openRoadmap(page: Page, projectId: string, options: OpenOptions =
     served.set(projectId, updated);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(updated) });
   });
-  await go(page, `#/projects/${projectId}/roadmap`);
+  await go(page, `#/projets/${projectId}/plan`);
   await expect(page.locator("#workspace-panel")).toBeVisible();
 }
 

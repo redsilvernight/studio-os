@@ -46,7 +46,7 @@ test("une session révoquée renvoie au login avec un message, sans boucle", asy
   const state: State = { revoked: false, logins: 0, refused: 0 };
   await page.route("**/api/**", apiStub(state));
 
-  await page.goto("/#/projects");
+  await page.goto("/#/projets");
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
@@ -54,7 +54,7 @@ test("une session révoquée renvoie au login avec un message, sans boucle", asy
 
   state.revoked = true;
   await page.evaluate(() => {
-    location.hash = "#/machines";
+    location.hash = "#/reglages/appareils";
   });
 
   await expect(page.getByTestId("login-notice")).toHaveText(

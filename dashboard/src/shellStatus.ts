@@ -276,7 +276,7 @@ export function shellConnectionView(status: ShellStatus, detail?: string, nextSt
     level: status.level,
     label: status.label,
     reason: status.reason,
-    href: "#/configuration/application",
+    href: "#/reglages/application",
     title: parts.length > 1 ? parts.join(" — ") : undefined,
     action: statusAction(status.reason),
   };

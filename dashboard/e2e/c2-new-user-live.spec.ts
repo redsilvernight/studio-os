@@ -136,7 +136,7 @@ test.describe("C2 nouvel utilisateur Web (API réelle)", () => {
     await page.fill("#login-password", password);
     await page.locator("#login-form button[type=submit]").click();
     await expect(page.locator("[data-testid=awaiting-access]")).toHaveCount(0);
-    await page.goto("/#/projects");
+    await page.goto("/#/projets");
     await page.locator("#project-new").click();
     const firstSlug = `c2-first-${randomUUID().slice(0, 6)}`;
     await page.fill("#project-slug", firstSlug);
@@ -147,7 +147,7 @@ test.describe("C2 nouvel utilisateur Web (API réelle)", () => {
     // Isolation : rien des projets d'un autre studio n'apparaît.
     await expect(page.locator("#view")).not.toContainText(gate.name);
     await expect(page.locator("#view")).not.toContainText("C2 autre projet");
-    await page.goto("/#/tasks");
+    await page.goto("/#/taches");
     await expect(page.locator("body")).not.toContainText(TASK);
     await expect(page.locator("body")).not.toContainText(HIDDEN_TASK);
 

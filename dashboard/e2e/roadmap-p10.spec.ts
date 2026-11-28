@@ -116,15 +116,15 @@ async function mockRoadmapApi(page: Page, mocks: Mocks = {}): Promise<void> {
 }
 
 async function openRoadmap(page: Page, mocks: Mocks = {}): Promise<void> {
-  await login(page, "#/projects", newCaptured());
+  await login(page, "#/projets", newCaptured());
   await mockRoadmapApi(page, mocks);
-  await go(page, `#/projects/${P1}/roadmap`);
+  await go(page, `#/projets/${P1}/plan`);
   await expect(page.locator("#workspace-panel")).toBeVisible();
 }
 
 test.describe("Roadmaps P10 - Dashboard release gate", () => {
   test("la file de review mène de la proposition de roadmap à l'onglet Roadmap", async ({ page }) => {
-    await login(page, "#/projects", newCaptured());
+    await login(page, "#/projets", newCaptured());
     await mockRoadmapApi(page, { withProposal: true });
     await page.route("**/api/v1/review-queue**", (route) =>
       route.fulfill(
@@ -147,13 +147,13 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
         }),
       ),
     );
-    await go(page, "#/decisions");
+    await go(page, "#/a-valider");
     await expect(page.getByText("Proposition de plan").first()).toBeVisible();
     // Carte unique « Révision N du plan », héros compris : l'objet n'apparaît qu'une fois.
     await expect(page.getByRole("heading", { name: "Approuver la révision 3 du plan" })).toBeVisible();
     await expect(page.locator('.review-card[data-kind="roadmap_proposal"]')).toHaveCount(0);
     const link = page.getByRole("link", { name: "Relire la révision 3" }).first();
-    await expect(link).toHaveAttribute("href", `#/projects/${P1}/roadmap/${ROADMAP_ID}`);
+    await expect(link).toHaveAttribute("href", `#/projets/${P1}/plan/${ROADMAP_ID}`);
     await link.click();
     // ...and the reviewer lands on the pending proposal with its diff and the decision actions
     await expect(page.locator(".roadmap-proposal-review")).toBeVisible();

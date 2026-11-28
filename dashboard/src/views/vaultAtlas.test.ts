@@ -26,7 +26,7 @@ describe("vault atlas view", () => {
 
   it("renders the mode switch, an accessible canvas and the keyboard list", () => {
     const html = atlasPageHtml(defaultFilters(), [], null);
-    expect(html).toContain('href="#/vault/atlas" aria-current="page"');
+    expect(html).toContain('href="#/connaissances/carte" aria-current="page"');
     expect(html).toMatch(/<canvas id="atlas-canvas"[^>]*tabindex="0"[^>]*aria-label=/);
     expect(html).toContain('data-atlas-toggle="superseded"');
     expect(html).not.toContain("#/graphs");
@@ -43,14 +43,14 @@ describe("vault atlas view", () => {
   it("details a note with neighbors, link kinds and an open link", () => {
     const html = atlasDetailHtml(graph, "a");
     expect(html).toContain("DEC-0002");
-    expect(html).toContain('href="#/vault/a"');
+    expect(html).toContain('href="#/connaissances/notes/a"');
     expect(html).toContain("Pas de secret");
     expect(html).toContain("en rapport");
     expect(html).toContain('data-atlas-pick="anchor:task:t1"');
   });
 
   it("links task satellites to the task page", () => {
-    expect(atlasDetailHtml(graph, "anchor:task:t1")).toContain('href="#/tasks/t1"');
+    expect(atlasDetailHtml(graph, "anchor:task:t1")).toContain('href="#/taches/t1"');
     expect(atlasDetailHtml(graph, null)).toContain("sélectionnez");
   });
 

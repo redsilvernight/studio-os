@@ -240,7 +240,7 @@ test.describe("UI-12 Configuration — Moteurs IA", () => {
   test("liste humaine FR : Moteur IA ≠ Agent ≠ Machine, ids secondaires, aucun secret", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/configuration/runtimes", captured);
+    await login(page, "#/reglages/moteurs", captured);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Réglages");
     await expect(view).toContainText("Moteurs IA enregistrés");
@@ -254,10 +254,10 @@ test.describe("UI-12 Configuration — Moteurs IA", () => {
     await expect(view).not.toContainText(/puissance|\/100/i);
     // Distinction Runtime ≠ Machine + lien Machines réel.
     await expect(view).toContainText("Aucun poste (cible distante)");
-    await expect(view.locator('.settings-list a[href="#/machines"]')).toHaveCount(1);
+    await expect(view.locator('.settings-list a[href="#/reglages/appareils"]')).toHaveCount(1);
     // Lien Inspecteur.
-    await expect(view.locator('.settings-howto a[href="#/inspector"]')).toHaveCount(1);
-    await expect(view.locator('a[href="#/inspector"]')).toHaveCount(2);
+    await expect(view.locator('.settings-howto a[href="#/reglages/avance/inspecteur"]')).toHaveCount(1);
+    await expect(view.locator('a[href="#/reglages/avance/inspecteur"]')).toHaveCount(2);
     // Pas de table SQL, aucun secret dans le rendu.
     await expect(view.locator(".settings-list table")).toHaveCount(0);
     await expect(view).not.toContainText("api_key");
@@ -268,7 +268,7 @@ test.describe("UI-12 Configuration — Moteurs IA", () => {
 
   test("recherche + filtres locaux + inclure les révoqués + réinitialisation", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/configuration/runtimes", newCaptured());
+    await login(page, "#/reglages/moteurs", newCaptured());
     const view = page.locator("#view");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(2);
 
@@ -303,13 +303,13 @@ test.describe("UI-12 Configuration — Moteurs IA", () => {
 
   test("détail runtime : technique replié, liens Machines/Inspecteur, secrets absents", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/configuration/runtimes/${RT1}`, newCaptured());
+    await login(page, `#/reglages/moteurs/${RT1}`, newCaptured());
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("opencode · fournisseur-a · modele-grand");
     await expect(view).toContainText("Réglages du moteur IA");
     await expect(view).toContainText("Capacités déclarées");
-    await expect(view.locator('.settings-domain a[href="#/machines"]')).toHaveCount(1);
-    await expect(view.locator('.settings-origin a[href="#/inspector"]')).toHaveCount(1);
+    await expect(view.locator('.settings-domain a[href="#/reglages/appareils"]')).toHaveCount(1);
+    await expect(view.locator('.settings-origin a[href="#/reglages/avance/inspecteur"]')).toHaveCount(1);
     // Technique replié par défaut.
     const technical = view.locator(".settings-technical");
     await expect(technical.locator("summary")).toContainText("Informations techniques");
@@ -327,7 +327,7 @@ test.describe("UI-12 Configuration — Moteurs IA", () => {
   test("modification : conflit 409 expliqué, aucun retry silencieux", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, `#/configuration/runtimes/${RT1}`, captured, { patchConflict: true });
+    await login(page, `#/reglages/moteurs/${RT1}`, captured, { patchConflict: true });
     const view = page.locator("#view");
     const form = view.locator("[data-runtime-update]");
     await view.locator("details.settings-editor").filter({ hasText: "Modifier ce moteur IA" }).locator("> summary").click();
@@ -344,7 +344,7 @@ test.describe("UI-12 Configuration — Moteurs IA", () => {
   test("création runtime : Idempotency-Key, double soumission impossible", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/configuration/runtimes", captured, { slowCreate: true });
+    await login(page, "#/reglages/moteurs", captured, { slowCreate: true });
     const view = page.locator("#view");
     await view.locator("details.settings-editor").filter({ hasText: "Déclarer un moteur IA" }).locator("> summary").click();
     const form = view.locator("[data-runtime-create]");
@@ -364,7 +364,7 @@ test.describe("UI-12 Configuration — Affectations", () => {
   test("niveaux FR, confidentialité, cible humaine résolue, suppression formulée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/configuration/bindings", captured);
+    await login(page, "#/reglages/moteurs/affectations", captured);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Réglages");
     await expect(view).toContainText("Règles d'affectation");
@@ -398,7 +398,7 @@ test.describe("UI-12 Configuration — Affectations", () => {
   test("création binding : cible proposée sans UUID brut, Idempotency-Key", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
-    await login(page, "#/configuration/bindings", captured);
+    await login(page, "#/reglages/moteurs/affectations", captured);
     const view = page.locator("#view");
     await view.locator("details.settings-editor").filter({ hasText: "Nouvelle affectation" }).locator("> summary").click();
     const form = view.locator("[data-binding-create]");
@@ -416,13 +416,13 @@ test.describe("UI-12 Configuration — Affectations", () => {
 test.describe("UI-12 Configuration — états et robustesse", () => {
   test("états vides distincts, sans CTA fictif", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/configuration/runtimes", newCaptured(), { empty: true });
+    await login(page, "#/reglages/moteurs", newCaptured(), { empty: true });
     const view = page.locator("#view");
     await expect(view).toContainText("Aucun moteur IA enregistré");
     await expect(view.locator(".ds-empty a")).toHaveCount(0);
     await page.screenshot({ path: `${SHOTS}/settings-vide-1280.png` });
 
-    await page.goto("/#/configuration/bindings");
+    await page.goto("/#/reglages/moteurs/affectations");
     await expect(page.locator("#view")).toContainText("Aucune affectation stocké");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
@@ -430,13 +430,13 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
 
   test("dégradation partielle : bindings indisponibles, runtimes consultables", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/configuration/runtimes/${RT1}`, newCaptured(), { bindingsFail: true });
+    await login(page, `#/reglages/moteurs/${RT1}`, newCaptured(), { bindingsFail: true });
     const view = page.locator("#view");
     await expect(view).toContainText("Réglages du moteur IA");
     await expect(view).toContainText("Affectations indisponibles");
     await expect(view).toContainText("le moteur reste consultable");
 
-    await page.goto("/#/configuration/bindings");
+    await page.goto("/#/reglages/moteurs/affectations");
     await expect(page.locator("#view")).toContainText("Impossible de charger les bindings");
     await expect(page.locator("#view")).toContainText("Actualiser");
     await page.screenshot({ path: `${SHOTS}/settings-erreur-partielle-1280.png` });
@@ -447,16 +447,16 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
   test("mobile 375 : une colonne, pas d'overflow, deep link + back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/configuration/runtimes", newCaptured());
+    await login(page, "#/reglages/moteurs", newCaptured());
     const view = page.locator("#view");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(2);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(view.locator("#settings-runtimes-search")).toBeVisible();
-    await view.locator('.settings-runtime-row a[href^="#/configuration/runtimes/"]').first().click();
+    await view.locator('.settings-runtime-row a[href^="#/reglages/moteurs/"]').first().click();
     await expect(page.locator("#view")).toContainText("Réglages du moteur IA");
     await page.screenshot({ path: `${SHOTS}/settings-mobile-375.png` });
-    await page.goto("/#/tasks");
+    await page.goto("/#/taches");
     await page.goBack();
     await expect(page.locator("#view")).toContainText("Réglages du moteur IA");
     expect(csp).toEqual([]);
@@ -465,7 +465,7 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
 
   test("responsive 1440/1280/768/375 : aucun overflow global", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/configuration/runtimes", newCaptured());
+    await login(page, "#/reglages/moteurs", newCaptured());
     for (const width of [1440, 1280, 768, 375]) {
       await page.setViewportSize({ width, height: 900 });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -477,7 +477,7 @@ test.describe("UI-12 Configuration — états et robustesse", () => {
 
   test("accessibilité : onglets, recherche étiquetée, région live, tablist navigable", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/configuration/runtimes", newCaptured());
+    await login(page, "#/reglages/moteurs", newCaptured());
     const view = page.locator("#view");
     await expect(view.locator('.tabs .tab[aria-current="page"]')).toContainText("Moteurs IA");
     await expect(view.locator('[role="search"] #settings-runtimes-search')).toBeVisible();

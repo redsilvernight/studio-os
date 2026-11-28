@@ -22,7 +22,7 @@
  *   Seuls `harness`/`provider`/`model` déclarés par l'agent sont affichés,
  *   étiquetés comme déclaratifs.
  * - Aucun nom de machine canonique : sans `GET /machines`, seule la
- *   `machine_id` courte est affichée, avec lien vers #/machines.
+ *   `machine_id` courte est affichée, avec lien vers #/reglages/appareils.
  */
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";

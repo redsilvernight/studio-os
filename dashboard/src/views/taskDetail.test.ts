@@ -196,7 +196,7 @@ describe("taskDetailHtml nominal", () => {
 
   it("compteur de réservations best-effort : lien vers l'onglet Fichiers occupés", () => {
     expect(html).toContain("Fichiers occupés liés : 2");
-    expect(html).toContain(`#/projects/${P1}/claims`);
+    expect(html).toContain(`#/projets/${P1}/reservations`);
   });
 
   it("CSP : aucun handler inline ni style", () => {

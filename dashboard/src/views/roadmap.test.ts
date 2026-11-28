@@ -193,7 +193,7 @@ describe("Roadmap switcher and targeted roadmap", () => {
     expect(select.options[0]?.textContent).toContain("Active");
     select.value = active.id;
     select.dispatchEvent(new Event("change"));
-    expect(window.location.hash).toBe(`#/projects/${active.project_id}/roadmap/${active.id}`);
+    expect(window.location.hash).toBe(`#/projets/${active.project_id}/plan/${active.id}`);
   });
 
   it("indique la progression et les roadmaps historiques dans un contrôle compact", async () => {
@@ -323,7 +323,7 @@ describe("Roadmap lifecycle and review errors", () => {
     await flush();
     const alert = root.querySelector("[data-review-error] [role=alert]");
     expect(alert?.textContent).toContain("déjà active");
-    expect(alert?.querySelector("a")?.getAttribute("href")).toBe(`#/projects/${roadmapFixtureProjectIds.proposed}/roadmap/r-old`);
+    expect(alert?.querySelector("a")?.getAttribute("href")).toBe(`#/projets/${roadmapFixtureProjectIds.proposed}/plan/r-old`);
     expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("À examiner");
     expect(root.querySelector<HTMLButtonElement>('[data-review="approve"]')?.disabled).toBe(false);
   });

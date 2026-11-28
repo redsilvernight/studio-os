@@ -177,7 +177,7 @@ async function openVault(page: Page, state: StubState): Promise<Error[]> {
   const errors: Error[] = [];
   page.on("pageerror", (error) => errors.push(error));
   await page.route("**/api/**", apiStub(state));
-  await page.goto("/#/vault");
+  await page.goto("/#/connaissances/notes");
   await page.fill("#login-email", "ada@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
@@ -213,7 +213,7 @@ test("vault journey: scope, search, safe detail, decision and history", async ({
   expect(state.calls.some((call) => call.startsWith("search q=cache"))).toBe(true);
 
   /* 4. Détail : Markdown rendu, HTML du serveur inerte. */
-  await goHash(page, `#/vault/${NOTE_ID}`);
+  await goHash(page, `#/connaissances/notes/${NOTE_ID}`);
   await expect(page.locator("#view h1")).toHaveText("Stratégie de cache");
   await expect(page.locator("#view .vault-prose")).toContainText("Redis");
   await expect(page.locator("#view")).toContainText("src/cache.ts");
@@ -229,7 +229,7 @@ test("vault journey: scope, search, safe detail, decision and history", async ({
   await expect(page.locator("#vault-version-1")).toBeHidden();
 
   /* 6. Décision : visible pour l'admin, PATCH versionné. */
-  await goHash(page, `#/vault/${PROPOSED_NOTE.id}`);
+  await goHash(page, `#/connaissances/notes/${PROPOSED_NOTE.id}`);
   await expect(page.locator("#view h1")).toHaveText("Convention de nommage");
   await expect(page.locator("#view")).toContainText("Proposée");
   await page.locator("[data-vault-accept]").click();
@@ -243,7 +243,7 @@ test("a 409 on acceptance explains itself and reloads the server version", async
   const state: StubState = { role: "admin", calls: [], conflictOnce: true };
   const errors = await openVault(page, state);
 
-  await goHash(page, `#/vault/${PROPOSED_NOTE.id}`);
+  await goHash(page, `#/connaissances/notes/${PROPOSED_NOTE.id}`);
   await page.locator("[data-vault-reject]").click();
   await expect(page.locator("[data-vault-msg]")).toContainText("modifié ailleurs");
   // The page reloads the note rather than keeping the stale one.
@@ -257,12 +257,12 @@ test("a developer sees no accept/reject on a studio note but does on a project o
   const state: StubState = { role: "developer", calls: [], conflictOnce: false };
   const errors = await openVault(page, state);
 
-  await goHash(page, `#/vault/${PROPOSED_NOTE.id}`);
+  await goHash(page, `#/connaissances/notes/${PROPOSED_NOTE.id}`);
   await expect(page.locator("#view")).toContainText("Proposée");
   await expect(page.locator("[data-vault-accept]")).toHaveCount(0);
   await expect(page.locator("[data-vault-reject]")).toHaveCount(0);
 
-  await goHash(page, `#/vault/${OTHER_NOTE_ID}`);
+  await goHash(page, `#/connaissances/notes/${OTHER_NOTE_ID}`);
   await expect(page.locator("#view h1")).toHaveText("Checklist de release");
   // The note is `validated`, so even a writer has nothing to decide.
   await expect(page.locator("[data-vault-accept]")).toHaveCount(0);
@@ -274,7 +274,7 @@ test("a readonly account decides nothing anywhere", async ({ page }) => {
   const state: StubState = { role: "readonly", calls: [], conflictOnce: false };
   const errors = await openVault(page, state);
 
-  await goHash(page, `#/vault/${PROPOSED_NOTE.id}`);
+  await goHash(page, `#/connaissances/notes/${PROPOSED_NOTE.id}`);
   await expect(page.locator("#view")).toContainText("Convention de nommage");
   await expect(page.locator("[data-vault-accept]")).toHaveCount(0);
   await expect(page.locator("[data-vault-reject]")).toHaveCount(0);

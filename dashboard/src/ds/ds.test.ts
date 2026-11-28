@@ -46,18 +46,18 @@ describe("dsPageHeader", () => {
   it("renders title, description and actions", () => {
     const html = dsPageHeader("Accueil", "Résumé calme.", [
       { label: "Créer", variant: "primary", id: "create" },
-      { label: "Voir tout", href: "#/tasks" },
+      { label: "Voir tout", href: "#/taches" },
     ]);
     expect(html).toContain("<h1>Accueil</h1>");
     expect(html).toContain("Résumé calme.");
     expect(html).toContain('id="create"');
-    expect(html).toContain('href="#/tasks"');
+    expect(html).toContain('href="#/taches"');
   });
 });
 
 describe("dsSectionHeader", () => {
   it("renders a see-all link when provided", () => {
-    expect(dsSectionHeader("Tâches", { label: "Voir tout", href: "#/tasks" })).toContain("Voir tout");
+    expect(dsSectionHeader("Tâches", { label: "Voir tout", href: "#/taches" })).toContain("Voir tout");
     expect(dsSectionHeader("Tâches")).not.toContain("<a");
   });
 });
@@ -74,12 +74,12 @@ describe("dsEmptyState", () => {
   it("explains and offers an action, announced as a status", () => {
     const html = dsEmptyState("Aucune tâche", "Créez-en une.", {
       label: "Créer",
-      href: "#/tasks",
+      href: "#/taches",
     });
     expect(html).toContain('role="status"');
     expect(html).toContain("Aucune tâche");
     expect(html).toContain("Créez-en une.");
-    expect(html).toContain("#/tasks");
+    expect(html).toContain("#/taches");
   });
 });
 

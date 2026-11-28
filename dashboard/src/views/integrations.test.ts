@@ -264,7 +264,7 @@ describe("Settings › Intégrations IA (Desktop)", () => {
       expect(root.textContent).toContain("PC Bureau");
       expect(root.textContent).toContain("Claude Code");
       expect(root.querySelector<HTMLAnchorElement>("[data-testid=workspace-continue]")?.getAttribute("href")).toBe(
-        `#/configuration/integrations/${WS}`,
+        `#/reglages/connexions-ia/${WS}`,
       );
     } finally {
       globalThis.localStorage.removeItem("studio-os.onboarding.v1");
@@ -290,7 +290,7 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     select.value = other;
     select.dispatchEvent(new Event("change"));
     await flush();
-    expect(root.querySelector<HTMLAnchorElement>('[data-testid="workspace-continue"]')!.getAttribute("href")).toBe(`#/configuration/integrations/${other}`);
+    expect(root.querySelector<HTMLAnchorElement>('[data-testid="workspace-continue"]')!.getAttribute("href")).toBe(`#/reglages/connexions-ia/${other}`);
     expect(state.calls.filter((call) => call.command === "harness.detect").map((call) => call.payload["workspace_id"])).toEqual([WS, other]);
   });
 
@@ -299,7 +299,7 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     state.workspaceItems = [{ ...workspace(), health: "inaccessible", action: "grant_access" }];
     const root = await mount(platform, null);
     expect(root.querySelector('[data-testid="workspace-continue"]')).toBeNull();
-    expect(root.querySelector('a[href="#/workspaces"]')).not.toBeNull();
+    expect(root.querySelector('a[href="#/reglages/dossiers"]')).not.toBeNull();
     expect(state.calls).toEqual([]);
   });
 

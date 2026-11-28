@@ -34,7 +34,7 @@ test("home loads no heavy view chunk, a heavy view loads on navigation", async (
   for (const heavy of ["projectDetail", "configuration", "library", "vaultAtlas", "taskDetail", "transfers", "decisionsV2", "view"]) {
     expect(seen, `chunk ${heavy} must not load on the home page`).not.toContain(heavy);
   }
-  await page.goto("/#/vault/atlas");
+  await page.goto("/#/connaissances/carte");
   await expect.poll(() => seen.includes("vaultAtlas")).toBe(true);
 });
 
@@ -42,11 +42,11 @@ test("a chunk that fails to load shows an alert with a reload action", async ({ 
   await login(page, "#/");
   let blocked = true;
   await page.route(/\/assets\/transfers-[\w-]+\.js$/, (route) => (blocked ? route.abort() : route.continue()));
-  await page.goto("/#/transfers");
+  await page.goto("/#/fichiers");
   await expect(page.locator("#view [role=alert]")).toContainText("Chargement impossible");
   blocked = false;
   // Rechargement : le hash est conservé, la session mémoire-seule est rouverte.
   await page.locator("#view-load-retry").click();
   await expect(page.locator("#login-form")).toBeVisible();
-  expect(page.url()).toContain("#/transfers");
+  expect(page.url()).toContain("#/fichiers");
 });

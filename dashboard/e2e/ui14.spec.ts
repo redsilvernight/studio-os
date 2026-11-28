@@ -257,7 +257,7 @@ async function activeId(page: Page): Promise<string> {
 test.describe("UI-14 landmarks et titres", () => {
   test("shell : un seul main, nav nommée, complementary sans nom trompeur", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     await expect(page.locator("#view .task-row")).toHaveCount(1);
     expect(await page.locator("main").count()).toBe(1);
     expect(await page.locator("main#view").count()).toBe(1);
@@ -275,17 +275,17 @@ test.describe("UI-14 landmarks et titres", () => {
     const view = page.locator("#view");
     const routes: [string, string][] = [
       ["#/", "Aujourd'hui"],
-      ["#/projects", "Projets"],
-      [`#/projects/${P1}`, "Jeu Phare"],
-      ["#/tasks", "Travail"],
-      [`#/tasks/${T1}`, "Caméra Android bloquée"],
-      ["#/agents", "Équipe IA"],
-      ["#/machines", "Postes"],
-      ["#/transfers", "Transferts"],
-      ["#/decisions", "À valider"],
-      ["#/library", "Savoir-faire"],
-      ["#/configuration/runtimes", "Réglages"],
-      ["#/inspector", "Diagnostic"],
+      ["#/projets", "Projets"],
+      [`#/projets/${P1}`, "Jeu Phare"],
+      ["#/taches", "Travail"],
+      [`#/taches/${T1}`, "Caméra Android bloquée"],
+      ["#/equipe-ia", "Équipe IA"],
+      ["#/reglages/appareils", "Postes"],
+      ["#/fichiers", "Transferts"],
+      ["#/a-valider", "À valider"],
+      ["#/connaissances/savoir-faire", "Savoir-faire"],
+      ["#/reglages/moteurs", "Réglages"],
+      ["#/reglages/avance/inspecteur", "Diagnostic"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
     for (const [route, title] of routes) {
@@ -317,7 +317,7 @@ test.describe("UI-14 landmarks et titres", () => {
 test.describe("UI-14 noms accessibles et formulaires", () => {
   test("contrôles interactifs nommés, champs labellisés", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     const unnamed = await page.evaluate(() => {
       const missing: string[] = [];
       const controls = [...document.querySelectorAll("button, a[href], input, select, textarea, [role=tab]")];
@@ -349,7 +349,7 @@ test.describe("UI-14 noms accessibles et formulaires", () => {
 
   test("recherche et filtres : nom, compteur annoncé, reset", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     const view = page.locator("#view");
     const search = view.locator("[role=search]");
     await expect(search).toHaveAttribute("aria-label", "Filtrer les tâches chargées");
@@ -365,7 +365,7 @@ test.describe("UI-14 noms accessibles et formulaires", () => {
 
   test("claims : français, table nommée avec scope, actions contextualisées", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/projects/${P1}/claims`);
+    await login(page, `#/projets/${P1}/reservations`);
     const view = page.locator("#view");
     await expect(view.locator("[data-ws-tab=claims]")).toContainText("Fichiers occupés");
     await expect(view.locator("table caption")).toContainText("Fichiers occupés du projet");
@@ -385,7 +385,7 @@ test.describe("UI-14 clavier et focus", () => {
   test("parcours clavier complet : login, navigation, modale, skip-link", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await page.route("**/api/**", apiStub());
-    await page.goto("/#/tasks");
+    await page.goto("/#/taches");
     await expect(page.locator("#login-form")).toBeVisible();
     await page.keyboard.press("Tab");
     expect(await activeId(page)).toBe("#login-email");
@@ -398,12 +398,12 @@ test.describe("UI-14 clavier et focus", () => {
     await expect(page.locator(".app-sidebar")).toBeVisible();
     await expect(page.locator("#view .task-row")).toHaveCount(1);
 
-    await page.locator('.app-sidebar a[href="#/projects"]').focus();
+    await page.locator('.app-sidebar a[href="#/projets"]').focus();
     await page.keyboard.press("Enter");
     await expect(page.locator("#view h1")).toContainText("Projets");
     expect(await activeId(page)).toBe("#view");
 
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     await expect(page.locator("#view .task-row")).toHaveCount(1);
     await page.locator("#task-new").focus();
     await page.keyboard.press("Enter");
@@ -427,7 +427,7 @@ test.describe("UI-14 clavier et focus", () => {
 
   test("ordre de tabulation : skip-link puis liens nav dans l'ordre de lecture", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     await page.locator(".ds-skip-link").focus();
     const stops: string[] = [];
     for (let i = 0; i < 6; i += 1) {
@@ -443,7 +443,7 @@ test.describe("UI-14 clavier et focus", () => {
 
   test("focus visible : le lien d'évitement apparaît au focus clavier", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     await expect(page.locator("#view .task-row")).toHaveCount(1);
     const skip = page.locator(".ds-skip-link");
     const before = await skip.boundingBox();
@@ -466,9 +466,9 @@ test.describe("UI-14 clavier et focus", () => {
 
   test("focus après navigation : le repère principal reçoit le focus, sans vol temps réel", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/projects");
+    await login(page, "#/projets");
     await expect(page.locator("#view h1")).toContainText("Projets");
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     await expect(page.locator("#view .task-row")).toHaveCount(1);
     expect(await activeId(page)).toBe("#view");
     await page.evaluate(() => window.history.back());
@@ -482,7 +482,7 @@ test.describe("UI-14 clavier et focus", () => {
 test.describe("UI-14 modales, drawers, onglets", () => {
   test("modale : trap Tab, Shift+Tab cyclé, Échap, retour focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     const view = page.locator("#view");
     const openButton = view.locator("#task-new");
     await openButton.click();
@@ -515,7 +515,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
 
   test("drawer machine : sémantique dialogue modal, Échap, retour focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/machines");
+    await login(page, "#/reglages/appareils");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Postes");
     const details = view.locator("[data-machine-details]").first();
@@ -534,7 +534,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
 
   test("onglets workspace : flèches déplacent le focus, Entrée active la vue", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/projects/${P1}`);
+    await login(page, `#/projets/${P1}`);
     const view = page.locator("#view");
     const tabs = view.locator('[role="tab"]');
     await expect(tabs).toHaveCount(10);
@@ -568,7 +568,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
 
   test("onglets décisions : flèches + Début/Fin, activation persistante", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/decisions");
+    await login(page, "#/a-valider");
     const view = page.locator("#view");
     const list = view.locator('[role="tablist"][aria-label="À valider"]');
     await expect(list).toBeVisible();
@@ -593,7 +593,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
 test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
   test("erreur de création : annoncée et focalisée dans la modale", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks", { failCreateTask: true });
+    await login(page, "#/taches", { failCreateTask: true });
     const view = page.locator("#view");
     await view.locator("#task-new").click();
     const dialog = view.locator("#task-create-dialog");
@@ -614,7 +614,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
 
   test("erreur inline : message de création runtime focalisé", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/configuration/runtimes");
+    await login(page, "#/reglages/moteurs");
     const view = page.locator("#view");
     await view.locator("details.editor > summary").click();
     const form = view.locator("[data-runtime-create]");
@@ -630,7 +630,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
 
   test("toast succès : annoncé via la région live, sans vol de focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     const view = page.locator("#view");
     await view.locator("#task-new").click();
     const dialog = view.locator("#task-create-dialog");
@@ -647,7 +647,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
   test("reduced motion : transitions neutralisées", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await page.setViewportSize({ width: 640, height: 900 });
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     await page.emulateMedia({ reducedMotion: "reduce" });
     const matches = await page.evaluate(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     expect(matches).toBe(true);
@@ -660,7 +660,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
   test("zoom 200 % : contenu utilisable, contrôles atteignables", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await page.setViewportSize({ width: 640, height: 900 });
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Travail");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -676,7 +676,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
 
   test("espacement du texte augmenté : contenu essentiel intact", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     // Feuille construite (CSSOM) : simule une feuille utilisateur WCAG 1.4.12
     // sans <style> inline, que la CSP appliquée bloquerait.
     await page.evaluate(() => {
@@ -712,16 +712,16 @@ test.describe("UI-14 balayage automatisé axe", () => {
     const view = page.locator("#view");
     const surfaces: [string, string][] = [
       ["#/", "Aujourd'hui"],
-      ["#/projects", "Projets"],
-      ["#/tasks", "Travail"],
-      [`#/tasks/${T1}`, "Caméra Android bloquée"],
-      ["#/agents", "Équipe IA"],
-      ["#/library", "Savoir-faire"],
-      ["#/decisions", "À valider"],
-      ["#/machines", "Postes"],
-      ["#/transfers", "Transferts"],
-      ["#/inspector", "Diagnostic"],
-      ["#/configuration/runtimes", "Réglages"],
+      ["#/projets", "Projets"],
+      ["#/taches", "Travail"],
+      [`#/taches/${T1}`, "Caméra Android bloquée"],
+      ["#/equipe-ia", "Équipe IA"],
+      ["#/connaissances/savoir-faire", "Savoir-faire"],
+      ["#/a-valider", "À valider"],
+      ["#/reglages/appareils", "Postes"],
+      ["#/fichiers", "Transferts"],
+      ["#/reglages/avance/inspecteur", "Diagnostic"],
+      ["#/reglages/moteurs", "Réglages"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
     for (const [route, title] of surfaces) {
@@ -729,7 +729,7 @@ test.describe("UI-14 balayage automatisé axe", () => {
       await expect(view.locator("h1").first()).toContainText(title, { timeout: 10_000 });
       collectSerious(route, (await new AxeBuilder({ page }).analyze()).violations);
     }
-    await go(page, "#/tasks");
+    await go(page, "#/taches");
     await expect(view.locator(".task-row")).toHaveCount(1);
     await view.locator("#task-new").click();
     const dialog = view.locator("#task-create-dialog");

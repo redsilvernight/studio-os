@@ -126,7 +126,7 @@ export function inviteFormHtml(options: InviteDialogOptions): string {
           "Connecté avec un autre compte ?",
           `À l'acceptation : « Cette invitation est destinée à ${esc(options.mismatch.invitedEmail)}. ` +
             `Vous êtes connecté avec ${esc(options.mismatch.currentEmail)}. » ` +
-            `<a href="#/accounts">Changer de compte</a>`,
+            `<a href="#/reglages/equipe-acces">Changer de compte</a>`,
         );
   const disabled = emailError !== null || full;
   return (
@@ -505,7 +505,7 @@ export function invitationWrongAccountHtml(emails?: { invitedEmail?: string; cur
       "warning",
       "Cette invitation est destinée à une autre adresse",
       detail +
-        `<div class="studio-banner-actions"><a class="ds-btn ds-btn--primary" href="#/accounts">Changer de compte</a></div>`,
+        `<div class="studio-banner-actions"><a class="ds-btn ds-btn--primary" href="#/reglages/equipe-acces">Changer de compte</a></div>`,
     ),
   );
 }

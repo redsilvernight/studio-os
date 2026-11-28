@@ -96,7 +96,7 @@ function cardHtml(project: Project, tasks: Task[] | null): string {
   const health = project.archived || tasks === null ? null : projectHealth(project.id, tasks);
   const dot = health === null ? "" : dsStatusDot(health.state, health.label, true);
   const healthLabel = health === null ? "" : `${esc(health.label)} · `;
-  return `<li class="ds-card project-card"><div class="project-card-top">${dot}<h2 class="project-card-title"><a href="#/projects/${esc(project.id)}" data-open="${esc(project.id)}">${esc(project.name)}</a></h2>${badge}</div>` +
+  return `<li class="ds-card project-card"><div class="project-card-top">${dot}<h2 class="project-card-title"><a href="#/projets/${esc(project.id)}" data-open="${esc(project.id)}">${esc(project.name)}</a></h2>${badge}</div>` +
     `${desc}` +
     `<p class="ds-list-sub">${healthLabel}<code class="mono">${esc(project.slug)}</code></p>` +
     `<details class="project-card-tech"><summary>Informations techniques</summary><dl>` +

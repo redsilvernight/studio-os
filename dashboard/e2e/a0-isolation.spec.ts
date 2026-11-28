@@ -76,7 +76,7 @@ test.describe("A0 isolation projet", () => {
   test("projet refusé (403) : message d'accès, session conservée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const stub: Stub = { projects: [PROJECT], denyProject: true, streamCalls: 0 };
-    await login(page, `#/projects/${P1}`, stub);
+    await login(page, `#/projets/${P1}`, stub);
     await expect(page.locator("#view")).toContainText("Vous n'avez pas accès à ce projet");
     await expect(page.locator("#login-form")).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText("Session expirée");
@@ -87,7 +87,7 @@ test.describe("A0 isolation projet", () => {
   test("flux temps réel refusé (403) : arrêt définitif et bannière", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const stub: Stub = { projects: [PROJECT], denyProject: false, streamCalls: 0 };
-    await login(page, "#/projects", stub);
+    await login(page, "#/projets", stub);
     // Le flux temps réel s'ouvre sur le projet sélectionné dans la liste.
     await page.locator(`[data-open="${P1}"]`).first().click();
     await expect(page.locator("#conflict-banner")).toContainText("Accès à ce projet refusé");
@@ -103,7 +103,7 @@ test.describe("A0 isolation projet", () => {
   test("aucun projet accessible : état vide explicite", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const stub: Stub = { projects: [], denyProject: false, streamCalls: 0 };
-    await login(page, "#/projects", stub);
+    await login(page, "#/projets", stub);
     await expect(page.locator("#view")).toContainText("Aucun projet accessible");
     await expect(page.locator("#view")).toContainText("demandez à un administrateur");
     expect(csp).toEqual([]);

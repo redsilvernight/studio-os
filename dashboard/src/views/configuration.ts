@@ -93,11 +93,11 @@ export interface ConfigurationContext {
 export type ConfigTab = "runtimes" | "bindings" | "project" | "application" | "integrations";
 
 const CONFIG_TABS: readonly { name: ConfigTab; label: string; href: string }[] = [
-  { name: "runtimes", label: "Moteurs IA", href: "#/configuration/runtimes" },
-  { name: "bindings", label: "Affectations", href: "#/configuration/bindings" },
-  { name: "project", label: UI_LABEL.project, href: "#/configuration/project/resources" },
-  { name: "application", label: "Application", href: "#/configuration/application" },
-  { name: "integrations", label: "Intégrations IA", href: "#/configuration/integrations" },
+  { name: "runtimes", label: "Moteurs IA", href: "#/reglages/moteurs" },
+  { name: "bindings", label: "Affectations", href: "#/reglages/moteurs/affectations" },
+  { name: "project", label: UI_LABEL.project, href: "#/reglages/avance/projet/resources" },
+  { name: "application", label: "Application", href: "#/reglages/application" },
+  { name: "integrations", label: "Intégrations IA", href: "#/reglages/connexions-ia" },
 ];
 
 const SETTINGS_DESCRIPTION =
@@ -168,11 +168,11 @@ const TARGET_LABELS: Record<string, string> = {
 export function runtimeVocabularyHtml(open: boolean): string {
   return (
     `<details class="settings-howto"${open ? " open" : ""}><summary>Comment ça s'articule</summary><dl class="settings-howto-list">` +
-    `<div><dt>Poste</dt><dd>Le PC physique sur lequel les outils s'exécutent (voir <a href="#/machines">Postes</a>).</dd></div>` +
+    `<div><dt>Poste</dt><dd>Le PC physique sur lequel les outils s'exécutent (voir <a href="#/reglages/appareils">Postes</a>).</dd></div>` +
     `<div><dt>Agent</dt><dd>L'identité d'un modèle sur ce poste : une par poste, fournisseur et modèle.</dd></div>` +
     `<div><dt>Moteur IA</dt><dd>La configuration qui permet d'exécuter ce modèle : outil + fournisseur + modèle, éventuellement rattachée à un poste.</dd></div>` +
     `<div><dt>Profil d'agent</dt><dd>Un rôle réutilisable de la <a href="${esc(libraryKindHref("agent_definition"))}">Savoir-faire</a>.</dd></div>` +
-    `<div><dt>Affectation</dt><dd>« Pour cette définition ou ce profil, utiliser ce moteur IA. » Le serveur décide du choix effectif — voir l'<a href="#/inspector">Inspecteur</a>.</dd></div>` +
+    `<div><dt>Affectation</dt><dd>« Pour cette définition ou ce profil, utiliser ce moteur IA. » Le serveur décide du choix effectif — voir l'<a href="#/reglages/avance/inspecteur">Inspecteur</a>.</dd></div>` +
     `</dl></details>`
   );
 }
@@ -344,7 +344,7 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
 
 function posteLinkHtml(machineId: string | null | undefined, names: Map<string, string>): string {
   return nonEmpty(machineId)
-    ? `<a href="#/machines">Poste ${names.has(machineId) ? esc(names.get(machineId)) : machineRef(machineId)}</a>`
+    ? `<a href="#/reglages/appareils">Poste ${names.has(machineId) ? esc(names.get(machineId)) : machineRef(machineId)}</a>`
     : '<span class="meta">Aucun poste (cible distante)</span>';
 }
 
@@ -357,7 +357,7 @@ export function runtimeCardHtml(runtime: RuntimeRegistration, names: Map<string,
     `<div class="ds-list-sub settings-caps">${capabilitySummary(runtime.capabilities)}</div>` +
     `<div class="ds-list-sub meta">Réglage d'exécution d'un modèle — ni un agent, ni un poste.</div>` +
     `</div><div class="settings-row-side">${status}` +
-    `<a class="ds-btn ds-btn--sm" href="#/configuration/runtimes/${esc(runtime.id)}">Détails</a></div></li>`
+    `<a class="ds-btn ds-btn--sm" href="#/reglages/moteurs/${esc(runtime.id)}">Détails</a></div></li>`
   );
 }
 
@@ -443,7 +443,7 @@ export function runtimesPageHtml(runtimes: RuntimeRegistration[], machines: Mach
     `${runtimesToolbarHtml(runtimesState, runtimes, visible.length, names)}` +
     `<div id="settings-runtimes-list" aria-live="polite">${body}</div>` +
     `${createRuntimeFormHtml(machines)}` +
-    `<p class="meta">Les moteurs IA sont privés à leur propriétaire. Le niveau gagnant lors d'une résolution est décidé par le serveur — voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
+    `<p class="meta">Les moteurs IA sont privés à leur propriétaire. Le niveau gagnant lors d'une résolution est décidé par le serveur — voir l'<a href="#/reglages/avance/inspecteur">Inspecteur</a>.</p>` +
     `</section></div>`
   );
 }
@@ -581,7 +581,7 @@ export function runtimeDetailHtml(
     `</dl>` +
     `<h3>Capacités déclarées</h3>${capabilitySummary(runtime.capabilities)}` +
     `<h3>Affectations liées à ce moteur IA</h3>${bindingsBlock}` +
-    `<p class="meta settings-origin">Origine du choix effectif : voir l'<a href="#/inspector">Inspecteur</a>.</p>` +
+    `<p class="meta settings-origin">Origine du choix effectif : voir l'<a href="#/reglages/avance/inspecteur">Inspecteur</a>.</p>` +
     updateRuntimeFormHtml(runtime, machines) +
     revokeRuntimeFormHtml(runtime) +
     technical +
@@ -650,7 +650,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
     root.innerHTML =
       `<div class="settings">${settingsHeader(UI_LABEL.configuration, SETTINGS_DESCRIPTION, [{ label: UI_LABEL.refresh, id: "settings-runtime-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger ce moteur IA : ${esc(describeError(runtime.error))}</div>` +
-      `<p><a href="#/configuration/runtimes">← Retour aux moteurs IA</a></p></div>`;
+      `<p><a href="#/reglages/moteurs">← Retour aux moteurs IA</a></p></div>`;
     root.querySelector("#settings-runtime-reload")?.addEventListener("click", () => {
       void renderRuntimeDetail(root, ctx, runtimeId);
     });
@@ -661,7 +661,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
     `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un moteur IA — configuration d'exécution d'un modèle.", [
       { label: UI_LABEL.refresh, id: "settings-runtime-reload" },
     ])}${head}` +
-    `<p class="settings-back"><a href="#/configuration/runtimes">← Retour aux moteurs IA</a></p>` +
+    `<p class="settings-back"><a href="#/reglages/moteurs">← Retour aux moteurs IA</a></p>` +
     runtimeDetailHtml(runtime.value, related, bindings.ok ? null : describeError(bindings.error), machines) +
     `</div>`;
   bindRuntimeDetail(root, ctx, runtime.value);
@@ -800,7 +800,7 @@ export function bindingsToolbarHtml(state: BindingsPageState, shown: number, tot
 
 export function bindingCardHtml(binding: RuntimeBinding, runtimesById: Map<string, RuntimeRegistration>): string {
   const project = nonEmpty(binding.project_id)
-    ? `<a href="#/projects/${esc(binding.project_id)}">${esc(projectLabel(binding.project_id))}</a>`
+    ? `<a href="#/projets/${esc(binding.project_id)}">${esc(projectLabel(binding.project_id))}</a>`
     : '<span class="meta">Sans projet</span>';
   return (
     `<li class="ds-list-item settings-binding-row"><div class="grow">` +
@@ -856,7 +856,7 @@ function bindingsNoMatchHtml(): string {
 /** Bloc « Écarts déclarés » : indicatif, jamais bloquant — le serveur tranche. */
 export function capabilityGapsNoticeHtml(gaps: CapabilityGap[]): string {
   if (gaps.length === 0) {
-    return `<p class="meta">Aucun écart déclaré entre les exigences du profil et les capacités du moteur IA — indicatif, le serveur tranche (voir l'<a href="#/inspector">Inspecteur</a>).</p>`;
+    return `<p class="meta">Aucun écart déclaré entre les exigences du profil et les capacités du moteur IA — indicatif, le serveur tranche (voir l'<a href="#/reglages/avance/inspecteur">Inspecteur</a>).</p>`;
   }
   const items = gaps
     .map((gap) => `<li><strong>${esc(gap.label)}</strong> : exigé ${esc(gap.required)}, déclaré ${esc(gap.declared)}</li>`)
@@ -864,7 +864,7 @@ export function capabilityGapsNoticeHtml(gaps: CapabilityGap[]): string {
   return (
     `<div class="ds-notice ds-notice--warning settings-gaps"><strong>Écarts déclarés</strong>` +
     `<ul>${items}</ul>` +
-    `<p class="meta">Comparaison indicative des déclarations : le serveur tranche, voir l'<a href="#/inspector">Inspecteur</a>. La liaison reste enregistrable.</p></div>`
+    `<p class="meta">Comparaison indicative des déclarations : le serveur tranche, voir l'<a href="#/reglages/avance/inspecteur">Inspecteur</a>. La liaison reste enregistrable.</p></div>`
   );
 }
 
@@ -939,7 +939,7 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
     degraded +
     `<div id="settings-bindings-list">${body}</div>` +
     `${createBindingFormHtml(runtimeList, stableKeys, machines)}` +
-    `<p class="meta"><a href="#/inspector">Ouvrir l'Inspecteur</a> pour voir quel niveau gagne réellement à la résolution.</p>` +
+    `<p class="meta"><a href="#/reglages/avance/inspecteur">Ouvrir l'Inspecteur</a> pour voir quel niveau gagne réellement à la résolution.</p>` +
     `</section></div>`;
   bindBindings(root, ctx, bindings.value, runtimesById, library.ok ? library.value : []);
 }
@@ -1031,7 +1031,7 @@ function bindCapabilityGaps(
       .catch(() => {
         cache.delete(profile.id);
         if (current !== generation) return;
-        output.innerHTML = `<p class="meta">Exigences du profil indisponibles — la compatibilité se lit dans l'<a href="#/inspector">Inspecteur</a>.</p>`;
+        output.innerHTML = `<p class="meta">Exigences du profil indisponibles — la compatibilité se lit dans l'<a href="#/reglages/avance/inspecteur">Inspecteur</a>.</p>`;
       });
   };
   form.addEventListener("input", update);
@@ -1150,7 +1150,7 @@ function projectSelectorHtml(projectId: string | null): string {
 function projectTabsHtml(active: "resources" | "locks" | "overrides"): string {
   const labels: Record<"resources" | "locks" | "overrides", string> = { resources: "Ressources", locks: "Versions figées", overrides: "Versions personnalisées" };
   return `<nav class="tabs" aria-label="Sections de configuration de projet">${(["resources", "locks", "overrides"] as const)
-    .map((name) => `<a class="tab${name === active ? " active" : ""}" href="#/configuration/project/${name}"${name === active ? ' aria-current="page"' : ""}>${esc(labels[name])}</a>`)
+    .map((name) => `<a class="tab${name === active ? " active" : ""}" href="#/reglages/avance/projet/${name}"${name === active ? ' aria-current="page"' : ""}>${esc(labels[name])}</a>`)
     .join("")}</nav>`;
 }
 
@@ -1265,6 +1265,6 @@ async function projectOverridesHtml(ctx: ConfigurationContext, projectId: string
     section("Versions personnalisées de projet", "Épinglage explicite pour ce projet.", overrides, "Aucun override de projet.") +
     section("Défauts de projet", "Repli pour ce projet, distinct d'un override.", defaults, "Aucun défaut de projet.") +
     section("Défauts de studio", "Affichés uniquement si le serveur les renvoie pour ce jeton.", studioDefaults, "Aucun défaut de studio visible.") +
-    `<p><a href="#/inspector">Ouvrir l'Diagnostic</a> pour voir quel niveau gagne réellement pour une AgentDefinition donnée.</p>`
+    `<p><a href="#/reglages/avance/inspecteur">Ouvrir l'Diagnostic</a> pour voir quel niveau gagne réellement pour une AgentDefinition donnée.</p>`
   );
 }

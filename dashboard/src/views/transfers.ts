@@ -154,7 +154,7 @@ export function transferStatusHtml(transfer: Transfer, now: number): string {
 function projectLineHtml(transfer: Transfer, info: TransferInfo): string {
   if (transfer.project_id === null || transfer.project_id === undefined) return "";
   if (info.projectName !== null) {
-    return ` · <a href="#/projects/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`;
+    return ` · <a href="#/projets/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`;
   }
   return ` · <span>${esc(FALLBACK_LABEL.project)}</span>`;
 }
@@ -162,7 +162,7 @@ function projectLineHtml(transfer: Transfer, info: TransferInfo): string {
 function taskLineHtml(transfer: Transfer, info: TransferInfo): string {
   if (transfer.task_id === null || transfer.task_id === undefined) return "";
   const label = info.taskTitle !== null ? info.taskTitle : FALLBACK_LABEL.task;
-  return ` · <a href="#/tasks/${esc(transfer.task_id)}">${esc(label)}</a>`;
+  return ` · <a href="#/taches/${esc(transfer.task_id)}">${esc(label)}</a>`;
 }
 
 export function transferCardHtml(transfer: Transfer, info: TransferInfo, now: number): string {
@@ -218,14 +218,14 @@ export function transferDrawerBodyHtml(
     transfer.project_id === null || transfer.project_id === undefined
       ? "Aucun"
       : info.projectName !== null
-        ? `<a href="#/projects/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`
+        ? `<a href="#/projets/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`
         : esc(FALLBACK_LABEL.project);
   const task =
     transfer.task_id === null || transfer.task_id === undefined
       ? "Aucune"
       : info.taskTitle !== null
-        ? `<a href="#/tasks/${esc(transfer.task_id)}">${esc(info.taskTitle)}</a>`
-        : `<a href="#/tasks/${esc(transfer.task_id)}">${esc(FALLBACK_LABEL.task)}</a>`;
+        ? `<a href="#/taches/${esc(transfer.task_id)}">${esc(info.taskTitle)}</a>`
+        : `<a href="#/taches/${esc(transfer.task_id)}">${esc(FALLBACK_LABEL.task)}</a>`;
 
   const download = downloadable
     ? `<button class="ds-btn ds-btn--primary ds-btn--sm" type="button" data-transfer-download="${esc(transfer.id)}">Télécharger</button>`

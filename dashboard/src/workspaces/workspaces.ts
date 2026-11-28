@@ -10,7 +10,7 @@
 
 import { esc } from "../ui";
 
-export const P5_WORKSPACE_ROUTE = "#/workspaces";
+export const P5_WORKSPACE_ROUTE = "#/reglages/dossiers";
 
 export interface WorkspaceNavEntry {
   hash: string;

@@ -284,7 +284,7 @@ function taskListRowHtml(task: Task, options: TasksRenderOptions): string {
   meta.push(esc(taskClaimHint(task)));
   const excerpt = taskDescriptionExcerpt(task);
   return `<li class="ds-list-item task-row"><div class="grow task-main">` +
-    `<div class="task-head"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
+    `<div class="task-head"><div class="ds-list-title"><a href="#/taches/${esc(task.id)}">${esc(task.title)}</a></div>` +
     `${dsBadge(taskStatusLabel(task.status), taskStatusTone(task.status))}</div>` +
     `<div class="ds-list-sub task-meta">${meta.join(" · ")}</div>` +
     `${excerpt === "" ? "" : `<div class="ds-list-sub task-excerpt">${esc(excerpt)}</div>`}` +
@@ -324,7 +324,7 @@ export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): stri
         .map(
           (task) =>
             `<li class="ds-card task-card" data-card="${esc(task.id)}" data-version="${task.version}" data-status-current="${esc(task.status)}"${options.authed ? ` draggable="true"` : ""}>` +
-            `<div class="ds-list-title task-card-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
+            `<div class="ds-list-title task-card-title"><a href="#/taches/${esc(task.id)}">${esc(task.title)}</a></div>` +
             `<p class="ds-list-sub">${taskContextLine(task, options)}</p>` +
             `${taskMoveControlHtml(task, options.authed)}</li>`,
         )

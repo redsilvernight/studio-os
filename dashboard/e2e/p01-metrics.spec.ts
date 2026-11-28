@@ -115,14 +115,14 @@ const SCREENS: readonly Screen[] = [
   {
     id: "travail",
     label: "Travail",
-    hash: "#/tasks",
+    hash: "#/taches",
     majors: "#view .tasks > :is(section.tasks-group, .tasks-scopes, .tasks-toolbar)",
     ready: "#view .tasks",
   },
   {
     id: "a-valider",
     label: "À valider",
-    hash: "#/decisions",
+    hash: "#/a-valider",
     // Onglets du détail + section de premier niveau du panneau actif.
     majors: "#view .ds-tabs > .ds-tab, #view .ds-tabpanel:not([hidden]) > div > section",
     ready: "#view .review-section",
@@ -130,14 +130,14 @@ const SCREENS: readonly Screen[] = [
   {
     id: "projet",
     label: "Projet (onglets)",
-    hash: `#/projects/${P1}`,
+    hash: `#/projets/${P1}`,
     majors: "#view [data-ws-tab], #view .workspace-more > summary.ds-tab",
     ready: "#workspace-panel",
   },
   {
     id: "roadmap",
     label: "Roadmap",
-    hash: `#/projects/${P1}/roadmap`,
+    hash: `#/projets/${P1}/plan`,
     majors: "#view [data-major]",
     ready: "#view .roadmap-phase-strip",
     needsRoadmap: true,
@@ -145,7 +145,7 @@ const SCREENS: readonly Screen[] = [
   {
     id: "fiche-tache",
     label: "Fiche tâche",
-    hash: `#/tasks/${T1}`,
+    hash: `#/taches/${T1}`,
     majors: "#view .task-detail-hero, #view .task-detail-main > section",
     ready: "#view .task-detail-hero",
   },
@@ -335,11 +335,11 @@ const JOURNEYS: readonly Journey[] = [
   {
     id: "S2",
     label: "Travail → reprise",
-    entry: "#/tasks",
+    entry: "#/taches",
     destination: ".task-detail-hero",
     run: async (page) => {
       await expect(page.locator('#view [data-scope="now"]')).toHaveAttribute("aria-pressed", "true");
-      const link = page.locator('#view .task-row a[href^="#/tasks/"]').first();
+      const link = page.locator('#view .task-row a[href^="#/taches/"]').first();
       await expect(link).toBeVisible();
       await link.click();
       // « Reprendre » vit dans le héros de la fiche : aucun clic supplémentaire.
@@ -350,14 +350,14 @@ const JOURNEYS: readonly Journey[] = [
   {
     id: "S3",
     label: "À valider → décision",
-    entry: "#/decisions",
+    entry: "#/a-valider",
     destination: ".review-hero .ds-hero-actions .ds-btn--primary",
     run: async () => 0,
   },
   {
     id: "S4",
     label: "Projet → roadmap",
-    entry: "#/projects",
+    entry: "#/projets",
     destination: "[data-current-step]",
     run: async (page) => {
       await page.locator(`#view a[data-open="${P1}"]`).first().click();

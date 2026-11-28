@@ -15,12 +15,12 @@
  *   - "Décisions" : liste des décisions enregistrées (proposed/accepted/
  *     superseded) avec création en modale (POST /decisions + Idempotency-Key).
  *
- * Liens vers Agents (#/agents/<id>), Tâches (#/tasks/<id>), Projets
- * (#/projects/<id>) et Roadmap quand les IDs sont fiables. Aucun bouton
+ * Liens vers Agents (#/equipe-ia/<id>), Tâches (#/taches/<id>), Projets
+ * (#/projets/<id>) et Roadmap quand les IDs sont fiables. Aucun bouton
  * générique : ce qui ne se résout pas ici affiche ses liens de navigation et
  * le dit (« non résoluble ici »).
  *
- * Reprend la route globale #/decisions. La vue projet-scopée (#/projects/<id>/decisions)
+ * Reprend la route globale #/a-valider. La vue projet-scopée (#/projets/<id>/decisions)
  * réutilise le même renderer via un context projectId.
  */
 import type { StudioClient } from "../api";
@@ -243,12 +243,12 @@ function reviewCardContextHtml(card: ReviewCard): string {
   const item = card.item;
   const parts: string[] = [];
   if (card.channel === "decide" && item.project_id) {
-    parts.push(`<a href="#/projects/${esc(item.project_id)}">${esc(projectLabel(item.project_id))}</a>`);
+    parts.push(`<a href="#/projets/${esc(item.project_id)}">${esc(projectLabel(item.project_id))}</a>`);
   }
   parts.push(esc(reviewQueueItemDetail(item)));
   if (card.grouped > 1) parts.push(esc(`${card.grouped} propositions regroupées`));
   if (card.channel === "decide" && item.task_id) {
-    parts.push(`<a href="#/tasks/${esc(item.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`);
+    parts.push(`<a href="#/taches/${esc(item.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`);
   }
   parts.push(`<time datetime="${esc(item.requested_at)}">${fmtTime(item.requested_at)}</time>`);
   return parts.join(`<span class="review-sep" aria-hidden="true">·</span>`);
@@ -286,13 +286,13 @@ export function reviewCardActions(card: ReviewCard, authed: boolean, isAdmin: bo
         {
           label: revision === null ? "Relire le plan" : `Relire la révision ${revision}`,
           element: "link",
-          attribute: `href="#/projects/${esc(item.project_id)}/roadmap/${esc(item.roadmap_id)}"`,
+          attribute: `href="#/projets/${esc(item.project_id)}/plan/${esc(item.roadmap_id)}"`,
           variant: "primary",
         },
         {
           label: "Ouvrir le plan",
           element: "link",
-          attribute: `href="#/projects/${esc(item.project_id)}/roadmap"`,
+          attribute: `href="#/projets/${esc(item.project_id)}/plan"`,
           variant: "ghost",
         },
       ];
@@ -302,10 +302,10 @@ export function reviewCardActions(card: ReviewCard, authed: boolean, isAdmin: bo
       // possibles (le projet, la tâche liée) et la carte le dit.
       const links: ReviewAction[] = [];
       if (item.project_id) {
-        links.push({ label: ACTION_LABEL.openProject, element: "link", attribute: `href="#/projects/${esc(item.project_id)}"`, variant: "secondary" });
+        links.push({ label: ACTION_LABEL.openProject, element: "link", attribute: `href="#/projets/${esc(item.project_id)}"`, variant: "secondary" });
       }
       if (item.task_id) {
-        links.push({ label: ACTION_LABEL.openTask, element: "link", attribute: `href="#/tasks/${esc(item.task_id)}"`, variant: "ghost" });
+        links.push({ label: ACTION_LABEL.openTask, element: "link", attribute: `href="#/taches/${esc(item.task_id)}"`, variant: "ghost" });
       }
       return links;
     }
@@ -581,7 +581,7 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
   const filter = options.filter ?? "all";
   // Sur la page globale, un lien de sortie pointerait vers elle-même : il
   // n'existe que dans l'espace projet.
-  const seeAll = projectId !== undefined ? { label: "Voir la file globale", href: "#/decisions" } : undefined;
+  const seeAll = projectId !== undefined ? { label: "Voir la file globale", href: "#/a-valider" } : undefined;
   const open = `<section class="review-section review-inbox" aria-label=UI_LABEL.toReview>`;
 
   if (error !== undefined) {
@@ -631,7 +631,7 @@ export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boole
   const proposerLabel = PROPOSER_TYPE_LABEL[decision.proposed_by_type] ?? decision.proposed_by_type;
   const time = fmtTime(decision.created_at);
   const agentLink = decision.proposed_by_type === "agent"
-    ? `<a href="#/agents/${esc(decision.proposed_by_id)}">${dsAgentBadge(agentLabel(decision.proposed_by_id))}</a>`
+    ? `<a href="#/equipe-ia/${esc(decision.proposed_by_id)}">${dsAgentBadge(agentLabel(decision.proposed_by_id))}</a>`
     : esc(decision.proposed_by_type === "user" ? FALLBACK_LABEL.user : proposerLabel);
 
   const meta: string[] = [
@@ -640,10 +640,10 @@ export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boole
     `<span>${agentLink}</span>`,
   ];
   if (showProject && decision.project_id) {
-    meta.push(`<a href="#/projects/${esc(decision.project_id)}">${esc(projectLabel(decision.project_id))}</a>`);
+    meta.push(`<a href="#/projets/${esc(decision.project_id)}">${esc(projectLabel(decision.project_id))}</a>`);
   }
   if (decision.task_id) {
-    meta.push(`<a href="#/tasks/${esc(decision.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`);
+    meta.push(`<a href="#/taches/${esc(decision.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`);
   }
 
   const techDetails = `
@@ -734,7 +734,7 @@ export function decisionsHtml(
   view: DecisionsView = { filter: "all", page: 1 },
 ): string {
   const seeGlobal = projectId
-    ? `<a class="review-see-all" href="#/decisions">Voir les décisions globales</a>`
+    ? `<a class="review-see-all" href="#/a-valider">Voir les décisions globales</a>`
     : "";
 
   if (decisionsError !== undefined) {

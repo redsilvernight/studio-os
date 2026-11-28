@@ -211,13 +211,13 @@ describe("machinesListHtml / machineCardHtml", () => {
     const html = machineCardHtml(row(), info(), NOW);
     expect(html).toContain("Agent observé");
     expect(html).toContain("Aucune session en cours");
-    expect(html).not.toContain("#/agents");
+    expect(html).not.toContain("#/equipe-ia");
     expect(html).not.toContain("Review");
   });
 
   it("n'ouvre aucun lien vers une route agents inexistante", () => {
     const html = machinesListHtml([row()], new Map([[M1, info()]]), NOW);
-    expect(html).not.toMatch(/#\/agents/);
+    expect(html).not.toMatch(/#\/equipe-ia/);
   });
 });
 
@@ -249,11 +249,11 @@ describe("machineDrawerBodyHtml", () => {
   });
 
   it("montre agents, sessions liées aux tâches et runtimes liés", () => {
-    expect(html).toContain('href="#/agents/ag1">Claude</a>');
-    expect(html).toContain('href="#/agents/ag2">Qwen</a>');
-    expect(html).toContain('href="#/tasks/t1"');
+    expect(html).toContain('href="#/equipe-ia/ag1">Claude</a>');
+    expect(html).toContain('href="#/equipe-ia/ag2">Qwen</a>');
+    expect(html).toContain('href="#/taches/t1"');
     expect(html).toContain("opencode · anthropic");
-    expect(html).toContain('href="#/configuration/runtimes/rt1"');
+    expect(html).toContain('href="#/reglages/moteurs/rt1"');
     expect(html).not.toContain("rt2");
   });
 

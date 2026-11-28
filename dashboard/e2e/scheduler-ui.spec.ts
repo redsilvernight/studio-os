@@ -246,10 +246,10 @@ async function installAdmission(page: Page, server: AdmissionServer): Promise<vo
 }
 
 async function openAdmission(page: Page, server: AdmissionServer): Promise<void> {
-  await login(page, "#/projects", newCaptured(), { role: "admin" });
+  await login(page, "#/projets", newCaptured(), { role: "admin" });
   await installRoadmap(page);
   await installAdmission(page, server);
-  await go(page, `#/projects/${PROJECT_ID}/roadmap`);
+  await go(page, `#/projets/${PROJECT_ID}/plan`);
   await expect(page.locator("[data-admission-panel]")).toBeVisible();
 }
 

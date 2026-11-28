@@ -3,7 +3,7 @@
  *
  * DOM-free (vitest, environnement node) : assertions sur les chaînes
  * produites + lecture statique de library.css pour le responsive.
- * Les routes (#/library, #/library/<kind>, #/library/<kind>/<id>) et les
+ * Les routes (#/connaissances/savoir-faire, #/connaissances/savoir-faire/<kind>, #/connaissances/savoir-faire/<kind>/<id>) et les
  * contrats d'API sont inchangés — seuls les rendus sont refondus.
  */
 import { describe, expect, it } from "vitest";
@@ -85,7 +85,7 @@ const blank: LibraryListState = { query: "", scope: "all", status: "all" };
 
 /* ---------------- Racine : catégories réelles, français, calme ---------------- */
 
-describe("libraryRootHtml (page #/library)", () => {
+describe("libraryRootHtml (page #/connaissances/savoir-faire)", () => {
   const html = libraryRootHtml();
 
   it("présente les six catégories réelles en français", () => {
@@ -103,12 +103,12 @@ describe("libraryRootHtml (page #/library)", () => {
   });
 
   it("chaque catégorie ouvre sa liste via une route stable", () => {
-    expect(html).toContain('href="#/library/rules"');
-    expect(html).toContain('href="#/library/skills"');
-    expect(html).toContain('href="#/library/agent-definitions"');
-    expect(html).toContain('href="#/library/workflows"');
-    expect(html).toContain('href="#/library/model-profiles"');
-    expect(html).toContain('href="#/library/hooks"');
+    expect(html).toContain('href="#/connaissances/savoir-faire/rules"');
+    expect(html).toContain('href="#/connaissances/savoir-faire/skills"');
+    expect(html).toContain('href="#/connaissances/savoir-faire/agent-definitions"');
+    expect(html).toContain('href="#/connaissances/savoir-faire/workflows"');
+    expect(html).toContain('href="#/connaissances/savoir-faire/model-profiles"');
+    expect(html).toContain('href="#/connaissances/savoir-faire/hooks"');
   });
 
   it("ne montre aucune information technique au premier plan", () => {
@@ -131,8 +131,8 @@ describe("libraryTabsHtml", () => {
     expect(html).toContain(">Définitions d'agents<");
     expect(html).toContain(">Flux de travail<");
     expect(html).toContain(">Profils de modèles<");
-    expect(html).toContain('href="#/library/workflows"');
-    expect(html).toMatch(/class="tab active" href="#\/library\/workflows"/);
+    expect(html).toContain('href="#/connaissances/savoir-faire/workflows"');
+    expect(html).toMatch(/class="tab active" href="#\/connaissances\/savoir-faire\/workflows"/);
     expect(html).toContain('aria-current="page"');
   });
 });
@@ -189,7 +189,7 @@ describe("filterLibraryResources (local, données déjà chargées)", () => {
   });
 });
 
-describe("libraryKindPageHtml (liste #/library/<kind>)", () => {
+describe("libraryKindPageHtml (liste #/connaissances/savoir-faire/<kind>)", () => {
   const all = [
     resource({ stable_key: "coding-standard", scope: "studio", status: "active", active_version: 2 }),
     resource({ stable_key: "review-helper", scope: "project", status: "draft", active_version: 0 }),
@@ -214,7 +214,7 @@ describe("libraryKindPageHtml (liste #/library/<kind>)", () => {
     expect(html).toContain("Version active : v2");
     expect(html).toContain("Brouillon");
     expect(html).toContain("Aucune version activée");
-    expect(html).toContain("#/library/rules/11111111-1111-4111-8111-111111111111");
+    expect(html).toContain("#/connaissances/savoir-faire/rules/11111111-1111-4111-8111-111111111111");
     expect(html).not.toContain("<table");
   });
 
@@ -249,7 +249,7 @@ describe("resourcesTableHtml", () => {
   it("rend une liste documentaire liée au détail, avec état vide contextualisé", () => {
     const html = resourcesTableHtml([resource({})]);
     expect(html).toContain("coding-standard");
-    expect(html).toContain("#/library/rules/11111111-1111-4111-8111-111111111111");
+    expect(html).toContain("#/connaissances/savoir-faire/rules/11111111-1111-4111-8111-111111111111");
     expect(html).toContain("Actif");
     expect(resourcesTableHtml([])).toContain("Aucune ressource");
   });
@@ -284,7 +284,7 @@ describe("shadowNoteHtml", () => {
     ]);
     expect(html).toContain("Plusieurs portées");
     expect(html).toContain("ne choisit pas");
-    expect(html).toContain("#/inspector");
+    expect(html).toContain("#/reglages/avance/inspecteur");
     expect(html).toContain('role="note"');
   });
 });
@@ -350,7 +350,7 @@ describe("createFormFieldsHtml (POST /library, Idempotency-Key par tentative)", 
 
 /* ---------------- Détail : lecture d'abord, technique repliée ---------------- */
 
-describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
+describe("libraryDetailHtml (#/connaissances/savoir-faire/<kind>/<id>)", () => {
   const versions = [
     version({ content_schema: "studio.library.rule/v1", text: "Always verify." }, { version: 1, title: "Coding standard v1" }),
     version({ content_schema: "studio.library.rule/v1", text: "Always verify twice." }, { version: 2, title: "Coding standard v2" }),
@@ -458,7 +458,7 @@ describe("inspectorLinkHtml (deep link, agent-definitions uniquement)", () => {
   it("propose « Inspecter la résolution » pour les définitions d'agents", () => {
     const html = inspectorLinkHtml(resource({ kind: "agent_definition", stable_key: "review-agent" }));
     expect(html).toContain("Inspecter la résolution");
-    expect(html).toContain("#/inspector/review-agent");
+    expect(html).toContain("#/reglages/avance/inspecteur/review-agent");
     expect(html).not.toContain("Open stableKey");
   });
 

@@ -54,13 +54,13 @@ describe("projectCoordinationHtml", () => {
     expect(html).toContain("Question");
     expect(html).toContain("Le chemin de sortie est-il déjà validé ?");
     expect(html).toContain("<time");
-    expect(html).toContain(`href="#/tasks/${TASK_ID}"`);
+    expect(html).toContain(`href="#/taches/${TASK_ID}"`);
     expect(html).toContain('data-coordination-intent="question"');
   });
 
   it("n'affiche aucun identifiant : ni event, ni session, ni acteur", () => {
     const html = projectCoordinationHtml([item()]);
-    const visible = html.slice(0, html.indexOf(`href="#/tasks/${TASK_ID}"`));
+    const visible = html.slice(0, html.indexOf(`href="#/taches/${TASK_ID}"`));
     expect(visible).not.toMatch(UUID);
     expect(html).not.toContain("in_reply_to");
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
@@ -106,7 +106,7 @@ describe("projectCoordinationHtml", () => {
   it("signal sans tâche liée : l'heure reste, aucun lien mort", () => {
     const html = projectCoordinationHtml([item({ taskId: null })]);
     expect(html).toContain("Question");
-    expect(html).not.toContain('href="#/tasks/');
+    expect(html).not.toContain('href="#/taches/');
   });
 
   it("indisponible : la page reste utilisable et l'état est nommé", () => {

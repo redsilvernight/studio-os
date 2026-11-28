@@ -19,10 +19,10 @@ const content = {
 describe("Savoir-faire Hooks", () => {
   it("ouvre les listes et détails depuis le sixième type", () => {
     expect(kindFromSlug("hooks")?.kind).toBe("hook");
-    expect(libraryKindHref("hook", "h1")).toBe("#/library/hooks/h1");
-    expect(parseRoute("#/library/hooks")).toEqual({ name: "library", kind: "hooks" });
-    expect(parseRoute("#/library/hooks/h1")).toEqual({ name: "libraryDetail", kind: "hooks", id: "h1" });
-    expect(libraryRootHtml()).toContain('href="#/library/hooks"');
+    expect(libraryKindHref("hook", "h1")).toBe("#/connaissances/savoir-faire/hooks/h1");
+    expect(parseRoute("#/connaissances/savoir-faire/hooks")).toEqual({ name: "library", kind: "hooks" });
+    expect(parseRoute("#/connaissances/savoir-faire/hooks/h1")).toEqual({ name: "libraryDetail", kind: "hooks", id: "h1" });
+    expect(libraryRootHtml()).toContain('href="#/connaissances/savoir-faire/hooks"');
   });
 
   it("présente toutes les variantes de script dans le détail", () => {

@@ -11,12 +11,12 @@ import { login, newCaptured, P1, T1, watchErrors, expectClean, globalOverflow } 
 
 const ROUTES_A11Y = [
   { name: "Accueil", hash: "#/" },
-  { name: "Projets", hash: "#/projects" },
-  { name: "Travail", hash: "#/tasks" },
-  { name: "Fiche tâche", hash: `#/tasks/${T1}` },
-  { name: "À valider", hash: "#/decisions" },
-  { name: "Agents", hash: "#/agents" },
-  { name: "Roadmap", hash: `#/projects/${P1}/roadmap` },
+  { name: "Projets", hash: "#/projets" },
+  { name: "Travail", hash: "#/taches" },
+  { name: "Fiche tâche", hash: `#/taches/${T1}` },
+  { name: "À valider", hash: "#/a-valider" },
+  { name: "Agents", hash: "#/equipe-ia" },
+  { name: "Roadmap", hash: `#/projets/${P1}/plan` },
 ] as const;
 
 const ZOOM_VIEWPORT = { width: 720, height: 450 };
