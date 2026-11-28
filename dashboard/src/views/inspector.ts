@@ -229,13 +229,13 @@ export function runtimeHtml(runtime: ResolvedRuntime | null | undefined): string
   const target = runtime.target;
   const refs = [
     target.runtime_id !== null && target.runtime_id !== undefined
-      ? `Moteur IA registry : ${configLink(`#/configuration/runtimes/${target.runtime_id}`, target.runtime_id)}`
+      ? `Moteur IA registry : ${configLink(`#/reglages/moteurs/${target.runtime_id}`, target.runtime_id)}`
       : null,
     target.harness_ref !== null && target.harness_ref !== undefined ? `Harness : <code class="mono">${esc(target.harness_ref)}</code>` : null,
     target.provider_ref !== null && target.provider_ref !== undefined ? `Provider : <code class="mono">${esc(target.provider_ref)}</code>` : null,
     target.model_ref !== null && target.model_ref !== undefined ? `Model : <code class="mono">${esc(target.model_ref)}</code>` : null,
     target.machine_id !== null && target.machine_id !== undefined
-      ? `Machine : ${esc(target.machine_id)} (<a href="#/machines">voir Machines</a>)`
+      ? `Machine : ${esc(target.machine_id)} (<a href="#/reglages/appareils">voir Machines</a>)`
       : null,
   ]
     .filter((part): part is string => part !== null)

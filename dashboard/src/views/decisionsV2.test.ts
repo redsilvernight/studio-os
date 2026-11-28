@@ -402,8 +402,8 @@ describe("reviewCardActions — au plus deux actions par carte", () => {
     const actions = reviewCardActions(firstCard(roadmapItem({ scope: "revision", revisionNo: 2 })), true, true);
     expect(actions).toHaveLength(2);
     expect(actions[0]).toMatchObject({ label: "Relire la révision 2", element: "link" });
-    expect(actions[0]!.attribute).toBe(`href="#/projects/${P1}/roadmap/${R1}"`);
-    expect(actions[1]!.attribute).toBe(`href="#/projects/${P1}/roadmap"`);
+    expect(actions[0]!.attribute).toBe(`href="#/projets/${P1}/plan/${R1}"`);
+    expect(actions[1]!.attribute).toBe(`href="#/projets/${P1}/plan"`);
   });
 
   it.each([
@@ -470,8 +470,8 @@ describe("reviewCardHtml — une structure pour les six types", () => {
   it("travail IA : nom d'agent humain, liens projet et tâche, pas d'identifiant", () => {
     const html = reviewCardHtml(firstCard(aiWorkItem()), true, true);
     expect(html).toContain("Relire la sortie agent");
-    expect(html).toContain(`href="#/tasks/${T1}"`);
-    expect(html).toContain('href="#/projects/');
+    expect(html).toContain(`href="#/taches/${T1}"`);
+    expect(html).toContain('href="#/projets/');
     expect(visibleText(html)).not.toContain(A1);
   });
 });
@@ -486,7 +486,7 @@ describe("héros de la file", () => {
     expect(html).toContain('data-decision-accept="rw2"');
     expect(html).toContain('data-decision-supersede="rw2"');
     expect(html).toContain("Écarter la proposition");
-    expect(html).toContain(`href="#/projects/${P1}"`);
+    expect(html).toContain(`href="#/projets/${P1}"`);
     expect(html).not.toContain("Contenu indisponible");
   });
 
@@ -513,7 +513,7 @@ describe("reviewQueueHtml — boîte de réception", () => {
     expect(html).toContain('data-review-filter="all"');
     expect(html).not.toContain("À valider par type");
     expect(html).not.toContain("incidents");
-    expect(html).not.toContain('href="#/decisions"');
+    expect(html).not.toContain('href="#/a-valider"');
   });
 
   it("chaque objet apparaît une seule fois : héros + cartes", () => {
@@ -553,13 +553,13 @@ describe("reviewQueueHtml — boîte de réception", () => {
     const html = reviewQueueHtml({ items: [], generated_at: "" }, { authed: true, isAdmin: true });
     expect(html).toContain("Rien à valider");
     expect(html).toContain("Aucun élément n'attend une décision humaine");
-    expect(html).not.toContain('href="#/decisions"');
+    expect(html).not.toContain('href="#/a-valider"');
   });
 
   it("espace projet : propose la file globale", () => {
     const html = reviewQueueHtml({ items: [], generated_at: "" }, { authed: true, isAdmin: true, projectId: P1 });
     expect(html).toContain("Voir la file globale");
-    expect(html).toContain('href="#/decisions"');
+    expect(html).toContain('href="#/a-valider"');
   });
 
   it("erreur : notice danger sans jargon technique", () => {
@@ -598,7 +598,7 @@ describe("decisionHtml", () => {
 
   it("proposé par agent : lien vers fiche agent + badge IA", () => {
     const html = decisionHtml(decision(), true, true);
-    expect(html).toContain('href="#/agents/');
+    expect(html).toContain('href="#/equipe-ia/');
     expect(html).toContain("ds-badge--ai");
   });
 
@@ -622,8 +622,8 @@ describe("decisionHtml", () => {
 
   it("liens projet et tâche quand présents", () => {
     const html = decisionHtml(decision(), true, true);
-    expect(html).toContain(`href="#/projects/${P1}"`);
-    expect(html).toContain(`href="#/tasks/${T1}"`);
+    expect(html).toContain(`href="#/projets/${P1}"`);
+    expect(html).toContain(`href="#/taches/${T1}"`);
   });
 
   it("sans projet ni tâche : aucun lien ni tiret de remplissage", () => {
@@ -631,14 +631,14 @@ describe("decisionHtml", () => {
     const html = decisionHtml(d, true, true);
     expect(html).not.toContain("Projet:");
     expect(html).not.toContain("Tâche:");
-    expect(html).not.toContain('href="#/projects/');
-    expect(html).not.toContain('href="#/tasks/');
+    expect(html).not.toContain('href="#/projets/');
+    expect(html).not.toContain('href="#/taches/');
   });
 
   it("espace projet : pas de lien projet redondant", () => {
     const html = decisionHtml(decision(), true, true, { showProject: false });
-    expect(html).not.toContain(`href="#/projects/${P1}"`);
-    expect(html).toContain(`href="#/tasks/${T1}"`);
+    expect(html).not.toContain(`href="#/projets/${P1}"`);
+    expect(html).toContain(`href="#/taches/${T1}"`);
   });
 
   it("dernière décision : mise en avant", () => {

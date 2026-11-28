@@ -47,16 +47,16 @@ for (const { width, rail } of WIDTHS) {
     await expect(daily).toHaveCount(7);
     expect(await daily.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")))).toEqual([
       "#/",
-      "#/projects",
-      "#/tasks",
-      "#/decisions",
-      "#/agents",
-      "#/library",
-      "#/vault",
+      "#/projets",
+      "#/taches",
+      "#/a-valider",
+      "#/equipe-ia",
+      "#/connaissances/savoir-faire",
+      "#/connaissances/notes",
     ]);
     for (const link of await daily.all()) await expect(link).toBeVisible();
-    await expect(page.locator('.app-sidebar a[href="#/decisions"] .app-lbl-short')).toBeVisible({ visible: rail });
-    await expect(page.locator('.app-sidebar a[href="#/decisions"]')).toHaveAccessibleName("À valider");
+    await expect(page.locator('.app-sidebar a[href="#/a-valider"] .app-lbl-short')).toBeVisible({ visible: rail });
+    await expect(page.locator('.app-sidebar a[href="#/a-valider"]')).toHaveAccessibleName("À valider");
 
     // Studio sits below the daily group, separated at the foot (E1 mockup).
     const studio = page.locator("section.app-navgroup--admin");
@@ -67,12 +67,12 @@ for (const { width, rail } of WIDTHS) {
     expect((studioBox?.y ?? 0) - ((dailyBox?.y ?? 0) + (dailyBox?.height ?? 0))).toBeGreaterThanOrEqual(8);
     await expect(page.locator(".app-nav > .app-navgroup").last()).toHaveClass(/app-navgroup--admin/);
     await expect(studio.locator("a.app-navlink")).toHaveCount(3);
-    for (const href of ["#/administration", "#/abonnement", "#/aide"]) {
+    for (const href of ["#/reglages", "#/abonnement", "#/aide"]) {
       await expect(page.locator(`.app-sidebar a[href="${href}"]`)).toHaveCount(1);
     }
     // Expert families live in Réglages, no longer in a sidebar details group.
     await expect(page.locator(".app-sidebar details")).toHaveCount(0);
-    await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveCount(0);
+    await expect(page.locator('.app-sidebar a[href="#/reglages/dossiers"]')).toHaveCount(0);
 
     // Exactly one connection status, in the avatar block; no top bar on desktop.
     await expect(page.locator('[data-testid="connection-status"]')).toHaveCount(1);
@@ -95,15 +95,15 @@ test("Ctrl K opens the « Aller à… » palette and navigates to the Studio gro
   await expect(options).toHaveCount(0);
   await input.fill("réglages");
   await expect(options).toHaveCount(1);
-  await expect(options.first()).toHaveAttribute("data-href", "#/administration");
+  await expect(options.first()).toHaveAttribute("data-href", "#/reglages");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/#\/administration$/);
+  await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.locator("#app-palette")).toBeHidden();
 
   // The former "configuration" destination stays one click away in Réglages.
   await expect(page.locator("#view h1")).toContainText("Réglages");
-  await page.locator('#view .admin-fams a[href="#/configuration/runtimes"]').click();
-  await expect(page).toHaveURL(/#\/configuration\/runtimes$/);
+  await page.locator('#view .admin-fams a[href="#/reglages/moteurs"]').click();
+  await expect(page).toHaveURL(/#\/reglages\/moteurs$/);
 
   await page.locator("#palette-open").click();
   await expect(input).toBeFocused();
@@ -115,10 +115,10 @@ test("Ctrl K opens the « Aller à… » palette and navigates to the Studio gro
 test("P05-admin overview: one entry, six families, no identifier by default", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await login(page);
-  await page.goto("/#/administration");
+  await page.goto("/#/reglages");
   const view = page.locator("#view");
   await expect(view.locator("h1")).toContainText("Réglages");
-  for (const href of ["#/machines", "#/accounts", "#/transfers", "#/library", "#/configuration/runtimes", "#/workspaces"]) {
+  for (const href of ["#/reglages/appareils", "#/reglages/equipe-acces", "#/fichiers", "#/connaissances/savoir-faire", "#/reglages/moteurs", "#/reglages/dossiers"]) {
     await expect(view.locator(`a[href="${href}"]`).first()).toBeVisible();
   }
   await expect(view).not.toContainText("Connecté");

@@ -11,10 +11,10 @@ const LEGACY = [
 /** Mots courants en minuscule (« configuration » d'un réglage…) : seule la forme titre est interdite. */
 const EXACT = new Set(["Configuration", "Administration", "Library"]);
 const ROUTES = [
-  "#/", "#/projects", `#/projects/${P1}`, `#/projects/${P1}/tasks`, `#/projects/${P1}/claims`, `#/projects/${P1}/activity`,
-  `#/projects/${P1}/decisions`, "#/tasks", `#/tasks/${T1}`, "#/agents", "#/agents/ag-claude", "#/library", "#/library/rules",
-  `#/library/rules/${LIB_ID}`, "#/decisions", "#/machines", "#/accounts", "#/administration", "#/transfers", "#/inspector",
-  "#/configuration/runtimes", "#/configuration/runtimes/rt1", "#/configuration/bindings", "#/configuration/project",
+  "#/", "#/projets", `#/projets/${P1}`, `#/projets/${P1}/taches`, `#/projets/${P1}/reservations`, `#/projets/${P1}/activite`,
+  `#/projets/${P1}/decisions`, "#/taches", `#/taches/${T1}`, "#/equipe-ia", "#/equipe-ia/ag-claude", "#/connaissances/savoir-faire", "#/connaissances/savoir-faire/rules",
+  `#/connaissances/savoir-faire/rules/${LIB_ID}`, "#/a-valider", "#/reglages/appareils", "#/reglages/equipe-acces", "#/reglages", "#/fichiers", "#/reglages/avance/inspecteur",
+  "#/reglages/moteurs", "#/reglages/moteurs/rt1", "#/reglages/moteurs/affectations", "#/reglages/avance/projet",
 ];
 
 test("R2-modes : mode Simple, aucun terme de l'ancien lexique sur les routes", async ({ page }) => {
@@ -38,7 +38,7 @@ test("R2-modes : mode Expert annote les termes, ouvre les détails techniques, S
   const watch = watchErrors(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, "#/", newCaptured());
-  await go(page, "#/configuration/runtimes/rt1");
+  await go(page, "#/reglages/moteurs/rt1");
   const closed = page.locator("details.settings-technical:not([open])");
   expect(await closed.count()).toBeGreaterThan(0);
   await page.evaluate(() => {
@@ -46,10 +46,10 @@ test("R2-modes : mode Expert annote les termes, ouvre les détails techniques, S
     document.dispatchEvent(new CustomEvent("ui-mode-change", { detail: "expert" }));
   });
   expect(await page.locator("details.settings-technical:not([open])").count()).toBe(0);
-  await go(page, "#/tasks");
-  await go(page, "#/library");
+  await go(page, "#/taches");
+  await go(page, "#/connaissances/savoir-faire");
   expect(await page.locator("#view [data-lx-tech]").count()).toBeGreaterThan(0);
-  await go(page, "#/configuration/runtimes/rt1");
+  await go(page, "#/reglages/moteurs/rt1");
   await page.evaluate(() => {
     localStorage.setItem("studio-os.ui-mode", "simple");
     document.dispatchEvent(new CustomEvent("ui-mode-change", { detail: "simple" }));

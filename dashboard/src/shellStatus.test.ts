@@ -99,7 +99,7 @@ describe("daemon summary consumes the P1 states without inventing any", () => {
 describe("rendering", () => {
   it("renders one accessible link to the details page, escaped", () => {
     const html = shellStatusHtml({ level: "warn", reason: "auth_expired", label: "Session <expirée>" });
-    expect(html).toContain('href="#/configuration/application"');
+    expect(html).toContain('href="#/reglages/application"');
     expect(html).toContain('role="status"');
     expect(html).toContain("&lt;expirée&gt;");
     expect(html).not.toContain("style=");

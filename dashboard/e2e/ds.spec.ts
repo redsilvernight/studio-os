@@ -1,6 +1,6 @@
 /**
  * UI-1 Design System browser test (DEC-0078): the internal
- * `#/design-system` route renders every primitive family, keyboard
+ * `#/reglages/avance/design-system` route renders every primitive family, keyboard
  * contracts hold (skip-link, tabs arrows, dialog Escape + focus
  * return, toast live region), with zero CSP violations and zero
  * page errors.
@@ -28,7 +28,7 @@ test("design-system primitives render and behave (keyboard + live region)", asyn
     }
     // Same shapes as e2e/csp.spec.ts: the shell first renders the
     // dashboard (review-queue expects {items}, transfers expects an
-    // object) before the hash switches to #/design-system.
+    // object) before the hash switches to #/reglages/avance/design-system.
     if (url.includes("/api/v1/review-queue")) {
       await json(200, { items: [] });
       return;
@@ -43,7 +43,7 @@ test("design-system primitives render and behave (keyboard + live region)", asyn
   // Start directly on the internal hash: after login the shell renders
   // this route immediately, so the dashboard overview (async) never
   // paints over the demo mid-test (pre-existing shell race, all routes).
-  await page.goto("/#/design-system");
+  await page.goto("/#/reglages/avance/design-system");
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");

@@ -90,7 +90,7 @@ const blank: VaultListState = {
 
 /* ---------------- Liste : portée, recherche, filtres ---------------- */
 
-describe("vaultPageHtml (page #/vault)", () => {
+describe("vaultPageHtml (page #/connaissances/notes)", () => {
   it("bascule entre les portées studio et projet", () => {
     const studio = vaultPageHtml(blank, [], [], { searching: false });
     expect(studio).toContain('data-vault-scope="studio" aria-pressed="true"');
@@ -157,7 +157,7 @@ describe("vaultPageHtml (page #/vault)", () => {
 describe("vaultItemHtml / vaultListHtml", () => {
   it("relie la note et montre portée, type, statut et version", () => {
     const html = vaultItemHtml(summary());
-    expect(html).toContain(`href="#/vault/${NOTE_ID}"`);
+    expect(html).toContain(`href="#/connaissances/notes/${NOTE_ID}"`);
     expect(html).toContain("Stratégie de cache");
     expect(html).toContain("cache-strategy");
     expect(html).toContain("DEC-001");
@@ -252,7 +252,7 @@ describe("vaultDetailHtml", () => {
   });
 
   it("montre liens et ancres", () => {
-    expect(html).toContain('href="#/vault/33333333-3333-4333-8333-333333333333"');
+    expect(html).toContain('href="#/connaissances/notes/33333333-3333-4333-8333-333333333333"');
     expect(html).toContain("src/cache.ts");
     expect(html).toContain("Renvoie vers");
   });

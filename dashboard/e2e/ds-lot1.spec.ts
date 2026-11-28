@@ -1,5 +1,5 @@
 /**
- * R1-composants : chaque composant du lot 1 sur #/design-system, clair et
+ * R1-composants : chaque composant du lot 1 sur #/reglages/avance/design-system, clair et
  * sombre — zéro violation axe, clavier du sélecteur, capture de référence
  * par composant (jointe au rapport Playwright, donc archivée par la CI).
  */
@@ -19,7 +19,7 @@ async function open(page: Page, theme: "light" | "dark"): Promise<void> {
     return json([]);
   });
   await page.emulateMedia({ colorScheme: theme });
-  await page.goto("/#/design-system");
+  await page.goto("/#/reglages/avance/design-system");
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();

@@ -1,5 +1,5 @@
 /**
- * P3-detected — « Dépôts détectés non suivis » sur #/workspaces (Desktop).
+ * P3-detected — « Dépôts détectés non suivis » sur #/reglages/dossiers (Desktop).
  *
  * Web : la page reste une notice Desktop, sans pont ni section détectée.
  * Desktop : un `invoke` Tauri simulé joue le pont local (commandes
@@ -112,7 +112,7 @@ async function installDesktop(page: Page): Promise<void> {
 async function login(page: Page, role: string, repositoriesStatus: number): Promise<string[]> {
   const { stub, calls } = await apiStub(role, repositoriesStatus);
   await page.route("**/api/**", stub);
-  await page.goto("/#/workspaces");
+  await page.goto("/#/reglages/dossiers");
   await expect(page.locator("#login-form")).toBeVisible({ timeout: 15_000 });
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
@@ -133,7 +133,7 @@ test.describe("workspaces P3-detected (web)", () => {
     });
     const { stub } = await apiStub("admin", 201);
     await page.route("**/api/**", stub);
-    await page.goto("/#/workspaces");
+    await page.goto("/#/reglages/dossiers");
     await expect(page.locator("#login-form")).toBeVisible({ timeout: 15_000 });
     await page.fill("#login-email", "e2e@example.test");
     await page.fill("#login-password", "e2e-secret");

@@ -105,7 +105,7 @@ describe("mountPalette", () => {
     input.dispatchEvent(new Event("input"));
     expect(document.querySelectorAll("#app-palette-list [role=option]")).toHaveLength(1);
     key(input, { key: "Enter" });
-    expect(location.hash).toBe("#/decisions");
+    expect(location.hash).toBe("#/a-valider");
     expect(isPaletteOpen()).toBe(false);
   });
 

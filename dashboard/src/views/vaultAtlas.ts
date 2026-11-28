@@ -7,7 +7,7 @@
  * - Rendu : moteur Canvas 2D maison (`createAtlasRenderer`), sans dépendance
  *   ni worker ; canevas sombre, couleurs lues dans les variables `--atlas-*`.
  * - Détail : panneau non modal à côté du canevas (voisins cliquables) ;
- *   « Ouvrir » mène à la note dans la vue Liste (`#/vault/{id}`).
+ *   « Ouvrir » mène à la note dans la vue Liste (`#/connaissances/notes/{id}`).
  * - Accessibilité : la liste « Notes visibles » est l'alternative clavier
  *   au canevas ; `prefers-reduced-motion` coupe les vols de caméra.
  */
@@ -266,7 +266,7 @@ export function atlasDetailHtml(graph: AtlasGraph, id: string | null): string {
     }).join("")}</ul>`;
   if (node.kind === "satellite") {
     const open = node.anchorType === "task"
-      ? `<a class="ds-btn ds-btn--sm" href="#/tasks/${encodeURIComponent(node.label)}">Ouvrir la tâche</a>`
+      ? `<a class="ds-btn ds-btn--sm" href="#/taches/${encodeURIComponent(node.label)}">Ouvrir la tâche</a>`
       : "";
     return `<h2 class="vault-atlas-detail-title">${esc(nodeTitle(node))}</h2>` +
       `<p class="ds-list-sub">${node.anchorType === "task" ? "Tâche ancrée" : "Chemin ancré"} : <code class="mono">${esc(node.label)}</code></p>` +
@@ -277,7 +277,7 @@ export function atlasDetailHtml(graph: AtlasGraph, id: string | null): string {
     `<p>${dsBadge(VAULT_TYPE_LABEL[node.noteType as VaultNoteType] ?? node.noteType)} ${dsBadge(VAULT_STATUS_LABEL[node.status] ?? node.status)} ` +
     `<span class="ds-list-sub">${esc(vaultScopeLabel(node.scope))}</span></p>` +
     (node.summary.trim() === "" ? "" : `<p>${esc(node.summary)}</p>`) +
-    `<a class="ds-btn ds-btn--sm ds-btn--primary" href="#/vault/${encodeURIComponent(node.id)}">Ouvrir dans la liste</a>` +
+    `<a class="ds-btn ds-btn--sm ds-btn--primary" href="#/connaissances/notes/${encodeURIComponent(node.id)}">Ouvrir dans la liste</a>` +
     `<h3 class="vault-atlas-subtitle">Voisins (${neighborIds.length})</h3>${neighbors}`;
 }
 
@@ -605,7 +605,7 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
 
   // Le canevas quitte le DOM au changement de route : on arrête le moteur.
   const stopWhenLeft = (): void => {
-    if (location.hash === "#/vault/atlas" && root.contains(root.querySelector("#atlas-canvas"))) return;
+    if (location.hash === "#/connaissances/carte" && root.contains(root.querySelector("#atlas-canvas"))) return;
     renderer?.destroy();
     renderer = null;
     window.removeEventListener("hashchange", stopWhenLeft);

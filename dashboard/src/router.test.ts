@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { canonicalHash } from "./routeAliases";
 import { parseRoute } from "./router";
 
 describe("parseRoute", () => {
@@ -109,5 +110,66 @@ describe("parseRoute", () => {
   it("parses the P11 first-run assistant route (desktop only, no nav entry)", () => {
     expect(parseRoute("#/bienvenue")).toEqual({ name: "onboarding" });
     expect(parseRoute("#/bienvenue/extra")).toEqual({ name: "notFound", hash: "#/bienvenue/extra" });
+  });
+});
+
+describe("adresses et redirections (R2-adresses, DEC-0394)", () => {
+  const redirects: Array<[old: string, next: string]> = [
+    ["#/projects", "#/projets"],
+    ["#/projects/p1", "#/projets/p1"],
+    ["#/projects/p1/roadmap/r1", "#/projets/p1/plan/r1"],
+    ["#/projects/p1/mission", "#/projets/p1/executions"],
+    ["#/projects/p1/tasks", "#/projets/p1/taches"],
+    ["#/projects/p1/claims", "#/projets/p1/reservations"],
+    ["#/projects/p1/activity", "#/projets/p1/activite"],
+    ["#/projects/p1/history", "#/projets/p1/historique"],
+    ["#/projects/p1/decisions", "#/projets/p1/decisions"],
+    ["#/projects/p1/members", "#/projets/p1/equipe"],
+    ["#/projects/p1/ai-integration", "#/projets/p1/integration-ia"],
+    ["#/tasks", "#/taches"],
+    ["#/tasks/t1", "#/taches/t1"],
+    ["#/decisions", "#/a-valider"],
+    ["#/agents", "#/equipe-ia"],
+    ["#/agents/a1", "#/equipe-ia/a1"],
+    ["#/library", "#/connaissances/savoir-faire"],
+    ["#/vault", "#/connaissances/notes"],
+    ["#/vault/n1", "#/connaissances/notes/n1"],
+    ["#/vault/atlas", "#/connaissances/carte"],
+    ["#/graphs", "#/connaissances/carte"],
+    ["#/graphs/abc", "#/connaissances/carte"],
+    ["#/inspector/a%2Fb", "#/reglages/avance/inspecteur/a%2Fb"],
+    ["#/transfers", "#/fichiers"],
+    ["#/administration", "#/reglages"],
+    ["#/admin", "#/reglages"],
+    ["#/administration/mesures", "#/reglages/mesures"],
+    ["#/admin/mesures", "#/reglages/mesures"],
+    ["#/accounts", "#/reglages/equipe-acces"],
+    ["#/machines", "#/reglages/appareils"],
+    ["#/configuration", "#/reglages/moteurs"],
+    ["#/configuration/runtimes", "#/reglages/moteurs"],
+    ["#/configuration/runtimes/rt1", "#/reglages/moteurs/rt1"],
+    ["#/configuration/bindings", "#/reglages/moteurs/affectations"],
+    ["#/configuration/integrations?workspace=w1", "#/reglages/connexions-ia?workspace=w1"],
+    ["#/configuration/application", "#/reglages/application"],
+    ["#/configuration/project", "#/reglages/avance/projet"],
+    ["#/design-system", "#/reglages/avance/design-system"],
+    ["#/workspaces", "#/reglages/dossiers"],
+  ];
+
+  it.each(redirects)("%s redirige vers %s, qui ouvre la même page", (old, next) => {
+    expect(canonicalHash(old)).toBe(next);
+    expect(canonicalHash(next)).toBe(next);
+    expect(parseRoute(next)).toEqual(parseRoute(old));
+    expect(parseRoute(next).name).not.toBe("notFound");
+  });
+
+  it("laisse intact le lien d'invitation envoyé par e-mail", () => {
+    const link = "#/invitations/accept/tok";
+    expect(canonicalHash(link)).toBe(link);
+    expect(parseRoute(link)).toEqual({ name: "invitationAccept", token: "tok" });
+  });
+
+  it("garde en 404 une ancienne adresse inconnue", () => {
+    expect(parseRoute("#/configuration/nope").name).toBe("notFound");
   });
 });

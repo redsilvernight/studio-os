@@ -107,14 +107,14 @@ export function agentSignalHtml(activity: AgentActivity): string {
 
 function taskLinkHtml(task: AgentTask | undefined, fallbackId: string): string {
   if (task === undefined) return `<span class="actor-name actor-name--unknown">${esc(FALLBACK_LABEL.task)}</span>`;
-  return `<a href="#/tasks/${esc(task.id)}">« ${esc(task.title)} »</a>`;
+  return `<a href="#/taches/${esc(task.id)}">« ${esc(task.title)} »</a>`;
 }
 
 function projectSuffixHtml(names: AgentNames, projectId: string | null | undefined): string {
   if (projectId === null || projectId === undefined) return "";
   const name = projectName(names, projectId);
   if (name === null) return "";
-  return ` — <a href="#/projects/${esc(projectId)}">${esc(name)}</a>`;
+  return ` — <a href="#/projets/${esc(projectId)}">${esc(name)}</a>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -281,7 +281,7 @@ export function agentRowHtml(
     : (primaryProject !== null ? `Rôle non renseigné · ${primaryProject.name}` : "Rôle non renseigné · aucun projet");
   const sub = identityNote !== null ? `${base} · ${identityNote}` : base;
   return (
-    `<li class="agent-row"><a class="agent-row-link" href="#/agents/${esc(agent.id)}">` +
+    `<li class="agent-row"><a class="agent-row-link" href="#/equipe-ia/${esc(agent.id)}">` +
     `${dsStatusDot(agentDotState(activity), agentDotLabel(activity), true)}` +
     `<span class="grow"><span class="agent-row-name">${esc(name)}</span>` +
     `<span class="ds-list-sub">${esc(sub)}</span></span>` +
@@ -395,13 +395,13 @@ export function agentHeroHtml(target: AgentHeroTarget): string {
       ? `Ouvrir le travail « ${target.taskTitle} »`
       : "Ouvrir le travail";
     const secondary = target.projectId !== null && target.projectName !== null
-      ? `<a class="ds-hero-link" href="#/projects/${esc(target.projectId)}">Ouvrir le projet « ${esc(target.projectName)} »</a>`
+      ? `<a class="ds-hero-link" href="#/projets/${esc(target.projectId)}">Ouvrir le projet « ${esc(target.projectName)} »</a>`
       : "";
     actions =
-      `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="#/tasks/${esc(target.taskId)}">${esc(primaryLabel)}</a>${secondary}</div>`;
+      `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="#/taches/${esc(target.taskId)}">${esc(primaryLabel)}</a>${secondary}</div>`;
   } else if (target.projectId !== null && target.projectName !== null) {
     actions =
-      `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="#/projects/${esc(target.projectId)}">Ouvrir le projet « ${esc(target.projectName)} »</a></div>`;
+      `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="#/projets/${esc(target.projectId)}">Ouvrir le projet « ${esc(target.projectName)} »</a></div>`;
   }
   return (
     `<section class="ds-hero agent-hero" aria-label="Travail actuel">` +
@@ -573,7 +573,7 @@ export async function renderAgents(root: HTMLElement, ctx: AgentsContext): Promi
 export function agentNotFoundHtml(id: string): string {
   return (
     `${dsPageHeader("Agent introuvable", "")}` +
-    `<p><a href="#/agents">← Retour aux agents</a></p>` +
+    `<p><a href="#/equipe-ia">← Retour aux agents</a></p>` +
     dsEmptyState("Agent introuvable", `Cet agent n'apparaît pas parmi les agents chargés. Il a peut-être été révoqué, ou votre jeton ne le voit pas.`)
   );
 }
@@ -653,7 +653,7 @@ export function agentDetailHtml(
     value !== null && value !== undefined && value.trim() !== "" ? value : "—";
 
   return (
-    `<p><a href="#/agents">← Retour aux agents</a></p>` +
+    `<p><a href="#/equipe-ia">← Retour aux agents</a></p>` +
     `${dsPageHeader(name, subtitle)}` +
     `${agentHeroHtml(hero)}` +
     `<section class="ds-panel" aria-label="Activité"><header><h2>Activité</h2></header><div class="body" role="status">${agentSignalHtml(activity)}</div></section>` +
@@ -670,9 +670,9 @@ export function agentDetailHtml(
     `<section class="ds-panel" aria-label="Environnement"><header><h2>Environnement</h2></header><div class="body">` +
     (agent.owner_user_id
       ? `<p>Identité réutilisable sur les postes autorisés de cet utilisateur. La machine d'exécution figure dans chaque session.</p>`
-      : `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>`) +
-    `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
-    `<p class="ds-list-sub">Aucun profil d'agent n'est associé : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Savoir-faire</a>. Aucune réglage détaillé de moteur IA ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
+      : `<p>Exécuté sur la machine <a href="#/reglages/appareils">${machineRef(agent.machine_id)}</a>.</p>`) +
+    `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/reglages/appareils">Machines</a> pour l'environnement d'exécution.</p>` +
+    `<p class="ds-list-sub">Aucun profil d'agent n'est associé : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/connaissances/savoir-faire/agent-definitions">Savoir-faire</a>. Aucune réglage détaillé de moteur IA ici : voir <a href="#/reglages/moteurs">Paramètres</a>.</p>` +
     `</div></section>` +
     dsTechDetails(
       [
@@ -704,7 +704,7 @@ export function agentDetailHtml(
     ) +
     `<section class="ds-panel agent-admin" aria-label="${UI_LABEL.administration}"><header><h2>Réglages</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
     `<p class="ds-list-sub">Réglages sensibles : ils ne changent pas le statut du jour et restent ici, hors du flux de travail. Renommer et révoquer se font depuis la machine d'exécution — il n'y a aucune action à distance ici.</p>` +
-    `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres d'exécution</a></p>` +
+    `<p class="agent-admin-actions"><a class="ds-btn" href="#/reglages/appareils">Voir la machine</a> <a class="ds-btn" href="#/reglages/moteurs">Paramètres d'exécution</a></p>` +
     `</div></section>`
   );
 }

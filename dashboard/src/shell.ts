@@ -90,16 +90,16 @@ export function shellNavGroups(
   void mode;
   const main: ShellNavItem[] = [
     { href: "#/", label: "Aujourd'hui", short: "Auj.", icon: "home", active: is("dashboard") },
-    { href: "#/projects", label: "Projets", icon: "folder", active: is("projects", "project") },
-    { href: "#/tasks", label: "Tâches", icon: "tasks", active: is("tasks", "task") },
-    { href: "#/decisions", label: "À valider", short: "Valider", icon: "decision", active: is("decisions") },
-    { href: "#/agents", label: "Équipe IA", short: "Équipe", icon: "agents", active: is("agents", "agent", "inspector") },
-    { href: "#/library", label: "Connaissances", short: "Savoirs", icon: "book", active: is("library", "libraryDetail") },
-    { href: "#/vault", label: "Fichiers", icon: "file", active: is("vault", "vaultDetail", "vaultAtlas") },
+    { href: "#/projets", label: "Projets", icon: "folder", active: is("projects", "project") },
+    { href: "#/taches", label: "Tâches", icon: "tasks", active: is("tasks", "task") },
+    { href: "#/a-valider", label: "À valider", short: "Valider", icon: "decision", active: is("decisions") },
+    { href: "#/equipe-ia", label: "Équipe IA", short: "Équipe", icon: "agents", active: is("agents", "agent", "inspector") },
+    { href: "#/connaissances/savoir-faire", label: "Connaissances", short: "Savoirs", icon: "book", active: is("library", "libraryDetail") },
+    { href: "#/connaissances/notes", label: "Fichiers", icon: "file", active: is("vault", "vaultDetail", "vaultAtlas") },
   ];
   const studio: ShellNavItem[] = [
     {
-      href: "#/administration",
+      href: "#/reglages",
       label: "Réglages",
       icon: "settings",
       active: is(
@@ -347,6 +347,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
     <div id="studio-suspended-banner" class="studio-suspended-banner" hidden></div>
     <div id="client-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
     <div id="desktop-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
+    <div id="breadcrumb-slot"></div>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>

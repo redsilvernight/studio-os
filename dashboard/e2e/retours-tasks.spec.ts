@@ -57,7 +57,7 @@ async function fixture(page: Page, hash: string, role = "admin", coordination = 
 
 test("Kanban exhaustif, terminées sur demande et actions alignées dans le projet", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  const { queries, writes } = await fixture(page, `#/projects/${projectId}/tasks`);
+  const { queries, writes } = await fixture(page, `#/projets/${projectId}/taches`);
   await expect(page.locator("#view")).not.toContainText("même présentation");
   const create = page.locator("#task-new");
   const scopes = page.locator(".tasks-scope-tabs");
@@ -91,10 +91,10 @@ test("Kanban exhaustif, terminées sur demande et actions alignées dans le proj
 });
 
 test("résumés projet cohérents : texte long, état vide et erreur restent lisibles", async ({ page }, testInfo) => {
-  const state = await fixture(page, `#/projects/${projectId}`, "admin", true);
+  const state = await fixture(page, `#/projets/${projectId}`, "admin", true);
   await expect(page.locator(".workspace-summary-card")).toHaveCount(3);
   await expect(page.locator("[data-coordination-intent]")).toContainText("Un blocage à traiter");
-  await expect(page.locator("[data-coordination-intent] a")).toHaveAttribute("href", "#/tasks/in_progress-224");
+  await expect(page.locator("[data-coordination-intent] a")).toHaveAttribute("href", "#/taches/in_progress-224");
   await expect(page.locator("[data-usage-unavailable]")).toContainText("Consommation indisponible");
   await page.setViewportSize({ width: 375, height: 812 });
   if ((await page.locator("#nav-open").getAttribute("aria-expanded")) === "true") await page.locator("#nav-close").click();
@@ -107,7 +107,7 @@ test("résumés projet cohérents : texte long, état vide et erreur restent lis
 });
 
 test("décision complète : écarter une proposition et lier un remplacement distinct", async ({ page }) => {
-  const { writes } = await fixture(page, "#/decisions");
+  const { writes } = await fixture(page, "#/a-valider");
   await expect(page.locator(".review-hero h2")).toHaveText("Une proposition précise");
   await expect(page.locator(".review-hero .decision-item-body")).toContainText("Fin de la décision.");
   await expect(page.locator(".review-hero [data-decision-accept]")).toBeEnabled();
@@ -124,7 +124,7 @@ test("décision complète : écarter une proposition et lier un remplacement dis
 });
 
 test("décisions : droits développeur conservés sur toutes les actions", async ({ page }) => {
-  await fixture(page, "#/decisions", "developer");
+  await fixture(page, "#/a-valider", "developer");
   await expect(page.locator(".review-hero [data-decision-accept]")).toBeDisabled();
   await expect(page.locator(".review-hero [data-decision-supersede]")).toBeDisabled();
   await expect(page.locator(".review-hero")).toContainText("Réservé au rôle admin");

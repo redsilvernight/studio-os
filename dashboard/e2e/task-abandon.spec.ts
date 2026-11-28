@@ -119,7 +119,7 @@ function apiStub(state: AbandonStub) {
 
 async function login(page: Page, state: AbandonStub): Promise<void> {
   await page.route("**/api/**", apiStub(state));
-  await page.goto(`/#/tasks/${TASK_ID}`);
+  await page.goto(`/#/taches/${TASK_ID}`);
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");

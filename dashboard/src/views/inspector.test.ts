@@ -205,10 +205,10 @@ describe("resolutionResultHtml", () => {
 
   it("cross-links rules/skills/profile to Library and the runtime to Settings", () => {
     const html = resolutionResultHtml(resolved());
-    expect(html).toContain("#/library/rules/r1");
-    expect(html).toContain("#/library/skills/s1");
-    expect(html).toContain("#/library/model-profiles/m1");
-    expect(html).toContain("#/configuration/runtimes/rt1");
+    expect(html).toContain("#/connaissances/savoir-faire/rules/r1");
+    expect(html).toContain("#/connaissances/savoir-faire/skills/s1");
+    expect(html).toContain("#/connaissances/savoir-faire/model-profiles/m1");
+    expect(html).toContain("#/reglages/moteurs/rt1");
   });
 
   it("prints the server's winner even when local data would suggest otherwise", () => {
@@ -252,7 +252,7 @@ describe("runtimeHtml / modelProfileHtml", () => {
     expect(html).toContain("opencode");
     expect(html).toContain("provider_a");
     expect(html).toContain("model_a");
-    expect(html).toContain("#/configuration/runtimes/rt1");
+    expect(html).toContain("#/reglages/moteurs/rt1");
   });
 
   it("shows a machine identity and links to Machines (no machine detail route)", () => {
@@ -260,15 +260,15 @@ describe("runtimeHtml / modelProfileHtml", () => {
     fixture.runtime!.target.machine_id = "m-1234567890abcdef";
     const html = runtimeHtml(fixture.runtime);
     expect(html).toContain("Machine :");
-    expect(html).toContain("#/machines");
-    expect(html).not.toContain("#/machines/");
+    expect(html).toContain("#/reglages/appareils");
+    expect(html).not.toContain("#/reglages/appareils/");
   });
 
   it("renders inline anchors when no runtime registry id", () => {
     const fixture = resolved();
     fixture.runtime!.target = { ...fixture.runtime!.target, runtime_id: null, harness_ref: "custom-harness", provider_ref: "custom-provider", model_ref: "custom-model" };
     const html = runtimeHtml(fixture.runtime);
-    expect(html).not.toContain("#/configuration/runtimes/");
+    expect(html).not.toContain("#/reglages/moteurs/");
     expect(html).toContain("custom-harness");
     expect(html).toContain("custom-provider");
     expect(html).toContain("custom-model");
@@ -321,7 +321,7 @@ describe("rulesTableHtml / skillsTableHtml", () => {
     const html = rulesTableHtml(resolved().rules);
     expect(html).toContain("applies rule");
     expect(html).toContain("review-helper");
-    expect(html).toContain("#/library/rules/r1");
+    expect(html).toContain("#/connaissances/savoir-faire/rules/r1");
     expect(html).toContain('class="ds-table-wrap"');
   });
 
@@ -342,7 +342,7 @@ describe("rulesTableHtml / skillsTableHtml", () => {
   it("links skills to the Library with their provenance reason", () => {
     const html = skillsTableHtml(resolved().skills);
     expect(html).toContain("code-review");
-    expect(html).toContain("#/library/skills/s1");
+    expect(html).toContain("#/connaissances/savoir-faire/skills/s1");
     expect(html).toContain("version pin");
   });
 });
@@ -433,7 +433,7 @@ describe("identityHtml", () => {
     expect(html).toContain("v4");
     expect(html).toContain("project lock");
     expect(html).toContain("Studio");
-    expect(html).toContain("#/library/agent-definitions/a1");
+    expect(html).toContain("#/connaissances/savoir-faire/agent-definitions/a1");
   });
 
   it("shows a deprecated badge when applicable", () => {
@@ -494,7 +494,7 @@ describe("French UI / CSP", () => {
 
 describe("Empty / Loading / Error structural states", () => {
   it("empty state explains purpose and offers an action", () => {
-    const html = dsEmptyState("Aucune inspection lancée", "Choisissez un champ puis lancez une résolution.", { label: "Nouvelle inspection", href: "#/inspector" });
+    const html = dsEmptyState("Aucune inspection lancée", "Choisissez un champ puis lancez une résolution.", { label: "Nouvelle inspection", href: "#/reglages/avance/inspecteur" });
     expect(html).toContain("Aucune inspection lancée");
     expect(html).toContain("Nouvelle inspection");
   });

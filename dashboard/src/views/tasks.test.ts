@@ -222,7 +222,7 @@ describe("tasksListHtml (vue par défaut)", () => {
   });
 
   it("chaque ligne ouvre le détail ; aucun menu de statut répété par ligne", () => {
-    expect(html).toContain('href="#/tasks/t1"');
+    expect(html).toContain('href="#/taches/t1"');
     expect(html).not.toContain("Déplacer vers…");
     expect(html).not.toContain("<select");
     expect(html).not.toContain("data-move");
@@ -287,7 +287,7 @@ describe("tasksBoardHtml", () => {
     expect(html).toContain('data-card="t1"');
     expect(html).toContain('data-version="1"');
     expect(html).toContain('data-status-current="created"');
-    expect(html).toContain('href="#/tasks/t2"');
+    expect(html).toContain('href="#/taches/t2"');
     expect(html).toContain("Déplacer vers…");
   });
 

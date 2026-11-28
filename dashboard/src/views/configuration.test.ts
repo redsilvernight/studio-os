@@ -72,13 +72,13 @@ const binding = (overrides: Partial<RuntimeBinding> = {}): RuntimeBinding =>
 describe("configTabsHtml", () => {
   it("liste les domaines réels (Moteurs IA / Affectations / Projet) en français", () => {
     const html = configTabsHtml("bindings");
-    expect(html).toContain("#/configuration/runtimes");
-    expect(html).toContain("#/configuration/bindings");
-    expect(html).toContain("#/configuration/project");
+    expect(html).toContain("#/reglages/moteurs");
+    expect(html).toContain("#/reglages/moteurs/affectations");
+    expect(html).toContain("#/reglages/avance/projet");
     expect(html).toContain("Moteurs IA");
     expect(html).toContain("Affectations");
     expect(html).toContain("Projet");
-    expect(html).toMatch(/class="tab active" href="#\/configuration\/bindings"/);
+    expect(html).toMatch(/class="tab active" href="#\/reglages\/moteurs\/affectations"/);
     expect(html).toContain('aria-current="page"');
   });
 
@@ -255,8 +255,8 @@ describe("runtimesPageHtml (rendu)", () => {
     expect(html).toContain("Réglages / Moteurs IA");
     expect(html).toContain("Moteurs IA enregistrés");
     expect(html).toContain("réglage qui permet d'exécuter un modèle");
-    expect(html).toContain("#/inspector");
-    expect(html).toContain("#/configuration/runtimes/rt-1");
+    expect(html).toContain("#/reglages/avance/inspecteur");
+    expect(html).toContain("#/reglages/moteurs/rt-1");
     expect(html).not.toContain("<table");
     expect(html).not.toMatch(/JSON\.stringify|puissance/i);
   });
@@ -279,8 +279,8 @@ describe("runtimeDetailHtml", () => {
     const html = runtimeDetailHtml(runtime({ machine_id: "m-1", runtime_metadata: { region: "eu" } }), [], null);
     expect(html).toContain("Réglages du moteur IA");
     expect(html).toContain("Informations techniques");
-    expect(html).toContain('href="#/machines"');
-    expect(html).toContain('href="#/inspector"');
+    expect(html).toContain('href="#/reglages/appareils"');
+    expect(html).toContain('href="#/reglages/avance/inspecteur"');
     expect(html).toContain("Capacités déclarées");
     expect(html).toContain("<details");
   });
@@ -326,7 +326,7 @@ describe("runtimeVocabularyHtml", () => {
     const html = runtimeVocabularyHtml(false);
     expect(html).toContain("Comment ça s'articule");
     for (const term of ["Poste", "Agent", "Moteur IA", "Profil d'agent", "Affectation"]) expect(html).toContain(`<dt>${term}</dt>`);
-    expect(html).toContain('href="#/library/');
+    expect(html).toContain('href="#/connaissances/savoir-faire/');
     expect(html).not.toMatch(/_ref|_id|uuid/);
     expect(html).not.toContain(" open");
   });
@@ -380,7 +380,7 @@ describe("updateRuntimeFormHtml", () => {
 describe("runtimeDetailHtml — origine du choix", () => {
   it("renvoie vers l'Inspecteur pour l'origine du choix effectif et garde le tableau des liaisons", () => {
     const html = runtimeDetailHtml(runtime(), [binding()], null);
-    expect(html).toContain("Origine du choix effectif : voir l'<a href=\"#/inspector\">Inspecteur</a>");
+    expect(html).toContain("Origine du choix effectif : voir l'<a href=\"#/reglages/avance/inspecteur\">Inspecteur</a>");
     expect(html).toContain("<table");
   });
 });
@@ -398,7 +398,7 @@ describe("capabilityGapsNoticeHtml", () => {
   it("liste les écarts de façon indicative, sans bloquer", () => {
     const html = capabilityGapsNoticeHtml([{ key: "coding", label: "Code", required: "requis", declared: "non déclaré" }]);
     expect(html).toContain("Écarts déclarés");
-    expect(html).toContain("le serveur tranche, voir l'<a href=\"#/inspector\">Inspecteur</a>");
+    expect(html).toContain("le serveur tranche, voir l'<a href=\"#/reglages/avance/inspecteur\">Inspecteur</a>");
     expect(html).toContain("exigé requis, déclaré non déclaré");
     expect(html).not.toContain("role=\"alert\"");
   });

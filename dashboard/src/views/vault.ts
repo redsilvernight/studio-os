@@ -127,7 +127,7 @@ export function vaultScopeLabel(scope: VaultNote["scope"]): string {
 }
 
 function noteHref(noteId: string): string {
-  return `#/vault/${encodeURIComponent(noteId)}`;
+  return `#/connaissances/notes/${encodeURIComponent(noteId)}`;
 }
 
 function statusBadge(status: VaultNoteStatus): string {
@@ -251,13 +251,13 @@ function vaultToolbarHtml(
     `</div>`;
 }
 
-/** Bascule Liste / Atlas : deux routes (`#/vault`, `#/vault/atlas`), un seul onglet Vault. */
+/** Bascule Liste / Atlas : deux routes (`#/connaissances/notes`, `#/connaissances/carte`), un seul onglet Vault. */
 export function vaultModeNavHtml(mode: "list" | "atlas"): string {
   const link = (href: string, label: string, current: boolean): string =>
     `<a class="${current ? "ds-btn ds-btn--primary" : "ds-btn"}" href="${href}"${current ? ' aria-current="page"' : ""}>${label}</a>`;
   return `<nav class="vault-modes" aria-label="Affichage du vault">` +
-    link("#/vault", "Liste", mode === "list") +
-    link("#/vault/atlas", "Atlas", mode === "atlas") +
+    link("#/connaissances/notes", "Liste", mode === "list") +
+    link("#/connaissances/carte", "Atlas", mode === "atlas") +
     `</nav>`;
 }
 
@@ -327,7 +327,7 @@ export function vaultDetailHtml(
   const readable = note.readable_id !== null && note.readable_id !== undefined
     ? ` · <code class="mono">${esc(note.readable_id)}</code>`
     : "";
-  return `<p><a href="#/vault">← Retour au vault</a></p>` +
+  return `<p><a href="#/connaissances/notes">← Retour au vault</a></p>` +
     `<p class="ds-hero-eyebrow">Vault / ${esc(vaultScopeLabel(note.scope))}</p>` +
     dsPageHeader(title, note.summary === "" ? "" : note.summary) +
     `<p class="vault-badges">${typeBadge(note.note_type)}${statusBadge(note.status)}` +

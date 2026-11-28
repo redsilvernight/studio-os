@@ -151,7 +151,7 @@ describe("usageSummaryHtml", () => {
     const html = usageSummaryHtml(summary({ task_id: TASK }));
     expect(visibleText(html)).not.toMatch(UUID);
     expect(html).toContain('<details class="ds-tech"');
-    expect(html).toContain(`href="#/tasks/${TASK}"`);
+    expect(html).toContain(`href="#/taches/${TASK}"`);
     expect(visibleText(html)).toContain("Afficher le coût");
     expect(html.toLowerCase()).not.toContain("prompt");
   });

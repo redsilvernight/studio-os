@@ -230,7 +230,7 @@ export function missionRunHtml(run: MissionRun): string {
     `<span class="mission-run-footer"><span class="ds-list-sub">Mis à jour ${fmtTime(run.updated_at)}</span><span class="mission-disclosure">Lancement, session et diagnostic</span></span></summary>` +
     `<div class="body"><ol class="mission-steps">${launchStepHtml(run)}${sessionStepHtml(run, gaps)}</ol>` +
     `<p>${esc(protocolLabel(run.protocol_state))}</p>${others}${claims}${extraGaps}` +
-    `<p><a href="#/tasks/${esc(run.task_id)}">${esc(ACTION_LABEL.openTask)}</a></p>` +
+    `<p><a href="#/taches/${esc(run.task_id)}">${esc(ACTION_LABEL.openTask)}</a></p>` +
     `${dsTechDetails(techRows(run))}</div></details>`
   );
 }
@@ -424,7 +424,7 @@ function attentionRuns(runs: MissionRun[], max = MISSION_SUMMARY_MAX): MissionRu
 function summaryHtml(projectId: string, body: string): string {
   return (
     `<section data-mission-summary aria-label=UI_LABEL.runs>` +
-    dsSectionHeader(UI_LABEL.runs, { label: "Voir les exécutions", href: `#/projects/${projectId}/mission` }) +
+    dsSectionHeader(UI_LABEL.runs, { label: "Voir les exécutions", href: `#/projets/${projectId}/executions` }) +
     `${body}</section>`
   );
 }

@@ -220,7 +220,7 @@ function taskListHtml(step: RoadmapStep): string {
   if (planned.length === 0 && linked.length === 0) return `<p class="ds-list-sub">Aucune tâche liée.</p>`;
   return `<ul class="roadmap-detail-list">` +
     planned.map((task) => `<li><strong>${esc(task.title)}</strong>${task.description ? `<span>${esc(task.description)}</span>` : ""}</li>`).join("") +
-    linked.map((link) => `<li><a href="#/tasks/${esc(link.task_id)}">Tâche ${esc(link.task_id.slice(0, 8))}</a><span>${esc(link.hydration_key ?? "Liée manuellement")}</span></li>`).join("") +
+    linked.map((link) => `<li><a href="#/taches/${esc(link.task_id)}">Tâche ${esc(link.task_id.slice(0, 8))}</a><span>${esc(link.hydration_key ?? "Liée manuellement")}</span></li>`).join("") +
     `</ul>`;
 }
 
@@ -758,7 +758,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
     if (roadmap === null) return;
     root.querySelector<HTMLSelectElement>("[data-roadmap-select]")?.addEventListener("change", (event) => {
       const id = (event.currentTarget as HTMLSelectElement).value;
-      if (roadmaps.some((item) => item.id === id)) window.location.hash = `#/projects/${ctx.projectId}/roadmap/${id}`;
+      if (roadmaps.some((item) => item.id === id)) window.location.hash = `#/projets/${ctx.projectId}/plan/${id}`;
     });
     root.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => button.addEventListener("click", () => {
       mode = button.dataset.mode === "execution" ? "execution" : "plan";
@@ -830,7 +830,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
           const active = roadmaps.find((item) => item.status === "active" && item.id !== roadmap?.id);
           const link = active === undefined
             ? "la roadmap active"
-            : `<a href="#/projects/${esc(ctx.projectId)}/roadmap/${esc(active.id)}">${esc(active.title)}</a>`;
+            : `<a href="#/projets/${esc(ctx.projectId)}/plan/${esc(active.id)}">${esc(active.title)}</a>`;
           body = `Une autre roadmap est déjà active dans ce projet. Ouvrez ${link}, clôturez-la ou archivez-la, puis revenez approuver celle-ci. (${esc(describeError(error))})`;
         }
         reviewErrorHtml = errorNotice("Décision refusée.", body);

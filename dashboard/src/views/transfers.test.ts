@@ -112,10 +112,10 @@ describe("transfersPageHtml nominal", () => {
   });
 
   it("lie projet et tâche vers les routes réelles, sans route machine/agent", () => {
-    expect(html).toContain(`href="#/projects/${PROJECT_ID}"`);
-    expect(html).toContain(`href="#/tasks/${TASK_ID}"`);
-    expect(html).not.toMatch(/#\/machines\//);
-    expect(html).not.toMatch(/#\/agents\//);
+    expect(html).toContain(`href="#/projets/${PROJECT_ID}"`);
+    expect(html).toContain(`href="#/taches/${TASK_ID}"`);
+    expect(html).not.toMatch(/#\/reglages\/appareils\//);
+    expect(html).not.toMatch(/#\/equipe-ia\//);
   });
 
   it("ne contient aucun style ni handler inline (CSP)", () => {

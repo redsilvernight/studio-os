@@ -54,16 +54,16 @@ test.describe("appshell", () => {
     });
     page.on("pageerror", (error) => pageErrors.push(error));
 
-    await login(page, "#/tasks");
-    await expect(page.locator('.app-sidebar a[href="#/tasks"]')).toHaveAttribute("aria-current", "page");
+    await login(page, "#/taches");
+    await expect(page.locator('.app-sidebar a[href="#/taches"]')).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".app-sidebar")).toContainText("Équipe IA");
-    await expect(page.locator('.app-sidebar a[href="#/agents"]')).toBeVisible();
+    await expect(page.locator('.app-sidebar a[href="#/equipe-ia"]')).toBeVisible();
     await expect(page.locator(".app-sidebar")).not.toContainText("Bientôt");
     await expect(page.locator(".app-sidebar")).not.toContainText("Design System");
     await expect(page.locator("header.app-topbar")).not.toContainText("Rechercher");
 
-    await page.locator('.app-sidebar a[href="#/projects"]').click();
-    await expect(page.locator('.app-sidebar a[href="#/projects"]')).toHaveAttribute("aria-current", "page");
+    await page.locator('.app-sidebar a[href="#/projets"]').click();
+    await expect(page.locator('.app-sidebar a[href="#/projets"]')).toHaveAttribute("aria-current", "page");
     await expect(page.locator("#view")).toContainText("Projets");
 
     expect(cspErrors).toEqual([]);
@@ -76,9 +76,9 @@ test.describe("appshell", () => {
     const pageErrors: Error[] = [];
     page.on("pageerror", (error) => pageErrors.push(error));
 
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     await expect(page.locator("#view")).toContainText("Travail");
-    await expect(page).toHaveURL(/#\/tasks$/);
+    await expect(page).toHaveURL(/#\/taches$/);
 
     // Marque le nœud #view courant : tout render() parasite le remplacerait
     // (staging.replaceWith), donc l'identité du nœud prouve l'absence de rendu.
@@ -92,7 +92,7 @@ test.describe("appshell", () => {
       // Focus sur le contenu principal courant.
       await expect(page.locator("#view")).toBeFocused();
       // Route/hash inchangés : aucune navigation "#view" ne doit avoir lieu.
-      await expect(page).toHaveURL(/#\/tasks$/);
+      await expect(page).toHaveURL(/#\/taches$/);
       // Aucun render parasite : le nœud #view est toujours le même
       // (tout render() le remplacerait via staging.replaceWith).
       const sameNode = await page.evaluate(
@@ -145,7 +145,7 @@ test.describe("appshell", () => {
     await page.locator("#login-form button[type=submit]").click();
     await expect(page.locator(".app-sidebar")).toBeVisible();
     await page.evaluate(() => {
-      window.location.hash = "#/machines";
+      window.location.hash = "#/reglages/appareils";
     });
     // Let the stale overview request resolve long after the navigation.
     await page.waitForTimeout(2500);
@@ -162,7 +162,7 @@ test.describe("appshell drawer", () => {
     const pageErrors: Error[] = [];
     page.on("pageerror", (error) => pageErrors.push(error));
 
-    await login(page, "#/tasks");
+    await login(page, "#/taches");
     const menuButton = page.locator("#nav-open");
     await expect(menuButton).toBeVisible();
     await expect(page.locator("#app-sidebar")).not.toHaveClass(/open/);

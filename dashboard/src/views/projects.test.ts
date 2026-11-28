@@ -111,7 +111,7 @@ describe("projectsPageHtml nominal", () => {
     expect(html).toContain("Actif");
     expect(html).toContain("Archivé");
     expect(html).toContain("phare");
-    expect(html).toContain(`href="#/projects/${ID_A}"`);
+    expect(html).toContain(`href="#/projets/${ID_A}"`);
     expect(html).not.toContain("<table");
     expect(html).not.toContain("<th>");
   });

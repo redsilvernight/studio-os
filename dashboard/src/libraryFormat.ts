@@ -61,7 +61,7 @@ export function kindMeta(kind: LibraryKind): LibraryKindMeta {
 }
 
 export function libraryKindHref(kind: LibraryKind, resourceId?: string): string {
-  const base = `#/library/${kindMeta(kind).slug}`;
+  const base = `#/connaissances/savoir-faire/${kindMeta(kind).slug}`;
   return resourceId === undefined ? base : `${base}/${resourceId}`;
 }
 

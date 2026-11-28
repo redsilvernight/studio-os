@@ -226,7 +226,7 @@ function groupLabelHtml(groupBy: string, group: UsageAggregate): string {
   if (groupBy === "task") {
     if (key.task_id === null || key.task_id === undefined) return "Sans tâche";
     const title = key.task_title !== null && key.task_title !== undefined && key.task_title !== "" ? key.task_title : "Tâche sans titre";
-    return `<a href="#/tasks/${esc(key.task_id)}">${esc(title)}</a>`;
+    return `<a href="#/taches/${esc(key.task_id)}">${esc(title)}</a>`;
   }
   if (groupBy === "configuration") {
     const parts = [key.harness, key.provider, key.model].map((part) => (part === null || part === undefined || part === "" ? "inconnu" : part));

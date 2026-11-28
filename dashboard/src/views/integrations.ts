@@ -121,8 +121,8 @@ export function integrationsWorkspaceHtml(workspaces: WorkspaceStatus[] = [], se
       `<p data-integration-tools>Outils détectés : ${tools || "Aucun outil IA détecté pour ce dossier."}</p>` +
       (error ? `<p class="ds-field-error" role="alert">${esc(error)}</p>` : "") +
       `<div class="settings-actions">` +
-      `<a class="ds-btn ds-btn--primary" data-testid="workspace-continue" href="#/configuration/integrations/${esc(selected.workspace_id)}">Continuer</a> ` +
-      `<a class="ds-btn" href="#/workspaces">Associer ou déplacer un dossier</a></div>` +
+      `<a class="ds-btn ds-btn--primary" data-testid="workspace-continue" href="#/reglages/connexions-ia/${esc(selected.workspace_id)}">Continuer</a> ` +
+      `<a class="ds-btn" href="#/reglages/dossiers">Associer ou déplacer un dossier</a></div>` +
       `<p>À l’étape suivante, préparez l’aperçu des changements puis confirmez leur application.</p>` +
       `</section>`
     );
@@ -136,7 +136,7 @@ export function integrationsWorkspaceHtml(workspaces: WorkspaceStatus[] = [], se
       "Aucun dossier associé",
       "Lancez l'assistant de configuration pour associer un dossier : les assistants IA se configurent par projet, sans identifiant à saisir.",
     ) +
-    `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/workspaces">Associer un dossier au projet</a> <a class="ds-btn" href="#/bienvenue">Lancer l'assistant</a></div>` +
+    `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/reglages/dossiers">Associer un dossier au projet</a> <a class="ds-btn" href="#/bienvenue">Lancer l'assistant</a></div>` +
     `</section>`
   );
 }
@@ -342,8 +342,8 @@ export async function renderIntegrations(
   ]);
   const localIdentity = identity?.ok ? identity.response.payload as unknown as IdentityView : null;
   const contextHtml = workspace.ok
-    ? `<section class="ds-card" data-testid="integration-context"><h2>2. Préparer les outils IA</h2><dl class="settings-rows"><div class="settings-row"><dt>Projet</dt><dd>${esc(workspace.value.project_slug ?? "Projet associé")}</dd></div><div class="settings-row"><dt>Dossier local</dt><dd>${esc(workspaceFolderName({ workspace_id: workspaceId, health: "valid", action: "none", config: workspace.value }))}</dd></div><div class="settings-row"><dt>Poste</dt><dd>${esc(localIdentity?.machine?.machine_name ?? localIdentity?.workstation_name ?? "Ce poste")}</dd></div></dl><p>Préparez un aperçu, vérifiez les conflits puis confirmez chaque changement. Les fichiers propres aux outils sont configurés sur ce poste.</p><a class="ds-btn ds-btn--sm" href="#/configuration/integrations">Changer de projet ou dossier</a></section>`
-    : `<p class="ds-field-error" role="status">Le contexte du dossier ne peut pas être affiché : ${esc(workspaceErrorMessage(workspace.error))}. <a href="#/workspaces">Vérifier l’association locale</a></p>`;
+    ? `<section class="ds-card" data-testid="integration-context"><h2>2. Préparer les outils IA</h2><dl class="settings-rows"><div class="settings-row"><dt>Projet</dt><dd>${esc(workspace.value.project_slug ?? "Projet associé")}</dd></div><div class="settings-row"><dt>Dossier local</dt><dd>${esc(workspaceFolderName({ workspace_id: workspaceId, health: "valid", action: "none", config: workspace.value }))}</dd></div><div class="settings-row"><dt>Poste</dt><dd>${esc(localIdentity?.machine?.machine_name ?? localIdentity?.workstation_name ?? "Ce poste")}</dd></div></dl><p>Préparez un aperçu, vérifiez les conflits puis confirmez chaque changement. Les fichiers propres aux outils sont configurés sur ce poste.</p><a class="ds-btn ds-btn--sm" href="#/reglages/connexions-ia">Changer de projet ou dossier</a></section>`
+    : `<p class="ds-field-error" role="status">Le contexte du dossier ne peut pas être affiché : ${esc(workspaceErrorMessage(workspace.error))}. <a href="#/reglages/dossiers">Vérifier l’association locale</a></p>`;
   const detected = await detectHarnesses(platform, workspaceId);
   if (!detected.ok) {
     root.innerHTML = integrationsHtml([], { ...launchView, workspaceContext: contextHtml, error: harnessErrorMessage(detected.error) });

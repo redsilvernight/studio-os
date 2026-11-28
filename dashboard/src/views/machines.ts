@@ -18,7 +18,7 @@
  *   "Aucune activité récente connue"), jamais "En ligne"/UI_LABEL.offline.
  * - Aucune action machine exposée : création et révocation (propriétaire
  *   ou admin, A5) passent par l'API/CLI, pas de bouton dans cette vue.
- * - Pas de route détail `#/machines/<id>` (aucun endpoint) : liste de
+ * - Pas de route détail `#/reglages/appareils/<id>` (aucun endpoint) : liste de
  *   cartes + tiroir DS.
  */
 import type { StudioClient } from "../api";
@@ -252,16 +252,16 @@ export function machineDrawerBodyHtml(
   const linked = runtimes.filter((runtime) => runtime.machine_id === row.machineId);
 
   const sessionItem = (session: WorkSession): string =>
-    `<li><a href="#/tasks/${esc(session.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` +
+    `<li><a href="#/taches/${esc(session.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` +
     ` · démarrée le ${machineTimeHtml(session.started_at, now)}` +
     (session.agent_id !== null && session.agent_id !== undefined && agentById.has(session.agent_id)
-      ? ` · agent <a href="#/agents/${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? FALLBACK_LABEL.agent)}</a>`
+      ? ` · agent <a href="#/equipe-ia/${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? FALLBACK_LABEL.agent)}</a>`
       : "") +
     `</li>`;
 
   const observedAgents = agents
     .filter((agent) => agent.machine_id === row.machineId)
-    .map((agent) => `<a href="#/agents/${esc(agent.id)}">${esc(agent.display_name)}</a>`)
+    .map((agent) => `<a href="#/equipe-ia/${esc(agent.id)}">${esc(agent.display_name)}</a>`)
     .join(", ");
 
   const summary =
@@ -287,7 +287,7 @@ export function machineDrawerBodyHtml(
         linked
           .map(
             (runtime) =>
-              `<li><a href="#/configuration/runtimes/${esc(runtime.id)}">${esc(runtimeSummary(runtime))}</a> ` +
+              `<li><a href="#/reglages/moteurs/${esc(runtime.id)}">${esc(runtimeSummary(runtime))}</a> ` +
               `${runtime.status === "active" ? dsBadge(UI_LABEL.active, "success") : dsBadge("Révoqué", "neutral")}</li>`,
           )
           .join("") +

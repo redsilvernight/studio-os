@@ -33,7 +33,7 @@ describe("publicHashScreen", () => {
     expect(publicHashScreen("#/inscription")).toBe("register");
     expect(publicHashScreen("#/mot-de-passe-oublie")).toBe("forgot");
     expect(publicHashScreen("#/renvoyer-verification/")).toBe("resend");
-    expect(publicHashScreen("#/projects")).toBeNull();
+    expect(publicHashScreen("#/projets")).toBeNull();
     expect(publicHashScreen("")).toBeNull();
   });
 });

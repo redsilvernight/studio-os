@@ -1,7 +1,7 @@
 /**
  * UI-1 — page interne de démonstration du Design System (DEC-0078).
  *
- * Route `#/design-system`, absente de la navigation de production :
+ * Route `#/reglages/avance/design-system`, absente de la navigation de production :
  * surface de validation visuelle des primitives × états avant la
  * migration des pages métier (UI-2+). Aucun appel API, aucun texte
  * technique traduit, aucun mélange FR/EN.
@@ -72,7 +72,7 @@ function sharedStates(): string {
     block("Vide", "Explication + action, jamais un vide sans issue.", "empty", {
       title: "Aucune inspection lancée",
       message: "Choisissez un champ, puis lancez une résolution.",
-      action: { label: "Lancer une inspection", href: "#/inspector" },
+      action: { label: "Lancer une inspection", href: "#/reglages/avance/inspecteur" },
     }) +
     block("Chargement", "Squelette silencieux, une annonce unique.", "loading", {
       title: "Chargement",
@@ -81,15 +81,15 @@ function sharedStates(): string {
     block("Erreur", "Cause affichée, réessai possible, technique repliée.", "error", {
       title: "Résolution impossible",
       message: "Serveur injoignable. Vérifiez la connexion.",
-      action: { label: UI_LABEL.retry, href: "#/design-system" },
+      action: { label: UI_LABEL.retry, href: "#/reglages/avance/design-system" },
       details: [{ label: "Route", value: "POST /resolutions", mono: true }],
     }) +
     `<section class="ds-card state-grid-full">${dsSectionHeader(UI_LABEL.offline)}<p class="ds-demo-hint">Le statut de connexion du shell passe en dégradé ; aucune bannière dupliquée ici.</p>` +
     dsStateHtml("offline", {
       title: UI_LABEL.offline,
       message: "Le statut unique passe en dégradé, la file locale reste active et les actions attendent la reconnexion.",
-      action: { label: "Reprendre quand reconnecté", href: "#/design-system" },
-      secondary: { label: "Voir la file locale", href: "#/design-system" },
+      action: { label: "Reprendre quand reconnecté", href: "#/reglages/avance/design-system" },
+      secondary: { label: "Voir la file locale", href: "#/reglages/avance/design-system" },
     }) +
     `</section>` +
     `</div>`
@@ -155,12 +155,12 @@ function lot1Demo(): string {
   const avatars = `<div class="ds-demo-row">${dsActorAvatar("Amina Benali")}${dsActorAvatar("Relecteur", "agent")}</div>`;
   const notices = `<div class="ds-demo-column">
     ${dsPersistentNotice("ds-n-info", "info", "Nouveau plan disponible", "Comparez les offres quand vous voulez.")}
-    ${dsPersistentNotice("ds-n-warning", "warning", "Limite bientôt atteinte", "9 projets sur 10 utilisés.", { action: { label: "Voir l'abonnement", href: "#/design-system" }, dismissible: true })}
+    ${dsPersistentNotice("ds-n-warning", "warning", "Limite bientôt atteinte", "9 projets sur 10 utilisés.", { action: { label: "Voir l'abonnement", href: "#/reglages/avance/design-system" }, dismissible: true })}
     ${dsPersistentNotice("ds-n-danger", "danger", "Studio suspendu", "Les modifications sont bloquées.")}
   </div>`;
-  const pager = `<div class="ds-demo-column">${dsShowMore(50, 213, "tâches", "#/design-system")}${dsShowMore(213, 213, "tâches")}</div>`;
+  const pager = `<div class="ds-demo-column">${dsShowMore(50, 213, "tâches", "#/reglages/avance/design-system")}${dsShowMore(213, 213, "tâches")}</div>`;
   const seg = `<div class="ds-demo-row">${dsSegmented("ds-demo-mode", "Mode d'affichage", [{ value: "simple", label: "Simple" }, { value: "expert", label: "Expert" }], "simple")}</div>`;
-  const empty = dsIllustratedEmpty("inbox", UI_LABEL.nothingToReview, "Les propositions des agents apparaîtront ici.", { label: "Voir les projets", href: "#/design-system" });
+  const empty = dsIllustratedEmpty("inbox", UI_LABEL.nothingToReview, "Les propositions des agents apparaîtront ici.", { label: "Voir les projets", href: "#/reglages/avance/design-system" });
   const form = `<form class="ds-form" novalidate>
     <div class="ds-form-field"><label for="ds-f-nom">Nom du studio</label><input class="ds-input" id="ds-f-nom" type="text" aria-describedby="ds-f-nom-hint"><span class="ds-form-hint" id="ds-f-nom-hint">Visible par les membres.</span></div>
     <div class="ds-form-field"><label for="ds-f-mail">Adresse</label><input class="ds-input" id="ds-f-mail" type="email" aria-invalid="true" aria-describedby="ds-f-mail-err"><span class="ds-form-error" id="ds-f-mail-err">Adresse invalide.</span></div>
@@ -234,7 +234,7 @@ export function designSystemHtml(): string {
     <li class="ds-list-item"><div class="grow"><div class="ds-list-title">Relire la proposition d'agent</div><div class="ds-list-sub">En attente depuis hier</div></div>${dsBadge("À examiner", "warning")}</li>
   </ul>`;
 
-  const states = `${dsEmptyState("Aucune tâche", "Créez votre première tâche pour démarrer.", { label: "Créer une tâche", href: "#/design-system" })}<div>${dsSkeleton(3)}</div>`;
+  const states = `${dsEmptyState("Aucune tâche", "Créez votre première tâche pour démarrer.", { label: "Créer une tâche", href: "#/reglages/avance/design-system" })}<div>${dsSkeleton(3)}</div>`;
 
   const indicators = `<div class="ds-demo-grid">
     <div class="ds-card">${dsMetric("Tâches en cours", 4)}</div>
@@ -263,8 +263,8 @@ export function designSystemHtml(): string {
       title: "Travaille sur « Valider des wireframes »",
       body: "Studi'OS · mis à jour il y a 12 min. La relecture détaillée se fait dans À valider.",
       status: dsStatusDot("info", "Session de travail ouverte"),
-      primary: { label: "Ouvrir le travail", href: "#/design-system" },
-      secondary: [{ label: "Voir la tâche liée", href: "#/design-system" }],
+      primary: { label: "Ouvrir le travail", href: "#/reglages/avance/design-system" },
+      secondary: [{ label: "Voir la tâche liée", href: "#/reglages/avance/design-system" }],
     }) +
     `<div class="ds-demo-row">${dsStatusDot("success", "Opérationnel")}${dsStatusDot("warning", UI_LABEL.pending, true)}<span class="ds-list-sub">La seconde pastille est compacte : libellé réservé aux lecteurs d'écran.</span></div>` +
     dsTechDetails([
@@ -274,7 +274,7 @@ export function designSystemHtml(): string {
     ]) +
     dsErrorState("Chargement impossible", "Les données n'ont pas pu être rechargées.", {
       label: UI_LABEL.retry,
-      href: "#/design-system",
+      href: "#/reglages/avance/design-system",
     });
 
   const hero = `<section class="ds-hero">

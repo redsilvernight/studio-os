@@ -3,11 +3,11 @@
  * (`vite preview`), API canonique stubée comme les autres e2e.
  *
  * Propriétés vérifiées :
- *   1. la nav n'a plus d'entrée Graph et `#/graphs/*` mène à l'atlas ;
+ *   1. la nav n'a plus d'entrée Graph et `#/connaissances/carte/*` mène à l'atlas ;
  *   2. l'atlas lit `GET /vault/tree` et dessine un canevas non vide ;
  *   3. la recherche multi-mots et les filtres réduisent les notes visibles ;
  *   4. la liste clavier sélectionne une note, ses voisins et « Ouvrir » ;
- *   5. la bascule Liste ramène à `#/vault` ;
+ *   5. la bascule Liste ramène à `#/connaissances/notes` ;
  *   6. la liste expose titres, zone, extrait et tri ;
  *   7. l'atlas affiche zones/communautés, bascule 2D/3D persistée,
  *      navigation aux flèches et mesure de rendu.
@@ -129,7 +129,7 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   const errors = await login(page, "#/graphs/old-view", calls);
 
   /* 1. Ancienne URL réécrite, nav sans Graph. */
-  await expect(page).toHaveURL(/#\/vault\/atlas$/);
+  await expect(page).toHaveURL(/#\/connaissances\/carte$/);
   await expect(page.locator('a[href^="#/graphs"]')).toHaveCount(0);
   await expect(page.locator('.vault-modes a[aria-current="page"]')).toHaveText("Atlas");
 
@@ -163,9 +163,9 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await expect(projection).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#atlas-hint")).not.toContainText("pivoter");
   expect(await page.evaluate(() => localStorage.getItem("studio.vault.atlas.mode"))).toBe("2d");
-  await goHash(page, "#/vault");
+  await goHash(page, "#/connaissances/notes");
   await expect(page.locator(".vault-modes a[aria-current=\"page\"]")).toHaveText("Liste");
-  await goHash(page, "#/vault/atlas");
+  await goHash(page, "#/connaissances/carte");
   await expect(page.locator("#atlas-projection")).toHaveText("Vue 2D");
   await page.locator("#atlas-projection").click();
   await expect(page.locator("#atlas-projection")).toHaveText("Vue 3D");
@@ -193,7 +193,7 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
   await expect(detail).toContainText("DEC-0002");
   await expect(detail).toContainText("Jamais de secret en clair");
   await expect(detail).toContainText("remplace");
-  await expect(detail.getByRole("link", { name: "Ouvrir dans la liste" })).toHaveAttribute("href", `#/vault/${DEC_NEW}`);
+  await expect(detail.getByRole("link", { name: "Ouvrir dans la liste" })).toHaveAttribute("href", `#/connaissances/notes/${DEC_NEW}`);
 
   /* Échap sur le canevas efface la sélection. */
   await page.locator("#atlas-canvas").focus();
@@ -224,9 +224,9 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
 
   /* 5. Bascule Liste. */
   await page.locator(".vault-modes").getByRole("link", { name: "Liste" }).click();
-  await expect(page).toHaveURL(/#\/vault$/);
+  await expect(page).toHaveURL(/#\/connaissances\/notes$/);
   await expect(page.locator(".vault-modes a[aria-current=\"page\"]")).toHaveText("Liste");
-  await goHash(page, "#/vault/atlas");
+  await goHash(page, "#/connaissances/carte");
   await expect(page.locator("#atlas-canvas")).toBeVisible();
 
   expect(errors).toEqual([]);
@@ -234,7 +234,7 @@ test("atlas: graph tab merged into vault, search, filters, selection", async ({ 
 
 test("vault list: titles, zone, excerpt and sort", async ({ page }) => {
   const calls: string[] = [];
-  const errors = await login(page, "#/vault", calls);
+  const errors = await login(page, "#/connaissances/notes", calls);
 
   const list = page.locator("#view .vault-list");
   await expect(list.locator(".vault-item")).toHaveCount(4);
@@ -263,7 +263,7 @@ test("atlas: reduced motion and no external requests", async ({ page }) => {
     const url = new URL(request.url());
     if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") external.push(request.url());
   });
-  const errors = await login(page, "#/vault/atlas", []);
+  const errors = await login(page, "#/connaissances/carte", []);
   await expect(page.locator("#atlas-canvas")).toBeVisible();
   await expect.poll(() => canvasHasInk(page)).toBe(true);
   await page.locator("#atlas-list").getByRole("button", { name: "Jamais de secret en clair" }).click();

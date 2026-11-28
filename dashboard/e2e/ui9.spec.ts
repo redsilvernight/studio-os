@@ -155,7 +155,7 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
 test.describe("UI-9 page Postes", () => {
   test("liste de cartes en français, présence déduite honnête", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/machines");
+    await login(page, "#/reglages/appareils");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Postes");
     await expect(view.locator(".machines-list")).toBeVisible();
@@ -185,7 +185,7 @@ test.describe("UI-9 page Postes", () => {
 
   test("recherche locale + filtre activité + réinitialisation au clavier", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/machines");
+    await login(page, "#/reglages/appareils");
     const view = page.locator("#view");
     await expect(view.locator(".machine-row")).toHaveCount(3);
 
@@ -214,7 +214,7 @@ test.describe("UI-9 page Postes", () => {
 
   test("tiroir détail : hiérarchie, technique replié, Échap + retour focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/machines");
+    await login(page, "#/reglages/appareils");
     const view = page.locator("#view");
     await expect(view.locator(".machine-row")).toHaveCount(3);
 
@@ -227,7 +227,7 @@ test.describe("UI-9 page Postes", () => {
     await expect(drawer).toContainText("Informations techniques");
     await expect(drawer).toContainText("Claude");
     await expect(drawer).toContainText("opencode · anthropic");
-    await expect(drawer.locator('a[href^="#/tasks/"]')).toHaveCount(1);
+    await expect(drawer.locator('a[href^="#/taches/"]')).toHaveCount(1);
     await expect(drawer.locator(".machine-technical")).toContainText(M1);
     await expect(drawer).toContainText("Révocation");
     await expect(drawer).not.toContainText("Supprimer");
@@ -243,7 +243,7 @@ test.describe("UI-9 page Postes", () => {
 
   test("état vide honnête sans CTA fictif", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/machines", { empty: true });
+    await login(page, "#/reglages/appareils", { empty: true });
     const view = page.locator("#view");
     await expect(view).toContainText("Aucun poste observé");
     await expect(view).toContainText("enregistre ses propres postes");
@@ -257,7 +257,7 @@ test.describe("UI-9 page Postes", () => {
   test("mobile 375 : une colonne, pas d'overflow, deep link + back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
-    await login(page, "#/machines");
+    await login(page, "#/reglages/appareils");
     const view = page.locator("#view");
     await expect(view.locator(".machine-row")).toHaveCount(3);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -269,7 +269,7 @@ test.describe("UI-9 page Postes", () => {
     await page.keyboard.press("Escape");
 
     // Back/forward : quitter puis revenir, la liste survit.
-    await page.goto("/#/tasks");
+    await page.goto("/#/taches");
     await expect(page.locator("#view")).toContainText("Travail");
     await page.goBack();
     await expect(page.locator("#view").locator("h1")).toContainText("Postes");

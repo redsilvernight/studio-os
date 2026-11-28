@@ -213,7 +213,7 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
 test.describe("UI-4 projets et workspace", () => {
   test("page Projets : cartes, filtre local au clavier, ouverture", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/projects");
+    await login(page, "#/projets");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Projets");
     await expect(view).toContainText("Jeu Phare");
@@ -241,7 +241,7 @@ test.describe("UI-4 projets et workspace", () => {
 
     // Ouverture : deep link + contexte conservé.
     await view.locator('.project-card-title a[href$="t-blocked"], .project-card-title a').first().click();
-    await expect(page).toHaveURL(new RegExp(`#/projects/${P1}$`));
+    await expect(page).toHaveURL(new RegExp(`#/projets/${P1}$`));
     await expect(view.locator("h1")).toContainText("Jeu Phare");
 
     expect(csp).toEqual([]);
@@ -250,7 +250,7 @@ test.describe("UI-4 projets et workspace", () => {
 
   test("workspace : header stable, 10 onglets, deep links, back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/projects/${P1}`);
+    await login(page, `#/projets/${P1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Jeu Phare");
 
@@ -270,10 +270,10 @@ test.describe("UI-4 projets et workspace", () => {
     await expect(view.locator('[data-ws-tab="mission"]')).toBeFocused();
 
     // Deep links directs.
-    await page.goto(`/#/projects/${P1}/tasks`);
+    await page.goto(`/#/projets/${P1}/taches`);
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
     await expect(view.locator("h1")).toContainText("Jeu Phare");
-    await page.goto(`/#/projects/${P1}/claims`);
+    await page.goto(`/#/projets/${P1}/reservations`);
     await expect(view.locator('[data-ws-tab="claims"]')).toHaveAttribute("aria-selected", "true");
 
     // Back/forward navigateur.
@@ -283,7 +283,7 @@ test.describe("UI-4 projets et workspace", () => {
     await expect(view.locator('[data-ws-tab="claims"]')).toHaveAttribute("aria-selected", "true");
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/#/projects/${P1}`);
+    await page.goto(`/#/projets/${P1}`);
     await expect(view.locator("h1")).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/workspace-overview-desktop.png` });
 
@@ -293,12 +293,12 @@ test.describe("UI-4 projets et workspace", () => {
 
   test("activité : timeline lisible, type futur toléré, sans dump JSON", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/projects/${P1}/activity`);
+    await login(page, `#/projets/${P1}/activite`);
     const view = page.locator("#view");
     await expect(view).toContainText("Chevauchement de fichier occupé");
     await expect(view).toContainText("godot/scenes/niveau.tscn");
     await expect(view).toContainText("Événement");
-    await expect(view.locator('.tl-task[href="#/tasks/t-blocked"]')).toBeVisible();
+    await expect(view.locator('.tl-task[href="#/taches/t-blocked"]')).toBeVisible();
     await expect(view).not.toContainText("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     await expect(view).not.toContainText("anything");
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -309,7 +309,7 @@ test.describe("UI-4 projets et workspace", () => {
 
   test("claims : explication non bloquante, Create/Renew/Release préservés", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/projects/${P1}/claims`);
+    await login(page, `#/projets/${P1}/reservations`);
     const view = page.locator("#view");
     await expect(view).toContainText("sans jamais bloquer Git");
     // Les réservations actives sont listées par défaut : « Toutes » inclut les expirées.
@@ -326,7 +326,7 @@ test.describe("UI-4 projets et workspace", () => {
 
   test("décisions : liées au projet, note d'honnêteté, sans transition inventée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, `#/projects/${P1}/decisions`);
+    await login(page, `#/projets/${P1}/decisions`);
     const view = page.locator("#view");
     await expect(view.locator('[data-ws-tab="decisions"]')).toHaveAttribute("aria-selected", "true");
     await expect(view).toContainText("Choisir le moteur de rendu");
@@ -352,7 +352,7 @@ test.describe("UI-4 projets et workspace", () => {
 
   test("création projet : modale accessible, focus, Escape, retour focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/projects");
+    await login(page, "#/projets");
     const view = page.locator("#view");
     await view.locator("#project-new").click();
     const dialog = view.locator("#project-create-dialog");
@@ -370,18 +370,18 @@ test.describe("UI-4 viewports 1280 et tablette 768", () => {
   for (const [name, size] of [["1280", { width: 1280, height: 800 }], ["tablette", { width: 768, height: 900 }]] as const) {
     test(`aucun débordement horizontal à ${name}`, async ({ page }) => {
       const { csp, fatal } = watchErrors(page);
-      await login(page, "#/projects");
+      await login(page, "#/projets");
       await page.setViewportSize(size);
       const view = page.locator("#view");
       await expect(view.locator(".project-card").first()).toBeVisible();
-      for (const hash of ["#/projects", `#/projects/${P1}`, `#/projects/${P1}/activity`, `#/projects/${P1}/claims`]) {
+      for (const hash of ["#/projets", `#/projets/${P1}`, `#/projets/${P1}/activite`, `#/projets/${P1}/reservations`]) {
         await page.goto(`/${hash}`);
         await expect(view).not.toBeEmpty();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         expect(overflow).toBeLessThanOrEqual(1);
       }
       if (name === "1280") {
-        await page.goto(`/#/projects/${P1}/tasks`);
+        await page.goto(`/#/projets/${P1}/taches`);
         // P04-work : Maintenant en liste par défaut, le Tableau reste disponible dans Toutes.
         await expect(view.locator(".tasks-list").first()).toBeVisible();
         await view.locator('[data-scope="all"]').first().click();
@@ -400,17 +400,17 @@ test.describe("UI-4 mobile 375", () => {
 
   test("projets + workspace utilisables sans débordement", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    await login(page, "#/projects");
+    await login(page, "#/projets");
     const view = page.locator("#view");
     await expect(view.locator(".project-card").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/projets-mobile.png` });
 
-    await page.goto(`/#/projects/${P1}`);
+    await page.goto(`/#/projets/${P1}`);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
     await expect(view.locator('[role="tab"]')).toHaveCount(10);
     await page.screenshot({ path: `${SHOTS}/workspace-overview-mobile.png` });
 
-    await page.goto(`/#/projects/${P1}/activity`);
+    await page.goto(`/#/projets/${P1}/activite`);
     await expect(view).toContainText("Chevauchement de fichier occupé");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);

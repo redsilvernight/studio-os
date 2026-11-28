@@ -25,14 +25,14 @@ export interface AdminFamily {
 }
 
 export const ADMIN_FAMILIES: readonly AdminFamily[] = [
-  { href: "#/machines", title: UI_LABEL.machines, hint: "Environnements où le travail s'exécute", icon: "machines" },
-  { href: "#/accounts", title: "Comptes et membres", hint: "Comptes, sessions et accès par projet", icon: "person" },
-  { href: "#/transfers", title: UI_LABEL.transfers, hint: "Fichiers échangés entre postes", icon: "transfers" },
-  { href: "#/library", title: UI_LABEL.library, hint: "Règles, compétences et réglages", icon: "book" },
-  { href: "#/configuration/runtimes", title: UI_LABEL.configuration, hint: "Moteurs IA, affectations, projet, appli, IA", icon: "settings" },
-  { href: "#/workspaces", title: "Dossiers du projet", hint: "Dossiers suivis sur ce poste", icon: "folder" },
-  { href: "#/inspector", title: "Inspecteur", hint: "Voir quel niveau de réglage l'emporte", icon: "inspector" },
-  { href: "#/administration/mesures", title: "Mesures d'infrastructure", hint: "Tailles et comptes de l'instance", icon: "settings" },
+  { href: "#/reglages/appareils", title: UI_LABEL.machines, hint: "Environnements où le travail s'exécute", icon: "machines" },
+  { href: "#/reglages/equipe-acces", title: "Comptes et membres", hint: "Comptes, sessions et accès par projet", icon: "person" },
+  { href: "#/fichiers", title: UI_LABEL.transfers, hint: "Fichiers échangés entre postes", icon: "transfers" },
+  { href: "#/connaissances/savoir-faire", title: UI_LABEL.library, hint: "Règles, compétences et réglages", icon: "book" },
+  { href: "#/reglages/moteurs", title: UI_LABEL.configuration, hint: "Moteurs IA, affectations, projet, appli, IA", icon: "settings" },
+  { href: "#/reglages/dossiers", title: "Dossiers du projet", hint: "Dossiers suivis sur ce poste", icon: "folder" },
+  { href: "#/reglages/avance/inspecteur", title: "Inspecteur", hint: "Voir quel niveau de réglage l'emporte", icon: "inspector" },
+  { href: "#/reglages/mesures", title: "Mesures d'infrastructure", hint: "Tailles et comptes de l'instance", icon: "settings" },
 ];
 
 function familyCardHtml(family: AdminFamily): string {
@@ -70,15 +70,15 @@ export interface AdminIndicator {
 export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
   const unavailable = (title: string, error: string, href: string, action: string): AdminIndicator => ({ title, value: "État inconnu", detail: error, href, action, tone: "warning", attention: true });
   const cards: AdminIndicator[] = [];
-  if (data.machines.error !== undefined) cards.push(unavailable(UI_LABEL.machines, data.machines.error, "#/machines", "Vérifier les postes"));
+  if (data.machines.error !== undefined) cards.push(unavailable(UI_LABEL.machines, data.machines.error, "#/reglages/appareils", "Vérifier les postes"));
   else {
     const machines = data.machines.data.filter((machine) => !isDashboardIdentity(machine.display_name));
     const offline = machines.filter((machine) => machine.status === "offline");
     const idle = machines.filter((machine) => machine.status === "idle");
-    cards.push({ title: UI_LABEL.machines, value: `${offline.length} hors ligne`, detail: `${machines.length} poste${sfx(machines.length)} accessible${sfx(machines.length)}, ${idle.length} inactif${sfx(idle.length)}. ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/machines", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
+    cards.push({ title: UI_LABEL.machines, value: `${offline.length} hors ligne`, detail: `${machines.length} poste${sfx(machines.length)} accessible${sfx(machines.length)}, ${idle.length} inactif${sfx(idle.length)}. ${offline.length === 0 ? "Présence remontée par le serveur." : offline.slice(0, 3).map((machine) => machine.display_name).join(", ")}`, href: "#/reglages/appareils", action: "Vérifier les postes", tone: offline.length > 0 ? "warning" : "success", attention: offline.length > 0 });
   }
   const configErrors = [data.runtimes.error, data.bindings.error].filter((value): value is string => value !== undefined);
-  if (configErrors.length > 0) cards.push(unavailable(UI_LABEL.configuration, configErrors.join(" · "), "#/configuration/runtimes", "Ouvrir les réglages"));
+  if (configErrors.length > 0) cards.push(unavailable(UI_LABEL.configuration, configErrors.join(" · "), "#/reglages/moteurs", "Ouvrir les réglages"));
   else if (data.runtimes.data !== undefined && data.bindings.data !== undefined) {
     const active = data.runtimes.data.filter((runtime) => runtime.status === "active");
     const incomplete = active.filter((runtime) => !runtime.harness_ref || !runtime.provider_ref || !runtime.model_ref);
@@ -86,25 +86,25 @@ export function adminIndicators(data: AdminOverviewData): AdminIndicator[] {
     const missing = active.length === 0 || data.bindings.data.length === 0;
     const attention = missing || incomplete.length > 0 || broken.length > 0;
     const details = [active.length === 0 ? "Aucun moteur IA actif." : `${active.length} moteur${sfx(active.length)} actif${sfx(active.length)}, ${incomplete.length} avec des références à compléter.`, data.bindings.data.length === 0 ? "Aucune affectation définie." : `${broken.length} affectation${sfx(broken.length)} vers un moteur IA absent ou révoqué.`];
-    cards.push({ title: UI_LABEL.configuration, value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/configuration/bindings" : "#/configuration/runtimes", action: "Ouvrir les réglages", tone: attention ? "warning" : "success", attention });
+    cards.push({ title: UI_LABEL.configuration, value: attention ? "À compléter" : "Références renseignées", detail: details.join(" "), href: broken.length > 0 || data.bindings.data.length === 0 ? "#/reglages/moteurs/affectations" : "#/reglages/moteurs", action: "Ouvrir les réglages", tone: attention ? "warning" : "success", attention });
   }
-  if (data.daemon === null) cards.push({ title: "Synchronisation", value: "État local non observé", detail: "La synchronisation des autres postes n'est pas observable depuis ce navigateur. Consultez l'application sur le poste concerné.", href: "#/configuration/application", action: "Voir l'état de l'application", tone: "neutral", attention: false });
-  else if (data.daemon.error !== undefined) cards.push(unavailable("Synchronisation", data.daemon.error, "#/configuration/application", "Diagnostiquer l'application"));
+  if (data.daemon === null) cards.push({ title: "Synchronisation", value: "État local non observé", detail: "La synchronisation des autres postes n'est pas observable depuis ce navigateur. Consultez l'application sur le poste concerné.", href: "#/reglages/application", action: "Voir l'état de l'application", tone: "neutral", attention: false });
+  else if (data.daemon.error !== undefined) cards.push(unavailable("Synchronisation", data.daemon.error, "#/reglages/application", "Diagnostiquer l'application"));
   else {
     const daemon = data.daemon.data;
     const health = daemon.kind === "state" ? daemon.health : null;
     const healthy = daemon.kind === "state" && daemon.state === "running" && health?.outboxReplay === "healthy";
-    cards.push({ title: "Synchronisation", value: health ? conditionLabel(health.outboxReplay) : daemonLabel(daemon), detail: `Ce poste uniquement.${health ? ` Observation locale : ${fmtTime(health.observedAt)}.` : " Le rejeu de la file n'a pas été observé."}`, href: "#/configuration/application", action: "Diagnostiquer l'application", tone: healthy ? "success" : "warning", attention: !healthy });
+    cards.push({ title: "Synchronisation", value: health ? conditionLabel(health.outboxReplay) : daemonLabel(daemon), detail: `Ce poste uniquement.${health ? ` Observation locale : ${fmtTime(health.observedAt)}.` : " Le rejeu de la file n'a pas été observé."}`, href: "#/reglages/application", action: "Diagnostiquer l'application", tone: healthy ? "success" : "warning", attention: !healthy });
   }
-  if (data.queue.error !== undefined) cards.push(unavailable("Validations", data.queue.error, "#/decisions", "Ouvrir la file À valider"));
+  if (data.queue.error !== undefined) cards.push(unavailable("Validations", data.queue.error, "#/a-valider", "Ouvrir la file À valider"));
   else {
     const keys = new Set(data.queue.data.items.filter((item) => ["ai_work_review", "decision_proposal", "roadmap_proposal"].includes(item.kind)).map((item) => item.kind === "roadmap_proposal" ? `roadmap:${item.project_id}:${item.roadmap_id}` : `${item.kind}:${item.id}`));
-    cards.push({ title: "Validations", value: `${keys.size} en attente`, detail: `Travaux IA, décisions et plans de vos projets accessibles. File générée le ${fmtTime(data.queue.data.generated_at)}.`, href: "#/decisions", action: "Ouvrir la file À valider", tone: keys.size > 0 ? "warning" : "success", attention: keys.size > 0 });
+    cards.push({ title: "Validations", value: `${keys.size} en attente`, detail: `Travaux IA, décisions et plans de vos projets accessibles. File générée le ${fmtTime(data.queue.data.generated_at)}.`, href: "#/a-valider", action: "Ouvrir la file À valider", tone: keys.size > 0 ? "warning" : "success", attention: keys.size > 0 });
   }
-  if (data.storage.error !== undefined) cards.push(unavailable("Stockage", data.storage.error, "#/transfers", "Gérer les transferts"));
+  if (data.storage.error !== undefined) cards.push(unavailable("Stockage", data.storage.error, "#/fichiers", "Gérer les transferts"));
   else {
     const storage = data.storage.data;
-    cards.push({ title: "Stockage", value: `${humanBytes(storage.consumed_bytes)} utilisés`, detail: `Quota de transfert de votre compte : ${humanBytes(storage.quota_bytes)}. ${humanBytes(storage.remaining_bytes)} disponibles.`, href: "#/transfers", action: "Gérer les transferts", tone: storage.remaining_bytes <= 0 ? "warning" : "neutral", attention: storage.remaining_bytes <= 0 });
+    cards.push({ title: "Stockage", value: `${humanBytes(storage.consumed_bytes)} utilisés`, detail: `Quota de transfert de votre compte : ${humanBytes(storage.quota_bytes)}. ${humanBytes(storage.remaining_bytes)} disponibles.`, href: "#/fichiers", action: "Gérer les transferts", tone: storage.remaining_bytes <= 0 ? "warning" : "neutral", attention: storage.remaining_bytes <= 0 });
   }
   return cards;
 }
@@ -124,7 +124,7 @@ export function adminOverviewHtml(data?: AdminOverviewData, loading = false, mod
     eyebrow: UI_LABEL.administration,
     title: data === undefined ? "Vérifier l'état du système" : attention.length > 0 ? `${attention.length} point${sfx(attention.length)} à vérifier` : "Aucun problème détecté dans les données consultées",
     body: "Les indicateurs concernent les ressources accessibles à votre compte. La synchronisation locale décrit uniquement le poste qui exécute l'application.",
-    primary: { label: next?.action ?? "Voir les postes", href: next?.href ?? "#/machines" },
+    primary: { label: next?.action ?? "Voir les postes", href: next?.href ?? "#/reglages/appareils" },
   });
   const families = `<section class="ds-panel admin-families" aria-label="Familles"><header><h2>Familles</h2><span class="ds-list-sub">chaque surface en 1 clic</span></header><div class="body"><ul class="admin-fams">${ADMIN_FAMILIES.map(familyCardHtml).join("")}</ul></div></section>`;
   const context = `<section class="admin-indicators" aria-label="Points de contrôle" aria-busy="${loading ? "true" : "false"}">` +

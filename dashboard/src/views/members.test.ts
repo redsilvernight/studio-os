@@ -25,7 +25,7 @@ const user = (id: string, display_name: string, email: string): DirectoryUser =>
 describe("onglet Membres", () => {
   it("est un onglet du workspace avec son deep link", () => {
     expect(PROJECT_TABS.map((t) => t.id)).toContain("members");
-    expect(workspaceTabsHtml(P, "members")).toContain(`href="#/projects/${P}/members" aria-selected="true"`);
+    expect(workspaceTabsHtml(P, "members")).toContain(`href="#/projets/${P}/equipe" aria-selected="true"`);
   });
 
   it("explique la restriction admin sans rien lister", () => {

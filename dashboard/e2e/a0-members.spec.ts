@@ -105,7 +105,7 @@ function apiStub(role: string, stub: Stub) {
 
 async function login(page: Page, role: string, stub: Stub): Promise<void> {
   await page.route("**/api/**", apiStub(role, stub));
-  await page.goto(`/#/projects/${P1}/members`);
+  await page.goto(`/#/projets/${P1}/equipe`);
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");

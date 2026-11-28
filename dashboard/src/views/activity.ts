@@ -222,7 +222,7 @@ function eventHtml(event: TimelineEvent): string {
   const taskHtml =
     event.task_id === null || event.task_id === undefined
       ? ""
-      : `<a class="tl-task" href="#/tasks/${esc(event.task_id)}">Ouvrir la tâche</a>`;
+      : `<a class="tl-task" href="#/taches/${esc(event.task_id)}">Ouvrir la tâche</a>`;
   return `<li class="tl-item"><span class="tl-marker" aria-hidden="true"></span><div class="tl-card">` +
     `<div class="tl-title">${esc(timelineEventLabel(event.event_type))}</div>` +
     `${contextHtml}` +
@@ -254,7 +254,7 @@ function sessionsHtml(sessions: WorkSession[]): string {
     `<div class="tl-meta">${esc(machineLabel(session.machine_id))}${session.agent_id ? ` · ${esc(agentLabel(session.agent_id))}` : ""}</div>` +
     `<p>Début : <time datetime="${esc(session.started_at)}">${localTime(session.started_at)}</time>` +
     `${session.ended_at ? ` · Fin : <time datetime="${esc(session.ended_at)}">${localTime(session.ended_at)}</time>` : ""}</p>` +
-    `<a href="#/tasks/${esc(session.task_id)}">Ouvrir la tâche</a></div></li>`,
+    `<a href="#/taches/${esc(session.task_id)}">Ouvrir la tâche</a></div></li>`,
   ).join("") + `</ol></section>`;
 }
 

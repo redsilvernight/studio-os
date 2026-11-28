@@ -136,25 +136,25 @@ const SCENARIOS: Scenario[] = [
   {
     id: "S2",
     label: "Travail → reprise",
-    entry: "#/tasks",
+    entry: "#/taches",
     setup: async (page, captured) => {
-      await login(page, "#/tasks", captured);
+      await login(page, "#/taches", captured);
     },
   },
   {
     id: "S3",
     label: "À valider → décision",
-    entry: "#/decisions",
+    entry: "#/a-valider",
     setup: async (page, captured) => {
-      await login(page, "#/decisions", captured);
+      await login(page, "#/a-valider", captured);
     },
   },
   {
     id: "S4",
     label: "Projet → roadmap",
-    entry: "#/projects",
+    entry: "#/projets",
     setup: async (page, captured) => {
-      await login(page, "#/projects", captured);
+      await login(page, "#/projets", captured);
       await mockRoadmapApi(page);
     },
   },
@@ -244,7 +244,7 @@ async function checkC3(page: Page, where: string): Promise<string[]> {
   if (dailyCount !== 7) {
     failures.push(`C3 échec nav ${where} : ${dailyCount} entrées quotidiennes (attendu 7)`);
   }
-  const adminCount = await page.locator('.app-sidebar a[href="#/administration"]').count();
+  const adminCount = await page.locator('.app-sidebar a[href="#/reglages"]').count();
   if (adminCount !== 1) {
     failures.push(`C3 échec nav ${where} : ${adminCount} entrée(s) Réglages (attendu 1)`);
   }
@@ -296,17 +296,17 @@ async function checkC1(page: Page, scenario: Scenario, viewport: Viewport): Prom
     const label = (await primary.innerText()).trim();
     const href = await primary.getAttribute("href");
     if (!PRIMARY_VERB_RE.test(label)) failures.push(`C1 échec ${where} : libellé « ${label} » sans « verbe + objet »`);
-    if (href === null || !/^#\/tasks\/[^/]+$/.test(href)) failures.push(`C1 échec ${where} : action primaire « ${href} » sans lien vers une fiche tâche`);
+    if (href === null || !/^#\/taches\/[^/]+$/.test(href)) failures.push(`C1 échec ${where} : action primaire « ${href} » sans lien vers une fiche tâche`);
     if (!(await aboveFold(page, primary))) failures.push(`C1 échec ${where} : action primaire hors de la ligne de flottaison`);
     await primary.click();
     await expect(page.locator(".task-detail-hero")).toBeVisible();
-    await expect(page).toHaveURL(/#\/tasks\/[^/]+$/);
+    await expect(page).toHaveURL(/#\/taches\/[^/]+$/);
     reportClicks(1);
   } else if (scenario.id === "S2") {
     await expect(page.locator('#view [data-scope="now"]')).toHaveAttribute("aria-pressed", "true");
-    const link = page.locator('#view .task-row a[href^="#/tasks/"]').first();
+    const link = page.locator('#view .task-row a[href^="#/taches/"]').first();
     if ((await link.count()) === 0) {
-      failures.push(`C1 échec ${where} : aucune tâche dans la vue « Maintenant » (sélecteur #view .task-row a[href^="#/tasks/"])`);
+      failures.push(`C1 échec ${where} : aucune tâche dans la vue « Maintenant » (sélecteur #view .task-row a[href^="#/taches/"])`);
       return failures;
     }
     await link.click();

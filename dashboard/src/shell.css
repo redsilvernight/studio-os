@@ -403,6 +403,21 @@ a.app-connection:hover .app-connection-label {
   max-width: calc(var(--ds-content-wide) - 2 * var(--ds-space-8));
 }
 
+.app-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  list-style: none;
+  margin: var(--ds-space-4) auto 0;
+  padding: 0;
+  width: calc(100% - 2 * var(--ds-space-8));
+  max-width: calc(var(--ds-content-wide) - 2 * var(--ds-space-8));
+}
+.app-breadcrumb li + li::before {
+  content: "/";
+  margin-right: var(--ds-space-2);
+}
+
 /* Focus visible renforcé sur fond nuit. */
 .app-sidebar :focus-visible {
   outline-color: #fff;
@@ -560,7 +575,8 @@ a.app-connection:hover .app-connection-label {
     scroll-margin-top: 60px;
   }
   .app-col .conflict-banner,
-  .app-col .studio-suspended-banner {
+  .app-col .studio-suspended-banner,
+  .app-breadcrumb ol {
     width: calc(100% - 2 * var(--ds-space-4));
   }
 }

@@ -6,7 +6,7 @@
  *   depuis la coque Atelier — lien direct ou famille sous Réglages. La palette
  *   Ctrl K reflète désormais les 10 entrées de la coque, pas les routes
  *   historiques ; l'accès rapide passe par Réglages.
- * - Liens profonds : chaque variante de route (y compris l'alias #/admin)
+ * - Liens profonds : chaque variante de route (y compris l'alias #/reglages)
  *   s'ouvre sans « Page introuvable » ni erreur console / CSP.
  * - Activation progressive : le mode de navigation « complet » se mémorise sur
  *   le poste et se quitte sans perte — même coque, même route, même contenu de
@@ -25,28 +25,28 @@ interface LegacyTarget {
 /** Destinations de la navigation d'avant la V2 (baseline.md) et leur route actuelle. */
 const SIDEBAR_TARGETS: readonly LegacyTarget[] = [
   { was: "Accueil", href: "#/", via: "sidebar" },
-  { was: "Projets", href: "#/projects", via: "sidebar" },
-  { was: "Tâches", href: "#/tasks", via: "sidebar" },
-  { was: "Équipe IA", href: "#/agents", via: "sidebar" },
-  { was: "Savoir-faire", href: "#/library", via: "sidebar" },
-  { was: "Décisions / À examiner", href: "#/decisions", via: "sidebar" },
-  { was: "Graphes", href: "#/vault", via: "sidebar" },
+  { was: "Projets", href: "#/projets", via: "sidebar" },
+  { was: "Tâches", href: "#/taches", via: "sidebar" },
+  { was: "Équipe IA", href: "#/equipe-ia", via: "sidebar" },
+  { was: "Savoir-faire", href: "#/connaissances/savoir-faire", via: "sidebar" },
+  { was: "Décisions / À examiner", href: "#/a-valider", via: "sidebar" },
+  { was: "Graphes", href: "#/connaissances/notes", via: "sidebar" },
 ];
 
 const ADMIN_TARGETS: readonly LegacyTarget[] = [
-  { was: "Transferts", href: "#/transfers", via: "admin" },
-  { was: "Machines", href: "#/machines", via: "admin" },
-  { was: "Comptes", href: "#/accounts", via: "admin" },
-  { was: "Paramètres", href: "#/configuration/runtimes", via: "admin" },
-  { was: "Dossiers (Desktop)", href: "#/workspaces", via: "admin" },
+  { was: "Transferts", href: "#/fichiers", via: "admin" },
+  { was: "Machines", href: "#/reglages/appareils", via: "admin" },
+  { was: "Comptes", href: "#/reglages/equipe-acces", via: "admin" },
+  { was: "Paramètres", href: "#/reglages/moteurs", via: "admin" },
+  { was: "Dossiers (Desktop)", href: "#/reglages/dossiers", via: "admin" },
 ];
 
-const INSPECTOR_TARGET: LegacyTarget = { was: "Inspecteur", href: "#/inspector", via: "admin" };
+const INSPECTOR_TARGET: LegacyTarget = { was: "Inspecteur", href: "#/reglages/avance/inspecteur", via: "admin" };
 
 /** La palette reflète les entrées de la coque, pas les routes expertes. */
 const PALETTE_TARGETS: readonly LegacyTarget[] = [
   ...SIDEBAR_TARGETS,
-  { was: "Réglages", href: "#/administration", via: "sidebar" },
+  { was: "Réglages", href: "#/reglages", via: "sidebar" },
   { was: "Abonnement", href: "#/abonnement", via: "sidebar" },
   { was: "Aide", href: "#/aide", via: "sidebar" },
 ];
@@ -67,7 +67,7 @@ async function reachLegacyTarget(page: Page, target: LegacyTarget): Promise<numb
     return 1;
   }
   // Coque Atelier : une entrée Réglages, puis la famille dans la page.
-  await page.locator('.app-sidebar a[href="#/administration"]').click();
+  await page.locator('.app-sidebar a[href="#/reglages"]').click();
   await expect(page.locator("#view h1")).toContainText("Réglages");
   await page.locator(`#view .admin-fams a[href="${target.href}"]`).click();
   return 2;
@@ -76,7 +76,7 @@ async function reachLegacyTarget(page: Page, target: LegacyTarget): Promise<numb
 async function expectLegacyReachable(page: Page, target: LegacyTarget): Promise<void> {
   const watch = watchErrors(page);
   await page.setViewportSize({ width: 1600, height: 900 });
-  await login(page, target.href === "#/" ? "#/projects" : "#/", newCaptured());
+  await login(page, target.href === "#/" ? "#/projets" : "#/", newCaptured());
 
   const clicks = await reachLegacyTarget(page, target);
   expect(clicks).toBeLessThanOrEqual(2);
@@ -109,50 +109,44 @@ test("Ctrl K palette lists the shell destinations and reaches expert families vi
   await page.locator("#app-palette-input").fill("réglages");
   const options = page.locator("#app-palette-list [role=option]");
   await expect(options).toHaveCount(1);
-  await expect(options.first()).toHaveAttribute("data-href", "#/administration");
+  await expect(options.first()).toHaveAttribute("data-href", "#/reglages");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/#\/administration$/);
-  await expect(page.locator("#view .admin-fams a[href='#/transfers']")).toBeVisible();
+  await expect(page).toHaveURL(/#\/reglages$/);
+  await expect(page.locator("#view .admin-fams a[href='#/fichiers']")).toBeVisible();
 });
 
 const DEEP_LINKS = [
-  "#/projects",
-  `#/projects/${P1}`,
-  `#/projects/${P1}/roadmap`,
-  `#/projects/${P1}/tasks`,
-  `#/projects/${P1}/claims`,
-  `#/projects/${P1}/activity`,
-  `#/projects/${P1}/decisions`,
-  `#/projects/${P1}/members`,
-  `#/projects/${P1}/ai-integration`,
-  "#/tasks",
-  `#/tasks/${T1}`,
-  "#/agents",
-  "#/machines",
-  "#/accounts",
-  "#/administration",
-  "#/admin",
-  "#/decisions",
-  "#/transfers",
-  "#/library",
-  "#/library/rules",
-  "#/library/skills",
-  `#/library/skills/${LIB_ID}`,
-  "#/configuration",
-  "#/configuration/runtimes",
-  "#/configuration/bindings",
-  "#/configuration/application",
-  "#/configuration/integrations",
-  "#/configuration/project",
-  "#/configuration/project/locks",
-  "#/workspaces",
-  "#/inspector",
-  // Atlas avant les anciennes URL : `#/graphs/*` est réécrit en `#/vault/atlas`.
-  "#/vault/atlas",
-  "#/graphs/knowledge",
-  "#/graphs/code",
-  "#/graphs/project",
-  "#/design-system",
+  "#/projets",
+  `#/projets/${P1}`,
+  `#/projets/${P1}/plan`,
+  `#/projets/${P1}/taches`,
+  `#/projets/${P1}/reservations`,
+  `#/projets/${P1}/activite`,
+  `#/projets/${P1}/decisions`,
+  `#/projets/${P1}/equipe`,
+  `#/projets/${P1}/integration-ia`,
+  "#/taches",
+  `#/taches/${T1}`,
+  "#/equipe-ia",
+  "#/reglages/appareils",
+  "#/reglages/equipe-acces",
+  "#/reglages",
+  "#/a-valider",
+  "#/fichiers",
+  "#/connaissances/savoir-faire",
+  "#/connaissances/savoir-faire/rules",
+  "#/connaissances/savoir-faire/skills",
+  `#/connaissances/savoir-faire/skills/${LIB_ID}`,
+  "#/reglages/moteurs",
+  "#/reglages/moteurs/affectations",
+  "#/reglages/application",
+  "#/reglages/connexions-ia",
+  "#/reglages/avance/projet",
+  "#/reglages/avance/projet/locks",
+  "#/reglages/dossiers",
+  "#/reglages/avance/inspecteur",
+  "#/connaissances/carte",
+  "#/reglages/avance/design-system",
 ] as const;
 
 test("every route variant opens as a real page (deep links kept)", async ({ page }) => {
@@ -162,6 +156,17 @@ test("every route variant opens as a real page (deep links kept)", async ({ page
   for (const hash of DEEP_LINKS) {
     await go(page, hash);
     await expect(page.locator("#view"), hash).not.toContainText("Page introuvable");
+  }
+  // Anciennes adresses (favoris, liens partagés) : réécrites puis ouvertes.
+  for (const [old, next] of [
+    [`#/projects/${P1}/claims`, `#/projets/${P1}/reservations`],
+    ["#/administration", "#/reglages"],
+    ["#/configuration/runtimes", "#/reglages/moteurs"],
+    ["#/graphs/knowledge", "#/connaissances/carte"],
+  ] as const) {
+    await page.evaluate((hash) => (location.hash = hash), old);
+    await expect.poll(() => page.evaluate(() => location.hash), old).toBe(next);
+    await expect(page.locator("#view"), old).not.toContainText("Page introuvable");
   }
   // Un hash inconnu reste une 404 explicite (jamais un repli silencieux).
   await go(page, "#/ancienne-page-disparue");
@@ -173,7 +178,7 @@ test("expert mode: switch in Réglages, remembered, adds nothing that moves the 
   const watch = watchErrors(page);
   await page.setViewportSize({ width: 1600, height: 900 });
   await login(page, "#/", newCaptured());
-  await go(page, "#/administration");
+  await go(page, "#/reglages");
 
   const navHrefs = (): Promise<(string | null)[]> =>
     page.locator(".app-sidebar a.app-navlink").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
@@ -189,7 +194,7 @@ test("expert mode: switch in Réglages, remembered, adds nothing that moves the 
   for (const target of PALETTE_TARGETS) {
     await expect(page.locator(`.app-sidebar a[href="${target.href}"]`), target.was).toBeVisible();
   }
-  await expect(page).toHaveURL(/#\/administration$/);
+  await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.getByTestId("connection-status")).toHaveCount(1);
   // Mémorisé sur le poste ; aucun jeton ni secret n'y est écrit.
   const stored = await page.evaluate(() => ({ ...localStorage, ...Object.fromEntries(Object.entries(sessionStorage)) }));
@@ -215,10 +220,10 @@ test("expert mode survives a reload and rail widths stay usable", async ({ page 
   const overflow = await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth));
   expect(overflow).toBe(0);
   await expect(page.locator(".app-sidebar a.app-navlink")).toHaveCount(PALETTE_TARGETS.length);
-  for (const href of ["#/", "#/projects", "#/tasks", "#/decisions", "#/agents", "#/library", "#/vault"]) {
+  for (const href of ["#/", "#/projets", "#/taches", "#/a-valider", "#/equipe-ia", "#/connaissances/savoir-faire", "#/connaissances/notes"]) {
     const link = page.locator(`.app-sidebar a[href="${href}"]`);
     await link.scrollIntoViewIfNeeded();
     await expect(link).toBeVisible();
   }
-  await expect(page.locator('section.app-navgroup--admin a[href="#/administration"]')).toBeVisible();
+  await expect(page.locator('section.app-navgroup--admin a[href="#/reglages"]')).toBeVisible();
 });

@@ -71,7 +71,7 @@ async function open(page: Page, role: string, stub: Stub): Promise<string[]> {
     if (CSP_RE.test(message.text())) errors.push(message.text());
   });
   await page.route("**/api/**", apiStub(role, stub));
-  await page.goto("/#/accounts");
+  await page.goto("/#/reglages/equipe-acces");
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
@@ -106,7 +106,7 @@ test.describe("A3 comptes", () => {
     await expect(page.locator("[data-msg]")).toContainText("Sessions révoquées");
 
     await page.locator(`[data-account-row="${DORA}"]`).getByRole("button", { name: "Voir les accès de Dora" }).click();
-    await expect(page.locator(`[data-access-body="${DORA}"] a`)).toHaveAttribute("href", `#/projects/${P1}/members`);
+    await expect(page.locator(`[data-access-body="${DORA}"] a`)).toHaveAttribute("href", `#/projets/${P1}/equipe`);
 
     expect(stub.adminCalls.filter((c) => c.includes(ADMIN))).toEqual([]);
     expect(stub.adminCalls).toEqual(

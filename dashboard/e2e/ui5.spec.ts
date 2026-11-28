@@ -230,7 +230,7 @@ test.describe("UI-5 liste des tâches", () => {
   test("Liste par défaut en français, sans clés techniques", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Travail");
     await expect(view.locator("h1")).toBeVisible();
@@ -252,7 +252,7 @@ test.describe("UI-5 liste des tâches", () => {
     await expect(view).not.toContainText("Load more");
     await expect(view).not.toContainText("unclaimed");
     // Chaque ligne ouvre le détail.
-    await expect(view.locator('.tasks-list a[href^="#/tasks/"]')).toHaveCount(3);
+    await expect(view.locator('.tasks-list a[href^="#/taches/"]')).toHaveCount(3);
     await expect(view.locator("#tasks-search")).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-liste-1280.png` });
     expect(csp).toEqual([]);
@@ -262,7 +262,7 @@ test.describe("UI-5 liste des tâches", () => {
   test("recherche locale + filtre statut + réinitialisation au clavier", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     await expect(view.locator(".task-row")).toHaveCount(3);
     await view.locator("#tasks-search").fill("éclairages");
@@ -287,7 +287,7 @@ test.describe("UI-5 liste des tâches", () => {
   test("Tableau : colonnes FR, déplacement clavier versionné", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
@@ -309,7 +309,7 @@ test.describe("UI-5 liste des tâches", () => {
   test("409 tableau : message humain, relecture, aucun retry silencieux", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks", captured, { patchConflict: true });
+    await login(page, "#/taches", captured, { patchConflict: true });
     const view = page.locator("#view");
     await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
@@ -327,7 +327,7 @@ test.describe("UI-5 création en modale", () => {
   test("ouverture, validation, Idempotency-Key, double soumission, Échap, retour focus", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     await expect(view.locator(".task-row")).toHaveCount(3);
     const openButton = view.locator("#task-new");
@@ -362,7 +362,7 @@ test.describe("UI-5 détail tâche", () => {
   test("fiche action-first : héros, blocages/validation prioritaires, mécanique repliée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000002", captured);
+    await login(page, "#/taches/aaaaaaaa-0000-4111-8111-000000000002", captured);
     const view = page.locator("#view");
 
     // Tête sans défilement : titre, point de statut, responsable, objectif,
@@ -430,7 +430,7 @@ test.describe("UI-5 détail tâche", () => {
   test("bloquée : le blocage passe devant tout, jamais un vide rassurant", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000001", captured, { taskIndex: 0 });
+    await login(page, "#/taches/aaaaaaaa-0000-4111-8111-000000000001", captured, { taskIndex: 0 });
     const view = page.locator("#view");
     const hero = view.locator(".task-detail-hero");
     await expect(hero.locator(".ds-status")).toContainText("Bloqué");
@@ -450,7 +450,7 @@ test.describe("UI-5 détail tâche", () => {
   test("libérer réservé au détenteur ou à un admin : autre machine = bouton inactif", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000002", captured, { meMachine: "cccccccc-0000-4111-8111-000000000009" });
+    await login(page, "#/taches/aaaaaaaa-0000-4111-8111-000000000002", captured, { meMachine: "cccccccc-0000-4111-8111-000000000009" });
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Optimiser les éclairages");
     await expect(view.locator("[data-release]")).toBeDisabled();
@@ -462,7 +462,7 @@ test.describe("UI-5 détail tâche", () => {
   test("édition 409 : conflit expliqué, relecture, réapplication consciente", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000002", captured, { patchConflict: true });
+    await login(page, "#/taches/aaaaaaaa-0000-4111-8111-000000000002", captured, { patchConflict: true });
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Optimiser les éclairages");
     await view.locator("#task-edit-title").fill("Titre modifié en conflit");
@@ -479,7 +479,7 @@ test.describe("UI-5 workspace projet / tâches", () => {
   test("onglet scopé, même système, deep link", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, `#/projects/${P1}/tasks`, captured);
+    await login(page, `#/projets/${P1}/taches`, captured);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toHaveCount(1);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
@@ -487,7 +487,7 @@ test.describe("UI-5 workspace projet / tâches", () => {
     await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Retour à la liste globale : deep link stable.
-    await page.goto("/#/tasks");
+    await page.goto("/#/taches");
     await expect(view.locator(".tasks-list").first()).toBeVisible();
     await page.goBack();
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
@@ -502,7 +502,7 @@ test.describe("UI-5 mobile 375", () => {
   test("liste, tableau et détail utilisables sans débordement global", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
-    await login(page, "#/tasks", captured);
+    await login(page, "#/taches", captured);
     const view = page.locator("#view");
     await expect(view.locator(".task-row").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-liste-mobile.png` });
@@ -510,7 +510,7 @@ test.describe("UI-5 mobile 375", () => {
     await view.locator('[data-view="board"]').click();
     await expect(view.locator(".kanban").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-tableau-mobile.png` });
-    await page.goto("/#/tasks/aaaaaaaa-0000-4111-8111-000000000002");
+    await page.goto("/#/taches/aaaaaaaa-0000-4111-8111-000000000002");
     await expect(view.locator("h1")).toContainText("Optimiser les éclairages");
     await page.screenshot({ path: `${SHOTS}/tache-detail-mobile.png` });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

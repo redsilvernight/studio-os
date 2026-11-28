@@ -150,7 +150,7 @@ async function login(page: Page, opts: StubOptions = {}): Promise<void> {
   await page.route("http://storage.test/**", async (route) => {
     await route.fulfill({ status: 200, headers: { ETag: '"e2e-etag"' }, body: "" });
   });
-  await page.goto("/#/transfers");
+  await page.goto("/#/fichiers");
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
@@ -185,8 +185,8 @@ test.describe("UI-10 page Transferts", () => {
     await expect(view).toContainText("1,5 Ko");
 
     // Contexte réel uniquement : projet + tâche vers les routes existantes.
-    await expect(view.locator(`a[href="#/projects/${P1}"]`)).toHaveCount(1);
-    await expect(view.locator(`a[href="#/tasks/${T1}"]`)).toHaveCount(1);
+    await expect(view.locator(`a[href="#/projets/${P1}"]`)).toHaveCount(1);
+    await expect(view.locator(`a[href="#/taches/${T1}"]`)).toHaveCount(1);
 
     // Le stockage reste technique : ni clé d'objet, ni URL signée en liste.
     await expect(view.locator(".transfers-list")).not.toContainText("secret-object-key");

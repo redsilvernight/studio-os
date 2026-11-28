@@ -165,7 +165,7 @@ describe("missionRunHtml", () => {
     root.innerHTML = missionRunHtml(run({ session: { id: "99999999-0000-4000-8000-000000000001", status: "active", started_at: "2026-10-10T10:00:00Z" } }));
     root.querySelectorAll(".ds-tech").forEach((n) => n.remove());
     expect(root.textContent ?? "").not.toMatch(UUID);
-    expect(root.querySelector("a")?.getAttribute("href")).toMatch(/^#\/tasks\//);
+    expect(root.querySelector("a")?.getAttribute("href")).toMatch(/^#\/taches\//);
   });
 });
 
@@ -277,7 +277,7 @@ describe("renderMissionSummaryInto", () => {
     await renderMissionSummaryInto(root, { client, projectId: "p1", authed: true });
     const shown = [...root.querySelectorAll("[data-mission-run]")].map((n) => n.getAttribute("data-verdict"));
     expect(shown).toEqual(["waiting_human", "needs_attention", "stale"]);
-    expect(root.querySelector("[data-mission-summary] a[href='#/projects/p1/mission']")).not.toBeNull();
+    expect(root.querySelector("[data-mission-summary] a[href='#/projets/p1/executions']")).not.toBeNull();
     expect(root.querySelector("[data-mission-counts]")).not.toBeNull();
   });
 });

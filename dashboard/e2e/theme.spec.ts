@@ -7,7 +7,7 @@
  *   - le sélecteur de la barre latérale change le thème et le mémorise ;
  *   - « Système » SUPPRIME la clé localStorage (l'absence de clé vaut
  *     suivi du système) ;
- *   - `#/design-system` montre les deux thèmes côte à côte, avec des
+ *   - `#/reglages/avance/design-system` montre les deux thèmes côte à côte, avec des
  *     fonds réellement différents.
  */
 import { expect, test } from "@playwright/test";
@@ -124,9 +124,9 @@ test("le script de pré-rendu pose le thème avant le premier rendu", async ({ p
   expect(timeline.some((entry) => entry === "theme:dark")).toBe(true);
 });
 
-test("#/design-system montre les deux thèmes côte à côte", async ({ page }) => {
+test("#/reglages/avance/design-system montre les deux thèmes côte à côte", async ({ page }) => {
   await stubApi(page);
-  await page.goto("/#/design-system");
+  await page.goto("/#/reglages/avance/design-system");
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");

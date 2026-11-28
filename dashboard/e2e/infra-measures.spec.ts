@@ -20,7 +20,7 @@ async function open(page: import("@playwright/test").Page, role: "admin" | "deve
     if (path.endsWith("/internal/infra-measurements")) return role === "admin" ? json(report) : json({ detail: "insufficient role" }, 403);
     return json([]);
   });
-  await page.goto("/#/administration/mesures");
+  await page.goto("/#/reglages/mesures");
   await page.locator("#login-email").fill("e2e@example.test");
   await page.locator("#login-password").fill("e2e-secret");
   await page.locator("#login-form button[type=submit]").click();

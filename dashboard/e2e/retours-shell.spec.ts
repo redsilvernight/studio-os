@@ -49,7 +49,7 @@ for (const width of [1600, 1100, 390]) {
   test(`Studio en bas, accessible au clavier à ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await prepare(page);
-    await login(page, "#/design-system");
+    await login(page, "#/reglages/avance/design-system");
     if (width <= 900) await page.locator("#nav-open").click();
     const groups = page.locator(".app-nav > .app-navgroup");
     await expect(groups.last()).toHaveClass(/app-navgroup--admin/);
@@ -66,13 +66,13 @@ for (const width of [1600, 1100, 390]) {
     expect(scan.violations).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`studio-${width}.png`) });
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/#\/administration$/);
+    await expect(page).toHaveURL(/#\/reglages$/);
     await expect(reglages).toHaveAttribute("aria-current", "page");
     // Les anciennes familles restent à un clic de Réglages.
-    const comptes = page.locator('#view .admin-fams a[href="#/accounts"]');
+    const comptes = page.locator('#view .admin-fams a[href="#/reglages/equipe-acces"]');
     await expect(comptes).toBeVisible();
     await comptes.click();
-    await expect(page).toHaveURL(/#\/accounts$/);
+    await expect(page).toHaveURL(/#\/reglages\/equipe-acces$/);
     await expect(reglages).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".app-sidebar details")).toHaveCount(0);
   });
@@ -80,7 +80,7 @@ for (const width of [1600, 1100, 390]) {
 
 test("réservations : ordre décroissant conservé entre pages et filtres", async ({ page }) => {
   await prepare(page);
-  await login(page, `#/projects/${PROJECT_ID}/claims`);
+  await login(page, `#/projets/${PROJECT_ID}/reservations`);
   const rows = page.locator("[data-list] tbody tr");
   await expect(rows.first()).toContainText("fichier-24.py");
   await page.locator("[data-filter]").selectOption("all");
@@ -93,7 +93,7 @@ test("réservations : ordre décroissant conservé entre pages et filtres", asyn
 
 test("activité : plus de 500 événements, tri et accès à un ancien mois", async ({ page }, testInfo) => {
   await prepare(page);
-  await login(page, `#/projects/${PROJECT_ID}/activity`);
+  await login(page, `#/projets/${PROJECT_ID}/activite`);
   const items = page.locator(".tl-item");
   await expect(items).toHaveCount(200);
   await expect(items.first()).toContainText("2026-10-20 activité 0");
@@ -132,7 +132,7 @@ test("mise à jour Desktop : installation directe, erreur, progression et redém
     };
     (window as unknown as { __TAURI__: unknown }).__TAURI__ = { core: { invoke } };
   });
-  await login(page, "#/design-system");
+  await login(page, "#/reglages/avance/design-system");
   const banner = page.locator("#desktop-update-banner");
   await expect(banner.getByRole("button", { name: "Installer", exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { updateTest: { installs: number } }).updateTest.installs)).toBe(0);
@@ -145,5 +145,5 @@ test("mise à jour Desktop : installation directe, erreur, progression et redém
   await page.evaluate(() => (window as unknown as { updateTest: { finish: (() => void) | null } }).updateTest.finish?.());
   await banner.getByRole("button", { name: "Redémarrer l'application" }).click();
   expect(await page.evaluate(() => (window as unknown as { updateTest: { installs: number; restarts: number } }).updateTest)).toMatchObject({ installs: 2, restarts: 1 });
-  await expect(page).toHaveURL(/#\/design-system$/);
+  await expect(page).toHaveURL(/#\/reglages\/avance\/design-system$/);
 });

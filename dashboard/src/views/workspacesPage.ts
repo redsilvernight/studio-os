@@ -136,7 +136,7 @@ function cardsHtml(state: PageState): string {
     const edit = state.editing === item.workspace_id && config;
     return `<li class="ds-card" data-workspace="${esc(item.workspace_id)}">${workspaceDetailHtml(view)}` +
       `<p>Poste : ${esc(machine)} · Dossier vérifié sur ce poste</p>` +
-      `<div class="settings-actions">${config ? `<a class="ds-btn" href="#/projects/${esc(config.project_id)}">Ouvrir le projet</a> <button type="button" class="ds-btn" data-workspace-edit="${esc(item.workspace_id)}">Configurer le dossier</button> <a class="ds-btn" href="#/configuration/integrations/${esc(item.workspace_id)}">Configurer les outils</a>` : ""}</div>` +
+      `<div class="settings-actions">${config ? `<a class="ds-btn" href="#/projets/${esc(config.project_id)}">Ouvrir le projet</a> <button type="button" class="ds-btn" data-workspace-edit="${esc(item.workspace_id)}">Configurer le dossier</button> <a class="ds-btn" href="#/reglages/connexions-ia/${esc(item.workspace_id)}">Configurer les outils</a>` : ""}</div>` +
       (edit ? `<form data-workspace-config="${esc(item.workspace_id)}"><h3>Réglages de ce dossier</h3><label><input name="watchers" type="checkbox"${config.features?.watchers !== false ? " checked" : ""}> Activer le suivi Git de ce dossier</label>` +
         `<p class="ds-list-sub">Le suivi observe les dépôts Git existants lorsque l'assistant local est démarré. Un dossier sans dépôt reste utilisable.</p><p><button type="submit" class="ds-btn ds-btn--primary"${state.busy ? " disabled" : ""}>Enregistrer le suivi</button> <button type="button" class="ds-btn" data-workspace-move="${esc(item.workspace_id)}"${state.busy ? " disabled" : ""}>Choisir le nouvel emplacement</button></p></form>` +
         // P3 : la mémoire, l'environnement et l'assistant IA du dossier sont
@@ -148,7 +148,7 @@ function cardsHtml(state: PageState): string {
 
 export function workspacesPageHtml(mode: "web" | "desktop", outcome: FolderPickOutcome | null, state?: PageState): string {
   const header = `<p class="ds-hero-eyebrow">Réglages / Dossiers du projet</p>` + dsPageHeader("Dossiers du projet", "Projets, dossiers locaux et poste.");
-  if (mode === "web") return `${header}<section class="ds-card" data-testid="workspaces-web"><p>Les dossiers locaux sont gérés dans Studi'OS Desktop.</p><p class="ds-list-sub">Le navigateur permet de consulter les projets ; l'association d'un dossier, son suivi et son ouverture restent propres à chaque poste Desktop.</p><a class="ds-btn" href="#/projects">Ouvrir les projets</a></section>`;
+  if (mode === "web") return `${header}<section class="ds-card" data-testid="workspaces-web"><p>Les dossiers locaux sont gérés dans Studi'OS Desktop.</p><p class="ds-list-sub">Le navigateur permet de consulter les projets ; l'association d'un dossier, son suivi et son ouverture restent propres à chaque poste Desktop.</p><a class="ds-btn" href="#/projets">Ouvrir les projets</a></section>`;
   return `${header}<section class="ds-card" data-testid="workspaces-desktop">` +
     `${state?.error ? `<p class="ds-notice ds-notice--danger" role="alert">${esc(state.error)}</p>` : ""}` +
     `${state?.notice ? `<p role="status">${esc(state.notice)}</p>` : ""}` +

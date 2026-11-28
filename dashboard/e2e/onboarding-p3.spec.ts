@@ -115,7 +115,7 @@ test.describe("P3 onboarding Desktop : poste seul", () => {
     await expect(step).toHaveAttribute("data-step", "final");
     await expect(step).toContainText("Votre poste est prêt");
     await expect(step).not.toContainText("Associez un dossier");
-    await expect(page.locator('[data-testid="onboarding-to-workspaces"]')).toHaveAttribute("href", "#/workspaces");
+    await expect(page.locator('[data-testid="onboarding-to-workspaces"]')).toHaveAttribute("href", "#/reglages/dossiers");
     expect(await page.locator('[data-testid="onboarding-step"] [data-action="finish"]').isDisabled()).toBe(false);
     expect((await new AxeBuilder({ page }).include('[data-testid="onboarding-step"]').analyze()).violations).toEqual([]);
 

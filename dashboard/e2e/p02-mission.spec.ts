@@ -2,7 +2,7 @@
  * P02 — Mission Control (vue projet, lecture seule), API stubbée déterministe.
  *
  * Ne dépend que du contrat DOM de docs/mission-control/ui.md et des routes
- * `#/projects/<id>` (vue d'ensemble) et `#/projects/<id>/mission` (onglet).
+ * `#/projets/<id>` (vue d'ensemble) et `#/projets/<id>/mission` (onglet).
  * Le read model GET /api/v1/projects/{id}/mission est stubbé avec des données
  * conformes à components["schemas"]["ProjectMission"], y compris un verdict
  * inconnu (vocabulaire additif) et une lacune `machine_unknown`.
@@ -205,7 +205,7 @@ async function loginMission(page: Page, startHash: string, options: MissionOptio
   return capture;
 }
 
-const MISSION_HASH = `#/projects/${P1}/mission`;
+const MISSION_HASH = `#/projets/${P1}/executions`;
 const runLocator = (page: Page, runId: string) => page.locator(`[data-mission-run="${runId}"]`);
 
 test("onglet : compteurs de fenêtre, verdict par run, résultat du handoff, verdict inconnu toléré", async ({ page }) => {
@@ -244,7 +244,7 @@ test("onglet : compteurs de fenêtre, verdict par run, résultat du handoff, ver
 
 test("vue d'ensemble : section résumée, au plus 3 runs à regarder, lien vers l'onglet", async ({ page }) => {
   const watch = watchErrors(page);
-  await loginMission(page, `#/projects/${P1}`);
+  await loginMission(page, `#/projets/${P1}`);
 
   const summary = page.locator("[data-mission-summary]");
   await expect(summary).toBeVisible({ timeout: 15_000 });

@@ -285,7 +285,7 @@ function apiStub(captured: Captured) {
 
 async function openTaskDetail(page: Page, captured: Captured): Promise<void> {
   await page.route("**/api/**", apiStub(captured));
-  await page.goto(`/#/tasks/${TASK_ID}`);
+  await page.goto(`/#/taches/${TASK_ID}`);
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
@@ -442,7 +442,7 @@ test("divulgation progressive : repli fermé par défaut, ancre interne qui l'ou
   );
   const errors = watchErrors(page);
   await page.route("**/api/**", apiStub(captured));
-  await page.goto(`/#/tasks/${TASK_ID}`);
+  await page.goto(`/#/taches/${TASK_ID}`);
   await expect(page.locator("#login-form")).toBeVisible();
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
@@ -464,7 +464,7 @@ test("divulgation progressive : repli fermé par défaut, ancre interne qui l'ou
   await expect(page.locator("#task-mecanique")).toHaveAttribute("open", "");
   await expect(page.locator("#task-sessions")).toBeVisible();
   await expect(page.locator("h1")).toHaveText(TASK.title);
-  await expect(page).toHaveURL(new RegExp(`#/tasks/${TASK_ID}$`));
+  await expect(page).toHaveURL(new RegExp(`#/taches/${TASK_ID}$`));
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
