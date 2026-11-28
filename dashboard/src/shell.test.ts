@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
+import { breadcrumbHtml } from "./breadcrumb";
 import { parseRoute } from "./router";
 import {
   mountAdminFlyout,
   paintConnection,
-  breadcrumbHtml,
   shellHtml,
   shellNavGroups,
   studioSelectorHtml,

@@ -38,7 +38,7 @@ import { canonicalHash } from "./routeAliases";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
 import { applyUiMode, loadUiMode, switchUiMode, toggledUiMode, watchExpertMode } from "./uiMode";
 import { applyThemeMode, isThemeMode, loadThemeMode, saveThemeMode } from "./theme";
-import { breadcrumbHtml, mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
+import { mountAdminFlyout, paintConnection, shellHtml, syncAuthState, syncNav, syncStudioSelector } from "./shell";
 import { listStudios, probeServer, type StudiosClient } from "./studiosApi";
 import {
   STUDIO_CHANGE_EVENT,
@@ -474,7 +474,10 @@ export function webConnectionView(authed: boolean): Parameters<typeof paintConne
 function paintNavAndConnection(route: Route, authed: boolean): void {
   syncNav(route, document, getDesktopShell() !== null, loadUiMode(), studioRole(), studioPlan());
   const crumbSlot = document.getElementById("breadcrumb-slot");
-  if (crumbSlot !== null) crumbSlot.innerHTML = breadcrumbHtml(route);
+  if (crumbSlot !== null) {
+    // Route relue à l'arrivée du chunk : une navigation entre-temps l'emporte.
+    void import("./breadcrumb").then((m) => (crumbSlot.innerHTML = m.breadcrumbHtml(parseRoute(location.hash))), () => {});
+  }
   if (getDesktopShell() === null) paintConnection(webConnectionView(authed), document);
   else syncAuthState(authed, document);
 }
